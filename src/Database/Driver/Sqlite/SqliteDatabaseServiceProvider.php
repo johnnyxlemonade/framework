@@ -12,10 +12,16 @@ final class SqliteDatabaseServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
-        $container->singleton(SqliteSqlEscaper::class, static function (ContainerInterface $container): SqliteSqlEscaper {
+        $container->singleton(SqliteIdentifierEscaper::class, static function (ContainerInterface $container): SqliteIdentifierEscaper {
             $config = $container->get(DatabaseConfig::class);
 
-            return new SqliteSqlEscaper($config);
+            return new SqliteIdentifierEscaper($config->prefix());
+        });
+
+        $container->singleton(SqliteSqlEscaper::class, static function (ContainerInterface $container): SqliteSqlEscaper {
+            return new SqliteSqlEscaper(
+                $container->get(SqliteIdentifierEscaper::class),
+            );
         });
 
         $container->singleton(SqliteSchemaGrammar::class, static function (ContainerInterface $container): SqliteSchemaGrammar {

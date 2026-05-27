@@ -10,6 +10,8 @@ use Lemonade\Framework\Database\Connection\Driver;
 use Lemonade\Framework\Database\DatabaseDriverRegistry;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlSchemaGrammar;
+use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
+use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSchemaGrammar;
@@ -123,6 +125,48 @@ final class PdoDatabaseServiceProviderTest extends TestCase
             ]),
             $container,
         );
+    }
+
+    public function testPdoDriverWiringUsesMysqlStyleIdentifierProtectionForMysqlDialect(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'mysql',
+            'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
+        ]);
+
+        $driver = $registry->resolveDriver(
+            Driver::Pdo,
+            new PdoConnection($config),
+            $config,
+            $container,
+        );
+
+        self::assertInstanceOf(PdoDatabaseDriver::class, $driver);
+        self::assertSame('`users`.`id`', $driver->protect_identifiers('users.id'));
+    }
+
+    public function testPdoDriverWiringUsesSqliteStyleIdentifierProtectionForSqliteDialect(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'sqlite',
+            'dsn' => 'sqlite::memory:',
+        ]);
+
+        $driver = $registry->resolveDriver(
+            Driver::Pdo,
+            new PdoConnection($config),
+            $config,
+            $container,
+        );
+
+        self::assertInstanceOf(PdoDatabaseDriver::class, $driver);
+        self::assertSame('"users"."id"', $driver->protect_identifiers('users.id'));
     }
 
     /**

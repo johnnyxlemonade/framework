@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Database\Driver\Mysql;
 
-use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Mysql\MysqlIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlSqlEscaper;
 use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
 use PHPUnit\Framework\TestCase;
@@ -13,7 +13,7 @@ final class MysqlSqlEscaperTest extends TestCase
 {
     public function testIdentifierEscaping(): void
     {
-        $escaper = new MysqlSqlEscaper($this->config('pre_'));
+        $escaper = new MysqlSqlEscaper(new MysqlIdentifierEscaper('pre_'));
 
         self::assertSame('`users`', $escaper->identifier('users'));
         self::assertSame('`schema`.`users`', $escaper->identifier('schema.users'));
@@ -23,7 +23,7 @@ final class MysqlSqlEscaperTest extends TestCase
 
     public function testTablePrefixing(): void
     {
-        $escaper = new MysqlSqlEscaper($this->config('pre_'));
+        $escaper = new MysqlSqlEscaper(new MysqlIdentifierEscaper('pre_'));
 
         self::assertSame('`pre_users`', $escaper->table('users'));
         self::assertSame('`pre_users`', $escaper->table('pre_users'));
@@ -31,7 +31,7 @@ final class MysqlSqlEscaperTest extends TestCase
 
     public function testValueEscapingAndTypes(): void
     {
-        $escaper = new MysqlSqlEscaper($this->config(''));
+        $escaper = new MysqlSqlEscaper(new MysqlIdentifierEscaper(''));
 
         self::assertSame('NULL', $escaper->value(null));
         self::assertSame('1', $escaper->value(true));
@@ -44,17 +44,4 @@ final class MysqlSqlEscaperTest extends TestCase
         self::assertSame("''", $escaper->value(['x']));
     }
 
-    private function config(string $prefix): DatabaseConfig
-    {
-        return DatabaseConfig::fromArray([
-            'driver' => 'mysql',
-            'host' => '127.0.0.1',
-            'port' => 3306,
-            'database' => 'test',
-            'username' => 'root',
-            'password' => '',
-            'charset' => 'utf8mb4',
-            'prefix' => $prefix,
-        ]);
-    }
 }

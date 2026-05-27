@@ -12,6 +12,7 @@ use Lemonade\Framework\Database\Connection\Driver;
 use Lemonade\Framework\Database\DatabaseDriverRegistry;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
+use Lemonade\Framework\Database\Sql\IdentifierProtector;
 
 final class OdbcDatabaseServiceProvider implements ServiceProviderInterface
 {
@@ -32,17 +33,26 @@ final class OdbcDatabaseServiceProvider implements ServiceProviderInterface
         $container->singleton(OdbcDatabaseDriver::class, static function (ContainerInterface $container): OdbcDatabaseDriver {
             $connection = $container->get(OdbcConnection::class);
             $config = $container->get(DatabaseConfig::class);
+            $identifierEscaper = $container->get(OdbcIdentifierEscaper::class);
+            $identifierProtector = new IdentifierProtector($identifierEscaper);
 
             return new OdbcDatabaseDriver(
                 connection: $connection,
-                config: $config,
+                identifierEscaper: $identifierEscaper,
+                identifierProtector: $identifierProtector,
             );
         });
 
-        $container->singleton(OdbcSqlEscaper::class, static function (ContainerInterface $container): OdbcSqlEscaper {
+        $container->singleton(OdbcIdentifierEscaper::class, static function (ContainerInterface $container): OdbcIdentifierEscaper {
             $config = $container->get(DatabaseConfig::class);
 
-            return new OdbcSqlEscaper($config);
+            return new OdbcIdentifierEscaper($config->prefix());
+        });
+
+        $container->singleton(OdbcSqlEscaper::class, static function (ContainerInterface $container): OdbcSqlEscaper {
+            return new OdbcSqlEscaper(
+                $container->get(OdbcIdentifierEscaper::class),
+            );
         });
 
         $container->singleton(OdbcSchemaGrammar::class, static function (ContainerInterface $container): OdbcSchemaGrammar {
@@ -64,7 +74,7 @@ final class OdbcDatabaseServiceProvider implements ServiceProviderInterface
                 DatabaseConfig $config,
                 ContainerInterface $container,
             ): OdbcDatabaseDriver {
-                unset($container);
+                unset($config);
 
                 if (!$connection instanceof OdbcConnection) {
                     throw DatabaseException::invalidConfiguration(
@@ -72,9 +82,13 @@ final class OdbcDatabaseServiceProvider implements ServiceProviderInterface
                     );
                 }
 
+                $identifierEscaper = $container->get(OdbcIdentifierEscaper::class);
+                $identifierProtector = new IdentifierProtector($identifierEscaper);
+
                 return new OdbcDatabaseDriver(
                     connection: $connection,
-                    config: $config,
+                    identifierEscaper: $identifierEscaper,
+                    identifierProtector: $identifierProtector,
                 );
             },
         );

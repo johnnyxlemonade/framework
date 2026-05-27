@@ -4,23 +4,16 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Driver\Pdo;
 
-use Lemonade\Framework\Database\DatabaseResult;
+use Lemonade\Framework\Database\Result\ArrayDatabaseResult;
 
-final class PdoResult extends DatabaseResult
+final class PdoResult extends ArrayDatabaseResult
 {
-    /**
-     * @var list<array<string, mixed>>
-     */
-    private array $rows;
-
-    private int $pointer = 0;
-
     /**
      * @param list<array<string, mixed>> $rows
      */
     private function __construct(array $rows)
     {
-        $this->rows = $rows;
+        parent::__construct($rows);
     }
 
     /**
@@ -29,11 +22,6 @@ final class PdoResult extends DatabaseResult
     public static function fromRows(array $rows): self
     {
         return new self($rows);
-    }
-
-    public function num_rows(): int
-    {
-        return count($this->rows);
     }
 
     public function num_fields(): int
@@ -77,32 +65,4 @@ final class PdoResult extends DatabaseResult
         return $fields;
     }
 
-    public function data_seek(int $n = 0): bool
-    {
-        if ($n < 0 || $n >= count($this->rows)) {
-            return false;
-        }
-
-        $this->pointer = $n;
-
-        return true;
-    }
-
-    public function free_result(): void
-    {
-        $this->rows = [];
-        $this->pointer = 0;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    protected function fetchAssoc(): ?array
-    {
-        if (!isset($this->rows[$this->pointer])) {
-            return null;
-        }
-
-        return $this->rows[$this->pointer++];
-    }
 }

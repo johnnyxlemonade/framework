@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Database\Driver\Sqlite;
 
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSchemaGrammar;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSqlEscaper;
 use Lemonade\Framework\Database\Schema\Blueprint\TableBlueprint;
@@ -199,7 +200,7 @@ final class SqliteSchemaGrammarTest extends TestCase
         ], $config));
 
         return new SqliteSchemaGrammar(
-            new SqliteSqlEscaper($dbConfig),
+            new SqliteSqlEscaper(new SqliteIdentifierEscaper($dbConfig->prefix())),
             $dbConfig,
         );
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Database\Driver\Odbc;
 
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Odbc\OdbcIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcSchemaGrammar;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcSqlEscaper;
 use Lemonade\Framework\Database\Schema\Blueprint\TableBlueprint;
@@ -249,7 +250,7 @@ final class OdbcSchemaGrammarTest extends TestCase
             'collation' => '',
             'prefix' => '',
         ], $config));
-        $escaper = new OdbcSqlEscaper($dbConfig);
+        $escaper = new OdbcSqlEscaper(new OdbcIdentifierEscaper($dbConfig->prefix()));
 
         return new OdbcSchemaGrammar($escaper, $dbConfig);
     }

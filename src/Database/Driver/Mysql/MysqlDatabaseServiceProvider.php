@@ -12,6 +12,7 @@ use Lemonade\Framework\Database\Connection\Driver;
 use Lemonade\Framework\Database\DatabaseDriverRegistry;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
+use Lemonade\Framework\Database\Sql\IdentifierProtector;
 
 final class MysqlDatabaseServiceProvider implements ServiceProviderInterface
 {
@@ -32,17 +33,27 @@ final class MysqlDatabaseServiceProvider implements ServiceProviderInterface
         $container->singleton(MysqlDatabaseDriver::class, static function (ContainerInterface $container): MysqlDatabaseDriver {
             $connection = $container->get(MysqlConnectionInterface::class);
             $config = $container->get(DatabaseConfig::class);
+            $identifierEscaper = $container->get(MysqlIdentifierEscaper::class);
+            $identifierProtector = new IdentifierProtector($identifierEscaper);
 
             return new MysqlDatabaseDriver(
                 connection: $connection,
                 config: $config,
+                identifierEscaper: $identifierEscaper,
+                identifierProtector: $identifierProtector,
             );
         });
 
-        $container->singleton(MysqlSqlEscaper::class, static function (ContainerInterface $container): MysqlSqlEscaper {
+        $container->singleton(MysqlIdentifierEscaper::class, static function (ContainerInterface $container): MysqlIdentifierEscaper {
             $config = $container->get(DatabaseConfig::class);
 
-            return new MysqlSqlEscaper($config);
+            return new MysqlIdentifierEscaper($config->prefix());
+        });
+
+        $container->singleton(MysqlSqlEscaper::class, static function (ContainerInterface $container): MysqlSqlEscaper {
+            return new MysqlSqlEscaper(
+                $container->get(MysqlIdentifierEscaper::class),
+            );
         });
 
         $container->singleton(MysqlSchemaGrammar::class, static function (ContainerInterface $container): MysqlSchemaGrammar {
@@ -64,17 +75,20 @@ final class MysqlDatabaseServiceProvider implements ServiceProviderInterface
                 DatabaseConfig $config,
                 ContainerInterface $container,
             ): MysqlDatabaseDriver {
-                unset($container);
-
                 if (!$connection instanceof MysqlConnectionInterface) {
                     throw DatabaseException::invalidConfiguration(
                         'Driver "mysql" requires MysqlConnectionInterface.',
                     );
                 }
 
+                $identifierEscaper = $container->get(MysqlIdentifierEscaper::class);
+                $identifierProtector = new IdentifierProtector($identifierEscaper);
+
                 return new MysqlDatabaseDriver(
                     connection: $connection,
                     config: $config,
+                    identifierEscaper: $identifierEscaper,
+                    identifierProtector: $identifierProtector,
                 );
             },
         );

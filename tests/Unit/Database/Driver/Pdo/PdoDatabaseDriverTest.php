@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Database\Driver\Pdo;
 
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Mysql\MysqlIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
+use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
+use Lemonade\Framework\Database\Sql\IdentifierProtector;
 use PHPUnit\Framework\TestCase;
 
 final class PdoDatabaseDriverTest extends TestCase
@@ -21,7 +24,8 @@ final class PdoDatabaseDriverTest extends TestCase
 
         $driver = new PdoDatabaseDriver(
             connection: new PdoConnection($config),
-            config: $config,
+            identifierEscaper: new MysqlIdentifierEscaper($config->prefix()),
+            identifierProtector: new IdentifierProtector(new MysqlIdentifierEscaper($config->prefix())),
         );
 
         self::assertSame('`table`', $driver->escape_identifiers('table'));
@@ -40,7 +44,8 @@ final class PdoDatabaseDriverTest extends TestCase
 
         $driver = new PdoDatabaseDriver(
             connection: new PdoConnection($config),
-            config: $config,
+            identifierEscaper: new MysqlIdentifierEscaper($config->prefix()),
+            identifierProtector: new IdentifierProtector(new MysqlIdentifierEscaper($config->prefix())),
         );
 
         self::assertSame('`users`.`id`', $driver->protect_identifiers('users.id'));
@@ -58,7 +63,8 @@ final class PdoDatabaseDriverTest extends TestCase
 
         $driver = new PdoDatabaseDriver(
             connection: new PdoConnection($config),
-            config: $config,
+            identifierEscaper: new SqliteIdentifierEscaper($config->prefix()),
+            identifierProtector: new IdentifierProtector(new SqliteIdentifierEscaper($config->prefix())),
         );
 
         self::assertSame('"users"."id"', $driver->protect_identifiers('users.id'));

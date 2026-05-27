@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Driver\Odbc;
 
-use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
 
 final class OdbcSqlEscaper
 {
     public function __construct(
-        private readonly DatabaseConfig $config,
+        private readonly OdbcIdentifierEscaper $identifierEscaper,
     ) {}
 
     public function value(mixed $value): string
@@ -40,26 +39,11 @@ final class OdbcSqlEscaper
 
     public function identifier(string $identifier): string
     {
-        if ($identifier === '*') {
-            return '*';
-        }
-
-        $parts = explode('.', $identifier);
-
-        return implode('.', array_map(
-            static fn(string $part): string => '"' . str_replace('"', '""', $part) . '"',
-            $parts,
-        ));
+        return $this->identifierEscaper->identifier($identifier);
     }
 
     public function table(string $table): string
     {
-        $prefix = $this->config->prefix();
-
-        if ($prefix !== '' && !str_starts_with($table, $prefix)) {
-            $table = $prefix . $table;
-        }
-
-        return $this->identifier($table);
+        return $this->identifierEscaper->table($table);
     }
 }

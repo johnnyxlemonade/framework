@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Database\Driver\Sqlite;
 
-use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSqlEscaper;
 use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
 use PHPUnit\Framework\TestCase;
@@ -36,11 +36,6 @@ final class SqliteSqlEscaperTest extends TestCase
 
     private function escaper(string $prefix = ''): SqliteSqlEscaper
     {
-        return new SqliteSqlEscaper(DatabaseConfig::fromArray([
-            'driver' => 'pdo',
-            'dialect' => 'sqlite',
-            'prefix' => $prefix,
-            'dsn' => 'sqlite::memory:',
-        ]));
+        return new SqliteSqlEscaper(new SqliteIdentifierEscaper($prefix));
     }
 }

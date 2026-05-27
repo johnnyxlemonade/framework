@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Database\Driver\Mysql;
 
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Mysql\MysqlIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlSchemaGrammar;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlSqlEscaper;
 use Lemonade\Framework\Database\Schema\Blueprint\TableBlueprint;
@@ -270,7 +271,7 @@ final class MysqlSchemaGrammarTest extends TestCase
             'collation' => '',
             'prefix' => '',
         ], $config));
-        $escaper = new MysqlSqlEscaper($dbConfig);
+        $escaper = new MysqlSqlEscaper(new MysqlIdentifierEscaper($dbConfig->prefix()));
 
         return new MysqlSchemaGrammar($escaper, $dbConfig);
     }

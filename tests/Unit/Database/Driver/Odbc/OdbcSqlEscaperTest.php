@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Database\Driver\Odbc;
 
-use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Odbc\OdbcIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcSqlEscaper;
 use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
 use PHPUnit\Framework\TestCase;
@@ -13,7 +13,7 @@ final class OdbcSqlEscaperTest extends TestCase
 {
     public function testIdentifierEscaping(): void
     {
-        $escaper = new OdbcSqlEscaper($this->config('pre_'));
+        $escaper = new OdbcSqlEscaper(new OdbcIdentifierEscaper('pre_'));
 
         self::assertSame('"users"', $escaper->identifier('users'));
         self::assertSame('"schema"."users"', $escaper->identifier('schema.users'));
@@ -23,7 +23,7 @@ final class OdbcSqlEscaperTest extends TestCase
 
     public function testTablePrefixing(): void
     {
-        $escaper = new OdbcSqlEscaper($this->config('pre_'));
+        $escaper = new OdbcSqlEscaper(new OdbcIdentifierEscaper('pre_'));
 
         self::assertSame('"pre_users"', $escaper->table('users'));
         self::assertSame('"pre_users"', $escaper->table('pre_users'));
@@ -31,7 +31,7 @@ final class OdbcSqlEscaperTest extends TestCase
 
     public function testValueEscapingAndTypes(): void
     {
-        $escaper = new OdbcSqlEscaper($this->config(''));
+        $escaper = new OdbcSqlEscaper(new OdbcIdentifierEscaper(''));
 
         self::assertSame('NULL', $escaper->value(null));
         self::assertSame('1', $escaper->value(true));
@@ -43,17 +43,4 @@ final class OdbcSqlEscaperTest extends TestCase
         self::assertSame("''", $escaper->value(['x']));
     }
 
-    private function config(string $prefix): DatabaseConfig
-    {
-        return DatabaseConfig::fromArray([
-            'driver' => 'odbc',
-            'host' => '127.0.0.1',
-            'port' => 1433,
-            'database' => 'test',
-            'username' => 'sa',
-            'password' => '',
-            'charset' => '',
-            'prefix' => $prefix,
-        ]);
-    }
 }
