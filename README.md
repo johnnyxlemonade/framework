@@ -55,7 +55,7 @@ index.php
 ### CLI
 
 ```text
-bin/console
+bin/lemonade
 -> ApplicationContextFactory::fromGlobals()
 -> Container
 -> Framework
