@@ -29,6 +29,7 @@ final class PdoDsnResolverTest extends TestCase
         ]);
 
         self::assertTrue(PdoDsnResolver::isMysql($config));
+        self::assertFalse(PdoDsnResolver::isSqlite($config));
     }
 
     public function testIsMysqlReturnsFalseForSqliteDsn(): void
@@ -39,6 +40,7 @@ final class PdoDsnResolverTest extends TestCase
         ]);
 
         self::assertFalse(PdoDsnResolver::isMysql($config));
+        self::assertTrue(PdoDsnResolver::isSqlite($config));
     }
 
     public function testResolveBuildsMysqlFallbackDsn(): void
@@ -56,6 +58,18 @@ final class PdoDsnResolverTest extends TestCase
             PdoDsnResolver::resolve($config),
         );
         self::assertTrue(PdoDsnResolver::isMysql($config));
+        self::assertFalse(PdoDsnResolver::isSqlite($config));
+    }
+
+    public function testIsSqliteReturnsTrueForSqliteFilePathDsn(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => 'sqlite:/tmp/app.sqlite',
+        ]);
+
+        self::assertTrue(PdoDsnResolver::isSqlite($config));
+        self::assertFalse(PdoDsnResolver::isMysql($config));
     }
 
     public function testResolveThrowsWhenDsnAndDatabaseAreMissing(): void

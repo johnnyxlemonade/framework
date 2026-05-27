@@ -12,6 +12,7 @@ use Lemonade\Framework\Database\Connection\DatabaseDialect;
 use Lemonade\Framework\Database\Connection\Driver;
 use Lemonade\Framework\Database\DatabaseDriverRegistry;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlSchemaGrammar;
+use Lemonade\Framework\Database\Driver\Sqlite\SqliteSchemaGrammar;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 
@@ -71,22 +72,36 @@ final class PdoDatabaseServiceProvider implements ServiceProviderInterface
                 DatabaseConfig $config,
                 ContainerInterface $container,
             ): SchemaGrammarInterface {
-                if ($config->dialect() !== DatabaseDialect::Mysql) {
-                    throw DatabaseException::invalidConfiguration(
-                        'Schema grammar for driver "pdo" requires explicit supported dialect. Currently supported PDO dialect: mysql.',
-                    );
-                }
-
-                if (!PdoDsnResolver::isMysql($config)) {
-                    throw DatabaseException::invalidConfiguration(
-                        'PDO dialect "mysql" requires DSN with "mysql:" prefix (explicit or fallback).',
-                    );
-                }
-
-                $grammar = $container->get(MysqlSchemaGrammar::class);
-
-                return $grammar;
+                return match ($config->dialect()) {
+                    DatabaseDialect::Mysql => self::resolveMysqlGrammar($config, $container),
+                    DatabaseDialect::Sqlite => self::resolveSqliteGrammar($config, $container),
+                    default => throw DatabaseException::invalidConfiguration(
+                        'Schema grammar for driver "pdo" requires explicit supported dialect. Currently supported PDO dialects: mysql, sqlite.',
+                    ),
+                };
             },
         );
+    }
+
+    private static function resolveMysqlGrammar(DatabaseConfig $config, ContainerInterface $container): SchemaGrammarInterface
+    {
+        if (!PdoDsnResolver::isMysql($config)) {
+            throw DatabaseException::invalidConfiguration(
+                'PDO dialect "mysql" requires DSN with "mysql:" prefix (explicit or fallback).',
+            );
+        }
+
+        return $container->get(MysqlSchemaGrammar::class);
+    }
+
+    private static function resolveSqliteGrammar(DatabaseConfig $config, ContainerInterface $container): SchemaGrammarInterface
+    {
+        if (!PdoDsnResolver::isSqlite($config)) {
+            throw DatabaseException::invalidConfiguration(
+                'PDO dialect "sqlite" requires DSN with "sqlite:" prefix.',
+            );
+        }
+
+        return $container->get(SqliteSchemaGrammar::class);
     }
 }

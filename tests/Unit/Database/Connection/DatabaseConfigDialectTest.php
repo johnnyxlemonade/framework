@@ -57,6 +57,17 @@ final class DatabaseConfigDialectTest extends TestCase
         self::assertSame(DatabaseDialect::Mysql, $config->dialect());
     }
 
+    public function testPdoDriverWithExplicitSqliteDialectReturnsSqliteDialect(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'sqlite',
+            'dsn' => 'sqlite::memory:',
+        ]);
+
+        self::assertSame(DatabaseDialect::Sqlite, $config->dialect());
+    }
+
     public function testInvalidDialectThrowsInvalidConfigurationException(): void
     {
         $this->expectException(DatabaseException::class);
@@ -64,7 +75,7 @@ final class DatabaseConfigDialectTest extends TestCase
 
         DatabaseConfig::fromArray([
             'driver' => 'pdo',
-            'dialect' => 'sqlite',
+            'dialect' => 'pgsql',
             'dsn' => 'sqlite::memory:',
         ]);
     }

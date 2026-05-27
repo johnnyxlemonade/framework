@@ -36,4 +36,9 @@ final class PdoDsnResolver
     {
         return str_starts_with(strtolower(self::resolve($config)), 'mysql:');
     }
+
+    public static function isSqlite(DatabaseConfig $config): bool
+    {
+        return str_starts_with(strtolower(self::resolve($config)), 'sqlite:');
+    }
 }

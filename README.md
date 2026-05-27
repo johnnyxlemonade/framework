@@ -234,6 +234,28 @@ Example PDO + MySQL dialect configuration:
 PDO driver can be used for generic query execution, but schema operations currently support only the MySQL dialect via `dialect: mysql`.
 Other PDO DSNs may be usable for raw queries, but schema grammar is not guaranteed unless a matching dialect implementation exists.
 
+Example PDO + SQLite dialect configuration:
+
+```php
+[
+    'driver' => 'pdo',
+    'dialect' => 'sqlite',
+    'dsn' => 'sqlite:/absolute/path/database.sqlite',
+]
+```
+
+In-memory SQLite variant:
+
+```php
+[
+    'driver' => 'pdo',
+    'dialect' => 'sqlite',
+    'dsn' => 'sqlite::memory:',
+]
+```
+
+SQLite is supported through PDO. SQLite schema grammar is intentionally conservative; some `ALTER TABLE` operations are not supported and throw `LogicException`. Complex table changes need a dedicated rebuild-table strategy.
+
 ## License
 
 MIT License. See `LICENSE` for details.

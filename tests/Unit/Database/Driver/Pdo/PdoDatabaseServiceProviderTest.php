@@ -11,6 +11,8 @@ use Lemonade\Framework\Database\DatabaseDriverRegistry;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlSchemaGrammar;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
+use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
+use Lemonade\Framework\Database\Driver\Sqlite\SqliteSchemaGrammar;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 use PHPUnit\Framework\TestCase;
 
@@ -88,6 +90,41 @@ final class PdoDatabaseServiceProviderTest extends TestCase
         );
     }
 
+    public function testPdoSqliteDialectWithSqliteDsnProvidesSqliteSchemaGrammar(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $grammar = $registry->resolveSchemaGrammar(
+            Driver::Pdo,
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dialect' => 'sqlite',
+                'dsn' => 'sqlite::memory:',
+            ]),
+            $container,
+        );
+
+        self::assertInstanceOf(SqliteSchemaGrammar::class, $grammar);
+    }
+
+    public function testPdoSqliteDialectWithNonSqliteDsnThrowsInvalidConfiguration(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessage('PDO dialect "sqlite" requires DSN with "sqlite:" prefix.');
+
+        $registry->resolveSchemaGrammar(
+            Driver::Pdo,
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dialect' => 'sqlite',
+                'dsn' => 'mysql:host=127.0.0.1;dbname=app;charset=utf8mb4',
+            ]),
+            $container,
+        );
+    }
+
     /**
      * @return array{0:Container,1:DatabaseDriverRegistry}
      */
@@ -103,6 +140,7 @@ final class PdoDatabaseServiceProviderTest extends TestCase
 
         (new MysqlDatabaseServiceProvider())->register($container);
         (new PdoDatabaseServiceProvider())->register($container);
+        (new SqliteDatabaseServiceProvider())->register($container);
 
         /** @var DatabaseDriverRegistry $registry */
         $registry = $container->get(DatabaseDriverRegistry::class);

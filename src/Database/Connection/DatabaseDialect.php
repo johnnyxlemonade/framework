@@ -8,4 +8,5 @@ enum DatabaseDialect: string
 {
     case Mysql = 'mysql';
     case Odbc = 'odbc';
+    case Sqlite = 'sqlite';
 }
