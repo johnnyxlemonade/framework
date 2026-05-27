@@ -25,10 +25,14 @@ final class PdoDatabaseDriver implements DatabaseDriverInterface
 
     private bool $transFailure = false;
 
+    private readonly PdoIdentifierEscaper $identifierEscaper;
+
     public function __construct(
         private readonly PdoConnection $connection,
         private readonly DatabaseConfig $config,
-    ) {}
+    ) {
+        $this->identifierEscaper = PdoIdentifierEscaper::fromConfig($config);
+    }
 
     public function initialize(): bool
     {
@@ -296,11 +300,7 @@ final class PdoDatabaseDriver implements DatabaseDriverInterface
 
     public function escape_identifiers(string $item): string
     {
-        if ($item === '*') {
-            return $item;
-        }
-
-        return '`' . str_replace('`', '``', $item) . '`';
+        return $this->identifierEscaper->identifier($item);
     }
 
     public function protect_identifiers(
@@ -341,7 +341,7 @@ final class PdoDatabaseDriver implements DatabaseDriverInterface
             ));
         }
 
-        return $this->escape_identifiers($this->config->prefix() . $item);
+        return $this->identifierEscaper->table($item);
     }
 
     private function prepQuery(string $sql): string

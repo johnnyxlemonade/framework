@@ -45,10 +45,6 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         }
 
         foreach ($table->indexes() as $index) {
-            if ($index->type() === IndexType::Index) {
-                continue;
-            }
-
             $definitions[] = $this->compileCreateTableIndex($index);
         }
 

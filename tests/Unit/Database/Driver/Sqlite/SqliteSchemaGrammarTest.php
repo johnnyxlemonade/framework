@@ -43,6 +43,30 @@ final class SqliteSchemaGrammarTest extends TestCase
         );
     }
 
+    public function testCompileCreateTableWithPlainIndexThrowsAndDoesNotSilentlyIgnoreIndex(): void
+    {
+        $grammar = $this->grammar();
+        $table = new TableBlueprint('users');
+        $table->string('email');
+        $table->index('email');
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('does not support plain INDEX clause inside CREATE TABLE');
+
+        $grammar->compileCreateTable($table->toDefinition());
+    }
+
+    public function testCompileCreateTableSupportsAutoIncrementColumnDefinition(): void
+    {
+        $grammar = $this->grammar();
+        $table = \Lemonade\Framework\Database\Schema\Definition\TableDefinition::create('items')
+            ->withColumn((new ColumnDefinition('id', ColumnType::Integer))->autoIncrement());
+
+        $sql = $grammar->compileCreateTable($table);
+
+        self::assertStringContainsString('"id" INTEGER PRIMARY KEY AUTOINCREMENT', $sql);
+    }
+
     public function testCompileDropRenameAddColumnAndIndexOperations(): void
     {
         $grammar = $this->grammar(['prefix' => 'p_']);

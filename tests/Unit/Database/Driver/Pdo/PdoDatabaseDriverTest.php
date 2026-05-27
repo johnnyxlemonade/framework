@@ -16,7 +16,7 @@ final class PdoDatabaseDriverTest extends TestCase
         $config = DatabaseConfig::fromArray([
             'driver' => 'pdo',
             'dialect' => 'mysql',
-            'dsn' => 'sqlite::memory:',
+            'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
         ]);
 
         $driver = new PdoDatabaseDriver(
@@ -34,7 +34,7 @@ final class PdoDatabaseDriverTest extends TestCase
         $config = DatabaseConfig::fromArray([
             'driver' => 'pdo',
             'dialect' => 'mysql',
-            'dsn' => 'sqlite::memory:',
+            'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
             'prefix' => '',
         ]);
 
@@ -45,5 +45,23 @@ final class PdoDatabaseDriverTest extends TestCase
 
         self::assertSame('`users`.`id`', $driver->protect_identifiers('users.id'));
         self::assertSame('`users`.`id` AS `user_id`', $driver->protect_identifiers('users.id AS user_id'));
+    }
+
+    public function testEscapeAndProtectIdentifiersUseSqliteQuotesForSqliteDialect(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'sqlite',
+            'dsn' => 'sqlite::memory:',
+            'prefix' => '',
+        ]);
+
+        $driver = new PdoDatabaseDriver(
+            connection: new PdoConnection($config),
+            config: $config,
+        );
+
+        self::assertSame('"users"."id"', $driver->protect_identifiers('users.id'));
+        self::assertSame('"users"."id"', $driver->escape_identifiers('users.id'));
     }
 }
