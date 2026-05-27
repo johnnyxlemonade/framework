@@ -217,7 +217,8 @@ final class DatabaseConfig
 
     private static function resolveDriver(string $driver): Driver
     {
-        $resolvedDriver = Driver::tryFrom(strtolower($driver));
+        $normalizedDriver = self::normalizeNullableString($driver);
+        $resolvedDriver = is_string($normalizedDriver) ? Driver::tryFrom(strtolower($normalizedDriver)) : null;
 
         if (!$resolvedDriver instanceof Driver) {
             throw DatabaseException::invalidConfiguration(

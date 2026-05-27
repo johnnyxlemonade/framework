@@ -9,7 +9,9 @@ use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Exception\DatabaseException;
+use PDO;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use RuntimeException;
 
 final class PdoConnectionTest extends TestCase
@@ -118,6 +120,54 @@ final class PdoConnectionTest extends TestCase
             ],
             $rows,
         );
+    }
+
+    public function testPdoOptionsAreNormalizedAndMergedWithDefaults(): void
+    {
+        $connection = new PdoConnection(DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => 'sqlite::memory:',
+            'persistent' => true,
+            'options' => [
+                (string) PDO::ATTR_TIMEOUT => 5,
+                PDO::ATTR_EMULATE_PREPARES => true,
+                PDO::ATTR_PERSISTENT => false,
+            ],
+        ]));
+
+        $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
+        $method->setAccessible(true);
+
+        /** @var array<int, mixed> $options */
+        $options = $method->invoke($connection);
+
+        self::assertSame(5, $options[PDO::ATTR_TIMEOUT]);
+        self::assertTrue($options[PDO::ATTR_EMULATE_PREPARES]);
+        self::assertTrue($options[PDO::ATTR_PERSISTENT]);
+        self::assertSame(PDO::ERRMODE_EXCEPTION, $options[PDO::ATTR_ERRMODE]);
+        self::assertSame(PDO::FETCH_ASSOC, $options[PDO::ATTR_DEFAULT_FETCH_MODE]);
+    }
+
+    public function testPdoOptionsIgnoreInvalidStringKeysAndDoNotSetPersistentWhenDisabled(): void
+    {
+        $connection = new PdoConnection(DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => 'sqlite::memory:',
+            'persistent' => false,
+            'options' => [
+                'foo' => 'bar',
+                (string) PDO::ATTR_TIMEOUT => 3,
+            ],
+        ]));
+
+        $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
+        $method->setAccessible(true);
+
+        /** @var array<int, mixed> $options */
+        $options = $method->invoke($connection);
+
+        self::assertSame(3, $options[PDO::ATTR_TIMEOUT]);
+        self::assertArrayNotHasKey(PDO::ATTR_PERSISTENT, $options);
     }
 
     private function sqliteConnection(): PdoConnection

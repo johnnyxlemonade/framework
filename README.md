@@ -269,6 +269,8 @@ In-memory SQLite variant:
 
 SQLite is supported through PDO. SQLite schema grammar is intentionally conservative; some `ALTER TABLE` operations are not supported and throw `LogicException`. Complex table changes need a dedicated rebuild-table strategy.
 
+For native MySQL connections, `strict=false` intentionally removes `STRICT_TRANS_TABLES`, `STRICT_ALL_TABLES`, and `ONLY_FULL_GROUP_BY` from `sql_mode` for legacy compatibility.
+
 Example ODBC configuration (dialect is implicit):
 
 ```php

@@ -21,6 +21,23 @@ final class PdoDsnResolverTest extends TestCase
         self::assertSame('sqlite::memory:', PdoDsnResolver::resolve($config));
     }
 
+    public function testResolvePrefersExplicitDsnOverMysqlFallbackInputs(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => 'mysql:host=db;port=3307;dbname=explicit;charset=utf8mb4',
+            'host' => '127.0.0.1',
+            'port' => 3306,
+            'database' => 'fallback_should_not_be_used',
+            'charset' => 'utf8mb4',
+        ]);
+
+        self::assertSame(
+            'mysql:host=db;port=3307;dbname=explicit;charset=utf8mb4',
+            PdoDsnResolver::resolve($config),
+        );
+    }
+
     public function testIsMysqlReturnsTrueForExplicitMysqlDsn(): void
     {
         $config = DatabaseConfig::fromArray([

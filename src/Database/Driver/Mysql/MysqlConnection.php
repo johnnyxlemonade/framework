@@ -402,27 +402,23 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
         if ($this->config->strict()) {
             $connection->query(
-                'SET SESSION sql_mode = CONCAT(@@sql_mode, ",STRICT_TRANS_TABLES")',
+                "SET SESSION sql_mode = TRIM(BOTH ',' FROM IF("
+                . "FIND_IN_SET('STRICT_TRANS_TABLES', REPLACE(@@sql_mode, ' ', '')) > 0, "
+                . '@@sql_mode, '
+                . "CONCAT_WS(',', @@sql_mode, 'STRICT_TRANS_TABLES')"
+                . '))',
             );
 
             return;
         }
 
         $connection->query(
-            "SET SESSION sql_mode =
-                REPLACE(
-                    REPLACE(
-                        REPLACE(
-                            REPLACE(@@sql_mode, 'STRICT_TRANS_TABLES', ''),
-                            'STRICT_ALL_TABLES',
-                            ''
-                        ),
-                        'ONLY_FULL_GROUP_BY',
-                        ''
-                    ),
-                    ',,',
-                    ','
-                )",
+            "SET SESSION sql_mode = TRIM(BOTH ',' FROM "
+            . 'REPLACE(REPLACE(REPLACE('
+            . "CONCAT(',', REPLACE(@@sql_mode, ' ', ''), ','), "
+            . "',STRICT_TRANS_TABLES,', ','), "
+            . "',STRICT_ALL_TABLES,', ','), "
+            . "',ONLY_FULL_GROUP_BY,', ','))",
         );
     }
 

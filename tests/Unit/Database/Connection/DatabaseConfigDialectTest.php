@@ -130,4 +130,35 @@ final class DatabaseConfigDialectTest extends TestCase
             'driver' => 'pgsql',
         ]);
     }
+
+    public function testDriverWithSurroundingWhitespaceIsTrimmedAndResolved(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => ' pdo ',
+            'dsn' => 'sqlite::memory:',
+        ]);
+
+        self::assertSame('pdo', $config->driver()->value);
+    }
+
+    public function testDialectWithSurroundingWhitespaceIsTrimmedAndResolved(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => ' sqlite ',
+            'dsn' => 'sqlite::memory:',
+        ]);
+
+        self::assertSame(DatabaseDialect::Sqlite, $config->dialect());
+    }
+
+    public function testPasswordIsNotTrimmed(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'password' => '  secret  ',
+        ]);
+
+        self::assertSame('  secret  ', $config->password());
+    }
 }
