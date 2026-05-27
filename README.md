@@ -71,14 +71,14 @@ bin/console
 ## Runtime Modes
 
 - Web: `index.php -> Kernel`
-- CLI: `bin/console -> CliKernel`
+- CLI: `bin/lemonade -> CliKernel`
 
 ## Project Structure
 
 - `src/` framework source code
 - `app/` application/demo code during development
 - `storage/` runtime data such as logs, locks, uploads, and cache
-- `bin/console` CLI entrypoint
+- `bin/lemonade` CLI entrypoint
 
 The `app/` directory is used as a development/demo application and is not part of the framework source itself.
 
@@ -101,8 +101,8 @@ Open `http://localhost:8000`.
 Run CLI commands:
 
 ```bash
-php bin/console
-php bin/console list
+php bin/lemonade
+php bin/lemonade list
 ```
 
 ## Service Container
