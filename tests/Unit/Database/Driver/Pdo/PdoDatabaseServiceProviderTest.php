@@ -127,6 +127,27 @@ final class PdoDatabaseServiceProviderTest extends TestCase
         );
     }
 
+    public function testPdoSqliteDialectWithoutDsnThrowsInvalidConfiguration(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessage('PDO dialect "sqlite" requires DSN with "sqlite:" prefix.');
+
+        $registry->resolveSchemaGrammar(
+            Driver::Pdo,
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dialect' => 'sqlite',
+                'host' => '127.0.0.1',
+                'port' => 3306,
+                'database' => 'app',
+                'charset' => 'utf8mb4',
+            ]),
+            $container,
+        );
+    }
+
     public function testPdoDriverWiringUsesMysqlStyleIdentifierProtectionForMysqlDialect(): void
     {
         [$container, $registry] = $this->bootProviders();

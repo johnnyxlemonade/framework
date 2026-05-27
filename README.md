@@ -219,6 +219,19 @@ Optional extensions depend on selected modules and integrations:
 
 `driver` defines the connection backend. `dialect` defines SQL grammar and schema behavior.
 
+Example native MySQL configuration (dialect is implicit):
+
+```php
+[
+    'driver' => 'mysql',
+    'host' => '127.0.0.1',
+    'port' => 3306,
+    'database' => 'app',
+    'username' => 'root',
+    'password' => '',
+]
+```
+
 Example PDO + MySQL dialect configuration:
 
 ```php
@@ -255,6 +268,17 @@ In-memory SQLite variant:
 ```
 
 SQLite is supported through PDO. SQLite schema grammar is intentionally conservative; some `ALTER TABLE` operations are not supported and throw `LogicException`. Complex table changes need a dedicated rebuild-table strategy.
+
+Example ODBC configuration (dialect is implicit):
+
+```php
+[
+    'driver' => 'odbc',
+    'dsn' => 'Driver={ODBC Driver 18 for SQL Server};Server=localhost;Database=app;TrustServerCertificate=yes;',
+    'username' => 'sa',
+    'password' => 'your_password',
+]
+```
 
 ## License
 

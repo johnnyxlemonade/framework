@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Database\Connection;
 
 use Lemonade\Framework\Database\Exception\DatabaseException;
-use ValueError;
 
 final class DatabaseConfig
 {
@@ -35,10 +34,11 @@ final class DatabaseConfig
     public static function fromArray(array $config): self
     {
         $driver = self::toString($config['driver'] ?? 'mysql', 'mysql');
+        $resolvedDriver = self::resolveDriver($driver);
         $dialect = self::resolveDialect($config['dialect'] ?? null);
 
         return new self(
-            driver: Driver::from($driver),
+            driver: $resolvedDriver,
             host: self::toString($config['host'] ?? '127.0.0.1', '127.0.0.1'),
             port: self::toInt($config['port'] ?? 3306, 3306),
             database: self::toString($config['database'] ?? '', ''),
@@ -204,12 +204,27 @@ final class DatabaseConfig
             return null;
         }
 
-        try {
-            return DatabaseDialect::from(strtolower($rawDialect));
-        } catch (ValueError) {
+        $dialect = DatabaseDialect::tryFrom(strtolower($rawDialect));
+
+        if (!$dialect instanceof DatabaseDialect) {
             throw DatabaseException::invalidConfiguration(
                 sprintf('Unsupported database dialect: %s', $rawDialect),
             );
         }
+
+        return $dialect;
+    }
+
+    private static function resolveDriver(string $driver): Driver
+    {
+        $resolvedDriver = Driver::tryFrom(strtolower($driver));
+
+        if (!$resolvedDriver instanceof Driver) {
+            throw DatabaseException::invalidConfiguration(
+                sprintf('Unsupported database driver: %s', $driver),
+            );
+        }
+
+        return $resolvedDriver;
     }
 }

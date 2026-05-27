@@ -68,6 +68,47 @@ final class DatabaseConfigDialectTest extends TestCase
         self::assertSame(DatabaseDialect::Sqlite, $config->dialect());
     }
 
+    public function testEmptyDialectStringIsTreatedAsNullAndDriverImplicitDialectAppliesForMysql(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'mysql',
+            'dialect' => '',
+        ]);
+
+        self::assertSame(DatabaseDialect::Mysql, $config->dialect());
+    }
+
+    public function testEmptyDialectStringIsTreatedAsNullAndDriverImplicitDialectAppliesForOdbc(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'odbc',
+            'dialect' => '',
+        ]);
+
+        self::assertSame(DatabaseDialect::Odbc, $config->dialect());
+    }
+
+    public function testEmptyDialectStringIsTreatedAsNullAndPdoHasNoImplicitDialect(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => '',
+            'dsn' => 'sqlite::memory:',
+        ]);
+
+        self::assertNull($config->dialect());
+    }
+
+    public function testEmptyStringDsnIsNormalizedToNull(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => '',
+        ]);
+
+        self::assertNull($config->dsn());
+    }
+
     public function testInvalidDialectThrowsInvalidConfigurationException(): void
     {
         $this->expectException(DatabaseException::class);
@@ -77,6 +118,16 @@ final class DatabaseConfigDialectTest extends TestCase
             'driver' => 'pdo',
             'dialect' => 'pgsql',
             'dsn' => 'sqlite::memory:',
+        ]);
+    }
+
+    public function testInvalidDriverThrowsInvalidConfigurationException(): void
+    {
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessage('Unsupported database driver');
+
+        DatabaseConfig::fromArray([
+            'driver' => 'pgsql',
         ]);
     }
 }
