@@ -225,13 +225,14 @@ Example PDO + MySQL dialect configuration:
 [
     'driver' => 'pdo',
     'dialect' => 'mysql',
-    'dsn' => 'mysql:host=127.0.0.1;dbname=app;charset=utf8mb4',
+    'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
     'username' => 'root',
     'password' => '',
 ]
 ```
 
 PDO driver can be used for generic query execution, but schema operations currently support only the MySQL dialect via `dialect: mysql`.
+Other PDO DSNs may be usable for raw queries, but schema grammar is not guaranteed unless a matching dialect implementation exists.
 
 ## License
 

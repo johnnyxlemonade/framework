@@ -19,6 +19,25 @@ final class PdoDsnResolverTest extends TestCase
         ]);
 
         self::assertSame('sqlite::memory:', PdoDsnResolver::resolve($config));
+    }
+
+    public function testIsMysqlReturnsTrueForExplicitMysqlDsn(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
+        ]);
+
+        self::assertTrue(PdoDsnResolver::isMysql($config));
+    }
+
+    public function testIsMysqlReturnsFalseForSqliteDsn(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => 'sqlite::memory:',
+        ]);
+
         self::assertFalse(PdoDsnResolver::isMysql($config));
     }
 

@@ -11,6 +11,13 @@ use PHPUnit\Framework\TestCase;
 
 final class DatabaseConfigDialectTest extends TestCase
 {
+    public function testConfigWithoutDriverDefaultsToMysqlDriver(): void
+    {
+        $config = DatabaseConfig::fromArray([]);
+
+        self::assertSame('mysql', $config->driver()->value);
+    }
+
     public function testMysqlDriverHasImplicitMysqlDialect(): void
     {
         $config = DatabaseConfig::fromArray([
@@ -37,6 +44,17 @@ final class DatabaseConfigDialectTest extends TestCase
         ]);
 
         self::assertNull($config->dialect());
+    }
+
+    public function testPdoDriverWithExplicitMysqlDialectReturnsMysqlDialect(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'mysql',
+            'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
+        ]);
+
+        self::assertSame(DatabaseDialect::Mysql, $config->dialect());
     }
 
     public function testInvalidDialectThrowsInvalidConfigurationException(): void

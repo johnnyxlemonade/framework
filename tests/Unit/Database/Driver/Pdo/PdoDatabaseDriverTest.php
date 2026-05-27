@@ -28,4 +28,22 @@ final class PdoDatabaseDriverTest extends TestCase
         self::assertSame('`we``ird`', $driver->escape_identifiers('we`ird'));
         self::assertSame('*', $driver->escape_identifiers('*'));
     }
+
+    public function testProtectIdentifiersUsesMysqlCompatibleEscaping(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'mysql',
+            'dsn' => 'sqlite::memory:',
+            'prefix' => '',
+        ]);
+
+        $driver = new PdoDatabaseDriver(
+            connection: new PdoConnection($config),
+            config: $config,
+        );
+
+        self::assertSame('`users`.`id`', $driver->protect_identifiers('users.id'));
+        self::assertSame('`users`.`id` AS `user_id`', $driver->protect_identifiers('users.id AS user_id'));
+    }
 }
