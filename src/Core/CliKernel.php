@@ -35,12 +35,28 @@ final class CliKernel
     ];
 
     private bool $booted = false;
+    /** @var resource */
+    private $stdout;
+    /** @var resource */
+    private $stderr;
 
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly ContainerInterface $container,
         private readonly Framework $framework,
-    ) {}
+        mixed $stdout = null,
+        mixed $stderr = null,
+    ) {
+        if ($stdout !== null && !is_resource($stdout)) {
+            throw new \InvalidArgumentException('CliKernel stdout must be a valid resource.');
+        }
+        if ($stderr !== null && !is_resource($stderr)) {
+            throw new \InvalidArgumentException('CliKernel stderr must be a valid resource.');
+        }
+
+        $this->stdout = $stdout ?? STDOUT;
+        $this->stderr = $stderr ?? STDERR;
+    }
 
     /**
      * @param list<string> $argv
@@ -67,7 +83,7 @@ final class CliKernel
             }
 
             if (!$registry->has($commandName)) {
-                fwrite(STDERR, sprintf("Unknown command: %s\n\n", $commandName));
+                $this->writeStderr(sprintf("Unknown command: %s\n\n", $commandName));
                 $this->printCommandList($registry);
 
                 return 1;
@@ -77,10 +93,10 @@ final class CliKernel
         } catch (Throwable $exception) {
             $this->logException($exception);
 
-            fwrite(STDERR, sprintf("CLI error: %s\n", $exception->getMessage()));
+            $this->writeStderr(sprintf("CLI error: %s\n", $exception->getMessage()));
 
             if ($this->context->debug()) {
-                fwrite(STDERR, $exception->getTraceAsString() . PHP_EOL);
+                $this->writeStderr($exception->getTraceAsString() . PHP_EOL);
             }
 
             return 1;
@@ -143,10 +159,10 @@ final class CliKernel
 
     private function printCommandList(CommandRegistry $registry): void
     {
-        fwrite(STDOUT, "Available commands:\n");
+        $this->writeStdout("Available commands:\n");
 
         foreach ($registry->all() as $command) {
-            fwrite(STDOUT, sprintf("  %-24s %s\n", $command->name(), $command->description()));
+            $this->writeStdout(sprintf("  %-24s %s\n", $command->name(), $command->description()));
         }
     }
 
@@ -217,6 +233,16 @@ final class CliKernel
         $this->container
             ->get(ExceptionLogger::class)
             ->log($exception, 'cli-kernel');
+    }
+
+    private function writeStdout(string $message): void
+    {
+        fwrite($this->stdout, $message);
+    }
+
+    private function writeStderr(string $message): void
+    {
+        fwrite($this->stderr, $message);
     }
 
 }

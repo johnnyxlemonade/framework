@@ -17,6 +17,10 @@ use PHPUnit\Framework\TestCase;
 final class CliKernelTest extends TestCase
 {
     private string $root;
+    /** @var resource|null */
+    private $stdout = null;
+    /** @var resource|null */
+    private $stderr = null;
 
     protected function setUp(): void
     {
@@ -27,6 +31,12 @@ final class CliKernelTest extends TestCase
 
     protected function tearDown(): void
     {
+        if (is_resource($this->stdout)) {
+            fclose($this->stdout);
+        }
+        if (is_resource($this->stderr)) {
+            fclose($this->stderr);
+        }
         $this->deleteRecursive($this->root);
     }
 
@@ -38,6 +48,8 @@ final class CliKernelTest extends TestCase
         $exit = $kernel->handle(['bin/lemonade']);
 
         self::assertSame(0, $exit);
+        self::assertStringContainsString('Available commands:', $this->stdoutContents());
+        self::assertStringContainsString('recorder', $this->stdoutContents());
     }
 
     public function testHandleListPrintsListAndReturnsZero(): void
@@ -48,6 +60,8 @@ final class CliKernelTest extends TestCase
         $exit = $kernel->handle(['bin/lemonade', 'list']);
 
         self::assertSame(0, $exit);
+        self::assertStringContainsString('Available commands:', $this->stdoutContents());
+        self::assertStringContainsString('recorder', $this->stdoutContents());
     }
 
     public function testHandleHelpPrintsListAndReturnsZero(): void
@@ -57,6 +71,8 @@ final class CliKernelTest extends TestCase
 
         self::assertSame(0, $kernel->handle(['bin/lemonade', '--help']));
         self::assertSame(0, $kernel->handle(['bin/lemonade', '-h']));
+        self::assertStringContainsString('Available commands:', $this->stdoutContents());
+        self::assertStringContainsString('recorder', $this->stdoutContents());
     }
 
     public function testUnknownCommandReturnsOne(): void
@@ -67,6 +83,7 @@ final class CliKernelTest extends TestCase
         $exit = $kernel->handle(['bin/lemonade', 'unknown']);
 
         self::assertSame(1, $exit);
+        self::assertStringContainsString('Unknown command: unknown', $this->stderrContents());
     }
 
     public function testKnownCommandRunsWithArgsAndReturnsItsExitCode(): void
@@ -87,6 +104,7 @@ final class CliKernelTest extends TestCase
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
+        self::assertStringContainsString('CLI error: Config key "commands" must be an array.', $this->stderrContents());
     }
 
     public function testConfiguredCommandMustBeString(): void
@@ -95,6 +113,7 @@ final class CliKernelTest extends TestCase
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
+        self::assertStringContainsString('CLI error: Configured command must be a class-string.', $this->stderrContents());
     }
 
     public function testConfiguredCommandMustExistAndImplementInterface(): void
@@ -102,10 +121,15 @@ final class CliKernelTest extends TestCase
         $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => ['Missing\\\\Command']];\n");
         $kernelMissing = $this->kernel();
         self::assertSame(1, $kernelMissing->handle(['bin/lemonade', 'list']));
+        self::assertStringContainsString('CLI error: Configured command "Missing\Command" must implement', $this->stderrContents());
 
         $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => ['" . CliKernelNotACommand::class . "']];\n");
         $kernelInvalid = $this->kernel();
         self::assertSame(1, $kernelInvalid->handle(['bin/lemonade', 'list']));
+        self::assertStringContainsString(
+            sprintf('CLI error: Configured command "%s" must implement', CliKernelNotACommand::class),
+            $this->stderrContents(),
+        );
     }
 
     public function testManifestFilesAreUsedWhenManifestExists(): void
@@ -163,6 +187,7 @@ final class CliKernelTest extends TestCase
         $exit = $kernel->handle(['bin/lemonade', 'failing']);
 
         self::assertSame(1, $exit);
+        self::assertStringContainsString('CLI error: Command failed hard', $this->stderrContents());
 
         $logPath = $this->root
             . DIRECTORY_SEPARATOR . 'storage'
@@ -177,6 +202,9 @@ final class CliKernelTest extends TestCase
 
     private function kernel(): CliKernel
     {
+        $this->stdout ??= $this->createTempStream();
+        $this->stderr ??= $this->createTempStream();
+
         $context = new ApplicationContext(
             Environment::Testing,
             new Path($this->root),
@@ -185,7 +213,44 @@ final class CliKernelTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new CliKernel($context, $container, $framework);
+        return new CliKernel($context, $container, $framework, $this->stdout, $this->stderr);
+    }
+
+    /**
+     * @return resource
+     */
+    private function createTempStream()
+    {
+        $stream = fopen('php://temp', 'w+b');
+        if (!is_resource($stream)) {
+            throw new \RuntimeException('Unable to create temp stream.');
+        }
+
+        return $stream;
+    }
+
+    private function stdoutContents(): string
+    {
+        if (!is_resource($this->stdout)) {
+            return '';
+        }
+
+        rewind($this->stdout);
+        $contents = stream_get_contents($this->stdout);
+
+        return is_string($contents) ? $contents : '';
+    }
+
+    private function stderrContents(): string
+    {
+        if (!is_resource($this->stderr)) {
+            return '';
+        }
+
+        rewind($this->stderr);
+        $contents = stream_get_contents($this->stderr);
+
+        return is_string($contents) ? $contents : '';
     }
 
     /**
