@@ -8,9 +8,9 @@ use PHPUnit\Framework\TestCase;
 
 final class MysqlResultTest extends TestCase
 {
-    public function testMysqlResultRequiresRealMysqliResultAndIsNotUnitTestableWithoutDatabase(): void
+    public function testMysqlResultRequiresRealMysqliResultFixture(): void
     {
-        $this->markTestSkipped(
+        self::markTestSkipped(
             'MysqlResult wraps native mysqli_result; stable fixture requires real mysqli query result.',
         );
     }
