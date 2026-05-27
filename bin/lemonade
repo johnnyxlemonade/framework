@@ -8,9 +8,20 @@ use Lemonade\Framework\Core\CliKernel;
 use Lemonade\Framework\Core\Context\ApplicationContextFactory;
 use Lemonade\Framework\Core\Framework;
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+$packageRoot = dirname(__DIR__);
+$projectRoot = dirname($packageRoot);
 
-$basePath = dirname(__DIR__);
+$autoload = $packageRoot . '/vendor/autoload.php';
+
+if (!is_file($autoload)) {
+    $autoload = $projectRoot . '/vendor/autoload.php';
+}
+
+require $autoload;
+
+$basePath = is_dir($projectRoot . '/app') && is_dir($projectRoot . '/storage')
+    ? $projectRoot
+    : $packageRoot;
 $context = (new ApplicationContextFactory())->fromGlobals($basePath);
 $container = new Container();
 $framework = new Framework($container, $context);
@@ -21,4 +32,3 @@ $argv = isset($_SERVER['argv']) && is_array($_SERVER['argv'])
     : [];
 
 exit($kernel->handle($argv));
-

@@ -88,13 +88,9 @@ final class KernelBootstrapTraitHarness
     }
 }
 
-final class NotAServiceProvider
-{
-}
+final class NotAServiceProvider {}
 
 final class ValidServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
-    {
-    }
+    public function register(ContainerInterface $container): void {}
 }

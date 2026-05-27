@@ -44,9 +44,7 @@ final class PlainConcreteClass
     }
 }
 
-abstract class NonInstantiableClass
-{
-}
+abstract class NonInstantiableClass {}
 
 final class DependencyClass
 {
