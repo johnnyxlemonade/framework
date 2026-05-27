@@ -50,6 +50,7 @@
   },
   "suggest": {
     "ext-gd": "Required for image upload re-encoding.",
+    "ext-pdo": "Required for the PDO database driver.",
     "ext-mysqli": "Required for the MySQLi database driver.",
     "ext-odbc": "Required for the ODBC database driver.",
     "ext-curl": "Required by selected HTTP client implementations when using cURL transport.",

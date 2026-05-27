@@ -8,10 +8,10 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Connection\DatabaseDialect;
 use Lemonade\Framework\Database\Connection\Driver;
 use Lemonade\Framework\Database\DatabaseDriverRegistry;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlSchemaGrammar;
-use Lemonade\Framework\Database\Driver\Mysql\MysqlSqlEscaper;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 
@@ -37,22 +37,6 @@ final class PdoDatabaseServiceProvider implements ServiceProviderInterface
 
             return new PdoDatabaseDriver(
                 connection: $connection,
-                config: $config,
-            );
-        });
-
-        $container->singleton(MysqlSqlEscaper::class, static function (ContainerInterface $container): MysqlSqlEscaper {
-            $config = $container->get(DatabaseConfig::class);
-
-            return new MysqlSqlEscaper($config);
-        });
-
-        $container->singleton(MysqlSchemaGrammar::class, static function (ContainerInterface $container): MysqlSchemaGrammar {
-            $escaper = $container->get(MysqlSqlEscaper::class);
-            $config = $container->get(DatabaseConfig::class);
-
-            return new MysqlSchemaGrammar(
-                escaper: $escaper,
                 config: $config,
             );
         });
@@ -87,11 +71,15 @@ final class PdoDatabaseServiceProvider implements ServiceProviderInterface
                 DatabaseConfig $config,
                 ContainerInterface $container,
             ): SchemaGrammarInterface {
-                $dsn = $config->dsn();
-
-                if (!is_string($dsn) || !str_starts_with(strtolower($dsn), 'mysql:')) {
+                if ($config->dialect() !== DatabaseDialect::Mysql) {
                     throw DatabaseException::invalidConfiguration(
-                        'Schema grammar for driver "pdo" is supported only for MySQL DSN (mysql:...).',
+                        'Schema grammar for driver "pdo" requires explicit supported dialect. Currently supported PDO dialect: mysql.',
+                    );
+                }
+
+                if (!PdoDsnResolver::isMysql($config)) {
+                    throw DatabaseException::invalidConfiguration(
+                        'PDO dialect "mysql" requires DSN with "mysql:" prefix (explicit or fallback).',
                     );
                 }
 

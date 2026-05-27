@@ -210,9 +210,28 @@ Current CI checks:
 Optional extensions depend on selected modules and integrations:
 
 - `ext-gd` for image upload re-encoding
+- `ext-pdo` for the PDO database driver
 - `ext-mysqli` for the MySQLi database driver
 - `ext-odbc` for the ODBC database driver
 - `ext-curl` for selected HTTP client transports
+
+## Database Driver vs Dialect
+
+`driver` defines the connection backend. `dialect` defines SQL grammar and schema behavior.
+
+Example PDO + MySQL dialect configuration:
+
+```php
+[
+    'driver' => 'pdo',
+    'dialect' => 'mysql',
+    'dsn' => 'mysql:host=127.0.0.1;dbname=app;charset=utf8mb4',
+    'username' => 'root',
+    'password' => '',
+]
+```
+
+PDO driver can be used for generic query execution, but schema operations currently support only the MySQL dialect via `dialect: mysql`.
 
 ## License
 

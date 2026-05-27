@@ -31,7 +31,7 @@ final class PdoConnection implements ConnectionInterface
 
         try {
             $this->connection = new PDO(
-                dsn: $this->resolveDsn(),
+                dsn: PdoDsnResolver::resolve($this->config),
                 username: $this->config->username(),
                 password: $this->config->password(),
                 options: $this->resolveOptions(),
@@ -231,29 +231,6 @@ final class PdoConnection implements ConnectionInterface
         } catch (Throwable $exception) {
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
         }
-    }
-
-    private function resolveDsn(): string
-    {
-        $dsn = $this->config->dsn();
-
-        if (is_string($dsn) && $dsn !== '') {
-            return $dsn;
-        }
-
-        if ($this->config->database() === '') {
-            throw DatabaseException::invalidConfiguration(
-                'PDO requires "dsn" or non-empty "database" for MySQL DSN fallback.',
-            );
-        }
-
-        return sprintf(
-            'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-            $this->config->host(),
-            $this->config->port(),
-            $this->config->database(),
-            $this->config->charset(),
-        );
     }
 
     /**

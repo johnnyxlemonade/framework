@@ -1,0 +1,112 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Lemonade\Framework\Tests\Unit\Database\Driver\Pdo;
+
+use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Connection\Driver;
+use Lemonade\Framework\Database\DatabaseDriverRegistry;
+use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
+use Lemonade\Framework\Database\Driver\Mysql\MysqlSchemaGrammar;
+use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
+use Lemonade\Framework\Database\Exception\DatabaseException;
+use PHPUnit\Framework\TestCase;
+
+final class PdoDatabaseServiceProviderTest extends TestCase
+{
+    public function testPdoWithoutDialectDoesNotProvideSchemaGrammar(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessage('requires explicit supported dialect');
+
+        $registry->resolveSchemaGrammar(
+            Driver::Pdo,
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dsn' => 'mysql:host=127.0.0.1;dbname=app;charset=utf8mb4',
+            ]),
+            $container,
+        );
+    }
+
+    public function testPdoMysqlDialectWithMysqlDsnProvidesMysqlSchemaGrammar(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $grammar = $registry->resolveSchemaGrammar(
+            Driver::Pdo,
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dialect' => 'mysql',
+                'dsn' => 'mysql:host=127.0.0.1;dbname=app;charset=utf8mb4',
+            ]),
+            $container,
+        );
+
+        self::assertInstanceOf(MysqlSchemaGrammar::class, $grammar);
+    }
+
+    public function testPdoMysqlDialectWithFallbackMysqlDsnProvidesMysqlSchemaGrammar(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $grammar = $registry->resolveSchemaGrammar(
+            Driver::Pdo,
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dialect' => 'mysql',
+                'host' => '127.0.0.1',
+                'port' => 3306,
+                'database' => 'app',
+                'charset' => 'utf8mb4',
+            ]),
+            $container,
+        );
+
+        self::assertInstanceOf(MysqlSchemaGrammar::class, $grammar);
+    }
+
+    public function testPdoMysqlDialectWithNonMysqlDsnThrowsInvalidConfiguration(): void
+    {
+        [$container, $registry] = $this->bootProviders();
+
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessage('requires DSN with "mysql:" prefix');
+
+        $registry->resolveSchemaGrammar(
+            Driver::Pdo,
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dialect' => 'mysql',
+                'dsn' => 'sqlite::memory:',
+            ]),
+            $container,
+        );
+    }
+
+    /**
+     * @return array{0:Container,1:DatabaseDriverRegistry}
+     */
+    private function bootProviders(): array
+    {
+        $container = new Container();
+        $container->singleton(DatabaseDriverRegistry::class, DatabaseDriverRegistry::class);
+        $container->singleton(DatabaseConfig::class, static fn(): DatabaseConfig => DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'mysql',
+            'dsn' => 'mysql:host=127.0.0.1;dbname=app;charset=utf8mb4',
+        ]));
+
+        (new MysqlDatabaseServiceProvider())->register($container);
+        (new PdoDatabaseServiceProvider())->register($container);
+
+        /** @var DatabaseDriverRegistry $registry */
+        $registry = $container->get(DatabaseDriverRegistry::class);
+
+        return [$container, $registry];
+    }
+}

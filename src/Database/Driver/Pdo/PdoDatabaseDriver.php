@@ -300,7 +300,7 @@ final class PdoDatabaseDriver implements DatabaseDriverInterface
             return $item;
         }
 
-        return '"' . str_replace('"', '""', $item) . '"';
+        return '`' . str_replace('`', '``', $item) . '`';
     }
 
     public function protect_identifiers(

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Connection;
 
+use Lemonade\Framework\Database\Exception\DatabaseException;
+use ValueError;
+
 final class DatabaseConfig
 {
     /**
@@ -21,6 +24,7 @@ final class DatabaseConfig
         private readonly string $prefix = '',
         private readonly bool $strict = true,
         private readonly bool $persistent = false,
+        private readonly ?DatabaseDialect $dialect = null,
         private readonly ?string $dsn = null,
         private readonly array $options = [],
     ) {}
@@ -31,6 +35,7 @@ final class DatabaseConfig
     public static function fromArray(array $config): self
     {
         $driver = self::toString($config['driver'] ?? 'mysql', 'mysql');
+        $dialect = self::resolveDialect($config['dialect'] ?? null);
 
         return new self(
             driver: Driver::from($driver),
@@ -44,6 +49,7 @@ final class DatabaseConfig
             prefix: self::toString($config['prefix'] ?? '', ''),
             strict: self::toBool($config['strict'] ?? true, true),
             persistent: self::toBool($config['persistent'] ?? false, false),
+            dialect: $dialect,
             dsn: self::normalizeNullableString($config['dsn'] ?? null),
             options: is_array($config['options'] ?? null) ? $config['options'] : [],
         );
@@ -102,6 +108,19 @@ final class DatabaseConfig
     public function persistent(): bool
     {
         return $this->persistent;
+    }
+
+    public function dialect(): ?DatabaseDialect
+    {
+        if ($this->dialect instanceof DatabaseDialect) {
+            return $this->dialect;
+        }
+
+        return match ($this->driver) {
+            Driver::Mysql => DatabaseDialect::Mysql,
+            Driver::Odbc => DatabaseDialect::Odbc,
+            Driver::Pdo => null,
+        };
     }
 
     public function dsn(): ?string
@@ -175,5 +194,22 @@ final class DatabaseConfig
         }
 
         return $default;
+    }
+
+    private static function resolveDialect(mixed $value): ?DatabaseDialect
+    {
+        $rawDialect = self::normalizeNullableString($value);
+
+        if ($rawDialect === null) {
+            return null;
+        }
+
+        try {
+            return DatabaseDialect::from(strtolower($rawDialect));
+        } catch (ValueError) {
+            throw DatabaseException::invalidConfiguration(
+                sprintf('Unsupported database dialect: %s', $rawDialect),
+            );
+        }
     }
 }
