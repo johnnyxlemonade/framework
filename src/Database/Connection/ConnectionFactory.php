@@ -6,7 +6,7 @@ namespace Lemonade\Framework\Database\Connection;
 
 use Lemonade\Framework\Database\Driver\Mysql\MysqlConnection;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcConnection;
-use Lemonade\Framework\Database\Exception\DatabaseException;
+use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 
 final class ConnectionFactory
 {
@@ -15,7 +15,7 @@ final class ConnectionFactory
         return match ($config->driver()) {
             Driver::Mysql => new MysqlConnection($config),
             Driver::Odbc => new OdbcConnection($config),
-            Driver::Pdo => throw DatabaseException::unsupportedDriver(Driver::Pdo->value),
+            Driver::Pdo => new PdoConnection($config),
         };
     }
 }
