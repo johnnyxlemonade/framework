@@ -36,7 +36,7 @@ final class FileCacheItemPoolTest extends TestCase
 
         self::assertTrue($this->pool->save($item));
         self::assertDirectoryExists($this->cacheDir);
-        self::assertNotEmpty(glob($this->cacheDir . DIRECTORY_SEPARATOR . '*.php') ?: []);
+        self::assertNotEmpty($this->cacheFiles());
     }
 
     public function testGetItemAfterSaveReturnsHitWithOriginalValueAndHasItemReflectsIt(): void
@@ -69,7 +69,7 @@ final class FileCacheItemPoolTest extends TestCase
         $this->pool->save((new CacheItem('b'))->set('2'));
 
         self::assertTrue($this->pool->clear());
-        self::assertSame([], glob($this->cacheDir . DIRECTORY_SEPARATOR . '*.php') ?: []);
+        self::assertSame([], $this->cacheFiles());
     }
 
     public function testSaveDeferredAndCommit(): void
@@ -83,13 +83,13 @@ final class FileCacheItemPoolTest extends TestCase
     public function testExpiredItemReturnsMissAndDeletesCacheFile(): void
     {
         $this->pool->save((new CacheItem('exp', 'v', true))->expiresAt(new DateTimeImmutable('-1 second')));
-        $filesBefore = glob($this->cacheDir . DIRECTORY_SEPARATOR . '*.php') ?: [];
+        $filesBefore = $this->cacheFiles();
         self::assertNotSame([], $filesBefore);
 
         $item = $this->pool->getItem('exp');
         self::assertFalse($item->isHit());
 
-        $filesAfter = glob($this->cacheDir . DIRECTORY_SEPARATOR . '*.php') ?: [];
+        $filesAfter = $this->cacheFiles();
         self::assertSame([], $filesAfter);
     }
 
@@ -140,13 +140,27 @@ final class FileCacheItemPoolTest extends TestCase
 
     private function firstCacheFilePath(): string
     {
-        $files = glob($this->cacheDir . DIRECTORY_SEPARATOR . '*.php') ?: [];
+        $files = $this->cacheFiles();
 
         self::assertNotEmpty($files);
         $file = reset($files);
         self::assertIsString($file);
 
         return $file;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cacheFiles(): array
+    {
+        $files = glob($this->cacheDir . DIRECTORY_SEPARATOR . '*.php');
+
+        if ($files === false) {
+            return [];
+        }
+
+        return $files;
     }
 
     private function deleteRecursive(string $path): void
