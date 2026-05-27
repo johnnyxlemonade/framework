@@ -1,0 +1,67 @@
+name: Coding Standards
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'bin/**'
+      - 'composer.json'
+      - '.php-cs-fixer.dist.php'
+      - '.github/workflows/**'
+
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'bin/**'
+      - 'composer.json'
+      - '.php-cs-fixer.dist.php'
+      - '.github/workflows/**'
+
+  workflow_dispatch:
+
+concurrency:
+  group: cs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cs:
+    name: PHP CS Fixer
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer:v2
+          extensions: fileinfo, mbstring
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-cs-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-cs-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check coding standards
+        run: composer cs:check

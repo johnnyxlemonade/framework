@@ -1,0 +1,150 @@
+{
+  "name": "johnnyxlemonade/framework",
+  "description": "Modular PHP 8.1+ framework with PSR-based HTTP runtime, PSR-11 compatible DI container, provider-based bootstrap and CLI kernel.",
+  "type": "library",
+  "keywords": [
+    "php-framework",
+    "php-8.1",
+    "psr",
+    "psr-3",
+    "psr-6",
+    "psr-7",
+    "psr-11",
+    "psr-15",
+    "psr-17",
+    "psr-18",
+    "cache",
+    "middleware",
+    "routing",
+    "dependency-injection",
+    "di-container",
+    "cli",
+    "cron"
+  ],
+  "homepage": "https://github.com/johnnyxlemonade/framework",
+  "readme": "README.md",
+  "bin": [
+    "bin/lemonade"
+  ],
+  "require": {
+    "php": ">=8.1",
+    "ext-fileinfo": "*",
+    "ext-mbstring": "*",
+    "nyholm/psr7": "^1.8",
+    "nyholm/psr7-server": "^1.1",
+    "psr/cache": "^3.0",
+    "psr/container": "^2.0",
+    "psr/http-client": "^1.0",
+    "psr/http-factory": "^1.1",
+    "psr/http-message": "^2.0",
+    "psr/http-server-handler": "^1.0",
+    "psr/http-server-middleware": "^1.0",
+    "psr/log": "^3.0"
+  },
+  "require-dev": {
+    "friendsofphp/php-cs-fixer": "^v3.94",
+    "phpstan/phpstan": "^2.1",
+    "phpstan/phpstan-strict-rules": "^2.0",
+    "phpunit/phpunit": "^10.5 || ^11.0"
+  },
+  "suggest": {
+    "ext-gd": "Required for image upload re-encoding.",
+    "ext-mysqli": "Required for the MySQLi database driver.",
+    "ext-odbc": "Required for the ODBC database driver.",
+    "ext-curl": "Required by selected HTTP client implementations when using cURL transport.",
+    "guzzlehttp/guzzle": "Required when using the built-in Guzzle PSR-18 HTTP client provider.",
+    "symfony/http-client": "Required when using the built-in Symfony PSR-18 HTTP client provider.",
+    "php-http/curl-client": "Required when using the built-in PHP-HTTP cURL PSR-18 client provider.",
+    "php-http/discovery": "Required when using automatic PSR-18 HTTP client discovery."
+  },
+  "autoload": {
+    "files": [
+      "src/Support/Helpers/bootstrap.php"
+    ],
+    "psr-4": {
+      "Lemonade\\Framework\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Lemonade\\Framework\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true,
+    "classmap-authoritative": false,
+    "preferred-install": {
+      "*": "dist"
+    },
+    "notify-on-install": false,
+    "process-timeout": 0,
+    "platform": {
+      "php": "8.1.28"
+    }
+  },
+  "scripts": {
+    "post-autoload-dump": [
+      "@php -r \"echo 'Autoload refreshed'.PHP_EOL;\""
+    ],
+    "lint": [
+      "@php -r 'foreach ([\"src\", \"tests\"] as $dir) { if (!is_dir($dir)) continue; foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir)) as $file) { if ($file->isFile() && $file->getExtension() === \"php\") { passthru(\"php -l \" . escapeshellarg($file->getPathname()), $code); if ($code !== 0) exit($code); } } }'",
+      "@php -l bin/lemonade"
+    ],
+    "autoload:dev": [
+      "@composer dump-autoload"
+    ],
+    "autoload:optimize": [
+      "@composer dump-autoload --optimize"
+    ],
+    "autoload:prod": [
+      "@composer dump-autoload --optimize --classmap-authoritative"
+    ],
+    "autoload:apcu": [
+      "@composer dump-autoload --optimize --apcu"
+    ],
+    "composer:validate": [
+      "@composer validate --strict"
+    ],
+    "test": [
+      "@php vendor/bin/phpunit"
+    ],
+    "test:ci": [
+      "@php vendor/bin/phpunit --colors=always"
+    ],
+    "stan": [
+      "@php vendor/bin/phpstan analyse --memory-limit=1G"
+    ],
+    "stan:ci": [
+      "@php vendor/bin/phpstan analyse --no-progress --error-format=github --memory-limit=1G"
+    ],
+    "cs:check": [
+      "@php vendor/bin/php-cs-fixer fix --dry-run --diff --allow-risky=yes"
+    ],
+    "cs:fix": [
+      "@php vendor/bin/php-cs-fixer fix --allow-risky=yes"
+    ],
+    "qa": [
+      "@cs:check",
+      "@stan",
+      "@test"
+    ],
+    "check:platform": [
+      "@composer check-platform-reqs"
+    ],
+    "check": [
+      "@composer:validate",
+      "@check:platform",
+      "@lint",
+      "@qa"
+    ]
+  },
+  "license": "MIT",
+  "support": {
+    "email": "honzamudrak@gmail.com",
+    "source": "https://github.com/johnnyxlemonade/framework",
+    "issues": "https://github.com/johnnyxlemonade/framework/issues"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

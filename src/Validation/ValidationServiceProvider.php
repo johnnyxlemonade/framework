@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Lemonade\Framework\Validation;
+
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Localization\TranslatorInterface;
+use Lemonade\Framework\Validation\Rule\RuleRegistry;
+
+final class ValidationServiceProvider implements ServiceProviderInterface
+{
+    public function register(ContainerInterface $container): void
+    {
+        $container->singleton(RuleRegistry::class, RuleRegistry::class);
+        $container->singleton('validation.rules', RuleRegistry::class);
+
+        $container->singleton(FormValidation::class, static function (ContainerInterface $container): FormValidation {
+            return new FormValidation(
+                translator: $container->get(TranslatorInterface::class),
+                ruleRegistry: $container->get(RuleRegistry::class),
+            );
+        });
+
+        $container->singleton('validator', FormValidation::class);
+    }
+}

@@ -1,0 +1,222 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Lemonade\Framework\Core;
+
+use Lemonade\Framework\Cli\CommandInterface;
+use Lemonade\Framework\Cli\CommandRegistry;
+use Lemonade\Framework\Cli\ConsoleServiceProvider;
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
+use Throwable;
+
+final class CliKernel
+{
+    use KernelBootstrapTrait;
+
+    private const CONFIG_MANIFEST = 'Config.php';
+
+    /**
+     * @var list<string>
+     */
+    private const DEFAULT_CONFIG_FILES = [
+        'App.php',
+        'Localization.php',
+        'Cache.php',
+        'Logging.php',
+        'Session.php',
+        'Database.php',
+        'Breadcrumbs.php',
+        'Upload.php',
+        'Providers.php',
+        'Commands.php',
+    ];
+
+    private bool $booted = false;
+
+    public function __construct(
+        private readonly ApplicationContext $context,
+        private readonly ContainerInterface $container,
+        private readonly Framework $framework,
+    ) {}
+
+    /**
+     * @param list<string> $argv
+     */
+    public function handle(array $argv): int
+    {
+        try {
+            $this->benchmark()?->currentOrStart([
+                'entrypoint' => 'cli',
+                'started_at' => 'cli-kernel.handle',
+            ])->mark('kernel_start');
+
+            $this->bootstrap();
+
+            $registry = $this->buildCommandRegistry();
+
+            $commandName = isset($argv[1]) ? trim($argv[1]) : 'list';
+            $args = array_slice($argv, 2);
+
+            if ($commandName === '' || $commandName === 'list' || $commandName === '--help' || $commandName === '-h') {
+                $this->printCommandList($registry);
+
+                return 0;
+            }
+
+            if (!$registry->has($commandName)) {
+                fwrite(STDERR, sprintf("Unknown command: %s\n\n", $commandName));
+                $this->printCommandList($registry);
+
+                return 1;
+            }
+
+            return $registry->get($commandName)->run($args);
+        } catch (Throwable $exception) {
+            $this->logException($exception);
+
+            fwrite(STDERR, sprintf("CLI error: %s\n", $exception->getMessage()));
+
+            if ($this->context->debug()) {
+                fwrite(STDERR, $exception->getTraceAsString() . PHP_EOL);
+            }
+
+            return 1;
+        }
+    }
+
+    public function bootstrap(): void
+    {
+        if ($this->booted) {
+            return;
+        }
+
+        $this->loadConfiguredConfigFiles();
+        $this->markBenchmark('config_loaded');
+
+        $this->applyRuntimeAppConfig();
+        $this->registerCoreProvidersWithDiagnostics();
+        $this->markBenchmark('core_logger_ready');
+
+        $this->registerCommonFrameworkProviders();
+        $this->framework->register(new ConsoleServiceProvider());
+        $this->markBenchmark('framework_providers_registered');
+
+        $this->registerConfiguredProviders();
+        $this->markBenchmark('app_providers_registered');
+        $this->markBenchmark('providers_registered');
+
+        $this->booted = true;
+    }
+
+    private function buildCommandRegistry(): CommandRegistry
+    {
+        $config = $this->container->get(Config::class);
+        $configured = $config->get('commands', []);
+
+        if (!is_array($configured)) {
+            throw new \LogicException('Config key "commands" must be an array.');
+        }
+
+        $registry = $this->container->get(CommandRegistry::class);
+
+        foreach ($configured as $commandClass) {
+            if (!is_string($commandClass)) {
+                throw new \LogicException('Configured command must be a class-string.');
+            }
+            if (!class_exists($commandClass) || !is_subclass_of($commandClass, CommandInterface::class)) {
+                throw new \LogicException(sprintf(
+                    'Configured command "%s" must implement %s.',
+                    $commandClass,
+                    CommandInterface::class,
+                ));
+            }
+            /** @var class-string<CommandInterface> $commandClass */
+
+            $registry->register($commandClass);
+        }
+
+        return $registry;
+    }
+
+    private function printCommandList(CommandRegistry $registry): void
+    {
+        fwrite(STDOUT, "Available commands:\n");
+
+        foreach ($registry->all() as $command) {
+            fwrite(STDOUT, sprintf("  %-24s %s\n", $command->name(), $command->description()));
+        }
+    }
+
+    private function loadConfiguredConfigFiles(): void
+    {
+        foreach ($this->configuredConfigFiles() as $file) {
+            $path = $this->context->configPath($file);
+
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $this->framework->configFromFile($path);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function configuredConfigFiles(): array
+    {
+        $manifestPath = $this->context->configPath(self::CONFIG_MANIFEST);
+
+        if (!is_file($manifestPath)) {
+            return self::DEFAULT_CONFIG_FILES;
+        }
+
+        $manifest = require $manifestPath;
+
+        if (!is_array($manifest)) {
+            throw new \LogicException(sprintf(
+                'Config manifest "%s" must return an array.',
+                self::CONFIG_MANIFEST,
+            ));
+        }
+
+        $files = $manifest['files'] ?? null;
+
+        if (!is_array($files)) {
+            throw new \LogicException(sprintf(
+                'Config manifest "%s" must contain array key "files".',
+                self::CONFIG_MANIFEST,
+            ));
+        }
+
+        $normalized = [];
+
+        foreach ($files as $file) {
+            if (!is_string($file) || trim($file) === '') {
+                throw new \LogicException(sprintf(
+                    'Config manifest "%s" contains invalid file name.',
+                    self::CONFIG_MANIFEST,
+                ));
+            }
+
+            $normalized[] = trim($file);
+        }
+
+        if (!in_array('Commands.php', $normalized, true)) {
+            $normalized[] = 'Commands.php';
+        }
+
+        return $normalized;
+    }
+
+    private function logException(Throwable $exception): void
+    {
+        $this->container
+            ->get(ExceptionLogger::class)
+            ->log($exception, 'cli-kernel');
+    }
+
+}

@@ -1,0 +1,24 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Core\CliKernel;
+use Lemonade\Framework\Core\Context\ApplicationContextFactory;
+use Lemonade\Framework\Core\Framework;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$basePath = dirname(__DIR__);
+$context = (new ApplicationContextFactory())->fromGlobals($basePath);
+$container = new Container();
+$framework = new Framework($container, $context);
+$kernel = new CliKernel($context, $container, $framework);
+
+$argv = isset($_SERVER['argv']) && is_array($_SERVER['argv'])
+    ? array_values($_SERVER['argv'])
+    : [];
+
+exit($kernel->handle($argv));
+
