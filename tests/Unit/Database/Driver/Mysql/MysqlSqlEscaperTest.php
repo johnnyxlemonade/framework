@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Lemonade\Framework\Tests\Unit\Database\Driver\Mysql;
+
+use Lemonade\Framework\Database\Connection\DatabaseConfig;
+use Lemonade\Framework\Database\Driver\Mysql\MysqlSqlEscaper;
+use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
+use PHPUnit\Framework\TestCase;
+
+final class MysqlSqlEscaperTest extends TestCase
+{
+    public function testIdentifierEscaping(): void
+    {
+        $escaper = new MysqlSqlEscaper($this->config('pre_'));
+
+        self::assertSame('`users`', $escaper->identifier('users'));
+        self::assertSame('`schema`.`users`', $escaper->identifier('schema.users'));
+        self::assertSame('`na``me`', $escaper->identifier('na`me'));
+        self::assertSame('*', $escaper->identifier('*'));
+    }
+
+    public function testTablePrefixing(): void
+    {
+        $escaper = new MysqlSqlEscaper($this->config('pre_'));
+
+        self::assertSame('`pre_users`', $escaper->table('users'));
+        self::assertSame('`pre_users`', $escaper->table('pre_users'));
+    }
+
+    public function testValueEscapingAndTypes(): void
+    {
+        $escaper = new MysqlSqlEscaper($this->config(''));
+
+        self::assertSame('NULL', $escaper->value(null));
+        self::assertSame('1', $escaper->value(true));
+        self::assertSame('0', $escaper->value(false));
+        self::assertSame('42', $escaper->value(42));
+        self::assertSame('12.5', $escaper->value(12.5));
+        self::assertSame("'O\\'Reilly'", $escaper->value("O'Reilly"));
+        self::assertSame("'a\\\\b\\0\\n\\r\\Z'", $escaper->value("a\\b\0\n\r\x1a"));
+        self::assertSame('NOW()', $escaper->value(SqlExpression::raw('NOW()')));
+        self::assertSame("''", $escaper->value(['x']));
+    }
+
+    private function config(string $prefix): DatabaseConfig
+    {
+        return DatabaseConfig::fromArray([
+            'driver' => 'mysql',
+            'host' => '127.0.0.1',
+            'port' => 3306,
+            'database' => 'test',
+            'username' => 'root',
+            'password' => '',
+            'charset' => 'utf8mb4',
+            'prefix' => $prefix,
+        ]);
+    }
+}
