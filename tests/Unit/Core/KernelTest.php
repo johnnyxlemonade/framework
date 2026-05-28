@@ -141,6 +141,37 @@ final class KernelTest extends TestCase
         self::assertSame(404, $response->getStatusCode());
     }
 
+    public function testBootstrapSkipsMissingConventionalConfigFiles(): void
+    {
+        $configDir = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Localization.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Cache.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Logging.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Session.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Database.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Breadcrumbs.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Upload.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Providers.php');
+
+        $kernel = $this->kernel(false);
+        $response = $kernel->run(new ServerRequest('GET', '/missing'));
+
+        self::assertSame(404, $response->getStatusCode());
+    }
+
+    public function testKernelConventionalConfigDoesNotIncludeCommandsPhp(): void
+    {
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nthrow new \\RuntimeException('Commands config should not be loaded by HTTP kernel');\n",
+        );
+
+        $kernel = $this->kernel(false);
+        $response = $kernel->run(new ServerRequest('GET', '/missing'));
+
+        self::assertSame(404, $response->getStatusCode());
+    }
+
     private function kernel(bool $debug): Kernel
     {
         $context = new ApplicationContext(

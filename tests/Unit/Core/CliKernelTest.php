@@ -143,7 +143,7 @@ final class CliKernelTest extends TestCase
         self::assertSame(12, $exit);
     }
 
-    public function testManifestAutoAddsCommandsPhpWhenMissingInFilesList(): void
+    public function testManifestIsAuthoritativeAndDoesNotAutoAddCommandsPhp(): void
     {
         $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => ['App.php']];\n");
         $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['app' => ['name' => 'Demo']];\n");
@@ -152,7 +152,8 @@ final class CliKernelTest extends TestCase
         $kernel = $this->kernel();
         $exit = $kernel->handle(['bin/lemonade', 'recorder']);
 
-        self::assertSame(12, $exit);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('Unknown command: recorder', $this->stderrContents());
     }
 
     public function testInvalidManifestNotReturningArrayReturnsOne(): void

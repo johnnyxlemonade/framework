@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Http\HttpServiceProvider;
@@ -19,12 +20,10 @@ final class Kernel
 {
     use KernelBootstrapTrait;
 
-    private const CONFIG_MANIFEST = 'Config.php';
-
     /**
      * @var list<string>
      */
-    private const DEFAULT_CONFIG_FILES = [
+    private const CONVENTIONAL_CONFIG_FILES = [
         'App.php',
         'Localization.php',
         'Cache.php',
@@ -51,7 +50,7 @@ final class Kernel
             return;
         }
 
-        $this->loadConfiguredConfigFiles();
+        $this->loadApplicationConfigFiles();
         $this->markBenchmark('config_loaded');
 
         $this->applyRuntimeAppConfig();
@@ -123,58 +122,13 @@ final class Kernel
         return $this->context;
     }
 
-    private function loadConfiguredConfigFiles(): void
+    private function loadApplicationConfigFiles(): void
     {
-        foreach ($this->configuredConfigFiles() as $file) {
-            $this->framework->configFromFile(
-                $this->context->configPath($file),
-            );
-        }
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function configuredConfigFiles(): array
-    {
-        $manifestPath = $this->context->configPath(self::CONFIG_MANIFEST);
-
-        if (!is_file($manifestPath)) {
-            return self::DEFAULT_CONFIG_FILES;
-        }
-
-        $manifest = require $manifestPath;
-
-        if (!is_array($manifest)) {
-            throw new \LogicException(sprintf(
-                'Config manifest "%s" must return an array.',
-                self::CONFIG_MANIFEST,
-            ));
-        }
-
-        $files = $manifest['files'] ?? null;
-
-        if (!is_array($files)) {
-            throw new \LogicException(sprintf(
-                'Config manifest "%s" must contain array key "files".',
-                self::CONFIG_MANIFEST,
-            ));
-        }
-
-        $normalized = [];
-
-        foreach ($files as $file) {
-            if (!is_string($file) || trim($file) === '') {
-                throw new \LogicException(sprintf(
-                    'Config manifest "%s" contains invalid file name.',
-                    self::CONFIG_MANIFEST,
-                ));
-            }
-
-            $normalized[] = trim($file);
-        }
-
-        return $normalized;
+        (new ConfigLoader())->load(
+            $this->framework,
+            $this->context,
+            self::CONVENTIONAL_CONFIG_FILES,
+        );
     }
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface
