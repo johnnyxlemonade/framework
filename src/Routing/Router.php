@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Routing;
 
 use Lemonade\Framework\Http\Request\HttpMethod;
+use Lemonade\Framework\Routing\Exception\MissingRouteParameterException;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -29,8 +30,15 @@ final class Router
      * @var array<int, string>
      */
     private array $groupPrefixes = [];
+    /**
+     * @var array<int, string>
+     */
+    private array $namePrefixes = [];
 
     private string $controllerNamespace = 'App\\Controllers';
+    private string $localizedRouteNamePrefix = 'localized.';
+    private string $localizedRoutePrefix = '/{locale}';
+    private string $localizedLocaleParameter = 'locale';
 
     public function get(string $path, string $handler): Route
     {
@@ -104,19 +112,21 @@ final class Router
 
     public function mapNamed(string $name, HttpMethod|string $method, string $path, string $handler): Route
     {
-        if (isset($this->namedRoutes[$name])) {
+        $resolvedName = $this->withNamePrefix($name);
+
+        if (isset($this->namedRoutes[$resolvedName])) {
             throw new \LogicException(sprintf(
                 'Named route "%s" is already registered as "%s".',
-                $name,
-                $this->namedRoutes[$name],
+                $resolvedName,
+                $this->namedRoutes[$resolvedName],
             ));
         }
 
         $route = $this->map($method, $path, $handler);
 
-        $route->name($name);
+        $route->name($resolvedName);
 
-        $this->namedRoutes[$name] = $this->formatUrl($route->path());
+        $this->namedRoutes[$resolvedName] = $this->formatUrl($route->path());
 
         return $route;
     }
@@ -136,6 +146,54 @@ final class Router
         return new RouteGroup(
             array_slice($this->routeList, $before),
         );
+    }
+
+    public function localizedGroup(callable $builder): RouteGroup
+    {
+        $before = count($this->routeList);
+
+        $builder($this);
+
+        $this->group($this->localizedRoutePrefix, function (Router $router) use ($builder): void {
+            $this->namePrefixes[] = $this->localizedRouteNamePrefix;
+
+            try {
+                $builder($router);
+            } finally {
+                array_pop($this->namePrefixes);
+            }
+        });
+
+        return new RouteGroup(
+            array_slice($this->routeList, $before),
+        );
+    }
+
+    public function configureLocalizedRoutes(
+        string $routeNamePrefix = 'localized.',
+        ?string $routePrefix = null,
+        string $localeParameter = 'locale',
+    ): void {
+        $localeParameter = trim($localeParameter);
+        $this->localizedLocaleParameter = $localeParameter !== '' ? $localeParameter : 'locale';
+        $this->localizedRouteNamePrefix = $routeNamePrefix;
+
+        if ($routePrefix !== null && trim($routePrefix) !== '') {
+            $placeholder = '{' . $this->localizedLocaleParameter . '}';
+            if (!str_contains($routePrefix, $placeholder)) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Localized route prefix "%s" must contain placeholder "%s".',
+                    $routePrefix,
+                    $placeholder,
+                ));
+            }
+
+            $this->localizedRoutePrefix = $routePrefix;
+
+            return;
+        }
+
+        $this->localizedRoutePrefix = '/{' . $this->localizedLocaleParameter . '}';
     }
 
     /**
@@ -199,10 +257,7 @@ final class Router
                 $key = $matches[1];
 
                 if (!array_key_exists($key, $params)) {
-                    throw new \InvalidArgumentException(sprintf(
-                        'Missing route parameter "%s".',
-                        $key,
-                    ));
+                    throw new MissingRouteParameterException($key);
                 }
 
                 $value = $params[$key];
@@ -448,6 +503,15 @@ final class Router
         }
 
         return $this->normalizePath($prefix . '/' . ltrim($path, '/'));
+    }
+
+    private function withNamePrefix(string $name): string
+    {
+        if ($this->namePrefixes === []) {
+            return $name;
+        }
+
+        return implode('', $this->namePrefixes) . $name;
     }
 
     private function normalizePath(string $path): string

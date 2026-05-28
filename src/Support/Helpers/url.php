@@ -23,6 +23,22 @@ if (!function_exists('url')) {
     }
 }
 
+if (!function_exists('localized_url')) {
+    /**
+     * @param array<string, scalar|null> $params
+     */
+    function localized_url(string $route, array $params = [], ?string $locale = null): string
+    {
+        $generator = service(UrlGenerator::class);
+
+        if (!$generator instanceof UrlGenerator) {
+            return '';
+        }
+
+        return $generator->localizedRoute($route, $params, $locale);
+    }
+}
+
 if (!function_exists('current_path')) {
     function current_path(): string
     {

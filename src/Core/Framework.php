@@ -110,6 +110,7 @@ final class Framework
 
     public function routes(callable $builder): self
     {
+        $this->configureRouterLocalizedRoutes();
         $builder($this->router);
 
         return $this;
@@ -129,6 +130,7 @@ final class Framework
             );
         }
 
+        $this->configureRouterLocalizedRoutes();
         $loader($this->router);
 
         return $this;
@@ -198,5 +200,24 @@ final class Framework
     public function container(): ContainerInterface
     {
         return $this->container;
+    }
+
+    private function configureRouterLocalizedRoutes(): void
+    {
+        $config = $this->container->get(Config::class);
+
+        $namePrefix = $config->string('localization.url.localized_route_name_prefix');
+        if (!is_string($namePrefix) || trim($namePrefix) === '') {
+            $legacyPrefix = $config->string('localization.url.prefix_route_name');
+            $namePrefix = is_string($legacyPrefix) && trim($legacyPrefix) !== '' ? $legacyPrefix : 'localized.';
+        }
+        $routePrefix = $config->string('localization.url.route_prefix');
+        $localeParameter = $config->string('localization.url.locale_parameter', 'locale');
+
+        $this->router->configureLocalizedRoutes(
+            $namePrefix,
+            $routePrefix,
+            $localeParameter ?? 'locale',
+        );
     }
 }

@@ -151,6 +151,95 @@ final class RouterTest extends TestCase
         self::assertSame('POST', $group->routes()[1]->method());
     }
 
+    public function testLocalizedGroupRegistersBaseAndLocalizedNamedRoutes(): void
+    {
+        $router = new Router();
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('documentation.show', '/documentation/{slug}', 'DocumentationController@show');
+        });
+
+        self::assertSame('/', $router->url('home.index'));
+        self::assertSame('/cs', $router->url('localized.home.index', ['locale' => 'cs']));
+        self::assertSame('/documentation/abc', $router->url('documentation.show', ['slug' => 'abc']));
+        self::assertSame('/cs/documentation/abc', $router->url('localized.documentation.show', ['locale' => 'cs', 'slug' => 'abc']));
+    }
+
+    public function testLocalizedGroupRespectsGroupPrefix(): void
+    {
+        $router = new Router();
+        $router->group('/front', static function (Router $router): void {
+            $router->localizedGroup(static function (Router $router): void {
+                $router->getNamed('home.index', '', 'HomeController@index');
+            });
+        });
+
+        self::assertSame('/front', $router->url('home.index'));
+        self::assertSame('/front/cs', $router->url('localized.home.index', ['locale' => 'cs']));
+    }
+
+    public function testLocalizedGroupRespectsMiddleware(): void
+    {
+        $router = new Router();
+        $group = $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+        });
+
+        $group->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
+
+        self::assertCount(2, $group->routes());
+        self::assertSame(
+            [\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class],
+            $group->routes()[0]->middlewareStack(),
+        );
+        self::assertSame(
+            [\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class],
+            $group->routes()[1]->middlewareStack(),
+        );
+    }
+
+    public function testLocalizedGroupRespectsCustomLocalizedRouteNamePrefix(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(routeNamePrefix: 'i18n.');
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+        });
+
+        self::assertSame('/cs', $router->url('i18n.home.index', ['locale' => 'cs']));
+    }
+
+    public function testLocalizedGroupRespectsCustomLocaleParameterName(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(localeParameter: 'lang');
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+        });
+
+        self::assertSame('/cs', $router->url('localized.home.index', ['lang' => 'cs']));
+    }
+
+    public function testLocalizedGroupThrowsWhenRoutePrefixDoesNotContainConfiguredLocaleParameter(): void
+    {
+        $router = new Router();
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->configureLocalizedRoutes(routePrefix: '/{locale}', localeParameter: 'lang');
+    }
+
+    public function testRegularGroupDoesNotCreateLocalizedVariant(): void
+    {
+        $router = new Router();
+        $router->group('/admin', static function (Router $router): void {
+            $router->getNamed('admin.dashboard', '', 'AdminDashboardController@index');
+        });
+
+        self::assertSame('/admin', $router->url('admin.dashboard'));
+        $this->expectException(RouteNotFoundException::class);
+        $router->url('localized.admin.dashboard', ['locale' => 'cs']);
+    }
+
     public function testMatchFindsExactRoute(): void
     {
         $router = new Router();
