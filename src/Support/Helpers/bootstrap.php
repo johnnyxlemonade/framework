@@ -13,6 +13,7 @@ require_once __DIR__ . '/flash.php';
 require_once __DIR__ . '/e.php';
 require_once __DIR__ . '/asset.php';
 require_once __DIR__ . '/logger.php';
+require_once __DIR__ . '/dump.php';
 require_once __DIR__ . '/basecrypt.php';
 require_once __DIR__ . '/php_size.php';
 require_once __DIR__ . '/format.php';

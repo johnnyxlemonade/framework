@@ -17,6 +17,7 @@ use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
+use Lemonade\Framework\Debug\DebugServiceProvider;
 use Lemonade\Framework\Event\EventServiceProvider;
 use Lemonade\Framework\Localization\LocalizationServiceProvider;
 use Lemonade\Framework\Queue\QueueServiceProvider;
@@ -50,6 +51,7 @@ final class FrameworkTest extends TestCase
             ComponentServiceProvider::class,
             ValidationServiceProvider::class,
             UploadServiceProvider::class,
+            DebugServiceProvider::class,
             ViewServiceProvider::class,
             EventServiceProvider::class,
             QueueServiceProvider::class,
