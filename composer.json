@@ -141,6 +141,23 @@
       "@qa"
     ]
   },
+  "scripts-descriptions": {
+    "lint": "Check PHP syntax for source, tests and bin/lemonade.",
+    "autoload:dev": "Regenerate Composer autoload files for development.",
+    "autoload:optimize": "Regenerate optimized Composer autoload files.",
+    "autoload:prod": "Regenerate optimized authoritative classmap for production.",
+    "autoload:apcu": "Regenerate optimized Composer autoload files with APCu support.",
+    "composer:validate": "Validate composer.json strictly.",
+    "test": "Run PHPUnit test suite.",
+    "test:ci": "Run PHPUnit test suite with CI-friendly colored output.",
+    "stan": "Run PHPStan static analysis.",
+    "stan:ci": "Run PHPStan static analysis with GitHub Actions output format.",
+    "cs:check": "Check coding standards using PHP CS Fixer without modifying files.",
+    "cs:fix": "Fix coding standards using PHP CS Fixer.",
+    "qa": "Run quality checks: coding standards, static analysis and tests.",
+    "check:platform": "Check installed platform requirements.",
+    "check": "Run full project validation."
+  },
   "license": "MIT",
   "support": {
     "email": "honzamudrak@gmail.com",
