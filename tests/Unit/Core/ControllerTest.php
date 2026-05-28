@@ -41,7 +41,7 @@ final class ControllerTest extends TestCase
         $controller = new ControllerTestSubject();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Controller context is not initialized. Missing ServerRequestInterface.');
+        $this->expectExceptionMessage('Controller context is not initialized. Missing ControllerContext.');
 
         $controller->exposedRequest();
     }
@@ -51,7 +51,7 @@ final class ControllerTest extends TestCase
         $controller = new ControllerTestSubject();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Controller context is not initialized. Missing ResponseBuilder.');
+        $this->expectExceptionMessage('Controller context is not initialized. Missing ControllerResponses.');
 
         $controller->exposedText('Hello');
     }
@@ -235,7 +235,7 @@ final class ControllerTest extends TestCase
         self::assertSame('stream-body', (string) $response->getBody());
     }
 
-    public function testContextReturnsApplicationContextFromServiceLocator(): void
+    public function testAppReturnsApplicationContextFromServiceLocator(): void
     {
         $context = $this->applicationContext();
 
@@ -246,11 +246,11 @@ final class ControllerTest extends TestCase
 
         $controller = $this->controller($this->request());
 
-        self::assertSame($context, $controller->exposedContext());
-        self::assertSame($context, $controller->exposedContext());
+        self::assertSame($context, $controller->exposedApp());
+        self::assertSame($context, $controller->exposedApp());
     }
 
-    public function testContextThrowsWhenServiceLocatorContainerIsNotInitialized(): void
+    public function testAppThrowsWhenServiceLocatorContainerIsNotInitialized(): void
     {
         ServiceLocator::reset();
 
@@ -259,7 +259,17 @@ final class ControllerTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('ApplicationContext service is not available.');
 
-        $controller->exposedContext();
+        $controller->exposedApp();
+    }
+
+    public function testAppHelperRequiresInitializedControllerContext(): void
+    {
+        $controller = new ControllerTestSubject();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Controller context is not initialized. Missing ControllerServices.');
+
+        $controller->exposedApp();
     }
 
     public function testSetControllerContextResetsRequestDataAndResponseBuilder(): void
@@ -582,9 +592,9 @@ final class ControllerTestSubject extends Controller
         return $this->inputBool($key, $default);
     }
 
-    public function exposedContext(): ApplicationContext
+    public function exposedApp(): ApplicationContext
     {
-        return $this->context();
+        return $this->app();
     }
 
 }

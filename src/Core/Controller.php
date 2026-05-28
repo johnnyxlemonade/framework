@@ -6,15 +6,16 @@ namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Controller\ControllerContext;
+use Lemonade\Framework\Core\Controller\ControllerResponses;
+use Lemonade\Framework\Core\Controller\ControllerServices;
 use Lemonade\Framework\Core\Http\RequestData;
-use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Lemonade\Framework\Filesystem\Filesystem;
 use Lemonade\Framework\Http\Request\HttpMethod;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
-use Lemonade\Framework\Support\ServiceLocator;
 use Lemonade\Framework\Upload\UploadFactory;
 use Lemonade\Framework\Validation\FormValidation;
 use Lemonade\Framework\View\View;
@@ -23,56 +24,45 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\UploadedFileInterface;
+use RuntimeException;
 
 abstract class Controller
 {
-    private ?ServerRequestInterface $requestContext = null;
-    private ?RequestData $requestData = null;
-    private ?ResponseBuilder $responseBuilder = null;
-    private ?BreadcrumbComponent $breadcrumbComponent = null;
-    private ?Router $routerService = null;
-    private ?UrlGenerator $urlGenerator = null;
-    private ?FormValidation $formValidation = null;
-    private ?UploadFactory $uploadFactory = null;
-    private ?TranslatorInterface $translatorService = null;
-    private ?Filesystem $filesystemService = null;
-    private ?View $viewService = null;
-    private ?FlashBagInterface $flashBagService = null;
-    private ?ApplicationContext $applicationContext = null;
+    private ?ControllerContext $controllerContext = null;
+    private ?ControllerResponses $controllerResponses = null;
+    private ?ControllerServices $controllerServices = null;
 
     final public function setControllerContext(
         ServerRequestInterface $request,
         ResponseFactoryInterface $responseFactory,
         StreamFactoryInterface $streamFactory,
     ): void {
-        $this->requestContext = $request;
-        $this->requestData = new RequestData($request);
-        $this->responseBuilder = new ResponseBuilder($responseFactory, $streamFactory);
-        $this->breadcrumbComponent = null;
-        $this->routerService = null;
-        $this->urlGenerator = null;
-        $this->formValidation = null;
-        $this->uploadFactory = null;
-        $this->translatorService = null;
-        $this->filesystemService = null;
-        $this->viewService = null;
-        $this->flashBagService = null;
-        $this->applicationContext = null;
+        $this->controllerContext = new ControllerContext(
+            request: $request,
+            responseFactory: $responseFactory,
+            streamFactory: $streamFactory,
+        );
+
+        $this->controllerResponses = new ControllerResponses(
+            $this->controllerContext->responseBuilder(),
+        );
+
+        $this->controllerServices = new ControllerServices();
     }
 
     protected function request(): ServerRequestInterface
     {
-        return $this->requireRequestContext();
+        return $this->runtime()->request();
     }
 
     protected function input(string $key, mixed $default = null): mixed
     {
-        return $this->requireRequestData()->input($key, $default);
+        return $this->requestData()->input($key, $default);
     }
 
     protected function query(string $key, mixed $default = null): mixed
     {
-        return $this->requireRequestData()->query($key, $default);
+        return $this->requestData()->query($key, $default);
     }
 
     /**
@@ -80,12 +70,12 @@ abstract class Controller
      */
     protected function queryAll(): array
     {
-        return $this->requireRequestData()->queryAll();
+        return $this->requestData()->queryAll();
     }
 
     protected function post(string $key, mixed $default = null): mixed
     {
-        return $this->requireRequestData()->post($key, $default);
+        return $this->requestData()->post($key, $default);
     }
 
     /**
@@ -93,12 +83,12 @@ abstract class Controller
      */
     protected function postAll(): array
     {
-        return $this->requireRequestData()->postAll();
+        return $this->requestData()->postAll();
     }
 
     protected function header(string $name, ?string $default = null): ?string
     {
-        return $this->requireRequestData()->header($name, $default);
+        return $this->requestData()->header($name, $default);
     }
 
     /**
@@ -106,12 +96,12 @@ abstract class Controller
      */
     protected function headers(): array
     {
-        return $this->requireRequestData()->headers();
+        return $this->requestData()->headers();
     }
 
     protected function cookie(string $name, mixed $default = null): mixed
     {
-        return $this->requireRequestData()->cookie($name, $default);
+        return $this->requestData()->cookie($name, $default);
     }
 
     /**
@@ -119,12 +109,12 @@ abstract class Controller
      */
     protected function cookies(): array
     {
-        return $this->requireRequestData()->cookies();
+        return $this->requestData()->cookies();
     }
 
     protected function server(string $key, mixed $default = null): mixed
     {
-        return $this->requireRequestData()->server($key, $default);
+        return $this->requestData()->server($key, $default);
     }
 
     /**
@@ -132,17 +122,17 @@ abstract class Controller
      */
     protected function serverAll(): array
     {
-        return $this->requireRequestData()->serverAll();
+        return $this->requestData()->serverAll();
     }
 
     protected function body(): string
     {
-        return $this->requireRequestData()->body();
+        return $this->requestData()->body();
     }
 
     protected function jsonInput(string $key, mixed $default = null): mixed
     {
-        return $this->requireRequestData()->jsonInput($key, $default);
+        return $this->requestData()->jsonInput($key, $default);
     }
 
     /**
@@ -150,22 +140,22 @@ abstract class Controller
      */
     protected function jsonPayload(): array
     {
-        return $this->requireRequestData()->jsonPayload();
+        return $this->requestData()->jsonPayload();
     }
 
     protected function isJsonRequest(): bool
     {
-        return $this->requireRequestData()->isJsonRequest();
+        return $this->requestData()->isJsonRequest();
     }
 
     protected function acceptsJson(): bool
     {
-        return $this->requireRequestData()->acceptsJson();
+        return $this->requestData()->acceptsJson();
     }
 
     protected function expectsJson(): bool
     {
-        return $this->requireRequestData()->expectsJson();
+        return $this->requestData()->expectsJson();
     }
 
     /**
@@ -173,7 +163,7 @@ abstract class Controller
      */
     protected function file(string $name): UploadedFileInterface|array|null
     {
-        return $this->requireRequestData()->file($name);
+        return $this->requestData()->file($name);
     }
 
     /**
@@ -181,17 +171,102 @@ abstract class Controller
      */
     protected function files(): array
     {
-        return $this->requireRequestData()->files();
+        return $this->requestData()->files();
+    }
+
+    protected function isAjaxRequest(): bool
+    {
+        return $this->requestData()->isAjaxRequest();
+    }
+
+    protected function ip(): ?string
+    {
+        return $this->requestData()->ip();
+    }
+
+    protected function userAgent(?string $default = null): ?string
+    {
+        return $this->requestData()->userAgent($default);
+    }
+
+    protected function referer(?string $default = null): ?string
+    {
+        return $this->requestData()->referer($default);
+    }
+
+    protected function method(): string
+    {
+        return $this->requestData()->method();
+    }
+
+    protected function isMethod(HttpMethod|string $method): bool
+    {
+        return $this->requestData()->isMethod($method);
+    }
+
+    protected function isGet(): bool
+    {
+        return $this->requestData()->isGet();
+    }
+
+    protected function isPost(): bool
+    {
+        return $this->requestData()->isPost();
+    }
+
+    protected function isPut(): bool
+    {
+        return $this->requestData()->isPut();
+    }
+
+    protected function isPatch(): bool
+    {
+        return $this->requestData()->isPatch();
+    }
+
+    protected function isDelete(): bool
+    {
+        return $this->requestData()->isDelete();
+    }
+
+    protected function isHead(): bool
+    {
+        return $this->requestData()->isHead();
+    }
+
+    protected function isOptions(): bool
+    {
+        return $this->requestData()->isOptions();
+    }
+
+    protected function inputString(string $key, string $default = ''): string
+    {
+        return $this->requestData()->inputString($key, $default);
+    }
+
+    protected function inputInt(string $key, int $default = 0): int
+    {
+        return $this->requestData()->inputInt($key, $default);
+    }
+
+    protected function inputFloat(string $key, float $default = 0.0): float
+    {
+        return $this->requestData()->inputFloat($key, $default);
+    }
+
+    protected function inputBool(string $key, bool $default = false): bool
+    {
+        return $this->requestData()->inputBool($key, $default);
     }
 
     protected function text(string $content, int $status = 200): ResponseInterface
     {
-        return $this->requireResponseBuilder()->text($content, $status);
+        return $this->responses()->text($content, $status);
     }
 
     protected function html(string $content, int $status = 200): ResponseInterface
     {
-        return $this->requireResponseBuilder()->html($content, $status);
+        return $this->responses()->html($content, $status);
     }
 
     /**
@@ -199,12 +274,12 @@ abstract class Controller
      */
     protected function json(array $payload, int $status = 200): ResponseInterface
     {
-        return $this->requireResponseBuilder()->json($payload, $status);
+        return $this->responses()->json($payload, $status);
     }
 
     protected function redirect(string $to, int $status = 302): ResponseInterface
     {
-        return $this->requireResponseBuilder()->redirect($to, $status);
+        return $this->responses()->redirect($to, $status);
     }
 
     protected function download(
@@ -212,7 +287,7 @@ abstract class Controller
         ?string $downloadName = null,
         string $contentType = 'application/octet-stream',
     ): ResponseInterface {
-        return $this->requireResponseBuilder()->download($filePath, $downloadName, $contentType);
+        return $this->responses()->download($filePath, $downloadName, $contentType);
     }
 
     protected function response(
@@ -220,7 +295,7 @@ abstract class Controller
         int $status = 200,
         string $contentType = 'text/html; charset=UTF-8',
     ): ResponseInterface {
-        return $this->requireResponseBuilder()->response($content, $status, $contentType);
+        return $this->responses()->response($content, $status, $contentType);
     }
 
     /**
@@ -233,253 +308,57 @@ abstract class Controller
         string $contentType = 'text/plain; charset=UTF-8',
         array $headers = [],
     ): ResponseInterface {
-        return $this->requireResponseBuilder()->stream($producer, $status, $contentType, $headers);
+        return $this->responses()->stream($producer, $status, $contentType, $headers);
     }
 
-    protected function isAjaxRequest(): bool
+    protected function app(): ApplicationContext
     {
-        return $this->requireRequestData()->isAjaxRequest();
-    }
-
-    protected function ip(): ?string
-    {
-        return $this->requireRequestData()->ip();
-    }
-
-    protected function userAgent(?string $default = null): ?string
-    {
-        return $this->requireRequestData()->userAgent($default);
-    }
-
-    protected function referer(?string $default = null): ?string
-    {
-        return $this->requireRequestData()->referer($default);
-    }
-
-    protected function method(): string
-    {
-        return $this->requireRequestData()->method();
-    }
-
-    protected function isMethod(HttpMethod|string $method): bool
-    {
-        return $this->requireRequestData()->isMethod($method);
-    }
-
-    protected function isGet(): bool
-    {
-        return $this->requireRequestData()->isGet();
-    }
-
-    protected function isPost(): bool
-    {
-        return $this->requireRequestData()->isPost();
-    }
-
-    protected function isPut(): bool
-    {
-        return $this->requireRequestData()->isPut();
-    }
-
-    protected function isPatch(): bool
-    {
-        return $this->requireRequestData()->isPatch();
-    }
-
-    protected function isDelete(): bool
-    {
-        return $this->requireRequestData()->isDelete();
-    }
-
-    protected function isHead(): bool
-    {
-        return $this->requireRequestData()->isHead();
-    }
-
-    protected function isOptions(): bool
-    {
-        return $this->requireRequestData()->isOptions();
-    }
-
-    protected function inputString(string $key, string $default = ''): string
-    {
-        return $this->requireRequestData()->inputString($key, $default);
-    }
-
-    protected function inputInt(string $key, int $default = 0): int
-    {
-        return $this->requireRequestData()->inputInt($key, $default);
-    }
-
-    protected function inputFloat(string $key, float $default = 0.0): float
-    {
-        return $this->requireRequestData()->inputFloat($key, $default);
-    }
-
-    protected function inputBool(string $key, bool $default = false): bool
-    {
-        return $this->requireRequestData()->inputBool($key, $default);
+        return $this->services()->context();
     }
 
     protected function breadcrumb(): BreadcrumbComponent
     {
-        if ($this->breadcrumbComponent instanceof BreadcrumbComponent) {
-            return $this->breadcrumbComponent;
-        }
-
-        $service = $this->frameworkService(BreadcrumbComponent::class);
-        if (!$service instanceof BreadcrumbComponent) {
-            throw new \RuntimeException('BreadcrumbComponent service is not available.');
-        }
-
-        $this->breadcrumbComponent = $service;
-
-        return $this->breadcrumbComponent;
+        return $this->services()->breadcrumb();
     }
 
     protected function router(): Router
     {
-        if ($this->routerService instanceof Router) {
-            return $this->routerService;
-        }
-
-        $service = $this->frameworkService(Router::class);
-        if (!$service instanceof Router) {
-            throw new \RuntimeException('Router service is not available.');
-        }
-
-        $this->routerService = $service;
-
-        return $this->routerService;
+        return $this->services()->router();
     }
 
     protected function url(): UrlGenerator
     {
-        if ($this->urlGenerator instanceof UrlGenerator) {
-            return $this->urlGenerator;
-        }
-
-        $service = $this->frameworkService(UrlGenerator::class);
-        if (!$service instanceof UrlGenerator) {
-            throw new \RuntimeException('UrlGenerator service is not available.');
-        }
-
-        $this->urlGenerator = $service;
-
-        return $this->urlGenerator;
+        return $this->services()->url();
     }
 
     protected function validator(): FormValidation
     {
-        if ($this->formValidation instanceof FormValidation) {
-            return $this->formValidation;
-        }
-
-        $service = $this->frameworkService(FormValidation::class);
-        if (!$service instanceof FormValidation) {
-            throw new \RuntimeException('FormValidation service is not available.');
-        }
-
-        $this->formValidation = $service;
-
-        return $this->formValidation;
+        return $this->services()->validator();
     }
 
     protected function upload(): UploadFactory
     {
-        if ($this->uploadFactory instanceof UploadFactory) {
-            return $this->uploadFactory;
-        }
-
-        $service = $this->frameworkService(UploadFactory::class);
-        if (!$service instanceof UploadFactory) {
-            throw new \RuntimeException('UploadFactory service is not available.');
-        }
-
-        $this->uploadFactory = $service;
-
-        return $this->uploadFactory;
+        return $this->services()->upload();
     }
 
     protected function translator(): TranslatorInterface
     {
-        if ($this->translatorService instanceof TranslatorInterface) {
-            return $this->translatorService;
-        }
-
-        $service = $this->frameworkService(TranslatorInterface::class);
-        if (!$service instanceof TranslatorInterface) {
-            throw new \RuntimeException('Translator service is not available.');
-        }
-
-        $this->translatorService = $service;
-
-        return $this->translatorService;
+        return $this->services()->translator();
     }
 
     protected function filesystem(): Filesystem
     {
-        if ($this->filesystemService instanceof Filesystem) {
-            return $this->filesystemService;
-        }
-
-        $service = $this->frameworkService(Filesystem::class);
-        if (!$service instanceof Filesystem) {
-            throw new \RuntimeException('Filesystem service is not available.');
-        }
-
-        $this->filesystemService = $service;
-
-        return $this->filesystemService;
+        return $this->services()->filesystem();
     }
 
     protected function view(): View
     {
-        if ($this->viewService instanceof View) {
-            return $this->viewService;
-        }
-
-        $service = $this->frameworkService(View::class);
-        if (!$service instanceof View) {
-            throw new \RuntimeException('View service is not available.');
-        }
-
-        $this->viewService = $service;
-
-        return $this->viewService;
+        return $this->services()->view();
     }
 
     protected function flash(): FlashBagInterface
     {
-        if ($this->flashBagService instanceof FlashBagInterface) {
-            return $this->flashBagService;
-        }
-
-        $service = $this->frameworkService(FlashBagInterface::class);
-        if (!$service instanceof FlashBagInterface) {
-            throw new \RuntimeException('FlashBag service is not available.');
-        }
-
-        $this->flashBagService = $service;
-
-        return $this->flashBagService;
-    }
-
-    protected function context(): ApplicationContext
-    {
-        if ($this->applicationContext instanceof ApplicationContext) {
-            return $this->applicationContext;
-        }
-
-        $service = $this->frameworkService(ApplicationContext::class);
-
-        if (!$service instanceof ApplicationContext) {
-            throw new \RuntimeException('ApplicationContext service is not available.');
-        }
-
-        $this->applicationContext = $service;
-
-        return $this->applicationContext;
+        return $this->services()->flash();
     }
 
     protected function setLang(?string $locale): void
@@ -504,47 +383,35 @@ abstract class Controller
         return $this->translator()->group($group, $locale);
     }
 
-    private function frameworkService(string $id): mixed
+    private function runtime(): ControllerContext
     {
-        $id = trim($id);
-        if ($id === '') {
-            return null;
-        }
-        /** @var non-empty-string $id */
-
-        $container = ServiceLocator::container();
-
-        if ($container === null || !$container->has($id)) {
-            return null;
+        if (!$this->controllerContext instanceof ControllerContext) {
+            throw new RuntimeException('Controller context is not initialized. Missing ControllerContext.');
         }
 
-        return $container->get($id);
+        return $this->controllerContext;
     }
 
-    private function requireRequestContext(): ServerRequestInterface
+    private function requestData(): RequestData
     {
-        if (!$this->requestContext instanceof ServerRequestInterface) {
-            throw new \RuntimeException('Controller context is not initialized. Missing ServerRequestInterface.');
-        }
-
-        return $this->requestContext;
+        return $this->runtime()->requestData();
     }
 
-    private function requireRequestData(): RequestData
+    private function responses(): ControllerResponses
     {
-        if (!$this->requestData instanceof RequestData) {
-            throw new \RuntimeException('Controller context is not initialized. Missing RequestData.');
+        if (!$this->controllerResponses instanceof ControllerResponses) {
+            throw new RuntimeException('Controller context is not initialized. Missing ControllerResponses.');
         }
 
-        return $this->requestData;
+        return $this->controllerResponses;
     }
 
-    private function requireResponseBuilder(): ResponseBuilder
+    private function services(): ControllerServices
     {
-        if (!$this->responseBuilder instanceof ResponseBuilder) {
-            throw new \RuntimeException('Controller context is not initialized. Missing ResponseBuilder.');
+        if (!$this->controllerServices instanceof ControllerServices) {
+            throw new RuntimeException('Controller context is not initialized. Missing ControllerServices.');
         }
 
-        return $this->responseBuilder;
+        return $this->controllerServices;
     }
 }
