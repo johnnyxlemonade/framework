@@ -200,6 +200,82 @@ final class FileTranslatorTest extends TestCase
         self::assertSame('validation.arr', $translator->get('validation.arr'));
     }
 
+    public function testNestedKeysAreAvailableViaDotNotation(): void
+    {
+        $this->writeLangNested($this->langPath('src', 'en', 'documentation'), [
+            'modules' => [
+                'core' => [
+                    'title' => 'Application Core',
+                ],
+            ],
+        ]);
+
+        $translator = $this->translator([
+            'localization' => [
+                'default_locale' => 'en',
+                'fallback_locale' => 'en',
+            ],
+        ]);
+
+        self::assertSame(
+            'Application Core',
+            $translator->get('documentation.modules.core.title'),
+        );
+    }
+
+    public function testNestedKeyFallsBackToFallbackLocale(): void
+    {
+        $this->writeLangNested($this->langPath('src', 'cs', 'documentation'), [
+            'modules' => [
+                'core' => [
+                    'title' => 'Jádro aplikace',
+                ],
+            ],
+        ]);
+
+        $translator = $this->translator([
+            'localization' => [
+                'default_locale' => 'en',
+                'fallback_locale' => 'cs',
+            ],
+        ]);
+
+        self::assertSame(
+            'Jádro aplikace',
+            $translator->get('documentation.modules.core.title'),
+        );
+    }
+
+    public function testAppOverridesFrameworkForNestedKeys(): void
+    {
+        $this->writeLangNested($this->langPath('src', 'en', 'documentation'), [
+            'modules' => [
+                'core' => [
+                    'title' => 'Framework Core',
+                ],
+            ],
+        ]);
+        $this->writeLangNested($this->langPath('app', 'en', 'documentation'), [
+            'modules' => [
+                'core' => [
+                    'title' => 'Application Core',
+                ],
+            ],
+        ]);
+
+        $translator = $this->translator([
+            'localization' => [
+                'default_locale' => 'en',
+                'fallback_locale' => 'en',
+            ],
+        ]);
+
+        self::assertSame(
+            'Application Core',
+            $translator->get('documentation.modules.core.title'),
+        );
+    }
+
     /**
      * @param array<string, mixed> $config
      */
@@ -229,6 +305,15 @@ final class FileTranslatorTest extends TestCase
      * @param array<mixed> $lines
      */
     private function writeLangMixed(string $path, array $lines): void
+    {
+        $code = "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($lines, true) . ";\n";
+        $this->writeRaw($path, $code);
+    }
+
+    /**
+     * @param array<mixed> $lines
+     */
+    private function writeLangNested(string $path, array $lines): void
     {
         $code = "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($lines, true) . ";\n";
         $this->writeRaw($path, $code);

@@ -134,10 +134,34 @@ final class FileTranslator implements TranslatorInterface
             return [];
         }
 
+        return $this->flattenLines($loaded);
+    }
+
+    /**
+     * @param array<mixed> $lines
+     * @return array<string, string>
+     */
+    private function flattenLines(array $lines, string $prefix = ''): array
+    {
         $result = [];
-        foreach ($loaded as $key => $value) {
-            if (is_string($key) && is_string($value)) {
-                $result[$key] = $value;
+
+        foreach ($lines as $key => $value) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            $fullKey = $prefix !== '' ? $prefix . '.' . $key : $key;
+
+            if (is_string($value)) {
+                $result[$fullKey] = $value;
+                continue;
+            }
+
+            if (is_array($value)) {
+                $result = array_merge(
+                    $result,
+                    $this->flattenLines($value, $fullKey),
+                );
             }
         }
 
