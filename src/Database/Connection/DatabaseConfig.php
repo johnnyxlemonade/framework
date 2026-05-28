@@ -188,7 +188,7 @@ final class DatabaseConfig
         }
 
         if (is_string($value)) {
-            $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+            $parsed = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
             return $parsed ?? $default;
         }

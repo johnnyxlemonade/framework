@@ -107,7 +107,7 @@ final class ApplicationContextFactory
         }
 
         if (is_string($value)) {
-            $result = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+            $result = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
             return $result ?? $default;
         }
