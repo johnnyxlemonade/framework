@@ -17,6 +17,11 @@ final class ServiceLocator
         self::$container = $container;
     }
 
+    public static function reset(): void
+    {
+        self::$container = null;
+    }
+
     public static function container(): ?ContainerInterface
     {
         return self::$container;

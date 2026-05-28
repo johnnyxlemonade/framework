@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
+use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Http\RequestData;
 use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Lemonade\Framework\Filesystem\Filesystem;
@@ -37,6 +38,7 @@ abstract class Controller
     private ?Filesystem $filesystemService = null;
     private ?View $viewService = null;
     private ?FlashBagInterface $flashBagService = null;
+    private ?ApplicationContext $applicationContext = null;
 
     final public function setControllerContext(
         ServerRequestInterface $request,
@@ -55,6 +57,7 @@ abstract class Controller
         $this->filesystemService = null;
         $this->viewService = null;
         $this->flashBagService = null;
+        $this->applicationContext = null;
     }
 
     protected function request(): ServerRequestInterface
@@ -460,6 +463,23 @@ abstract class Controller
         $this->flashBagService = $service;
 
         return $this->flashBagService;
+    }
+
+    protected function context(): ApplicationContext
+    {
+        if ($this->applicationContext instanceof ApplicationContext) {
+            return $this->applicationContext;
+        }
+
+        $service = $this->frameworkService(ApplicationContext::class);
+
+        if (!$service instanceof ApplicationContext) {
+            throw new \RuntimeException('ApplicationContext service is not available.');
+        }
+
+        $this->applicationContext = $service;
+
+        return $this->applicationContext;
     }
 
     protected function setLang(?string $locale): void
