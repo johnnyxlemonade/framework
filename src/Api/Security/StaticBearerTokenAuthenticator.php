@@ -9,12 +9,18 @@ use Psr\Http\Message\ServerRequestInterface;
 final class StaticBearerTokenAuthenticator implements ApiAuthenticatorInterface
 {
     /**
-     * @param list<string> $scopes
+     * @param list<non-empty-string> $scopes
      */
     public function __construct(
         private readonly ?string $token,
         private readonly array $scopes = [],
-    ) {}
+    ) {
+        foreach ($scopes as $scope) {
+            if ($scope === '') {
+                throw new \InvalidArgumentException('Static bearer token scope must not be empty.');
+            }
+        }
+    }
 
     public function authenticate(ServerRequestInterface $request): ?ApiIdentity
     {

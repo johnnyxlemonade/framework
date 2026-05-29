@@ -17,8 +17,14 @@ return [
     ],
     'framework' => [
         'enabled' => true,
+        'health' => [
+            'enabled' => true,
+            'route' => '/framework/health',
+            'access' => 'public',
+        ],
         'openapi' => [
             'enabled' => true,
+            'route' => '/framework/openapi.json',
             'access' => 'protected',
             'scopes' => [
                 'openapi:read',
@@ -26,6 +32,7 @@ return [
         ],
         'docs' => [
             'enabled' => false,
+            'route' => '/framework/docs',
             'access' => 'protected',
             'scopes' => [
                 'openapi:read',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Api\Http\Middleware;
 
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
 use Lemonade\Framework\Api\Http\Middleware\ApiIdentityRequestAttribute;
@@ -74,7 +75,16 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
     public function testProtectedEndpointWithValidTokenWithoutScopeReturns403(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/protected', 'X@y', 'protected.index', 'Protected', 'Protected', ApiAccess::Protected, scopes: ['openapi:read']);
+        $registry->add(
+            'GET',
+            '/protected',
+            'X@y',
+            'protected.index',
+            'Protected',
+            'Protected',
+            ApiAccess::Protected,
+            new ApiEndpointMetadata(scopes: ['openapi:read']),
+        );
 
         $middleware = $this->middleware($registry, new StaticBearerTokenAuthenticator('token', ['framework:read']));
         $request = (new ServerRequest('GET', '/api/protected'))->withHeader('Authorization', 'Bearer token');
@@ -86,7 +96,16 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
     public function testProtectedEndpointWithApiAdminPasses(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/protected', 'X@y', 'protected.index', 'Protected', 'Protected', ApiAccess::Protected, scopes: ['openapi:read']);
+        $registry->add(
+            'GET',
+            '/protected',
+            'X@y',
+            'protected.index',
+            'Protected',
+            'Protected',
+            ApiAccess::Protected,
+            new ApiEndpointMetadata(scopes: ['openapi:read']),
+        );
 
         $middleware = $this->middleware($registry, new StaticBearerTokenAuthenticator('token', ['api:admin']));
         $request = (new ServerRequest('GET', '/api/protected'))->withHeader('Authorization', 'Bearer token');
@@ -100,7 +119,16 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
     public function testProtectedEndpointWithRequiredScopePasses(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/protected', 'X@y', 'protected.index', 'Protected', 'Protected', ApiAccess::Protected, scopes: ['openapi:read']);
+        $registry->add(
+            'GET',
+            '/protected',
+            'X@y',
+            'protected.index',
+            'Protected',
+            'Protected',
+            ApiAccess::Protected,
+            new ApiEndpointMetadata(scopes: ['openapi:read']),
+        );
 
         $middleware = $this->middleware($registry, new StaticBearerTokenAuthenticator('token', ['openapi:read']));
         $request = (new ServerRequest('GET', '/api/protected'))->withHeader('Authorization', 'Bearer token');

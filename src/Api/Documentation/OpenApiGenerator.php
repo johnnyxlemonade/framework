@@ -14,8 +14,8 @@ final class OpenApiGenerator
 {
     public function __construct(
         private readonly ApiEndpointRegistry $endpoints,
-        private readonly FrameworkInfo $frameworkInfo,
         private readonly Config $config,
+        private readonly FrameworkInfo $frameworkInfo,
     ) {}
 
     /**
@@ -26,19 +26,20 @@ final class OpenApiGenerator
         $paths = [];
 
         foreach ($this->endpoints->all() as $endpoint) {
-            $paths[$this->prefixedPath($endpoint->path())][strtolower($endpoint->method())] = $this->operation($endpoint);
+            $paths[$this->endpointPath($endpoint->path())][strtolower($endpoint->method())] = $this->operation($endpoint);
         }
 
         return [
             'openapi' => '3.1.0',
             'info' => [
-                'title' => 'Lemonade Framework API',
+                'title' => sprintf('%s API', $this->frameworkInfo->name()),
                 'version' => $this->frameworkInfo->version(),
             ],
+            'servers' => $this->servers(),
             'paths' => $paths,
             'components' => [
                 'securitySchemes' => [
-                    'bearerAuth' => [
+                    'BearerAuth' => [
                         'type' => 'http',
                         'scheme' => 'bearer',
                     ],
@@ -52,17 +53,34 @@ final class OpenApiGenerator
      */
     private function operation(ApiEndpoint $endpoint): array
     {
+        $metadata = $endpoint->metadata();
+
         $operation = [
             'operationId' => $endpoint->name(),
             'summary' => $endpoint->summary(),
             'description' => $endpoint->description(),
-            'tags' => $endpoint->tags(),
+            'tags' => $metadata->tags(),
             'responses' => $this->responses($endpoint),
         ];
 
         if ($endpoint->access() !== ApiAccess::Public) {
             $operation['security'] = [
-                ['bearerAuth' => []],
+                ['BearerAuth' => $metadata->scopes()],
+            ];
+        }
+
+        if ($metadata->parameters() !== []) {
+            $operation['parameters'] = $metadata->parameters();
+        }
+
+        if ($metadata->requestBodySchema() !== null) {
+            $operation['requestBody'] = [
+                'required' => true,
+                'content' => [
+                    'application/json' => [
+                        'schema' => $metadata->requestBodySchema(),
+                    ],
+                ],
             ];
         }
 
@@ -74,16 +92,21 @@ final class OpenApiGenerator
      */
     private function responses(ApiEndpoint $endpoint): array
     {
+        $metadata = $endpoint->metadata();
+
         /** @var array<string, mixed> $responses */
         $responses = [];
 
-        foreach ($endpoint->successStatusCodes() as $statusCode) {
+        foreach ($metadata->successStatusCodes() as $statusCode) {
             $responses[(string) $statusCode] = [
                 'description' => 'Successful response',
                 'content' => [
-                    'application/json' => [
+                    $metadata->responseContentType() => [
                         'schema' => [
                             'type' => 'object',
+                            'properties' => [
+                                'data' => $metadata->responseSchema() ?? ['type' => 'object'],
+                            ],
                         ],
                     ],
                 ],
@@ -114,15 +137,58 @@ final class OpenApiGenerator
             ];
         }
 
+        $responses['404'] = [
+            'description' => 'Not Found',
+            'content' => [
+                'application/problem+json' => [
+                    'schema' => [
+                        'type' => 'object',
+                    ],
+                ],
+            ],
+        ];
+
         return $responses;
     }
 
-    private function prefixedPath(string $path): string
+    /**
+     * @return list<array<string, string>>
+     */
+    private function servers(): array
+    {
+        $prefix = $this->apiPrefix();
+        $baseUrl = rtrim($this->config->string('app.base_url', '') ?? '', '/');
+
+        if ($baseUrl !== '') {
+            return [[
+                'url' => $baseUrl . $prefix,
+            ]];
+        }
+
+        return [[
+            'url' => $prefix === '' ? '/' : $prefix,
+        ]];
+    }
+
+    private function apiPrefix(): string
     {
         $prefix = $this->config->string('api.prefix', '/api') ?? '/api';
         $normalizedPrefix = '/' . trim($prefix, '/');
-        $normalizedPrefix = $normalizedPrefix === '/' ? '' : rtrim($normalizedPrefix, '/');
+        return $normalizedPrefix === '/' ? '' : rtrim($normalizedPrefix, '/');
+    }
 
-        return $normalizedPrefix . $path;
+    /**
+     * @return non-empty-string
+     */
+    private function endpointPath(string $path): string
+    {
+        $normalized = '/' . trim($path, '/');
+        if ($normalized === '/') {
+            return '/';
+        }
+
+        $trimmed = rtrim($normalized, '/');
+
+        return $trimmed !== '' ? $trimmed : '/';
     }
 }

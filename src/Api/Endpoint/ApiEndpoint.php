@@ -7,9 +7,12 @@ namespace Lemonade\Framework\Api\Endpoint;
 final class ApiEndpoint
 {
     /**
-     * @param list<string> $tags
-     * @param list<string> $scopes
-     * @param array<int, int> $successStatusCodes
+     * @param non-empty-string $method
+     * @param non-empty-string $path
+     * @param non-empty-string $handler
+     * @param non-empty-string $name
+     * @param non-empty-string $summary
+     * @param non-empty-string $summary
      */
     public function __construct(
         private readonly string $method,
@@ -19,37 +22,54 @@ final class ApiEndpoint
         private readonly string $summary,
         private readonly string $description,
         private readonly ApiAccess $access = ApiAccess::Protected,
-        private readonly array $tags = [],
-        private readonly array $scopes = [],
-        private readonly ?string $requestSchema = null,
-        private readonly ?string $responseSchema = null,
-        private readonly array $successStatusCodes = [200],
+        ?ApiEndpointMetadata $metadata = null,
     ) {
+        $this->metadata = $metadata ?? ApiEndpointMetadata::default();
+
         $this->assertMethod($method);
         $this->assertPath($path);
+        $this->assertHandler($handler);
         $this->assertName($name);
+        $this->assertSummary($summary);
     }
 
+    private readonly ApiEndpointMetadata $metadata;
+
+    /**
+     * @return non-empty-string
+     */
     public function method(): string
     {
         return $this->method;
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function path(): string
     {
         return $this->path;
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function handler(): string
     {
         return $this->handler;
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function name(): string
     {
         return $this->name;
     }
 
+    /**
+     * @return non-empty-string
+     */
     public function summary(): string
     {
         return $this->summary;
@@ -65,38 +85,57 @@ final class ApiEndpoint
         return $this->access;
     }
 
+    public function metadata(): ApiEndpointMetadata
+    {
+        return $this->metadata;
+    }
+
     /**
-     * @return list<string>
+     * @return list<non-empty-string>
      */
     public function tags(): array
     {
-        return $this->tags;
+        return $this->metadata->tags();
     }
 
     /**
-     * @return list<string>
+     * @return list<non-empty-string>
      */
     public function scopes(): array
     {
-        return $this->scopes;
-    }
-
-    public function requestSchema(): ?string
-    {
-        return $this->requestSchema;
-    }
-
-    public function responseSchema(): ?string
-    {
-        return $this->responseSchema;
+        return $this->metadata->scopes();
     }
 
     /**
-     * @return array<int, int>
+     * @return list<array<string, mixed>>
+     */
+    public function parameters(): array
+    {
+        return $this->metadata->parameters();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function requestBodySchema(): ?array
+    {
+        return $this->metadata->requestBodySchema();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function responseSchema(): ?array
+    {
+        return $this->metadata->responseSchema();
+    }
+
+    /**
+     * @return list<int<100, 599>>
      */
     public function successStatusCodes(): array
     {
-        return $this->successStatusCodes;
+        return $this->metadata->successStatusCodes();
     }
 
     public function isPublic(): bool
@@ -124,4 +163,19 @@ final class ApiEndpoint
             throw new \InvalidArgumentException('API endpoint name cannot be empty.');
         }
     }
+
+    private function assertHandler(string $handler): void
+    {
+        if (trim($handler) === '') {
+            throw new \InvalidArgumentException('API endpoint handler cannot be empty.');
+        }
+    }
+
+    private function assertSummary(string $summary): void
+    {
+        if (trim($summary) === '') {
+            throw new \InvalidArgumentException('API endpoint summary cannot be empty.');
+        }
+    }
+
 }

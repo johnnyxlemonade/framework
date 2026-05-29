@@ -17,9 +17,11 @@ final class ApiEndpointRegistry
     private array $endpointsByMethodAndPath = [];
 
     /**
-     * @param list<string> $tags
-     * @param list<string> $scopes
-     * @param array<int, int> $successStatusCodes
+     * @param non-empty-string $method
+     * @param non-empty-string $path
+     * @param non-empty-string $handler
+     * @param non-empty-string $name
+     * @param non-empty-string $summary
      */
     public function add(
         string $method,
@@ -29,25 +31,20 @@ final class ApiEndpointRegistry
         string $summary,
         string $description,
         ApiAccess $access = ApiAccess::Protected,
-        array $tags = [],
-        array $scopes = [],
-        ?string $requestSchema = null,
-        ?string $responseSchema = null,
-        array $successStatusCodes = [200],
+        ?ApiEndpointMetadata $metadata = null,
     ): ApiEndpoint {
+        $normalizedMethod = $this->normalizeMethod($method);
+        $normalizedPath = $this->normalizePath($path);
+
         $endpoint = new ApiEndpoint(
-            method: strtoupper($method),
-            path: $this->normalizePath($path),
+            method: $normalizedMethod,
+            path: $normalizedPath,
             handler: $handler,
             name: $name,
             summary: $summary,
             description: $description,
             access: $access,
-            tags: $tags,
-            scopes: $scopes,
-            requestSchema: $requestSchema,
-            responseSchema: $responseSchema,
-            successStatusCodes: $successStatusCodes,
+            metadata: $metadata,
         );
 
         $this->register($endpoint);
@@ -56,8 +53,10 @@ final class ApiEndpointRegistry
     }
 
     /**
-     * @param list<string> $tags
-     * @param list<string> $scopes
+     * @param non-empty-string $path
+     * @param non-empty-string $handler
+     * @param non-empty-string $name
+     * @param non-empty-string $summary
      */
     public function get(
         string $path,
@@ -66,9 +65,7 @@ final class ApiEndpointRegistry
         string $summary,
         string $description,
         ApiAccess $access = ApiAccess::Protected,
-        array $tags = [],
-        array $scopes = [],
-        ?string $responseSchema = null,
+        ?ApiEndpointMetadata $metadata = null,
     ): ApiEndpoint {
         return $this->add(
             method: 'GET',
@@ -78,9 +75,115 @@ final class ApiEndpointRegistry
             summary: $summary,
             description: $description,
             access: $access,
-            tags: $tags,
-            scopes: $scopes,
-            responseSchema: $responseSchema,
+            metadata: $metadata,
+        );
+    }
+
+    /**
+     * @param non-empty-string $path
+     * @param non-empty-string $handler
+     * @param non-empty-string $name
+     * @param non-empty-string $summary
+     */
+    public function post(
+        string $path,
+        string $handler,
+        string $name,
+        string $summary,
+        string $description,
+        ApiAccess $access = ApiAccess::Protected,
+        ?ApiEndpointMetadata $metadata = null,
+    ): ApiEndpoint {
+        return $this->add(
+            method: 'POST',
+            path: $path,
+            handler: $handler,
+            name: $name,
+            summary: $summary,
+            description: $description,
+            access: $access,
+            metadata: $metadata,
+        );
+    }
+
+    /**
+     * @param non-empty-string $path
+     * @param non-empty-string $handler
+     * @param non-empty-string $name
+     * @param non-empty-string $summary
+     */
+    public function put(
+        string $path,
+        string $handler,
+        string $name,
+        string $summary,
+        string $description,
+        ApiAccess $access = ApiAccess::Protected,
+        ?ApiEndpointMetadata $metadata = null,
+    ): ApiEndpoint {
+        return $this->add(
+            method: 'PUT',
+            path: $path,
+            handler: $handler,
+            name: $name,
+            summary: $summary,
+            description: $description,
+            access: $access,
+            metadata: $metadata,
+        );
+    }
+
+    /**
+     * @param non-empty-string $path
+     * @param non-empty-string $handler
+     * @param non-empty-string $name
+     * @param non-empty-string $summary
+     */
+    public function patch(
+        string $path,
+        string $handler,
+        string $name,
+        string $summary,
+        string $description,
+        ApiAccess $access = ApiAccess::Protected,
+        ?ApiEndpointMetadata $metadata = null,
+    ): ApiEndpoint {
+        return $this->add(
+            method: 'PATCH',
+            path: $path,
+            handler: $handler,
+            name: $name,
+            summary: $summary,
+            description: $description,
+            access: $access,
+            metadata: $metadata,
+        );
+    }
+
+    /**
+     * @param non-empty-string $path
+     * @param non-empty-string $handler
+     * @param non-empty-string $name
+     * @param non-empty-string $summary
+     */
+    public function delete(
+        string $path,
+        string $handler,
+        string $name,
+        string $summary,
+        string $description,
+        ApiAccess $access = ApiAccess::Protected,
+        ?ApiEndpointMetadata $metadata = null,
+    ): ApiEndpoint {
+        return $this->add(
+            method: 'DELETE',
+            path: $path,
+            handler: $handler,
+            name: $name,
+            summary: $summary,
+            description: $description,
+            access: $access,
+            metadata: $metadata,
         );
     }
 
@@ -128,13 +231,31 @@ final class ApiEndpointRegistry
 
     private function key(string $method, string $path): string
     {
-        return strtoupper($method) . ' ' . $this->normalizePath($path);
+        return $this->normalizeMethod($method) . ' ' . $this->normalizePath($path);
     }
 
+    /**
+     * @return non-empty-string
+     */
+    private function normalizeMethod(string $method): string
+    {
+        $normalized = strtoupper(trim($method));
+
+        return $normalized !== '' ? $normalized : 'GET';
+    }
+
+    /**
+     * @return non-empty-string
+     */
     private function normalizePath(string $path): string
     {
         $path = '/' . trim($path, '/');
+        if ($path === '/') {
+            return '/';
+        }
 
-        return $path === '/' ? '/' : rtrim($path, '/');
+        $normalized = rtrim($path, '/');
+
+        return $normalized !== '' ? $normalized : '/';
     }
 }

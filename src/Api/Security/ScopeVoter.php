@@ -9,7 +9,7 @@ use Lemonade\Framework\Api\Endpoint\BuiltInApiScope;
 final class ScopeVoter
 {
     /**
-     * @param list<string> $requiredScopes
+     * @param list<non-empty-string> $requiredScopes
      */
     public function isGranted(ApiIdentity $identity, array $requiredScopes): bool
     {

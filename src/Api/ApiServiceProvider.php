@@ -35,20 +35,9 @@ final class ApiServiceProvider implements ServiceProviderInterface
             }
 
             $token = $config->string('api.security.static_bearer.token');
-            /** @var list<non-empty-string> $scopes */
-            $scopes = [];
-            foreach ($config->array('api.security.static_bearer.scopes', ['api:admin']) as $scope) {
-                if (!is_string($scope)) {
-                    continue;
-                }
-
-                $normalizedScope = trim($scope);
-                if ($normalizedScope === '') {
-                    continue;
-                }
-
-                $scopes[] = $normalizedScope;
-            }
+            $scopes = self::normalizeNonEmptyStringList(
+                $config->array('api.security.static_bearer.scopes', ['api:admin']),
+            );
 
             if ($token === null || trim($token) === '') {
                 return new NullApiAuthenticator();
@@ -79,14 +68,7 @@ final class ApiServiceProvider implements ServiceProviderInterface
         $frameworkProvider = $container->get(FrameworkApiEndpointProvider::class);
         $this->registerProvider($frameworkProvider, $registry);
 
-        foreach ($config->array('api.endpoint_providers', []) as $providerClass) {
-            if (!is_string($providerClass) || !class_exists($providerClass)) {
-                throw new \LogicException(sprintf(
-                    'Configured API endpoint provider "%s" does not exist.',
-                    is_scalar($providerClass) ? (string) $providerClass : get_debug_type($providerClass),
-                ));
-            }
-
+        foreach ($this->normalizeEndpointProviderClasses($config->array('api.endpoint_providers', [])) as $providerClass) {
             $provider = $container->get($providerClass);
 
             if (!$provider instanceof ApiEndpointProviderInterface) {
@@ -108,5 +90,67 @@ final class ApiServiceProvider implements ServiceProviderInterface
     private function registerProvider(ApiEndpointProviderInterface $provider, ApiEndpointRegistry $registry): void
     {
         $provider->register($registry);
+    }
+
+    /**
+     * @param array<mixed> $values
+     * @return list<non-empty-string>
+     */
+    private static function normalizeNonEmptyStringList(array $values): array
+    {
+        $items = [];
+
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                continue;
+            }
+
+            $value = trim($value);
+            if ($value === '') {
+                continue;
+            }
+
+            $items[] = $value;
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<mixed> $providerClasses
+     * @return list<class-string<ApiEndpointProviderInterface>>
+     */
+    private function normalizeEndpointProviderClasses(array $providerClasses): array
+    {
+        $normalized = [];
+
+        foreach ($providerClasses as $providerClass) {
+            if (!is_string($providerClass) || trim($providerClass) === '') {
+                throw new \LogicException(sprintf(
+                    'Configured API endpoint provider "%s" does not exist.',
+                    is_scalar($providerClass) ? (string) $providerClass : get_debug_type($providerClass),
+                ));
+            }
+
+            if (!class_exists($providerClass)) {
+                throw new \LogicException(sprintf(
+                    'Configured API endpoint provider "%s" does not exist.',
+                    $providerClass,
+                ));
+            }
+
+            if (!is_subclass_of($providerClass, ApiEndpointProviderInterface::class)) {
+                throw new \LogicException(sprintf(
+                    'Configured API endpoint provider "%s" must implement %s.',
+                    $providerClass,
+                    ApiEndpointProviderInterface::class,
+                ));
+            }
+
+            /** @var class-string<ApiEndpointProviderInterface> $providerClass */
+            $normalized[] = $providerClass;
+        }
+
+        return $normalized;
     }
 }
