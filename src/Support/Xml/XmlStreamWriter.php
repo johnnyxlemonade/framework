@@ -80,12 +80,15 @@ final class XmlStreamWriter
     public function flush(): void
     {
         $chunk = $this->writer->flush(true);
-        $value = is_string($chunk) ? $chunk : (string) $chunk;
-        if ($value === '') {
+        if (!is_string($chunk)) {
+            throw new RuntimeException('XML writer flush did not return a string chunk.');
+        }
+
+        if ($chunk === '') {
             return;
         }
 
-        $this->writeFully($value);
+        $this->writeFully($chunk);
     }
 
     public function bytesWritten(): int
