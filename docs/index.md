@@ -17,6 +17,7 @@ The main `README.md` is intentionally short and should explain what the framewor
 - [Controllers](controllers.md)
 - [Middleware](middleware.md)
 - [Views](views.md)
+- [Components](components.md)
 - [Validation](validation.md)
 - [Database](database.md)
 - [CLI commands](cli-commands.md)

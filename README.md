@@ -242,7 +242,7 @@ php bin/lemonade products:import
 
 ## Documentation
 
-Detailed documentation should live outside the main README:
+Detailed documentation lives outside the main README:
 
 - [HTTP request flow](docs/http-flow.md)
 - [CLI flow](docs/cli-flow.md)
@@ -255,6 +255,7 @@ Detailed documentation should live outside the main README:
 - [Controllers](docs/controllers.md)
 - [Middleware](docs/middleware.md)
 - [Views](docs/views.md)
+- [Components](docs/components.md)
 - [Validation](docs/validation.md)
 - [Database](docs/database.md)
 - [CLI commands](docs/cli-commands.md)
