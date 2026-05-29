@@ -8,6 +8,7 @@ The main `README.md` is intentionally short and should explain what the framewor
 
 - [HTTP request flow](http-flow.md)
 - [CLI flow](cli-flow.md)
+- [API flow](api-flow.md)
 - [Application context](application-context.md)
 - [Configuration](configuration.md)
 - [Service providers](service-providers.md)

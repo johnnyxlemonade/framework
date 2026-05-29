@@ -246,6 +246,7 @@ Detailed documentation lives outside the main README:
 
 - [HTTP request flow](docs/http-flow.md)
 - [CLI flow](docs/cli-flow.md)
+- [API flow](docs/api-flow.md)
 - [Application context](docs/application-context.md)
 - [Configuration](docs/configuration.md)
 - [Service providers](docs/service-providers.md)
