@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Tests\Unit\Http\Psr;
 
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Nyholm\Psr7\Factory\Psr17Factory;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 
 final class ResponseEmitterTest extends TestCase
@@ -51,6 +52,30 @@ final class ResponseEmitterTest extends TestCase
         if ($headers !== []) {
             self::assertContains('X-Test: a', $headers);
             self::assertContains('X-Test: b', $headers);
+        } else {
+            self::addToAssertionCount(1);
+        }
+    }
+
+    public function testEmitDoesNotOutputBodyForHeadRequest(): void
+    {
+        $factory = new Psr17Factory();
+        $response = $factory->createResponse(202)
+            ->withHeader('X-Head', 'ok')
+            ->withBody($factory->createStream('payload'));
+        $request = new ServerRequest('HEAD', '/users');
+        $emitter = new ResponseEmitter();
+
+        ob_start();
+        $emitter->emit($response, $request);
+        $output = ob_get_clean();
+
+        self::assertSame('', is_string($output) ? $output : '');
+        self::assertSame(202, http_response_code());
+
+        $headers = function_exists('headers_list') ? headers_list() : [];
+        if ($headers !== []) {
+            self::assertContains('X-Head: ok', $headers);
         } else {
             self::addToAssertionCount(1);
         }

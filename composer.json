@@ -89,10 +89,7 @@
     "post-autoload-dump": [
       "@php -r \"echo 'Autoload refreshed'.PHP_EOL;\""
     ],
-    "lint": [
-      "@php -r 'foreach ([\"src\", \"tests\"] as $dir) { if (!is_dir($dir)) continue; foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir)) as $file) { if ($file->isFile() && $file->getExtension() === \"php\") { passthru(\"php -l \" . escapeshellarg($file->getPathname()), $code); if ($code !== 0) exit($code); } } }'",
-      "@php -l bin/lemonade"
-    ],
+    "lint": "@php tools/lint.php",
     "autoload:dev": [
       "@composer dump-autoload"
     ],
@@ -131,30 +128,30 @@
       "@stan",
       "@test"
     ],
-    "check:platform": [
-      "@composer check-platform-reqs"
-    ],
     "check": [
       "@composer:validate",
       "@check:platform",
       "@lint",
       "@qa"
+    ],
+    "check:platform": [
+      "@composer check-platform-reqs"
     ]
   },
   "scripts-descriptions": {
-    "lint": "Check PHP syntax for source, tests and bin/lemonade.",
+    "lint": "Check PHP syntax for source and tests.",
     "autoload:dev": "Regenerate Composer autoload files for development.",
     "autoload:optimize": "Regenerate optimized Composer autoload files.",
     "autoload:prod": "Regenerate optimized authoritative classmap for production.",
     "autoload:apcu": "Regenerate optimized Composer autoload files with APCu support.",
-    "composer:validate": "Validate composer.json strictly.",
-    "test": "Run PHPUnit test suite.",
-    "test:ci": "Run PHPUnit test suite with CI-friendly colored output.",
+    "composer:validate": "Validate composer.json in strict mode.",
+    "test": "Run the PHPUnit test suite.",
+    "test:ci": "Run the PHPUnit test suite with CI-friendly output.",
     "stan": "Run PHPStan static analysis.",
     "stan:ci": "Run PHPStan static analysis with GitHub Actions output format.",
     "cs:check": "Check coding standards using PHP CS Fixer without modifying files.",
     "cs:fix": "Fix coding standards using PHP CS Fixer.",
-    "qa": "Run quality checks: coding standards, static analysis and tests.",
+    "qa": "Run coding standards check, static analysis and tests.",
     "check:platform": "Check installed platform requirements.",
     "check": "Run full project validation."
   },

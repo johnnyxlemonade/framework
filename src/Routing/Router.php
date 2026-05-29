@@ -12,11 +12,6 @@ use Psr\Http\Message\ServerRequestInterface;
 final class Router
 {
     /**
-     * @var array<string, array<string, Route>>
-     */
-    private array $routes = [];
-
-    /**
      * @var array<int, Route>
      */
     private array $routeList = [];
@@ -39,6 +34,13 @@ final class Router
     private string $localizedRouteNamePrefix = 'localized.';
     private string $localizedRoutePrefix = '/{locale}';
     private string $localizedLocaleParameter = 'locale';
+
+    private readonly RouteCollection $collection;
+
+    public function __construct()
+    {
+        $this->collection = new RouteCollection();
+    }
 
     public function get(string $path, string $handler): Route
     {
@@ -63,6 +65,16 @@ final class Router
     public function delete(string $path, string $handler): Route
     {
         return $this->map('DELETE', $path, $handler);
+    }
+
+    public function head(string $path, string $handler): Route
+    {
+        return $this->map('HEAD', $path, $handler);
+    }
+
+    public function options(string $path, string $handler): Route
+    {
+        return $this->map('OPTIONS', $path, $handler);
     }
 
     public function getNamed(string $name, string $path, string $handler): Route
@@ -90,6 +102,16 @@ final class Router
         return $this->mapNamed($name, 'DELETE', $path, $handler);
     }
 
+    public function headNamed(string $name, string $path, string $handler): Route
+    {
+        return $this->mapNamed($name, 'HEAD', $path, $handler);
+    }
+
+    public function optionsNamed(string $name, string $path, string $handler): Route
+    {
+        return $this->mapNamed($name, 'OPTIONS', $path, $handler);
+    }
+
     public function map(HttpMethod|string $method, string $path, string $handler): Route
     {
         [$controller, $action] = $this->parseHandler($handler);
@@ -104,7 +126,7 @@ final class Router
             action: $action,
         );
 
-        $this->routes[$methodName][$normalizedPath] = $route;
+        $this->collection->add($route);
         $this->routeList[] = $route;
 
         return $route;
@@ -218,30 +240,49 @@ final class Router
         $method = strtoupper($request->getMethod());
         $path = $this->normalizePath($request->getUri()->getPath());
 
-        if (isset($this->routes[$method][$path])) {
-            return $this->toMatch($this->routes[$method][$path]);
-        }
-
-        if (isset($this->routes[$method])) {
-            foreach ($this->routes[$method] as $routePath => $route) {
-                $params = $this->extractPathParams($routePath, $path);
-
-                if ($params !== null) {
-                    return $this->toMatch($route, $params);
-                }
+        $candidateMethods = $method === 'HEAD' ? ['HEAD', 'GET'] : [$method];
+        foreach ($candidateMethods as $candidateMethod) {
+            $match = $this->collection->match($candidateMethod, $path);
+            if ($match !== null) {
+                return $match;
             }
         }
 
-        $resolved = $this->resolveConventionRoute($path);
-
-        if ($resolved !== null) {
-            return $resolved;
+        if ($method === 'GET' || $method === 'HEAD') {
+            $resolved = $this->resolveConventionRoute($path);
+            if ($resolved !== null) {
+                return $resolved;
+            }
         }
 
         throw RouteNotFoundException::forRequest(
             $method,
             (string) $request->getUri(),
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function allowedMethodsForPath(string $path): array
+    {
+        $normalizedPath = $this->normalizePath($path);
+        $allowed = $this->collection->allowedMethodsForPath($normalizedPath);
+
+        if ($allowed === [] && $this->resolveConventionRoute($normalizedPath) !== null) {
+            return RouteCollection::sortMethods([
+                'GET',
+                'HEAD',
+                'OPTIONS',
+            ]);
+        }
+
+        return RouteCollection::sortMethods($allowed);
+    }
+
+    public function hasExplicitRouteForPath(HttpMethod|string $method, string $path): bool
+    {
+        return $this->collection->hasExplicitRouteForPath($method, $path);
     }
 
     /**
@@ -296,19 +337,6 @@ final class Router
         }
 
         return $url . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
-    }
-
-    /**
-     * @param array<string, string> $params
-     */
-    private function toMatch(Route $route, array $params = []): RouteMatch
-    {
-        return new RouteMatch(
-            controller: $route->controller(),
-            action: $route->action(),
-            params: $params,
-            middleware: $route->middlewareStack(),
-        );
     }
 
     private function resolveConventionRoute(string $path): ?RouteMatch
@@ -372,74 +400,6 @@ final class Router
         $prefix = $segments === [] ? '' : implode('\\', $segments) . '\\';
 
         return $this->controllerNamespace . '\\' . $prefix . $controller;
-    }
-
-    /**
-     * @return array<string, string>|null
-     */
-    private function extractPathParams(string $routePath, string $actualPath): ?array
-    {
-        if (!str_contains($routePath, '{')) {
-            return null;
-        }
-
-        $routeSegments = array_values(array_filter(
-            explode('/', trim($routePath, '/')),
-            static fn(string $segment): bool => $segment !== '',
-        ));
-        $pathSegments = array_values(array_filter(
-            explode('/', trim($actualPath, '/')),
-            static fn(string $segment): bool => $segment !== '',
-        ));
-
-        $params = [];
-        $pathIndex = 0;
-        $routeCount = count($routeSegments);
-
-        foreach ($routeSegments as $routeIndex => $segment) {
-            if (preg_match('/^\{([a-zA-Z_][a-zA-Z0-9_]*):any\}$/', $segment, $matches) === 1) {
-                $name = $matches[1];
-
-                $remainingRouteSegments = $routeCount - $routeIndex - 1;
-                $remainingPathSegments = array_slice(
-                    $pathSegments,
-                    $pathIndex,
-                    count($pathSegments) - $pathIndex - $remainingRouteSegments,
-                );
-
-                if ($remainingPathSegments === []) {
-                    return null;
-                }
-
-                $params[$name] = implode('/', $remainingPathSegments);
-                $pathIndex += count($remainingPathSegments);
-
-                continue;
-            }
-
-            if (!isset($pathSegments[$pathIndex])) {
-                return null;
-            }
-
-            if (preg_match('/^\{([a-zA-Z_][a-zA-Z0-9_]*)\}$/', $segment, $matches) === 1) {
-                $params[$matches[1]] = $pathSegments[$pathIndex];
-                $pathIndex++;
-
-                continue;
-            }
-
-            if ($segment !== $pathSegments[$pathIndex]) {
-                return null;
-            }
-
-            $pathIndex++;
-        }
-
-        if ($pathIndex !== count($pathSegments)) {
-            return null;
-        }
-
-        return $params;
     }
 
     /**

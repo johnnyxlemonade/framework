@@ -11,6 +11,8 @@ use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Kernel;
+use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
+use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Nyholm\Psr7\ServerRequest;
@@ -141,6 +143,17 @@ final class KernelTest extends TestCase
         self::assertSame(404, $response->getStatusCode());
     }
 
+    public function testBootstrapRegistersHttpMiddlewareServices(): void
+    {
+        $kernel = $this->kernel(false);
+        $kernel->bootstrap();
+
+        $container = $kernel->container();
+
+        self::assertTrue($container->isBound(MiddlewareStack::class));
+        self::assertTrue($container->isBound(MiddlewareResolver::class));
+    }
+
     public function testBootstrapSkipsMissingConventionalConfigFiles(): void
     {
         $configDir = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
@@ -170,6 +183,84 @@ final class KernelTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/missing'));
 
         self::assertSame(404, $response->getStatusCode());
+    }
+
+    public function testRunHeadMissingRouteReturnsSameStatusAsGet(): void
+    {
+        $kernel = $this->kernel(false);
+
+        $getResponse = $kernel->run(new ServerRequest('GET', '/missing'));
+        $headResponse = $kernel->run(new ServerRequest('HEAD', '/missing'));
+
+        self::assertSame($getResponse->getStatusCode(), $headResponse->getStatusCode());
+        self::assertSame(404, $headResponse->getStatusCode());
+    }
+
+    public function testHandleCreatesRequestFromGlobalsWhenNullProvided(): void
+    {
+        $this->writeRoutingHeadFallbackTarget();
+        $kernel = $this->kernel(true);
+
+        $originalServer = $_SERVER;
+        $_SERVER['REQUEST_METHOD'] = 'HEAD';
+        $_SERVER['REQUEST_URI'] = '/head-fallback';
+
+        try {
+            ob_start();
+            $kernel->handle(null);
+            $output = ob_get_clean();
+        } finally {
+            $_SERVER = $originalServer;
+        }
+
+        self::assertSame('', is_string($output) ? $output : '');
+        self::assertSame(207, http_response_code());
+    }
+
+    public function testHandleOptionsOnPathWithGetRouteReturns204WithoutBody(): void
+    {
+        $this->writeRoutingOptionsAutoTarget();
+        $kernel = $this->kernel(false);
+
+        ob_start();
+        $kernel->handle(new ServerRequest('OPTIONS', '/options-auto'));
+        $output = ob_get_clean();
+
+        self::assertSame('', is_string($output) ? $output : '');
+        self::assertSame(204, http_response_code());
+
+        $headers = function_exists('headers_list') ? headers_list() : [];
+        if ($headers !== []) {
+            self::assertContains('Allow: GET, HEAD, OPTIONS', $headers);
+        } else {
+            self::addToAssertionCount(1);
+        }
+    }
+
+    public function testHandleOptionsOnMissingPathFallsBackTo404(): void
+    {
+        $kernel = $this->kernel(false);
+
+        ob_start();
+        $kernel->handle(new ServerRequest('OPTIONS', '/missing'));
+        $output = ob_get_clean();
+
+        self::assertIsString($output);
+        self::assertNotSame('', $output);
+        self::assertSame(404, http_response_code());
+    }
+
+    public function testHandleOptionsUsesExplicitOptionsRouteWhenRegistered(): void
+    {
+        $this->writeRoutingExplicitOptionsTarget();
+        $kernel = $this->kernel(false);
+
+        ob_start();
+        $kernel->handle(new ServerRequest('OPTIONS', '/options-explicit'));
+        $output = ob_get_clean();
+
+        self::assertSame('explicit-options', is_string($output) ? $output : '');
+        self::assertSame(209, http_response_code());
     }
 
     private function kernel(bool $debug): Kernel
@@ -219,6 +310,30 @@ final class KernelTest extends TestCase
         );
     }
 
+    private function writeRoutingHeadFallbackTarget(): void
+    {
+        $this->writeConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/head-fallback', 'HeadKernelSupportController@index');\n};\n",
+        );
+    }
+
+    private function writeRoutingOptionsAutoTarget(): void
+    {
+        $this->writeConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/options-auto', 'OptionsKernelSupportController@index');\n};\n",
+        );
+    }
+
+    private function writeRoutingExplicitOptionsTarget(): void
+    {
+        $this->writeConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/options-explicit', 'OptionsKernelSupportController@index');\n    \$router->options('/options-explicit', 'OptionsKernelSupportController@options');\n};\n",
+        );
+    }
+
     private function writeThrowingConfig(string $exceptionClass, string $message): void
     {
         $this->writeConfigFile(
@@ -257,5 +372,32 @@ final class KernelTest extends TestCase
         }
 
         @rmdir($path);
+    }
+}
+
+namespace App\Controllers;
+
+use Lemonade\Framework\Core\Controller;
+use Psr\Http\Message\ResponseInterface;
+
+final class HeadKernelSupportController extends Controller
+{
+    public function index(): ResponseInterface
+    {
+        return $this->response('head-kernel-body', 207, 'text/plain; charset=UTF-8')
+            ->withHeader('X-Head-Kernel', 'ok');
+    }
+}
+
+final class OptionsKernelSupportController extends Controller
+{
+    public function index(): ResponseInterface
+    {
+        return $this->response('options-index', 200, 'text/plain; charset=UTF-8');
+    }
+
+    public function options(): ResponseInterface
+    {
+        return $this->response('explicit-options', 209, 'text/plain; charset=UTF-8');
     }
 }

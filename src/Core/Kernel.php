@@ -10,6 +10,7 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
+use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
@@ -102,8 +103,13 @@ final class Kernel
             'started_at' => 'kernel.handle',
         ])->mark('kernel_start');
 
+        $request ??= $this->container
+            ->get(ServerRequestFactory::class)
+            ->fromGlobals();
+
         $this->emitter->emit(
             $this->run($request),
+            $request,
         );
     }
 

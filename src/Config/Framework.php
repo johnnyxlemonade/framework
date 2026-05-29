@@ -40,4 +40,13 @@ return [
             QueueServiceProvider::class,
         ],
     ],
+    'cors' => [
+        'enabled' => false,
+        'allowed_origins' => [],
+        'allowed_methods' => [],
+        'allowed_headers' => [],
+        'exposed_headers' => [],
+        'allow_credentials' => false,
+        'max_age' => null,
+    ],
 ];

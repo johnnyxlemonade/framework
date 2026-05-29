@@ -9,9 +9,13 @@ use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Http\Error\ErrorPageRenderer;
 use Lemonade\Framework\Http\Logging\HttpLogContext;
 use Lemonade\Framework\Http\Middleware\BenchmarkMiddleware;
+use Lemonade\Framework\Http\Middleware\CorsMiddleware;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware;
 use Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware;
+use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
+use Lemonade\Framework\Http\Middleware\MiddlewareStack;
+use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Middleware\PoweredByMiddleware;
 use Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware;
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
@@ -28,7 +32,19 @@ final class HttpServiceProvider implements ServiceProviderInterface
         $container->singleton(RequestLoggingMiddleware::class, RequestLoggingMiddleware::class);
         $container->singleton(BenchmarkMiddleware::class, BenchmarkMiddleware::class);
         $container->singleton(DispatchRequestHandler::class, DispatchRequestHandler::class);
+        $container->singleton(CorsMiddleware::class, CorsMiddleware::class);
         $container->singleton(HtmlMinifyMiddleware::class, HtmlMinifyMiddleware::class);
+        $container->singleton(OptionsMiddleware::class, OptionsMiddleware::class);
+        $container->singleton(MiddlewareResolver::class, MiddlewareResolver::class);
+        $container->singleton(MiddlewareStack::class, static fn(): MiddlewareStack => new MiddlewareStack([
+            RequestLoggingMiddleware::class,
+            BenchmarkMiddleware::class,
+            ErrorHandlingMiddleware::class,
+            CorsMiddleware::class,
+            PoweredByMiddleware::class,
+            HtmlMinifyMiddleware::class,
+            OptionsMiddleware::class,
+        ]));
         $container->singleton(HtmlMinifier::class, HtmlMinifier::class);
 
         $container->singleton(HttpRequestInspector::class, HttpRequestInspector::class);

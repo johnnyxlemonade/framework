@@ -34,6 +34,15 @@ final class RouterTest extends TestCase
         self::assertSame('DELETE', $router->delete('/a', 'AController@delete')->method());
     }
 
+    public function testHeadAndHeadNamedMapExpectedMethod(): void
+    {
+        $router = new Router();
+
+        self::assertSame('HEAD', $router->head('/health', 'HealthController@show')->method());
+        self::assertSame('HEAD', $router->headNamed('health.check', '/health', 'HealthController@show')->method());
+        self::assertSame('/health', $router->url('health.check'));
+    }
+
     public function testMapAcceptsHttpMethodEnumAndString(): void
     {
         $router = new Router();
@@ -279,5 +288,168 @@ final class RouterTest extends TestCase
 
         $this->expectException(RouteNotFoundException::class);
         $router->match(new ServerRequest('GET', '/missing'));
+    }
+
+    public function testMatchHeadFindsExplicitHeadRoute(): void
+    {
+        $router = new Router();
+        $router->head('/users', 'HeadUsersController@index');
+
+        $match = $router->match(new ServerRequest('HEAD', '/users'));
+
+        self::assertSame('App\\Controllers\\HeadUsersController', $match->controller());
+        self::assertSame('index', $match->action());
+    }
+
+    public function testMatchHeadFallsBackToGetRoute(): void
+    {
+        $router = new Router();
+        $router->get('/users', 'UserController@index');
+
+        $match = $router->match(new ServerRequest('HEAD', '/users'));
+
+        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('index', $match->action());
+    }
+
+    public function testMatchHeadExplicitRouteHasPriorityOverGetFallback(): void
+    {
+        $router = new Router();
+        $router->get('/users', 'GetUsersController@index');
+        $router->head('/users', 'HeadUsersController@index');
+
+        $match = $router->match(new ServerRequest('HEAD', '/users'));
+
+        self::assertSame('App\\Controllers\\HeadUsersController', $match->controller());
+        self::assertSame('index', $match->action());
+    }
+
+    public function testMatchHeadFallbackWorksForParameterizedGetRoute(): void
+    {
+        $router = new Router();
+        $router->get('/users/{id}', 'UserController@show');
+
+        $match = $router->match(new ServerRequest('HEAD', '/users/99'));
+
+        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('show', $match->action());
+        self::assertSame(['id' => '99'], $match->params());
+    }
+
+    public function testMatchHeadUsesSameConventionRoutingAsGet(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('App\\Controllers\\Frontend');
+
+        $head = $router->match(new ServerRequest('HEAD', '/home'));
+        $get = $router->match(new ServerRequest('GET', '/home'));
+
+        self::assertSame($get->controller(), $head->controller());
+        self::assertSame($get->action(), $head->action());
+        self::assertSame($get->params(), $head->params());
+    }
+
+    public function testAllowedMethodsForPathIncludesHeadAndOptionsForGetRoute(): void
+    {
+        $router = new Router();
+        $router->get('/users', 'UserController@index');
+
+        self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/users'));
+    }
+
+    public function testAllowedMethodsForPathIncludesOptionsForPostOnlyRoute(): void
+    {
+        $router = new Router();
+        $router->post('/users', 'UserController@store');
+
+        self::assertSame(['POST', 'OPTIONS'], $router->allowedMethodsForPath('/users'));
+    }
+
+    public function testAllowedMethodsForPathSupportsParameterizedRoute(): void
+    {
+        $router = new Router();
+        $router->patch('/users/{id}', 'UserController@update');
+
+        self::assertSame(['PATCH', 'OPTIONS'], $router->allowedMethodsForPath('/users/42'));
+    }
+
+    public function testAllowedMethodsForPathSupportsWildcardParameterizedRoute(): void
+    {
+        $router = new Router();
+        $router->get('/docs/{slug:any}', 'DocsController@show');
+
+        self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/docs/guides/install/windows'));
+    }
+
+    public function testAllowedMethodsForPathReturnsGetHeadPostOptionsForGetAndPostRoute(): void
+    {
+        $router = new Router();
+        $router->get('/users', 'UserController@index');
+        $router->post('/users', 'UserController@store');
+
+        self::assertSame(['GET', 'HEAD', 'POST', 'OPTIONS'], $router->allowedMethodsForPath('/users'));
+    }
+
+    public function testAllowedMethodsForPathReturnsEmptyForMissingPath(): void
+    {
+        $router = new Router();
+        $router->get('/users', 'UserController@index');
+
+        self::assertSame([], $router->allowedMethodsForPath('/missing'));
+    }
+
+    public function testMatchFindsExplicitOptionsRoute(): void
+    {
+        $router = new Router();
+        $router->options('/users', 'UserController@options');
+
+        $match = $router->match(new ServerRequest('OPTIONS', '/users'));
+
+        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('options', $match->action());
+    }
+
+    public function testHasExplicitRouteForPathWorksForExactRoute(): void
+    {
+        $router = new Router();
+        $router->post('/users', 'UserController@store');
+
+        self::assertTrue($router->hasExplicitRouteForPath('POST', '/users'));
+        self::assertFalse($router->hasExplicitRouteForPath('GET', '/users'));
+    }
+
+    public function testHasExplicitRouteForPathWorksForParameterizedRoute(): void
+    {
+        $router = new Router();
+        $router->get('/users/{id}', 'UserController@show');
+
+        self::assertTrue($router->hasExplicitRouteForPath('GET', '/users/42'));
+        self::assertFalse($router->hasExplicitRouteForPath('GET', '/users'));
+    }
+
+    public function testConventionRouteIsNotUsedForPost(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('App\\Controllers\\Frontend');
+
+        $this->expectException(RouteNotFoundException::class);
+        $router->match(new ServerRequest('POST', '/home'));
+    }
+
+    public function testConventionRouteIsNotUsedForOptions(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('App\\Controllers\\Frontend');
+
+        $this->expectException(RouteNotFoundException::class);
+        $router->match(new ServerRequest('OPTIONS', '/home'));
+    }
+
+    public function testAllowedMethodsForPathIncludesConventionGetHeadOptions(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('App\\Controllers\\Frontend');
+
+        self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/home'));
     }
 }

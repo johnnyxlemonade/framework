@@ -7,13 +7,10 @@ namespace Lemonade\Framework\Core;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
-use Lemonade\Framework\Http\Middleware\BenchmarkMiddleware;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
-use Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware;
-use Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
-use Lemonade\Framework\Http\Middleware\PoweredByMiddleware;
-use Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware;
+use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
+use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\Psr17Factory;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
@@ -29,6 +26,10 @@ use RuntimeException;
 final class Framework
 {
     private readonly Router $router;
+    /**
+     * @var list<callable(MiddlewareStack):void>
+     */
+    private array $middlewareConfigurators = [];
 
     public function __construct(
         private readonly ContainerInterface $container,
@@ -168,6 +169,21 @@ final class Framework
         return $this->config($normalized);
     }
 
+    /**
+     * @param callable(MiddlewareStack):void $configure
+     */
+    public function middleware(callable $configure): self
+    {
+        if ($this->container->isBound(MiddlewareStack::class)) {
+            $configure($this->container->get(MiddlewareStack::class));
+            return $this;
+        }
+
+        $this->middlewareConfigurators[] = $configure;
+
+        return $this;
+    }
+
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
         $request ??= $this->container
@@ -179,14 +195,14 @@ final class Framework
         $run = $benchmark->currentOrStart();
         $run->mark('request_received');
 
+        $stack = $this->container->get(MiddlewareStack::class);
+        $this->applyPendingMiddlewareConfiguration($stack);
+        $middleware = $this->container
+            ->get(MiddlewareResolver::class)
+            ->resolve($stack->all());
+
         $pipeline = MiddlewarePipeline::create(
-            [
-                $this->container->get(RequestLoggingMiddleware::class),
-                $this->container->get(BenchmarkMiddleware::class),
-                $this->container->get(ErrorHandlingMiddleware::class),
-                $this->container->get(PoweredByMiddleware::class),
-                $this->container->get(HtmlMinifyMiddleware::class),
-            ],
+            $middleware,
             $this->container->get(DispatchRequestHandler::class),
         );
 
@@ -200,6 +216,19 @@ final class Framework
     public function container(): ContainerInterface
     {
         return $this->container;
+    }
+
+    private function applyPendingMiddlewareConfiguration(MiddlewareStack $stack): void
+    {
+        if ($this->middlewareConfigurators === []) {
+            return;
+        }
+
+        foreach ($this->middlewareConfigurators as $configure) {
+            $configure($stack);
+        }
+
+        $this->middlewareConfigurators = [];
     }
 
     private function configureRouterLocalizedRoutes(): void
