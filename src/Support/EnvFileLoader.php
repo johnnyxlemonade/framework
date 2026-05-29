@@ -32,7 +32,8 @@ final class EnvFileLoader
             [$key, $value] = explode('=', $line, 2);
 
             $key = trim($key);
-            $value = $this->normalizeValue(trim($value));
+            $value = $this->stripInlineComment($value);
+            $value = $this->normalizeValue($value);
 
             if ($key === '') {
                 continue;
@@ -78,5 +79,43 @@ final class EnvFileLoader
         }
 
         return $value;
+    }
+
+    private function stripInlineComment(string $value): string
+    {
+        $length = strlen($value);
+        $inSingleQuote = false;
+        $inDoubleQuote = false;
+        $escaped = false;
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $value[$index];
+
+            if ($escaped) {
+                $escaped = false;
+                continue;
+            }
+
+            if ($char === '\\' && $inDoubleQuote) {
+                $escaped = true;
+                continue;
+            }
+
+            if ($char === "'" && !$inDoubleQuote) {
+                $inSingleQuote = !$inSingleQuote;
+                continue;
+            }
+
+            if ($char === '"' && !$inSingleQuote) {
+                $inDoubleQuote = !$inDoubleQuote;
+                continue;
+            }
+
+            if ($char === '#' && !$inSingleQuote && !$inDoubleQuote) {
+                return trim(substr($value, 0, $index));
+            }
+        }
+
+        return trim($value);
     }
 }
