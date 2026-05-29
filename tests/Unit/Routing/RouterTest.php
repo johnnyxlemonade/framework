@@ -339,7 +339,7 @@ final class RouterTest extends TestCase
     public function testMatchHeadUsesSameConventionRoutingAsGet(): void
     {
         $router = new Router();
-        $router->setControllerNamespace('App\\Controllers\\Frontend');
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
 
         $head = $router->match(new ServerRequest('HEAD', '/home'));
         $get = $router->match(new ServerRequest('GET', '/home'));
@@ -430,7 +430,7 @@ final class RouterTest extends TestCase
     public function testConventionRouteIsNotUsedForPost(): void
     {
         $router = new Router();
-        $router->setControllerNamespace('App\\Controllers\\Frontend');
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
 
         $this->expectException(RouteNotFoundException::class);
         $router->match(new ServerRequest('POST', '/home'));
@@ -439,7 +439,7 @@ final class RouterTest extends TestCase
     public function testConventionRouteIsNotUsedForOptions(): void
     {
         $router = new Router();
-        $router->setControllerNamespace('App\\Controllers\\Frontend');
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
 
         $this->expectException(RouteNotFoundException::class);
         $router->match(new ServerRequest('OPTIONS', '/home'));
@@ -448,8 +448,12 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathIncludesConventionGetHeadOptions(): void
     {
         $router = new Router();
-        $router->setControllerNamespace('App\\Controllers\\Frontend');
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
 
         self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/home'));
     }
+}
+
+final class HomeController
+{
 }
