@@ -14,4 +14,3 @@ enum SitemapChangeFrequency: string
     case Yearly = 'yearly';
     case Never = 'never';
 }
-

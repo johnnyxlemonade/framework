@@ -11,4 +11,3 @@ interface SitemapProviderInterface
      */
     public function urls(): iterable;
 }
-

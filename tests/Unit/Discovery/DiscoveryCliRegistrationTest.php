@@ -105,4 +105,3 @@ final class DiscoveryCliRegistrationTest extends TestCase
         @rmdir($path);
     }
 }
-

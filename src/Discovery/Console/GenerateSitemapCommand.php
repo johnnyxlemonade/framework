@@ -97,7 +97,7 @@ final class GenerateSitemapCommand implements CommandInterface
             return 0;
         } catch (\Throwable $exception) {
             if ($cliOutput) {
-                $this->writeStderr("Failed: " . $exception->getMessage() . "\n");
+                $this->writeStderr('Failed: ' . $exception->getMessage() . "\n");
             }
             return 1;
         } finally {

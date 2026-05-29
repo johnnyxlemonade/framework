@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Discovery;
 
-use Lemonade\Framework\Discovery\Sitemap\SitemapUrl;
 use InvalidArgumentException;
+use Lemonade\Framework\Discovery\Sitemap\SitemapUrl;
 use PHPUnit\Framework\TestCase;
 
 final class SitemapUrlTest extends TestCase

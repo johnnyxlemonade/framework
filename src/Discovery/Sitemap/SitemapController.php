@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Discovery\Sitemap;
 
 use Lemonade\Framework\Core\Config;
-use Lemonade\Framework\Core\Controller;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Controller;
 use Psr\Http\Message\ResponseInterface;
 
 final class SitemapController extends Controller

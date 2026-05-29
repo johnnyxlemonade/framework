@@ -43,4 +43,3 @@ final class CoreServiceProviderClockTest extends TestCase
         (new CoreServiceProvider())->register($container);
     }
 }
-

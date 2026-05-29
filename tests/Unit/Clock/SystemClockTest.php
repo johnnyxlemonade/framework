@@ -18,4 +18,3 @@ final class SystemClockTest extends TestCase
         self::assertSame('UTC', $now->getTimezone()->getName());
     }
 }
-
