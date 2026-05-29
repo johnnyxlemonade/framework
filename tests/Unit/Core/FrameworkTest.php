@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Core;
 
+use Lemonade\Framework\Api\ApiServiceProvider;
 use Lemonade\Framework\Component\ComponentServiceProvider;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
@@ -32,6 +33,7 @@ use Lemonade\Framework\Session\SessionServiceProvider;
 use Lemonade\Framework\Upload\UploadServiceProvider;
 use Lemonade\Framework\Validation\ValidationServiceProvider;
 use Lemonade\Framework\View\ViewServiceProvider;
+use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -50,6 +52,7 @@ final class FrameworkTest extends TestCase
         self::assertIsArray($providers);
         self::assertSame([
             LocalizationServiceProvider::class,
+            ApiServiceProvider::class,
             RoutingServiceProvider::class,
             DiscoveryServiceProvider::class,
             SecurityServiceProvider::class,
@@ -94,6 +97,73 @@ final class FrameworkTest extends TestCase
         $config = $framework->container()->get(Config::class);
 
         self::assertFalse($config->bool('cors.enabled'));
+    }
+
+    public function testFrameworkDefaultsExposeApiConfig(): void
+    {
+        $framework = $this->framework();
+        $config = $framework->container()->get(Config::class);
+
+        self::assertTrue($config->bool('api.enabled'));
+        self::assertSame('/api', $config->string('api.prefix'));
+        self::assertSame(['api:admin'], $config->array('api.security.static_bearer.scopes'));
+    }
+
+    public function testFrameworkDefaultsExposeDiscoveryConfig(): void
+    {
+        $framework = $this->framework();
+        $config = $framework->container()->get(Config::class);
+
+        self::assertFalse($config->bool('discovery.robots.enabled'));
+        self::assertSame('/robots.txt', $config->string('discovery.robots.route'));
+    }
+
+    public function testFrameworkDefaultsExposeModuleConfigStructures(): void
+    {
+        $framework = $this->framework();
+        $config = $framework->container()->get(Config::class);
+
+        self::assertIsArray($config->array('cache'));
+        self::assertIsArray($config->array('database'));
+        self::assertIsArray($config->array('events'));
+        self::assertIsArray($config->array('localization'));
+        self::assertIsArray($config->array('pagination'));
+        self::assertIsArray($config->array('queue'));
+        self::assertIsArray($config->array('session'));
+        self::assertIsArray($config->array('upload'));
+        self::assertIsArray($config->array('breadcrumbs'));
+    }
+
+    public function testConfigFromFileWrapsByRootKeyWhenConfigured(): void
+    {
+        $framework = $this->framework();
+        $config = $framework->container()->get(Config::class);
+        $file = tempnam(sys_get_temp_dir(), 'lemonade-framework-config-');
+        self::assertIsString($file);
+
+        try {
+            file_put_contents($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn ['prefix' => '/x'];\n");
+            $framework->configFromFile($file, 'api');
+
+            self::assertSame('/x', $config->string('api.prefix'));
+        } finally {
+            @unlink($file);
+        }
+    }
+
+    public function testConfigFromFileThrowsWhenRootKeyAlreadyPresentInFile(): void
+    {
+        $framework = $this->framework();
+        $file = tempnam(sys_get_temp_dir(), 'lemonade-framework-config-');
+        self::assertIsString($file);
+
+        try {
+            file_put_contents($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn ['api' => ['prefix' => '/wrapped']];\n");
+            $this->expectException(LogicException::class);
+            $framework->configFromFile($file, 'api');
+        } finally {
+            @unlink($file);
+        }
     }
 
     public function testAppConfigOverridesCorsDefaultsAndNestedValuesAreAvailable(): void
@@ -146,6 +216,7 @@ final class FrameworkTest extends TestCase
             \Lemonade\Framework\Http\Middleware\CorsMiddleware::class,
             \Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class,
             \Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class,
+            \Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class,
             \Lemonade\Framework\Http\Middleware\OptionsMiddleware::class,
         ], $stack->all());
     }
@@ -168,6 +239,7 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
+                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkStackTraceMiddleware::class)
                 ->add(FrameworkStackTerminalMiddleware::class);
         });
@@ -193,6 +265,7 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
+                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkQueuedTerminalMiddleware::class);
         });
 
@@ -220,6 +293,7 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
+                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkQueuedTerminalMiddleware::class);
         });
 
@@ -247,6 +321,7 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
+                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkMutableTerminalMiddleware::class);
         });
 
@@ -282,6 +357,7 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
+                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkOrderStartMiddleware::class)
                 ->add(FrameworkOrderEndMiddleware::class)
                 ->insertBefore(FrameworkOrderEndMiddleware::class, FrameworkOrderMiddleMiddleware::class)
@@ -321,6 +397,7 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
+                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(CorsMiddleware::class)
                 ->add(FrameworkCorsTerminalMiddleware::class);
         });

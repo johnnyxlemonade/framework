@@ -119,10 +119,6 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
         $connectionName = $config->string('database.default');
 
         if ($connectionName === null || $connectionName === '') {
-            $connectionName = $config->string('default');
-        }
-
-        if ($connectionName === null || $connectionName === '') {
             return 'default';
         }
 
@@ -136,11 +132,7 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
     {
         $database = $config->array("database.connections.{$connectionName}");
 
-        if ($database !== []) {
-            return self::normalizeAssoc($database);
-        }
-
-        return self::normalizeAssoc($config->array("connections.{$connectionName}"));
+        return self::normalizeAssoc($database);
     }
 
     /**

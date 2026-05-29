@@ -24,6 +24,12 @@ final class DiscoveryCliRegistrationTest extends TestCase
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-discovery-cli-' . uniqid('', true);
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null], 'http' => [], 'cli' => ['Commands.php' => null]];\n",
+        );
+        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
+        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
     }
 
     protected function tearDown(): void
@@ -103,5 +109,15 @@ final class DiscoveryCliRegistrationTest extends TestCase
             $this->deleteRecursive($path . DIRECTORY_SEPARATOR . $item);
         }
         @rmdir($path);
+    }
+
+    private function writeConfigFile(string $file, string $contents): void
+    {
+        $configDir = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0775, true);
+        }
+
+        file_put_contents($configDir . DIRECTORY_SEPARATOR . $file, $contents);
     }
 }

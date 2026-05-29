@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
-use Lemonade\Framework\Core\Controller;
 use Lemonade\Framework\Http\Request\HttpMethod;
 use Lemonade\Framework\Support\ServiceLocator;
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -345,7 +345,7 @@ final class ControllerTest extends TestCase
     }
 }
 
-final class ControllerTestSubject extends Controller
+final class ControllerTestSubject extends AbstractController
 {
     public function exposedRequest(): ServerRequestInterface
     {

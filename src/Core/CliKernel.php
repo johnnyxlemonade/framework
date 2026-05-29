@@ -17,22 +17,6 @@ final class CliKernel
 {
     use KernelBootstrapTrait;
 
-    /**
-     * @var list<string>
-     */
-    private const CONVENTIONAL_CONFIG_FILES = [
-        'App.php',
-        'Localization.php',
-        'Cache.php',
-        'Logging.php',
-        'Session.php',
-        'Database.php',
-        'Breadcrumbs.php',
-        'Upload.php',
-        'Providers.php',
-        'Commands.php',
-    ];
-
     private bool $booted = false;
     /** @var resource */
     private $stdout;
@@ -168,10 +152,10 @@ final class CliKernel
 
     private function loadApplicationConfigFiles(): void
     {
-        (new ConfigLoader())->load(
+        (new ConfigLoader())->loadApplication(
             $this->framework,
             $this->context,
-            self::CONVENTIONAL_CONFIG_FILES,
+            ConfigLoader::ENTRYPOINT_CLI,
         );
     }
 

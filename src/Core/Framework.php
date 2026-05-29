@@ -17,6 +17,7 @@ use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkServiceProvider;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Support\ServiceLocator;
+use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
@@ -73,26 +74,70 @@ final class Framework
 
     private function loadFrameworkDefaults(): void
     {
-        $defaultsFile = dirname(__DIR__) . '/Config/Framework.php';
+        $manifestPath = dirname(__DIR__) . '/Config/Config.php';
 
-        if (!is_file($defaultsFile)) {
-            return;
+        if (!is_file($manifestPath)) {
+            throw new RuntimeException(sprintf('Framework config manifest not found: %s', $manifestPath));
         }
 
-        $defaults = require $defaultsFile;
-
-        if (!is_array($defaults)) {
-            throw new RuntimeException(sprintf('Config file "%s" must return array.', $defaultsFile));
+        $manifest = require $manifestPath;
+        if (!is_array($manifest)) {
+            throw new RuntimeException(sprintf('Framework config manifest "%s" must return array.', $manifestPath));
         }
 
-        $normalized = [];
-        foreach ($defaults as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
+        $shared = $manifest['shared'] ?? null;
+        $http = $manifest['http'] ?? null;
+        $cli = $manifest['cli'] ?? null;
+        if (!is_array($shared) || !is_array($http) || !is_array($cli)) {
+            throw new RuntimeException(sprintf(
+                'Framework config manifest "%s" must contain array keys "shared", "http", and "cli".',
+                $manifestPath,
+            ));
+        }
+
+        foreach ($this->normalizeManifestSection($shared, $manifestPath) as $spec) {
+            $fileName = $spec['file'];
+            $rootKey = $spec['root_key'];
+            $defaultsFile = dirname(__DIR__) . '/Config/' . $fileName;
+            if (!is_file($defaultsFile)) {
+                continue;
             }
+
+            $this->configFromFile($defaultsFile, $rootKey);
+        }
+    }
+
+    /**
+     * @param array<mixed, mixed> $section
+     * @return list<array{file: string, root_key: ?string}>
+     */
+    private function normalizeManifestSection(array $section, string $manifestPath): array
+    {
+        $normalized = [];
+
+        foreach ($section as $fileName => $rootKey) {
+            if (!is_string($fileName) || trim($fileName) === '') {
+                throw new RuntimeException(sprintf(
+                    'Framework config manifest "%s" contains invalid file name.',
+                    $manifestPath,
+                ));
+            }
+
+            if (!is_string($rootKey) && $rootKey !== null) {
+                throw new RuntimeException(sprintf(
+                    'Framework config manifest "%s" has invalid root key for "%s".',
+                    $manifestPath,
+                    $fileName,
+                ));
+            }
+
+            $normalized[] = [
+                'file' => trim($fileName),
+                'root_key' => is_string($rootKey) && trim($rootKey) !== '' ? trim($rootKey) : null,
+            ];
         }
 
-        $this->config($normalized);
+        return $normalized;
     }
 
     public function context(): ApplicationContext
@@ -147,7 +192,7 @@ final class Framework
         return $this;
     }
 
-    public function configFromFile(string $file): self
+    public function configFromFile(string $file, ?string $rootKey = null): self
     {
         if (!is_file($file)) {
             throw new RuntimeException(sprintf('Config file not found: %s', $file));
@@ -159,6 +204,19 @@ final class Framework
             throw new RuntimeException(sprintf('Config file "%s" must return array.', $file));
         }
 
+        if ($rootKey !== null && $rootKey !== '') {
+            if (array_key_exists($rootKey, $data)) {
+                throw new LogicException(sprintf(
+                    'Config file "%s" must not contain root key "%s" when loaded with root-key wrapping.',
+                    $file,
+                    $rootKey,
+                ));
+            }
+
+            return $this->config([$rootKey => $data]);
+        }
+
+        /** @var array<string, mixed> $normalized */
         $normalized = [];
         foreach ($data as $key => $value) {
             if (is_string($key)) {

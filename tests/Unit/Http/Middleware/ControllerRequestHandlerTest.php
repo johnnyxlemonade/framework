@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Controller;
+use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Http\Middleware\ControllerRequestHandler;
 use Lemonade\Framework\Routing\RouteMatch;
@@ -40,7 +40,7 @@ final class ControllerRequestHandlerTest extends TestCase
     }
 }
 
-final class ControllerHandlerTestController extends Controller
+final class ControllerHandlerTestController extends AbstractController
 {
     public static int $called = 0;
 

@@ -29,16 +29,17 @@ final class ConfigLoaderTest extends TestCase
         $this->deleteRecursive($this->root);
     }
 
-    public function testLoadWithoutManifestLoadsExistingAndSkipsMissingConventionalFiles(): void
+    public function testLoadWithStrictManifestLoadsConfiguredFiles(): void
     {
         $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['app' => ['name' => 'Demo']];\n");
         $this->writeConfigFile('Logging.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['logging' => ['default' => 'stderr']];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null, 'Logging.php' => null], 'http' => [], 'cli' => []];\n");
 
         $loader = new ConfigLoader();
         $context = $this->context();
         $framework = $this->framework($context);
 
-        $loader->load($framework, $context, ['App.php', 'Missing.php', 'Logging.php']);
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
 
         $config = $framework->container()->get(Config::class);
 
@@ -46,22 +47,48 @@ final class ConfigLoaderTest extends TestCase
         self::assertSame('stderr', $config->get('logging.default'));
     }
 
-    public function testLoadWithValidManifestUsesManifestFilesInsteadOfConventionalFallback(): void
+    public function testLoadWithEntrypointAwareManifestLoadsSharedAndHttpForHttpEntrypoint(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => ['Alt.php']];\n");
-        $this->writeConfigFile('Alt.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['alt' => ['enabled' => true]];\n");
-        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['app' => ['name' => 'ShouldNotLoad']];\n");
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Shared.php' => null], 'http' => ['Http.php' => null], 'cli' => ['Cli.php' => null]];\n",
+        );
+        $this->writeConfigFile('Shared.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['enabled' => true]];\n");
+        $this->writeConfigFile('Http.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['http' => ['enabled' => true]];\n");
+        $this->writeConfigFile('Cli.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['cli' => ['enabled' => true]];\n");
 
         $loader = new ConfigLoader();
         $context = $this->context();
         $framework = $this->framework($context);
 
-        $loader->load($framework, $context, ['App.php']);
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
 
         $config = $framework->container()->get(Config::class);
+        self::assertTrue((bool) $config->get('shared.enabled'));
+        self::assertTrue((bool) $config->get('http.enabled'));
+        self::assertNull($config->get('cli.enabled'));
+    }
 
-        self::assertTrue((bool) $config->get('alt.enabled'));
-        self::assertNull($config->get('app.name'));
+    public function testLoadWithEntrypointAwareManifestLoadsSharedAndCliForCliEntrypoint(): void
+    {
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Shared.php' => null], 'http' => ['Http.php' => null], 'cli' => ['Cli.php' => null]];\n",
+        );
+        $this->writeConfigFile('Shared.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['enabled' => true]];\n");
+        $this->writeConfigFile('Http.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['http' => ['enabled' => true]];\n");
+        $this->writeConfigFile('Cli.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['cli' => ['enabled' => true]];\n");
+
+        $loader = new ConfigLoader();
+        $context = $this->context();
+        $framework = $this->framework($context);
+
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_CLI);
+
+        $config = $framework->container()->get(Config::class);
+        self::assertTrue((bool) $config->get('shared.enabled'));
+        self::assertTrue((bool) $config->get('cli.enabled'));
+        self::assertNull($config->get('http.enabled'));
     }
 
     public function testInvalidManifestNotReturningArrayThrowsLogicException(): void
@@ -70,43 +97,93 @@ final class ConfigLoaderTest extends TestCase
 
         $this->expectException(LogicException::class);
 
-        (new ConfigLoader())->resolveConfigFileNames($this->context(), ['App.php']);
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
-    public function testInvalidManifestWithoutFilesKeyThrowsLogicException(): void
+    public function testInvalidManifestWithoutEntrypointKeysThrowsLogicException(): void
     {
         $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['invalid' => []];\n");
 
         $this->expectException(LogicException::class);
 
-        (new ConfigLoader())->resolveConfigFileNames($this->context(), ['App.php']);
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
-    public function testInvalidManifestFilesNotArrayThrowsLogicException(): void
+    public function testInvalidManifestSectionNotArrayThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => 'invalid'];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [], 'http' => 'invalid', 'cli' => []];\n");
 
         $this->expectException(LogicException::class);
 
-        (new ConfigLoader())->resolveConfigFileNames($this->context(), ['App.php']);
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     public function testInvalidManifestFileItemNotStringThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => [123]];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [123 => null], 'http' => [], 'cli' => []];\n");
 
         $this->expectException(LogicException::class);
 
-        (new ConfigLoader())->resolveConfigFileNames($this->context(), ['App.php']);
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     public function testInvalidManifestFileItemEmptyStringThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => ['']];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['' => null], 'http' => [], 'cli' => []];\n");
 
         $this->expectException(LogicException::class);
 
-        (new ConfigLoader())->resolveConfigFileNames($this->context(), ['App.php']);
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
+    }
+
+    public function testInvalidManifestRootKeyThrowsLogicException(): void
+    {
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php' => ''], 'http' => [], 'cli' => []];\n");
+
+        $this->expectException(LogicException::class);
+
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
+    }
+
+    public function testRootKeyMappingWrapsSectionWithoutDoubleNesting(): void
+    {
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Cache.php' => 'cache'], 'http' => [], 'cli' => []];\n",
+        );
+        $this->writeConfigFile(
+            'Cache.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['default' => 'file'];\n",
+        );
+
+        $loader = new ConfigLoader();
+        $context = $this->context();
+        $framework = $this->framework($context);
+
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        $config = $framework->container()->get(Config::class);
+        self::assertSame('file', $config->string('cache.default'));
+        self::assertNull($config->get('cache.cache.default'));
+    }
+
+    public function testRootKeyMappingThrowsWhenFileAlreadyContainsSameRootKey(): void
+    {
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Cache.php' => 'cache'], 'http' => [], 'cli' => []];\n",
+        );
+        $this->writeConfigFile(
+            'Cache.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['cache' => ['default' => 'file']];\n",
+        );
+
+        $loader = new ConfigLoader();
+        $context = $this->context();
+        $framework = $this->framework($context);
+
+        $this->expectException(LogicException::class);
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     private function context(): ApplicationContext

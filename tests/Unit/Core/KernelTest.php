@@ -164,6 +164,7 @@ final class KernelTest extends TestCase
         @unlink($configDir . DIRECTORY_SEPARATOR . 'Database.php');
         @unlink($configDir . DIRECTORY_SEPARATOR . 'Breadcrumbs.php');
         @unlink($configDir . DIRECTORY_SEPARATOR . 'Upload.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Api.php');
         @unlink($configDir . DIRECTORY_SEPARATOR . 'Providers.php');
 
         $kernel = $this->kernel(false);
@@ -284,6 +285,7 @@ final class KernelTest extends TestCase
         }
 
         $defaults = [
+            'Config.php',
             'App.php',
             'Localization.php',
             'Cache.php',
@@ -292,10 +294,19 @@ final class KernelTest extends TestCase
             'Database.php',
             'Breadcrumbs.php',
             'Upload.php',
+            'Api.php',
             'Providers.php',
         ];
 
         foreach ($defaults as $file) {
+            if ($file === 'Config.php') {
+                $this->writeConfigFile(
+                    'Config.php',
+                    "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null, 'Localization.php' => null, 'Cache.php' => null, 'Logging.php' => null, 'Session.php' => null, 'Database.php' => null, 'Breadcrumbs.php' => null, 'Upload.php' => null, 'Api.php' => 'api', 'Providers.php' => null], 'http' => [], 'cli' => ['Commands.php' => null]];\n",
+                );
+                continue;
+            }
+
             $this->writeConfigFile($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
         }
 
@@ -377,10 +388,10 @@ final class KernelTest extends TestCase
 
 namespace App\Controllers;
 
-use Lemonade\Framework\Core\Controller;
+use Lemonade\Framework\Core\AbstractController;
 use Psr\Http\Message\ResponseInterface;
 
-final class HeadKernelSupportController extends Controller
+final class HeadKernelSupportController extends AbstractController
 {
     public function index(): ResponseInterface
     {
@@ -389,7 +400,7 @@ final class HeadKernelSupportController extends Controller
     }
 }
 
-final class OptionsKernelSupportController extends Controller
+final class OptionsKernelSupportController extends AbstractController
 {
     public function index(): ResponseInterface
     {

@@ -26,7 +26,7 @@ use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use RuntimeException;
 
-abstract class Controller
+abstract class AbstractController
 {
     private ?ControllerContext $controllerContext = null;
     private ?ControllerResponses $controllerResponses = null;

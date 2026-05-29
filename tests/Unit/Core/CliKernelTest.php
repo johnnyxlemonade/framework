@@ -27,6 +27,12 @@ final class CliKernelTest extends TestCase
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-cli-' . uniqid('', true);
         CliKernelRecorderCommand::reset();
         CliKernelFailingCommand::reset();
+        CliKernelApiConfigProbeCommand::$lastPrefix = null;
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null], 'http' => [], 'cli' => ['Commands.php' => 'commands']];\n",
+        );
+        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
     }
 
     protected function tearDown(): void
@@ -98,18 +104,19 @@ final class CliKernelTest extends TestCase
         self::assertSame(1, CliKernelRecorderCommand::$runCount);
     }
 
-    public function testCommandsConfigMustBeArray(): void
+    public function testCommandsConfigFileMustReturnArray(): void
     {
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => 'invalid'];\n");
+        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn 'invalid';\n");
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
-        self::assertStringContainsString('CLI error: Config key "commands" must be an array.', $this->stderrContents());
+        self::assertStringContainsString('CLI error: Config file', $this->stderrContents());
+        self::assertStringContainsString('must return array', $this->stderrContents());
     }
 
     public function testConfiguredCommandMustBeString(): void
     {
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => [123]];\n");
+        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [123];\n");
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
@@ -118,12 +125,12 @@ final class CliKernelTest extends TestCase
 
     public function testConfiguredCommandMustExistAndImplementInterface(): void
     {
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => ['Missing\\\\Command']];\n");
+        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['Missing\\\\Command'];\n");
         $kernelMissing = $this->kernel();
         self::assertSame(1, $kernelMissing->handle(['bin/lemonade', 'list']));
         self::assertStringContainsString('CLI error: Configured command "Missing\Command" must implement', $this->stderrContents());
 
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => ['" . CliKernelNotACommand::class . "']];\n");
+        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['" . CliKernelNotACommand::class . "'];\n");
         $kernelInvalid = $this->kernel();
         self::assertSame(1, $kernelInvalid->handle(['bin/lemonade', 'list']));
         self::assertStringContainsString(
@@ -134,8 +141,8 @@ final class CliKernelTest extends TestCase
 
     public function testManifestFilesAreUsedWhenManifestExists(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => ['AltCommands.php']];\n");
-        $this->writeConfigFile('AltCommands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => ['" . CliKernelRecorderCommand::class . "']];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [], 'http' => [], 'cli' => ['AltCommands.php' => 'commands']];\n");
+        $this->writeConfigFile('AltCommands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['" . CliKernelRecorderCommand::class . "'];\n");
 
         $kernel = $this->kernel();
         $exit = $kernel->handle(['bin/lemonade', 'recorder']);
@@ -143,11 +150,30 @@ final class CliKernelTest extends TestCase
         self::assertSame(12, $exit);
     }
 
+    public function testCliKernelLoadsApiConfigUnderApiRootKeyViaManifestMapping(): void
+    {
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php' => 'api'], 'http' => [], 'cli' => ['Commands.php' => 'commands']];\n",
+        );
+        $this->writeConfigFile(
+            'Api.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['prefix' => '/api-cli'];\n",
+        );
+        $this->writeCommandsConfig([CliKernelApiConfigProbeCommand::class]);
+
+        $kernel = $this->kernel();
+        $exit = $kernel->handle(['bin/lemonade', 'config:api-probe']);
+
+        self::assertSame(0, $exit);
+        self::assertSame('/api-cli', CliKernelApiConfigProbeCommand::$lastPrefix);
+    }
+
     public function testManifestIsAuthoritativeAndDoesNotAutoAddCommandsPhp(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => ['App.php']];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null], 'http' => [], 'cli' => []];\n");
         $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['app' => ['name' => 'Demo']];\n");
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => ['" . CliKernelRecorderCommand::class . "']];\n");
+        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['" . CliKernelRecorderCommand::class . "'];\n");
 
         $kernel = $this->kernel();
         $exit = $kernel->handle(['bin/lemonade', 'recorder']);
@@ -174,7 +200,7 @@ final class CliKernelTest extends TestCase
 
     public function testInvalidManifestFileNameReturnsOne(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['files' => ['']];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['' => null], 'http' => [], 'cli' => []];\n");
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
@@ -325,7 +351,7 @@ PHP);
     private function writeCommandsConfig(array $commands): void
     {
         $commandsCode = var_export($commands, true);
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['commands' => {$commandsCode}];\n");
+        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn {$commandsCode};\n");
     }
 
     private function writeConfigFile(string $file, string $contents): void
@@ -423,3 +449,30 @@ final class CliKernelFailingCommand implements CommandInterface
 }
 
 final class CliKernelNotACommand {}
+
+final class CliKernelApiConfigProbeCommand implements CommandInterface
+{
+    public static ?string $lastPrefix = null;
+
+    public function __construct(
+        private readonly \Lemonade\Framework\Core\Config $config,
+    ) {}
+
+    public function name(): string
+    {
+        return 'config:api-probe';
+    }
+
+    public function description(): string
+    {
+        return 'Reads api config prefix.';
+    }
+
+    public function run(array $args): int
+    {
+        unset($args);
+        self::$lastPrefix = $this->config->string('api.prefix');
+
+        return 0;
+    }
+}

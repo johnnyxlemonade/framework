@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Controller;
+use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
@@ -143,7 +143,7 @@ final class DispatchMiddlewareTwo implements MiddlewareInterface
     }
 }
 
-final class DispatchTestController extends Controller
+final class DispatchTestController extends AbstractController
 {
     public function index(): ResponseInterface
     {

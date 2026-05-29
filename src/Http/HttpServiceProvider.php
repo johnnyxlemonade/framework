@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http;
 
+use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
+use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
+use Lemonade\Framework\Api\Security\NullApiAuthenticator;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Http\Error\ErrorPageRenderer;
@@ -26,6 +29,7 @@ final class HttpServiceProvider implements ServiceProviderInterface
     public function register(ContainerInterface $container): void
     {
         $container->singleton(ErrorPageRenderer::class, ErrorPageRenderer::class);
+        $container->singleton(ApiAuthenticatorInterface::class, static fn(): ApiAuthenticatorInterface => new NullApiAuthenticator());
 
         $container->singleton(ErrorHandlingMiddleware::class, ErrorHandlingMiddleware::class);
         $container->singleton(PoweredByMiddleware::class, PoweredByMiddleware::class);
@@ -43,6 +47,7 @@ final class HttpServiceProvider implements ServiceProviderInterface
             CorsMiddleware::class,
             PoweredByMiddleware::class,
             HtmlMinifyMiddleware::class,
+            ApiAuthorizationMiddleware::class,
             OptionsMiddleware::class,
         ]));
         $container->singleton(HtmlMinifier::class, HtmlMinifier::class);

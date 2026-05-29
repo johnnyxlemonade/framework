@@ -38,19 +38,21 @@ final class ControllerResolver
 
         $this->markBenchmark('controller_resolve_start');
         $controller = $this->container->get($controllerClass);
-        if (!$controller instanceof Controller) {
+        if (!is_object($controller)) {
             throw new RuntimeException(sprintf(
-                'Resolved controller "%s" must extend %s.',
+                'Resolved controller "%s" must be an object.',
                 $controllerClass,
-                Controller::class,
             ));
         }
 
-        /** @var ResponseFactoryInterface $responseFactory */
-        $responseFactory = $this->container->get(ResponseFactoryInterface::class);
-        /** @var StreamFactoryInterface $streamFactory */
-        $streamFactory = $this->container->get(StreamFactoryInterface::class);
-        $controller->setControllerContext($request, $responseFactory, $streamFactory);
+        if ($controller instanceof AbstractController) {
+            /** @var ResponseFactoryInterface $responseFactory */
+            $responseFactory = $this->container->get(ResponseFactoryInterface::class);
+            /** @var StreamFactoryInterface $streamFactory */
+            $streamFactory = $this->container->get(StreamFactoryInterface::class);
+            $controller->setControllerContext($request, $responseFactory, $streamFactory);
+        }
+
         $this->markBenchmark('controller_resolved');
 
         if (!method_exists($controller, $action)) {

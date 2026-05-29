@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Discovery\Robots;
 
-use Lemonade\Framework\Core\Controller;
+use Lemonade\Framework\Core\AbstractController;
 use Psr\Http\Message\ResponseInterface;
 
-final class RobotsController extends Controller
+final class RobotsController extends AbstractController
 {
     public function __construct(
         private readonly RobotsTxtGenerator $generator,

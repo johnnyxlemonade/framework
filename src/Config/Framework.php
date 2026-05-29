@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lemonade\Framework\Api\ApiServiceProvider;
 use Lemonade\Framework\Component\ComponentServiceProvider;
 use Lemonade\Framework\Database\DatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
@@ -27,6 +28,7 @@ return [
     'framework' => [
         'providers' => [
             LocalizationServiceProvider::class,
+            ApiServiceProvider::class,
             RoutingServiceProvider::class,
             DiscoveryServiceProvider::class,
             SecurityServiceProvider::class,
@@ -43,49 +45,6 @@ return [
             ViewServiceProvider::class,
             EventServiceProvider::class,
             QueueServiceProvider::class,
-        ],
-    ],
-    'cors' => [
-        'enabled' => false,
-        'allowed_origins' => [],
-        'allowed_methods' => [],
-        'allowed_headers' => [],
-        'exposed_headers' => [],
-        'allow_credentials' => false,
-        'max_age' => null,
-    ],
-    'discovery' => [
-        'robots' => [
-            'enabled' => false,
-            'route' => '/robots.txt',
-            'header' => [
-                'enabled' => true,
-                'generator' => 'Lemonade Framework',
-                'date_format' => 'Y-m-d H:i:s',
-            ],
-            'rules' => [
-                '*' => [
-                    'allow' => ['/'],
-                    'disallow' => [],
-                ],
-            ],
-            'sitemaps' => ['/sitemap.xml'],
-        ],
-        'sitemap' => [
-            'enabled' => false,
-            'route' => '/sitemap.xml',
-            'mode' => 'stream',
-            'base_url' => null,
-            'routes' => [],
-            'providers' => [],
-            'cache_path' => 'storage/cache/discovery',
-            'filename' => 'sitemap.xml',
-            'index_filename' => 'sitemap.xml',
-            'gzip' => false,
-            'max_urls_per_file' => 50000,
-            'max_uncompressed_bytes' => 52428800,
-            'deduplicate' => false,
-            'on_invalid_url' => 'fail',
         ],
     ],
 ];

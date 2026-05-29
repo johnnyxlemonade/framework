@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Discovery\Sitemap;
 
+use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
-use Lemonade\Framework\Core\Controller;
 use Psr\Http\Message\ResponseInterface;
 
-final class SitemapController extends Controller
+final class SitemapController extends AbstractController
 {
     public function __construct(
         private readonly Config $config,
