@@ -111,9 +111,13 @@ final class FileTranslator implements TranslatorInterface
         }
 
         $frameworkFile = $this->context->path('src/Language/' . $locale . '/' . $group . '.php');
+        $packageFrameworkFile = $this->frameworkLanguagePath($locale, $group);
         $appFile = $this->context->appPath('Language/' . $locale . '/' . $group . '.php');
 
-        $frameworkLines = $this->loadFile($frameworkFile);
+        $frameworkLines = array_replace(
+            $this->loadFile($packageFrameworkFile),
+            $this->loadFile($frameworkFile),
+        );
         $appLines = $this->loadFile($appFile);
 
         return $this->cache[$cacheKey] = array_replace($frameworkLines, $appLines);
@@ -175,14 +179,18 @@ final class FileTranslator implements TranslatorInterface
     {
         $fallbackLocale = $this->fallbackLocale();
         $frameworkDir = $this->context->path('src/Language/' . $locale);
+        $packageFrameworkDir = $this->frameworkLanguageDirectory($locale);
         $appDir = $this->context->appPath('Language/' . $locale);
         $fallbackFrameworkDir = $this->context->path('src/Language/' . $fallbackLocale);
+        $fallbackPackageFrameworkDir = $this->frameworkLanguageDirectory($fallbackLocale);
         $fallbackAppDir = $this->context->appPath('Language/' . $fallbackLocale);
 
         $names = array_merge(
             $this->collectGroupNamesFromDirectory($frameworkDir),
+            $this->collectGroupNamesFromDirectory($packageFrameworkDir),
             $this->collectGroupNamesFromDirectory($appDir),
             $this->collectGroupNamesFromDirectory($fallbackFrameworkDir),
+            $this->collectGroupNamesFromDirectory($fallbackPackageFrameworkDir),
             $this->collectGroupNamesFromDirectory($fallbackAppDir),
         );
 
@@ -233,5 +241,15 @@ final class FileTranslator implements TranslatorInterface
         $locale = trim($locale);
 
         return $locale !== '' ? $locale : 'cs';
+    }
+
+    private function frameworkLanguageDirectory(string $locale): string
+    {
+        return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'Language' . DIRECTORY_SEPARATOR . $locale;
+    }
+
+    private function frameworkLanguagePath(string $locale, string $group): string
+    {
+        return $this->frameworkLanguageDirectory($locale) . DIRECTORY_SEPARATOR . $group . '.php';
     }
 }
