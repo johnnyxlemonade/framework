@@ -174,14 +174,17 @@ final class FileTranslatorTest extends TestCase
         self::assertArrayHasKey('messages', $all);
         self::assertArrayHasKey('validation', $all);
         self::assertSame('Hello', $all['messages']['hello']);
-        self::assertSame('Povinné', $all['validation']['required']);
+        self::assertSame('{field} is required.', $all['validation']['required']);
     }
 
     public function testAllReturnsEmptyArrayForMissingLanguageDirectories(): void
     {
         $translator = $this->translator();
 
-        self::assertSame([], $translator->all('en'));
+        $all = $translator->all('en');
+
+        self::assertArrayHasKey('validation', $all);
+        self::assertSame('{field} is required.', $all['validation']['required']);
     }
 
     public function testInvalidLanguageFilesAndEntriesAreIgnored(): void
