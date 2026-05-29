@@ -33,7 +33,7 @@ final class SitemapFileGenerator
         $baseFilename = $this->config->string('discovery.sitemap.filename', 'sitemap.xml') ?? 'sitemap.xml';
         $indexFilename = $this->config->string('discovery.sitemap.index_filename', 'sitemap.xml') ?? 'sitemap.xml';
         $gzip = $this->config->bool('discovery.sitemap.gzip', false);
-        $baseUrl = rtrim((string) ($this->config->string('discovery.sitemap.base_url') ?? ''), '/');
+        $baseUrl = rtrim($this->config->string('discovery.sitemap.base_url') ?? '', '/');
         $lastmod = date('Y-m-d');
 
         /** @var list<SitemapFile> $files */

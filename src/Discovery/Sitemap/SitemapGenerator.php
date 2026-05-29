@@ -32,7 +32,7 @@ final class SitemapGenerator
             foreach ($provider->urls() as $item) {
                 try {
                     $loc = $this->normalizeLoc($item->loc(), $baseUrl);
-                    if (!filter_var($loc, FILTER_VALIDATE_URL)) {
+                    if (filter_var($loc, FILTER_VALIDATE_URL) === false) {
                         throw new SitemapException(sprintf('Invalid URL "%s".', $loc));
                     }
 

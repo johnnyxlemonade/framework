@@ -34,7 +34,12 @@ final class SitemapController extends Controller
                 ? 'application/x-gzip'
                 : 'application/xml; charset=UTF-8';
 
-            $headers = ['Last-Modified' => gmdate('D, d M Y H:i:s', filemtime($path) ?: time()) . ' GMT'];
+            $mtime = filemtime($path);
+            if ($mtime === false) {
+                $mtime = time();
+            }
+
+            $headers = ['Last-Modified' => gmdate('D, d M Y H:i:s', $mtime) . ' GMT'];
 
             return $this->stream(static function () use ($path): void {
                 $handle = fopen($path, 'rb');
