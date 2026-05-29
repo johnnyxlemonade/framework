@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
+use DateTimeZone;
 use Lemonade\Framework\Adapter\LoaderAdapter;
+use Lemonade\Framework\Clock\ClockInterface;
+use Lemonade\Framework\Clock\SystemClock;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
@@ -16,6 +19,8 @@ use Psr\Http\Message\ServerRequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\UploadedFileFactoryInterface;
 use Psr\Http\Message\UriFactoryInterface;
+use RuntimeException;
+use Throwable;
 
 final class CoreServiceProvider implements ServiceProviderInterface
 {
@@ -62,6 +67,31 @@ final class CoreServiceProvider implements ServiceProviderInterface
         $container->singleton(LoaderAdapter::class, LoaderAdapter::class);
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);
+        $timezone = $this->resolveClockTimezone(
+            $container->get(Config::class),
+        );
+        $container->singleton(ClockInterface::class, new SystemClock($timezone));
+        $container->singleton('clock', static function (ContainerInterface $container): ClockInterface {
+            return $container->get(ClockInterface::class);
+        });
 
+    }
+
+    private function resolveClockTimezone(Config $config): ?DateTimeZone
+    {
+        $value = $config->string('app.timezone');
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return new DateTimeZone($value);
+        } catch (Throwable $exception) {
+            throw new RuntimeException(
+                sprintf('Invalid configured timezone in app.timezone: "%s".', $value),
+                0,
+                $exception,
+            );
+        }
     }
 }

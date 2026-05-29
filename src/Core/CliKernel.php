@@ -115,13 +115,14 @@ final class CliKernel
         $this->registerCoreProvidersWithDiagnostics();
         $this->markBenchmark('core_logger_ready');
 
-        $this->registerCommonFrameworkProviders();
         $this->framework->register(new ConsoleServiceProvider());
+        $this->registerCommonFrameworkProviders();
         $this->markBenchmark('framework_providers_registered');
 
         $this->registerConfiguredProviders();
         $this->markBenchmark('app_providers_registered');
         $this->markBenchmark('providers_registered');
+        $this->registerCliRoutesIfPresent();
 
         $this->booted = true;
     }
@@ -189,6 +190,16 @@ final class CliKernel
     private function writeStderr(string $message): void
     {
         fwrite($this->stderr, $message);
+    }
+
+    private function registerCliRoutesIfPresent(): void
+    {
+        $routingConfig = $this->context->configPath('Routing.php');
+        if (!is_file($routingConfig)) {
+            return;
+        }
+
+        $this->framework->routesFromFile($routingConfig);
     }
 
 }

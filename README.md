@@ -260,6 +260,7 @@ Detailed documentation lives outside the main README:
 - [Database](docs/database.md)
 - [CLI commands](docs/cli-commands.md)
 - [Observability](docs/observability.md)
+- [Discovery](docs/discovery.md)
 
 ## Code Quality
 

@@ -201,6 +201,71 @@ final class CliKernelTest extends TestCase
         self::assertStringContainsString('Command failed hard', $contents);
     }
 
+    public function testDiscoverySitemapGenerateCommandUsesNamedRoutesInCliRuntime(): void
+    {
+        $this->writeConfigFile('App.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+return [
+    'app' => [
+        'base_url' => 'https://example.test',
+    ],
+        'discovery' => [
+            'sitemap' => [
+                'enabled' => true,
+                'route' => '/sitemap.xml',
+                'mode' => 'cache',
+                'cli_output' => false,
+                'base_url' => 'https://example.test',
+                'routes' => [
+                    'home.index',
+                ],
+            'providers' => [],
+            'cache_path' => 'storage/cache/discovery',
+            'filename' => 'sitemap.xml',
+            'index_filename' => 'sitemap.xml',
+            'gzip' => false,
+            'max_urls_per_file' => 50000,
+            'max_uncompressed_bytes' => 52428800,
+            'deduplicate' => false,
+            'on_invalid_url' => 'fail',
+        ],
+    ],
+];
+PHP);
+
+        $this->writeConfigFile('Routing.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Lemonade\Framework\Routing\Router;
+
+return static function (Router $router): void {
+    $router->getNamed('home.index', '/', 'HomeController@index');
+};
+PHP);
+
+        $kernel = $this->kernel();
+        $exit = $kernel->handle(['bin/lemonade', 'discovery:sitemap:generate']);
+
+        self::assertSame(0, $exit);
+
+        $sitemapPath = $this->root
+            . DIRECTORY_SEPARATOR . 'storage'
+            . DIRECTORY_SEPARATOR . 'cache'
+            . DIRECTORY_SEPARATOR . 'discovery'
+            . DIRECTORY_SEPARATOR . 'sitemap.xml';
+
+        self::assertFileExists($sitemapPath);
+
+        $contents = file_get_contents($sitemapPath);
+        self::assertIsString($contents);
+        self::assertStringContainsString('<loc>https://example.test/</loc>', $contents);
+    }
+
     private function kernel(): CliKernel
     {
         $this->stdout ??= $this->createTempStream();

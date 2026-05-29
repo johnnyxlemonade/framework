@@ -18,6 +18,7 @@ use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
+use Lemonade\Framework\Discovery\DiscoveryServiceProvider;
 use Lemonade\Framework\Debug\DebugServiceProvider;
 use Lemonade\Framework\Event\EventServiceProvider;
 use Lemonade\Framework\Http\HttpServiceProvider;
@@ -50,6 +51,7 @@ final class FrameworkTest extends TestCase
         self::assertSame([
             LocalizationServiceProvider::class,
             RoutingServiceProvider::class,
+            DiscoveryServiceProvider::class,
             SecurityServiceProvider::class,
             DatabaseServiceProvider::class,
             MysqlDatabaseServiceProvider::class,
