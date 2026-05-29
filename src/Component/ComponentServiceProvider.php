@@ -11,7 +11,9 @@ use Lemonade\Framework\Component\Meta\MetaServiceProvider;
 use Lemonade\Framework\Component\Pagination\PaginationComponent;
 use Lemonade\Framework\Component\Pagination\PaginationServiceProvider;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use LogicException;
 
 final class ComponentServiceProvider implements ServiceProviderInterface
 {
@@ -49,14 +51,76 @@ final class ComponentServiceProvider implements ServiceProviderInterface
 
     private function registerRegistry(ContainerInterface $container): void
     {
-        $container->singleton(ComponentRegistry::class, static function (ContainerInterface $container): ComponentRegistry {
+        $container->singleton(ComponentRegistry::class, function (ContainerInterface $container): ComponentRegistry {
             $registry = new ComponentRegistry($container);
 
             foreach (self::COMPONENTS as $name => $componentClass) {
                 $registry->register($name, $componentClass);
             }
 
+            foreach ($this->resolveCustomComponents($container) as $name => $componentClass) {
+                $registry->register($name, $componentClass);
+            }
+
             return $registry;
         });
+    }
+
+    /**
+     * @return array<string, class-string>
+     */
+    private function resolveCustomComponents(ContainerInterface $container): array
+    {
+        $config = $container->get(Config::class);
+
+        if (!$config instanceof Config) {
+            throw new LogicException(sprintf(
+                'Service [%s] must resolve to %s, %s given.',
+                Config::class,
+                Config::class,
+                get_debug_type($config),
+            ));
+        }
+
+        $components = $config->get('components', []);
+
+        if (!is_array($components)) {
+            throw new LogicException(sprintf(
+                'Config key [components] must be array, %s given.',
+                get_debug_type($components),
+            ));
+        }
+
+        $resolved = [];
+
+        foreach ($components as $name => $componentClass) {
+            if (!is_string($name) || trim($name) === '') {
+                throw new LogicException(sprintf(
+                    'Config key [components] must use non-empty string keys, %s given.',
+                    get_debug_type($name),
+                ));
+            }
+
+            if (!is_string($componentClass) || trim($componentClass) === '') {
+                throw new LogicException(sprintf(
+                    'Component [%s] must be a non-empty class-string, %s given.',
+                    $name,
+                    get_debug_type($componentClass),
+                ));
+            }
+
+            if (!class_exists($componentClass)) {
+                throw new LogicException(sprintf(
+                    'Component [%s] references non-existing class [%s].',
+                    $name,
+                    $componentClass,
+                ));
+            }
+
+            /** @var class-string $componentClass */
+            $resolved[$name] = $componentClass;
+        }
+
+        return $resolved;
     }
 }

@@ -19,6 +19,7 @@ use Lemonade\Framework\Component\Pagination\PaginationServiceProvider;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Localization\TranslatorInterface;
+use LogicException;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
@@ -77,6 +78,125 @@ final class ComponentServiceProviderTest extends TestCase
         self::assertInstanceOf(MetaComponent::class, $registry->meta());
     }
 
+    public function testRegistryRegistersComponentFromConfig(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'components' => [
+                'navigation' => TestNavigationComponent::class,
+            ],
+        ]));
+        $provider = new ComponentServiceProvider();
+        $provider->register($container);
+
+        /** @var ComponentRegistry $registry */
+        $registry = $container->get(ComponentRegistry::class);
+
+        self::assertTrue($registry->has('navigation'));
+        self::assertSame(TestNavigationComponent::class, $registry->all()['navigation']);
+        self::assertInstanceOf(TestNavigationComponent::class, $registry->get('navigation'));
+    }
+
+    public function testGetWithExpectedClassReturnsTypedNavigationComponent(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'components' => [
+                'navigation' => TestNavigationComponent::class,
+            ],
+        ]));
+        $provider = new ComponentServiceProvider();
+        $provider->register($container);
+
+        /** @var ComponentRegistry $registry */
+        $registry = $container->get(ComponentRegistry::class);
+
+        $navigation = $registry->get('navigation', TestNavigationComponent::class);
+
+        self::assertInstanceOf(TestNavigationComponent::class, $navigation);
+    }
+
+    public function testGetWithoutExpectedClassRemainsBackwardCompatibleAndReturnsObject(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'components' => [
+                'navigation' => TestNavigationComponent::class,
+            ],
+        ]));
+        $provider = new ComponentServiceProvider();
+        $provider->register($container);
+
+        /** @var ComponentRegistry $registry */
+        $registry = $container->get(ComponentRegistry::class);
+
+        $navigation = $registry->get('navigation');
+
+        self::assertIsObject($navigation);
+    }
+
+    public function testGetThrowsClearExceptionForExpectedClassMismatch(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'components' => [
+                'navigation' => TestNavigationComponent::class,
+            ],
+        ]));
+        $provider = new ComponentServiceProvider();
+        $provider->register($container);
+
+        /** @var ComponentRegistry $registry */
+        $registry = $container->get(ComponentRegistry::class);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Component [navigation] must be instance of');
+
+        $registry->get('navigation', WrongComponent::class);
+    }
+
+    public function testNonArrayComponentsConfigThrowsLogicException(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'components' => 'invalid',
+        ]));
+        $provider = new ComponentServiceProvider();
+        $provider->register($container);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Config key [components] must be array');
+
+        $container->get(ComponentRegistry::class);
+    }
+
+    public function testNonExistingComponentClassThrowsLogicException(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'components' => [
+                'slider' => 'App\\Component\\MissingSliderComponent',
+            ],
+        ]));
+        $provider = new ComponentServiceProvider();
+        $provider->register($container);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('references non-existing class');
+
+        $container->get(ComponentRegistry::class);
+    }
+
+    public function testNonStringComponentKeyThrowsLogicException(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'components' => [
+                10 => TestNavigationComponent::class,
+            ],
+        ]));
+        $provider = new ComponentServiceProvider();
+        $provider->register($container);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('must use non-empty string keys');
+
+        $container->get(ComponentRegistry::class);
+    }
+
     public function testGetThrowsClearExceptionForUnknownComponent(): void
     {
         $container = $this->buildContainer();
@@ -126,16 +246,19 @@ final class ComponentServiceProviderTest extends TestCase
         self::assertTrue($container->isBound(MetaComponent::class));
     }
 
-    private function buildContainer(): Container
+    private function buildContainer(?Config $config = null): Container
     {
         $container = new Container();
-        $container->singleton(Config::class, new Config([]));
+        $container->singleton(Config::class, $config ?? new Config([]));
         $container->singleton(ServerRequestInterface::class, new ServerRequest('GET', '/'));
         $container->singleton(TranslatorInterface::class, new TestTranslator());
 
         return $container;
     }
 }
+
+final class TestNavigationComponent {}
+final class WrongComponent {}
 
 final class TestTranslator implements TranslatorInterface
 {

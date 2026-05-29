@@ -31,7 +31,14 @@ final class ComponentRegistry
         return isset($this->components[$name]);
     }
 
-    public function get(string $name): object
+    /**
+     * @template T of object
+     *
+     * @param class-string<T>|null $expectedClass
+     *
+     * @return ($expectedClass is class-string<T> ? T : object)
+     */
+    public function get(string $name, ?string $expectedClass = null): object
     {
         if (!isset($this->components[$name])) {
             throw new RuntimeException(sprintf(
@@ -50,31 +57,38 @@ final class ComponentRegistry
             ));
         }
 
+        if ($expectedClass !== null && !class_exists($expectedClass) && !interface_exists($expectedClass)) {
+            throw new RuntimeException(sprintf(
+                'Expected component class [%s] does not exist.',
+                $expectedClass,
+            ));
+        }
+
+        if ($expectedClass !== null && !$component instanceof $expectedClass) {
+            throw new RuntimeException(sprintf(
+                'Component [%s] must be instance of [%s], %s given.',
+                $name,
+                $expectedClass,
+                get_debug_type($component),
+            ));
+        }
+
         return $component;
     }
 
     public function breadcrumb(): Breadcrumb\BreadcrumbComponent
     {
-        /** @var Breadcrumb\BreadcrumbComponent $component */
-        $component = $this->get('breadcrumb');
-
-        return $component;
+        return $this->get('breadcrumb', Breadcrumb\BreadcrumbComponent::class);
     }
 
     public function pagination(): Pagination\PaginationComponent
     {
-        /** @var Pagination\PaginationComponent $component */
-        $component = $this->get('pagination');
-
-        return $component;
+        return $this->get('pagination', Pagination\PaginationComponent::class);
     }
 
     public function meta(): Meta\MetaComponent
     {
-        /** @var Meta\MetaComponent $component */
-        $component = $this->get('meta');
-
-        return $component;
+        return $this->get('meta', Meta\MetaComponent::class);
     }
 
     /**

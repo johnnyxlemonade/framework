@@ -454,6 +454,4 @@ final class RouterTest extends TestCase
     }
 }
 
-final class HomeController
-{
-}
+final class HomeController {}
