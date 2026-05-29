@@ -1,189 +1,270 @@
 # Lemonade Framework
 
-Lemonade Framework is a modular PHP 8.1+ framework built around PSR-based HTTP runtime, a PSR-11 compatible dependency injection container, provider-based bootstrap, and a CLI kernel.
+[![PHPStan](https://github.com/johnnyxlemonade/framework/actions/workflows/phpstan.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpstan.yml)
+[![Tests](https://github.com/johnnyxlemonade/framework/actions/workflows/phpunit.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpunit.yml)
+[![Lint](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-The framework is designed for classic PHP web applications, internal tools, backend integrations, and cron/CLI workloads where explicit structure, strict typing, and predictable runtime flow are preferred over heavy magic.
+Lemonade Framework is a modular PHP 8.1+ application framework for classic synchronous PHP applications.
+
+It combines a PSR-based HTTP runtime, a PSR-11 compatible service container, explicit service providers, conventional application bootstrap and a shared runtime model for HTTP and CLI workloads.
+
+The architecture is closer to an explicit application kernel than to a large full-stack ecosystem. A request enters the kernel, configuration is loaded, services are registered through providers, middleware is executed, the router resolves a controller action and the result is normalized into a PSR response.
+
+The framework is intended for applications where predictable control flow matters more than heavy magic: internal tools, administration systems, backend integrations, cron tasks, small-to-medium web applications and legacy-friendly modernization projects.
 
 ## Status
 
 This package is in pre-release development. Public APIs may still change before the first stable release.
 
-## Deployment Model
+## Design Goals
 
-Lemonade Framework is designed for the traditional synchronous PHP runtime model, such as PHP-FPM, Apache mod_php, the built-in PHP development server, and standard CLI execution.
+Lemonade Framework favors visible application flow over hidden lifecycle magic.
 
-It is not currently designed for long-running stateful worker environments such as Swoole or RoadRunner. The framework may store request-scoped services in the container during request dispatch, so each HTTP request is expected to run in an isolated PHP request lifecycle.
+The framework focuses on:
 
-## Features
+- explicit service registration through providers
+- PSR-compatible HTTP primitives
+- predictable synchronous request lifecycle
+- shared HTTP and CLI composition model
+- conservative dependency injection
+- pragmatic controller ergonomics
+- reusable infrastructure modules
+- CLI and cron-friendly execution
+- strict typing and static-analysis-friendly APIs
 
-- PSR-7 / PSR-15 HTTP runtime (`request -> middleware -> routing -> controller -> response`)
-- PSR-11 compatible dependency injection container
-- Explicit service providers and provider-based bootstrap
-- Router with named routes, route parameters, groups, and URL generation
-- Controller resolver with typed action argument resolution
-- Response helpers for text, HTML, JSON, redirects, downloads, and streams
-- View layer with shared helpers
-- Localization, validation, session, upload, security, cache, database, event, queue, and filesystem modules
-- CLI runtime via `CliKernel` and command registry
-- Cron-friendly locking support for CLI workloads
-- Benchmark and logging integration for HTTP and CLI runtime
+## Runtime Model
 
-## Runtime Flow
+Lemonade Framework is designed for the traditional synchronous PHP runtime model:
 
-### HTTP
+- PHP-FPM
+- Apache mod_php
+- built-in PHP development server
+- standard CLI execution
+- cron jobs
 
-```text
-index.php
--> ApplicationContextFactory::fromGlobals()
--> KernelFactory::create()
--> Framework::__construct()
--> Kernel::handle()
--> Kernel::bootstrap()
--> config files
--> core/common/configured service providers
--> routes
--> Framework::run()
--> global middleware pipeline
--> router match
--> route middleware pipeline
--> controller resolver
--> controller action
--> PSR response
--> response emitter
+It is not designed as a long-running worker framework. Environments such as Swoole or RoadRunner require stricter control over shared state, request-scoped services and service lifetimes.
+
+An HTTP request is expected to run in an isolated PHP request lifecycle.
+
+## Installation
+
+```bash
+composer require johnnyxlemonade/framework
 ```
 
-### CLI
-
-```text
-bin/lemonade
--> ApplicationContextFactory::fromGlobals()
--> Container
--> Framework
--> CliKernel::handle()
--> CliKernel::bootstrap()
--> config files + commands
--> service providers
--> command registry
--> command execution
--> exit code
-```
-
-## Runtime Modes
-
-- Web: `index.php -> Kernel`
-- CLI: `bin/lemonade -> CliKernel`
-
-## Project Structure
-
-- `src/` framework source code
-- `app/` application/demo code during development
-- `storage/` runtime data such as logs, locks, uploads, and cache
-- `bin/lemonade` CLI entrypoint
-
-The `app/` directory is used as a development/demo application and is not part of the framework source itself.
-
-## Quick Start
-
-Install dependencies:
+For local framework development:
 
 ```bash
 composer install
 ```
 
-Run the development server:
+## Requirements
 
-```bash
-php -S localhost:8000 -t .
-```
+Required platform requirements:
 
-Open `http://localhost:8000`.
+- PHP `>= 8.1`
+- `ext-fileinfo`
+- `ext-mbstring`
 
-Run CLI commands:
+Composer installs the required PSR and Nyholm packages automatically.
 
-```bash
-php bin/lemonade
-php bin/lemonade list
-```
+Optional dependencies depend on selected modules and integrations:
 
-## Service Container
+- `ext-gd` for image upload re-encoding
+- `ext-pdo` for the PDO database driver
+- `ext-mysqli` for the MySQLi database driver
+- `ext-odbc` for the ODBC database driver
+- `ext-curl` for selected HTTP client implementations using cURL transport
+- `guzzlehttp/guzzle` for the built-in Guzzle PSR-18 HTTP client provider
+- `symfony/http-client` for the built-in Symfony PSR-18 HTTP client provider
+- `php-http/curl-client` for the built-in PHP-HTTP cURL PSR-18 client provider
+- `php-http/discovery` for automatic PSR-18 HTTP client discovery
 
-Services are registered through service providers and resolved through the container.
+## What the Framework Provides
 
-```php
-use Lemonade\Framework\Routing\UrlGenerator;
+The framework source is organized into focused modules under `src/`.
 
-$url = service(UrlGenerator::class);
-```
+Core runtime modules:
 
-String aliases are available for selected framework services:
+- `Core` — application context, configuration loading, HTTP and CLI kernels, provider bootstrap, base controller and controller dispatch
+- `Container` — PSR-11 compatible dependency injection container with explicit bindings, singleton services and conservative autowiring
+- `Http` — PSR-7 / PSR-15 HTTP runtime, middleware stack, request handling, response helpers and response emitting
+- `Routing` — route registration, route matching, route groups, localized routes, convention-based fallback routing and URL generation
+- `Cli` — command interface, command registry and CLI kernel integration
+- `Config` — framework default configuration, including the default provider list
 
-```php
-$url = service('url');
-$filesystem = service('filesystem');
-```
+Reusable infrastructure modules include cache, database, debugging, events, filesystem, localization, observability, queue, security, session, upload handling, validation, views and reusable UI/application components.
 
-Constructor autowiring is intentionally conservative. Interfaces must be explicitly bound and scalar constructor parameters require default values or a factory binding.
+The framework does not force every module into application code directly. Modules are composed through service providers, so applications use configured services instead of manually wiring framework internals.
 
-### PSR-11 note
+## Basic Usage
 
-The container implements `Psr\Container\ContainerInterface`.
+### HTTP entrypoint
 
-Its `has()` method returns `true` when a service is explicitly bound or when the given class exists and can potentially be resolved through autowiring. To check only for explicit framework/container bindings, use `isBound()`.
-
-```php
-$container->has(Foo::class);
-// true if Foo is explicitly bound or can potentially be autowired
-
-$container->isBound(Foo::class);
-// true only if Foo was explicitly registered in the container
-```
-
-## Routing
-
-Routes are registered against the router:
+A typical HTTP entrypoint creates an application context, creates the kernel and lets the kernel handle the current request.
 
 ```php
-$router->get('/', 'HomeController@index')->name('home');
-$router->get('/articles/{id}', 'ArticleController@detail')->name('article.detail');
+<?php
+
+use Lemonade\Framework\Core\Context\ApplicationContextFactory;
+use Lemonade\Framework\Core\KernelFactory;
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$context = (new ApplicationContextFactory())->fromGlobals(
+    dirname(__DIR__),
+);
+
+$kernel = (new KernelFactory())->create($context);
+$kernel->handle();
 ```
 
-Named routes can be generated through the URL generator:
+### Routes
+
+Routes are usually defined in `app/Config/Routing.php`.
 
 ```php
-$url = service('url')->route('article.detail', ['id' => 123]);
+<?php
+
+use Lemonade\Framework\Routing\Router;
+
+return static function (Router $router): void {
+    $router->getNamed('home', '/', 'HomeController@index');
+
+    $router
+        ->get('/articles/{id}', 'ArticleController@detail')
+        ->name('article.detail');
+};
 ```
 
-## Configuration
+### Controller
 
-Configuration files return PHP arrays and are loaded during kernel bootstrap.
-
-Example localization environment variables:
-
-```bash
-APP_LOCALE=cs
-APP_FALLBACK_LOCALE=cs
-APP_SUPPORTED_LOCALES=cs,en
-```
-
-Example config file:
+Controllers extend `Lemonade\Framework\Core\Controller`.
 
 ```php
-use Lemonade\Framework\Support\Env;
+<?php
+
+namespace App\Controllers;
+
+use Lemonade\Framework\Core\Controller;
+use Psr\Http\Message\ResponseInterface;
+
+final class HomeController extends Controller
+{
+    public function index(): ResponseInterface
+    {
+        return $this->html('<h1>Hello</h1>');
+    }
+}
+```
+
+Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
+
+### Service Provider
+
+Application services are registered through providers.
+
+```php
+<?php
+
+namespace App\Providers;
+
+use App\Services\InvoiceImporter;
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\ServiceProviderInterface;
+
+final class AppServiceProvider implements ServiceProviderInterface
+{
+    public function register(ContainerInterface $container): void
+    {
+        $container->singleton(InvoiceImporter::class, InvoiceImporter::class);
+    }
+}
+```
+
+Application providers are configured in `app/Config/Providers.php`.
+
+```php
+<?php
+
+use App\Providers\AppServiceProvider;
 
 return [
-    'localization' => [
-        'default_locale' => Env::string('APP_LOCALE', 'cs'),
-        'fallback_locale' => Env::string('APP_FALLBACK_LOCALE', 'cs'),
-        'supported_locales' => Env::list('APP_SUPPORTED_LOCALES', ['cs', 'en']),
+    'providers' => [
+        AppServiceProvider::class,
     ],
 ];
 ```
 
+### CLI Command
+
+CLI commands implement `CommandInterface` and are configured in `app/Config/Commands.php`.
+
+```php
+<?php
+
+namespace App\Console;
+
+use Lemonade\Framework\Cli\CommandInterface;
+
+final class ImportProductsCommand implements CommandInterface
+{
+    public function name(): string
+    {
+        return 'products:import';
+    }
+
+    public function description(): string
+    {
+        return 'Import products from the configured source.';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    public function run(array $args): int
+    {
+        // ...
+
+        return 0;
+    }
+}
+```
+
+Run commands through:
+
+```bash
+php bin/lemonade
+php bin/lemonade list
+php bin/lemonade products:import
+```
+
+## Documentation
+
+Detailed documentation should live outside the main README:
+
+- [HTTP request flow](docs/http-flow.md)
+- [CLI flow](docs/cli-flow.md)
+- [Application context](docs/application-context.md)
+- [Configuration](docs/configuration.md)
+- [Service providers](docs/service-providers.md)
+- [Service container](docs/service-container.md)
+- [PSR compatibility](docs/psr-compatibility.md)
+- [Routing](docs/routing.md)
+- [Controllers](docs/controllers.md)
+- [Middleware](docs/middleware.md)
+- [Views](docs/views.md)
+- [Validation](docs/validation.md)
+- [Database](docs/database.md)
+- [CLI commands](docs/cli-commands.md)
+- [Observability](docs/observability.md)
+
 ## Code Quality
 
-The project is checked with PHPStan on level 10, including PHPStan bleeding edge rules and phpstan-strict-rules.
+The project is designed to be static-analysis friendly.
 
-Common development scripts:
+Development scripts:
 
 ```bash
 composer lint
@@ -192,94 +273,23 @@ composer stan:ci
 composer cs:check
 composer cs:fix
 composer qa
+composer check
 ```
 
-Current CI checks:
+`composer check` runs full validation including Composer validation, platform checks, syntax linting, coding standards, PHPStan and tests.
 
-- PHPStan static analysis on PHP 8.1, 8.2, 8.3, 8.4, and 8.5
-- PHP CS Fixer coding standards check
-- PHP syntax linting on PHP 8.1, 8.2, 8.3, 8.4, and 8.5
-- Composer audit for dependency security advisories
+## Development Server
 
-## Requirements
+For local development:
 
-- PHP `>= 8.1`
-- `ext-fileinfo`
-- `ext-mbstring`
-
-Optional extensions depend on selected modules and integrations:
-
-- `ext-gd` for image upload re-encoding
-- `ext-pdo` for the PDO database driver
-- `ext-mysqli` for the MySQLi database driver
-- `ext-odbc` for the ODBC database driver
-- `ext-curl` for selected HTTP client transports
-
-## Database Driver vs Dialect
-
-`driver` defines the connection backend. `dialect` defines SQL grammar and schema behavior.
-
-Example native MySQL configuration (dialect is implicit):
-
-```php
-[
-    'driver' => 'mysql',
-    'host' => '127.0.0.1',
-    'port' => 3306,
-    'database' => 'app',
-    'username' => 'root',
-    'password' => '',
-]
+```bash
+php -S localhost:8000 -t .
 ```
 
-Example PDO + MySQL dialect configuration:
+Then open:
 
-```php
-[
-    'driver' => 'pdo',
-    'dialect' => 'mysql',
-    'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
-    'username' => 'root',
-    'password' => '',
-]
-```
-
-PDO driver can be used for generic query execution, but schema operations currently support only the MySQL dialect via `dialect: mysql`.
-Other PDO DSNs may be usable for raw queries, but schema grammar is not guaranteed unless a matching dialect implementation exists.
-
-Example PDO + SQLite dialect configuration:
-
-```php
-[
-    'driver' => 'pdo',
-    'dialect' => 'sqlite',
-    'dsn' => 'sqlite:/absolute/path/database.sqlite',
-]
-```
-
-In-memory SQLite variant:
-
-```php
-[
-    'driver' => 'pdo',
-    'dialect' => 'sqlite',
-    'dsn' => 'sqlite::memory:',
-]
-```
-
-SQLite is supported through PDO. SQLite schema grammar is intentionally conservative; some `ALTER TABLE` operations are not supported and throw `LogicException`. Complex table changes need a dedicated rebuild-table strategy.
-
-For native MySQL connections, `strict=false` intentionally removes `STRICT_TRANS_TABLES`, `STRICT_ALL_TABLES`, and `ONLY_FULL_GROUP_BY` from `sql_mode` for legacy compatibility.
-
-Example ODBC configuration (dialect is implicit):
-
-```php
-[
-    'driver' => 'odbc',
-    'dsn' => 'Driver={ODBC Driver 18 for SQL Server};Server=localhost;Database=app;TrustServerCertificate=yes;',
-    'username' => 'sa',
-    'password' => 'your_password',
-]
+```text
+http://localhost:8000
 ```
 
 ## License
