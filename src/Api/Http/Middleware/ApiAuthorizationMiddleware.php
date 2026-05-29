@@ -27,7 +27,7 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $resolvedPath = $this->resolveRegistryPath((string) $request->getUri()->getPath());
+        $resolvedPath = $this->resolveRegistryPath($request->getUri()->getPath());
         if ($resolvedPath === null) {
             return $handler->handle($request);
         }

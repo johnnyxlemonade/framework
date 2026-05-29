@@ -30,7 +30,7 @@ final class ProblemDetailsFactory
             'title' => $title,
             'status' => $status,
             'detail' => $detail,
-            'instance' => (string) $request->getUri()->getPath(),
+            'instance' => $request->getUri()->getPath(),
         ], $extensions);
 
         $response = $this->responseFactory

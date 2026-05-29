@@ -48,7 +48,7 @@ final class StaticBearerTokenAuthenticator implements ApiAuthenticatorInterface
             return null;
         }
 
-        if (!preg_match('/^Bearer\s+(.+)$/i', $header, $matches)) {
+        if (preg_match('/^Bearer\s+(.+)$/i', $header, $matches) !== 1) {
             return null;
         }
 

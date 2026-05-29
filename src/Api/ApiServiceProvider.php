@@ -35,11 +35,20 @@ final class ApiServiceProvider implements ServiceProviderInterface
             }
 
             $token = $config->string('api.security.static_bearer.token');
-            /** @var list<string> $scopes */
-            $scopes = array_values(array_filter(
-                $config->array('api.security.static_bearer.scopes', ['api:admin']),
-                static fn(mixed $scope): bool => is_string($scope) && trim($scope) !== '',
-            ));
+            /** @var list<non-empty-string> $scopes */
+            $scopes = [];
+            foreach ($config->array('api.security.static_bearer.scopes', ['api:admin']) as $scope) {
+                if (!is_string($scope)) {
+                    continue;
+                }
+
+                $normalizedScope = trim($scope);
+                if ($normalizedScope === '') {
+                    continue;
+                }
+
+                $scopes[] = $normalizedScope;
+            }
 
             if ($token === null || trim($token) === '') {
                 return new NullApiAuthenticator();
