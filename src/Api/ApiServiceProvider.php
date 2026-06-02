@@ -54,6 +54,7 @@ final class ApiServiceProvider implements ServiceProviderInterface
 
         $container->singleton(ScopeVoter::class, ScopeVoter::class);
         $container->singleton(OpenApiGenerator::class, OpenApiGenerator::class);
+        $container->singleton(FrameworkApiEndpointProvider::class, FrameworkApiEndpointProvider::class);
         $container->singleton(ApiAuthorizationMiddleware::class, ApiAuthorizationMiddleware::class);
 
         /** @var Config $config */

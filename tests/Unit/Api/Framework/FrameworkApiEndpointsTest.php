@@ -9,6 +9,7 @@ use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -176,6 +177,21 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         $this->expectException(\LogicException::class);
         $framework->register(new ApiServiceProvider());
+    }
+
+    public function testApiServiceProviderExplicitlyBindsFrameworkApiEndpointProvider(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+
+        $framework->register(new ApiServiceProvider());
+
+        self::assertTrue($container->isBound(FrameworkApiEndpointProvider::class));
     }
 
     public function testFrameworkRunsWithDefaultsWhenAppApiConfigFileIsMissing(): void

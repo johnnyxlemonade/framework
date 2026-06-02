@@ -198,12 +198,9 @@ final class Container implements ContainerInterface
     {
         return str_ends_with($id, 'Service')
             || str_ends_with($id, 'Manager')
-            || str_ends_with($id, 'Resolver')
-            || str_ends_with($id, 'Factory')
-            || str_ends_with($id, 'Compiler')
             || str_ends_with($id, 'Registry')
-            || str_ends_with($id, 'Middleware')
-            || str_ends_with($id, 'Minifier');
+            || str_ends_with($id, 'Compiler')
+            || str_ends_with($id, 'Middleware');
     }
 
     private function isAutowireFallbackWarningEnabled(): bool
