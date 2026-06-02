@@ -8,6 +8,7 @@ use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
+use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -31,7 +32,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $router->get('/demo', DispatchTestController::class . '@index')
             ->middleware(DispatchMiddlewareOne::class, DispatchMiddlewareTwo::class);
 
-        $handler = new DispatchRequestHandler($router, new ControllerResolver($container), $container);
+        $handler = $this->buildHandler($router, $container);
         $request = (new Psr17Factory())->createServerRequest('GET', '/demo');
         $response = $handler->handle($request);
 
@@ -47,10 +48,13 @@ final class DispatchRequestHandlerTest extends TestCase
         $router->get('/demo', DispatchTestController::class . '@index')
             ->middleware(DispatchMiddlewareOne::class);
 
-        $handler = new DispatchRequestHandler($router, new ControllerResolver($container), $container);
+        $handler = $this->buildHandler($router, $container);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage(DispatchMiddlewareOne::class);
+        $this->expectExceptionMessage(sprintf(
+            'Target class "%s" is not a valid middleware.',
+            DispatchMiddlewareOne::class,
+        ));
         $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
     }
 
@@ -60,7 +64,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $router = new Router();
         $router->get('/demo', DispatchTestController::class . '@index');
 
-        $handler = new DispatchRequestHandler($router, new ControllerResolver($container), $container);
+        $handler = $this->buildHandler($router, $container);
         $response = $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
 
         self::assertSame('controller', (string) $response->getBody());
@@ -73,7 +77,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $router = new Router();
         $router->get('/demo', DispatchTestController::class . '@index');
 
-        $handler = new DispatchRequestHandler($router, new ControllerResolver($container), $container);
+        $handler = $this->buildHandler($router, $container);
         $response = $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
 
         self::assertSame('controller', (string) $response->getBody());
@@ -89,7 +93,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $router = new Router();
         $router->get('/demo', DispatchTestController::class . '@index');
 
-        $handler = new DispatchRequestHandler($router, new ControllerResolver($container), $container);
+        $handler = $this->buildHandler($router, $container);
         $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
 
         $names = array_map(
@@ -113,6 +117,16 @@ final class DispatchRequestHandlerTest extends TestCase
         $container->singleton(DispatchTestController::class, DispatchTestController::class);
 
         return $container;
+    }
+
+    private function buildHandler(Router $router, Container $container): DispatchRequestHandler
+    {
+        return new DispatchRequestHandler(
+            router: $router,
+            resolver: new ControllerResolver($container),
+            middlewareResolver: new MiddlewareResolver($container),
+            container: $container,
+        );
     }
 }
 

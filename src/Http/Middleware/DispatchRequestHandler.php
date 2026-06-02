@@ -10,7 +10,6 @@ use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Router;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 final class DispatchRequestHandler implements RequestHandlerInterface
@@ -18,6 +17,7 @@ final class DispatchRequestHandler implements RequestHandlerInterface
     public function __construct(
         private readonly Router $router,
         private readonly ControllerResolver $resolver,
+        private readonly MiddlewareResolver $middlewareResolver,
         private readonly ContainerInterface $container,
     ) {}
 
@@ -32,20 +32,7 @@ final class DispatchRequestHandler implements RequestHandlerInterface
             match: $match,
         );
 
-        $middleware = [];
-
-        foreach ($match->middleware() as $middlewareClass) {
-            $resolved = $this->container->get($middlewareClass);
-
-            if (!$resolved instanceof MiddlewareInterface) {
-                throw new \RuntimeException(sprintf(
-                    'Target class "%s" is not a valid middleware.',
-                    $middlewareClass,
-                ));
-            }
-
-            $middleware[] = $resolved;
-        }
+        $middleware = $this->middlewareResolver->resolve(array_values($match->middleware()));
 
         return MiddlewarePipeline::create($middleware, $handler)
             ->handle($request);
