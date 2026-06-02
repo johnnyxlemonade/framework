@@ -159,17 +159,14 @@ final class Kernel
 
     private function textResponse(int $statusCode, string $body): ResponseInterface
     {
-        $responseFactory = $this->container->has(Psr17Factory::class)
+        $responseFactory = $this->container->isBound(Psr17Factory::class)
             ? $this->container->get(Psr17Factory::class)
             : new Psr17Factory();
 
-        $response = $responseFactory
+        return $responseFactory
             ->createResponse($statusCode)
-            ->withHeader('Content-Type', 'text/plain; charset=utf-8');
-
-        $response->getBody()->write($body);
-
-        return $response;
+            ->withHeader('Content-Type', 'text/plain; charset=utf-8')
+            ->withBody($responseFactory->createStream($body));
     }
 
     private function logException(Throwable $exception): void
