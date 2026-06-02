@@ -3,10 +3,8 @@
 
 declare(strict_types=1);
 
-use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\CliKernel;
+use Lemonade\Framework\Core\CliKernelFactory;
 use Lemonade\Framework\Core\Context\ApplicationContextFactory;
-use Lemonade\Framework\Core\Framework;
 
 $packageRoot = dirname(__DIR__);
 $projectRoot = dirname($packageRoot);
@@ -23,12 +21,11 @@ $basePath = is_dir($projectRoot . '/app') && is_dir($projectRoot . '/storage')
     ? $projectRoot
     : $packageRoot;
 $context = (new ApplicationContextFactory())->fromGlobals($basePath);
-$container = new Container();
-$framework = new Framework($container, $context);
-$kernel = new CliKernel($context, $container, $framework);
 
 $argv = isset($_SERVER['argv']) && is_array($_SERVER['argv'])
     ? array_values($_SERVER['argv'])
     : [];
+
+$kernel = (new CliKernelFactory())->create($context);
 
 exit($kernel->handle($argv));

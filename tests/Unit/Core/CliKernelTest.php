@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Cli\CommandInterface;
-use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\CliKernel;
+use Lemonade\Framework\Core\CliKernelFactory;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
-use Lemonade\Framework\Core\Framework;
 use PHPUnit\Framework\TestCase;
 
 final class CliKernelTest extends TestCase
@@ -302,10 +301,8 @@ PHP);
             new Path($this->root),
             DebugMode::disabled(),
         );
-        $container = new Container();
-        $framework = new Framework($container, $context);
 
-        return new CliKernel($context, $container, $framework, $this->stdout, $this->stderr);
+        return (new CliKernelFactory(stdout: $this->stdout, stderr: $this->stderr))->create($context);
     }
 
     /**
