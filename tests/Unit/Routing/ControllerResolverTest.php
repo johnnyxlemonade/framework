@@ -166,6 +166,29 @@ final class ControllerResolverTest extends TestCase
         self::assertSame('lemonade', (string) $response->getBody());
     }
 
+    public function testConstructorInjectedRequestUsesCurrentRequestAcrossDispatchCycles(): void
+    {
+        $container = new Container();
+        $psr17 = new Psr17Factory();
+
+        $container->singleton(ResponseFactoryInterface::class, $psr17);
+        $container->singleton(StreamFactoryInterface::class, $psr17);
+
+        $resolver = new ControllerResolver($container);
+
+        $firstResponse = $resolver->handle(
+            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
+            $psr17->createServerRequest('GET', '/first'),
+        );
+        $secondResponse = $resolver->handle(
+            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
+            $psr17->createServerRequest('GET', '/second'),
+        );
+
+        self::assertSame('/first', (string) $firstResponse->getBody());
+        self::assertSame('/second', (string) $secondResponse->getBody());
+    }
+
     public function testPlainControllerRouteParamIsPassedAndCasted(): void
     {
         $resolver = $this->resolver();
@@ -327,6 +350,21 @@ final class PlainWithRequestController
 
         return $factory->createResponse(200)
             ->withBody($factory->createStream($query));
+    }
+}
+
+final class PlainWithConstructorRequestController
+{
+    public function __construct(
+        private readonly ServerRequestInterface $request,
+    ) {}
+
+    public function index(): ResponseInterface
+    {
+        $factory = new Psr17Factory();
+
+        return $factory->createResponse(200)
+            ->withBody($factory->createStream($this->request->getUri()->getPath()));
     }
 }
 
