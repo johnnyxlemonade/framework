@@ -4,12 +4,6 @@ Validation is built around a form validator and a rule registry.
 
 The validator is registered as both `FormValidation::class` and the `validator` string alias.
 
-```php
-$validator = service('validator');
-```
-
-Resolving the validator through `service('validator')` is compatibility API for existing application code. New code should prefer constructor DI or controller services.
-
 ## Basic usage
 
 ```php
@@ -28,6 +22,14 @@ if (!$result->isValid()) {
 ```
 
 The exact rule set depends on the registered rule registry and application configuration.
+
+## Compatibility `service()` helper
+
+Resolving the validator through `service('validator')` is compatibility API for existing application code. New code should prefer constructor DI or controller services.
+
+```php
+$validator = service('validator');
+```
 
 ## Localization
 

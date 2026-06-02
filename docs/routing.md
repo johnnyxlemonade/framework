@@ -47,7 +47,7 @@ In views, use the explicit shared helper object:
 </a>
 ```
 
-The global `service()` helper can still resolve `url` as compatibility API, but new code should prefer controller services, constructor DI, or `$helpers` in views.
+Legacy global helper resolving remains available for existing applications, but new code should prefer controller services, constructor DI, or `$helpers` in views.
 
 Result:
 
