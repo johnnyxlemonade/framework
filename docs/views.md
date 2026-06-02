@@ -21,14 +21,22 @@ return $this->html($html);
 ## Example view
 
 ```php
+<?php
+
+/**
+ * @var \Lemonade\Framework\View\View $this
+ * @var \Lemonade\Framework\View\ViewHelpers $helpers
+ * @var \Lemonade\Framework\View\RequestViewHelpers $requestHelpers
+ * @var array{title:string, items:list<array{id:int, name:string, url:string}>} $page
+ */
+?>
+
 <h1><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></h1>
 ```
 
 ## Explicit View Helpers
 
 The view service provider shares an explicit `$helpers` object with templates. `$helpers` contains app-scoped helpers only, so it does not hold request, session or flash state.
-
-Prefer `$helpers` over global service-backed helpers for app-scoped view concerns:
 
 ```php
 <link rel="stylesheet" href="<?= htmlspecialchars($helpers->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
@@ -71,8 +79,6 @@ Request/session-dependent helpers are exposed through `$requestHelpers`. This ob
 <span><?= htmlspecialchars($requestHelpers->currentUrl(), ENT_QUOTES, 'UTF-8') ?></span>
 <span><?= htmlspecialchars($requestHelpers->currentFullUrl(), ENT_QUOTES, 'UTF-8') ?></span>
 ```
-
-Global service-backed helpers such as `asset()`, `url()`, `csrf_field()`, `lang()`, `old()`, `flash()` and `current_url()` no longer resolve framework services. They are removed runtime API and will fail with an explicit exception. Use `$helpers` and `$requestHelpers` in templates.
 
 ## Shared services
 

@@ -24,4 +24,3 @@ The main `README.md` is intentionally short and should explain what the framewor
 - [CLI commands](cli-commands.md)
 - [Observability](observability.md)
 - [Discovery](discovery.md)
-- [Upgrade notes](upgrade.md)

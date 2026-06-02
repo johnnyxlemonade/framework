@@ -8,13 +8,13 @@
 
 - Removed the `ServiceLocator` runtime concept.
 - Removed `HelperRuntime` and the static container bridge.
-- The global `service()` helper no longer returns services and now throws `LogicException`.
-- Service-backed global helpers are disabled and now throw `LogicException` instead of resolving services from the container.
+- The global `service()` helper was removed.
+- Service-backed global helper symbols were removed instead of resolving services from the container.
 - Pure/container-free helper functions remain available.
 
 | Removed API | Replacement |
 | --- | --- |
-| `service(...)` | Constructor DI, provider factories, or ControllerServices |
+| `service(...)` | Constructor DI or provider factories; controller helper methods only for framework/controller infrastructure |
 | `asset(...)` | `$helpers->asset(...)` |
 | `url(...)` | `$helpers->url(...)` |
 | `localized_url(...)` | `$helpers->localizedUrl(...)` |

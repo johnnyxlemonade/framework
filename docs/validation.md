@@ -23,17 +23,15 @@ if (!$result->isValid()) {
 
 The exact rule set depends on the registered rule registry and application configuration.
 
-## Removed `service()` helper
+## Service usage
 
-Resolving the validator through `service('validator')` has been removed. Use controller services or constructor DI.
+In controllers use `$this->validator()` for the framework validator. In services use constructor injection.
 
 ```php
-// Controller:
-$validator = $this->validator();
-
-// Service:
 public function __construct(private FormValidation $validator) {}
 ```
+
+Custom validation rules are resolved by `ValidationRuleResolver` through the container. Register the rule name in `RuleRegistry` and give the rule explicit constructor dependencies. DB-backed and HTTP-backed rules must not call global helpers or service locators.
 
 ## Localization
 

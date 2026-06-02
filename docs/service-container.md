@@ -32,7 +32,7 @@ String service identifiers are supported and are used by some framework provider
 $container->singleton('custom.service', new CustomService());
 ```
 
-New application and framework code should resolve services through constructor DI, service provider factories, controller services, explicit view data, or `$helpers` / `$requestHelpers` in views.
+New application and framework code should resolve services through constructor DI, service provider factories, explicit view data, or `$helpers` / `$requestHelpers` in views. Controller service helpers are for controller infrastructure and common framework services; they are not a replacement for constructor DI in action controllers.
 
 For example, use controller services instead of resolving common services globally:
 
@@ -45,20 +45,6 @@ In views, use the shared helper objects:
 
 ```php
 <link rel="stylesheet" href="<?= htmlspecialchars($helpers->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
-```
-
-## Removed `service()` helper
-
-The global `service()` helper no longer resolves services from the framework container.
-
-Do not use global service resolving in new code. Use constructor DI, service provider factories, controller services, explicit view data, `$helpers` or `$requestHelpers`.
-
-```php
-// Removed:
-// $logger = service('logger', null);
-
-// Prefer:
-public function __construct(private LoggerInterface $logger) {}
 ```
 
 ## Autowiring

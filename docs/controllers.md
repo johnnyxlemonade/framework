@@ -91,3 +91,25 @@ $this->breadcrumb();
 ```
 
 These helpers are convenience methods around configured framework services. They do not replace constructor injection for application services.
+
+`controllerService()` is intentionally narrower than constructor DI. Use it in base controllers for infrastructure or request context services only, for example a frontend view context. Concrete action controllers should receive their business dependencies through the constructor.
+
+```php
+abstract class FrontendController extends Controller
+{
+    protected function frontendContext(): FrontendViewContext
+    {
+        /** @var FrontendViewContext $context */
+        $context = $this->controllerService(FrontendViewContext::class);
+
+        return $context;
+    }
+}
+
+final class DocumentationController extends FrontendController
+{
+    public function __construct(
+        private readonly DocumentationCatalogInterface $documentation,
+    ) {}
+}
+```
