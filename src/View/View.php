@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\View;
 
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Lemonade\Framework\Support\ServiceLocator;
 use RuntimeException;
 
 final class View
@@ -45,18 +43,13 @@ final class View
      */
     public function render(string $view, array $data = []): string
     {
-        $this->markBenchmark('view_render_start');
         $this->resetViewState();
         $content = $this->renderFile($view, array_merge($this->shared, $data));
         if ($this->extends !== null) {
             $this->content = $content;
-            $result = $this->renderFile($this->extends, array_merge($this->shared, $data));
-            $this->markBenchmark('view_render_finished');
-
-            return $result;
+            return $this->renderFile($this->extends, array_merge($this->shared, $data));
         }
 
-        $this->markBenchmark('view_render_finished');
         return $content;
     }
 
@@ -73,14 +66,10 @@ final class View
      */
     public function template(string $layoutView, string $contentView, array $data = []): string
     {
-        $this->markBenchmark('view_render_start');
         $this->resetViewState();
         $content = $this->renderFile($contentView, array_merge($this->shared, $data));
         $this->content = $content;
-        $result = $this->renderFile($layoutView, array_merge($this->shared, $data));
-        $this->markBenchmark('view_render_finished');
-
-        return $result;
+        return $this->renderFile($layoutView, array_merge($this->shared, $data));
     }
 
     public function extend(string $layoutView): void
@@ -136,21 +125,5 @@ final class View
         $this->sectionStack = [];
         $this->extends = null;
         $this->content = null;
-    }
-
-    private function markBenchmark(string $name): void
-    {
-        $container = ServiceLocator::container();
-        if ($container === null || !$container->isBound(Benchmark::class)) {
-            return;
-        }
-
-        $benchmark = $container->get(Benchmark::class);
-        $run = $benchmark->current();
-        if ($run === null) {
-            return;
-        }
-
-        $run->mark($name);
     }
 }

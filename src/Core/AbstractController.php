@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Controller\ControllerContext;
 use Lemonade\Framework\Core\Controller\ControllerResponses;
@@ -36,6 +37,7 @@ abstract class AbstractController
         ServerRequestInterface $request,
         ResponseFactoryInterface $responseFactory,
         StreamFactoryInterface $streamFactory,
+        ContainerInterface $container,
     ): void {
         $this->controllerContext = new ControllerContext(
             request: $request,
@@ -47,7 +49,7 @@ abstract class AbstractController
             $this->controllerContext->responseBuilder(),
         );
 
-        $this->controllerServices = new ControllerServices();
+        $this->controllerServices = new ControllerServices($container);
     }
 
     protected function request(): ServerRequestInterface

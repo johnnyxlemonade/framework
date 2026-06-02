@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Http\Request\HttpMethod;
-use Lemonade\Framework\Support\ServiceLocator;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -28,12 +28,6 @@ final class ControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->psr17 = new Psr17Factory();
-        ServiceLocator::reset();
-    }
-
-    protected function tearDown(): void
-    {
-        ServiceLocator::reset();
     }
 
     public function testRequestHelpersRequireInitializedControllerContext(): void
@@ -235,25 +229,21 @@ final class ControllerTest extends TestCase
         self::assertSame('stream-body', (string) $response->getBody());
     }
 
-    public function testAppReturnsApplicationContextFromServiceLocator(): void
+    public function testAppReturnsApplicationContextFromExplicitContainer(): void
     {
         $context = $this->applicationContext();
 
         $container = new Container();
         $container->singleton(ApplicationContext::class, $context);
 
-        ServiceLocator::setContainer($container);
-
-        $controller = $this->controller($this->request());
+        $controller = $this->controller($this->request(), $container);
 
         self::assertSame($context, $controller->exposedApp());
         self::assertSame($context, $controller->exposedApp());
     }
 
-    public function testAppThrowsWhenServiceLocatorContainerIsNotInitialized(): void
+    public function testAppThrowsWhenServiceIsNotAvailableInExplicitContainer(): void
     {
-        ServiceLocator::reset();
-
         $controller = $this->controller($this->request());
 
         $this->expectException(RuntimeException::class);
@@ -284,6 +274,7 @@ final class ControllerTest extends TestCase
             $this->request(method: 'GET')->withQueryParams(['value' => 'second']),
             $this->psr17,
             $this->psr17,
+            new Container(),
         );
 
         self::assertSame('second', $controller->exposedQuery('value'));
@@ -292,7 +283,7 @@ final class ControllerTest extends TestCase
         self::assertSame('After reset', (string) $response->getBody());
     }
 
-    private function controller(ServerRequestInterface $request): ControllerTestSubject
+    private function controller(ServerRequestInterface $request, ?ContainerInterface $container = null): ControllerTestSubject
     {
         $controller = new ControllerTestSubject();
 
@@ -300,6 +291,7 @@ final class ControllerTest extends TestCase
             $request,
             $this->responseFactory(),
             $this->streamFactory(),
+            $container ?? new Container(),
         );
 
         return $controller;

@@ -50,7 +50,7 @@ final class ControllerResolver
             $responseFactory = $this->container->get(ResponseFactoryInterface::class);
             /** @var StreamFactoryInterface $streamFactory */
             $streamFactory = $this->container->get(StreamFactoryInterface::class);
-            $controller->setControllerContext($request, $responseFactory, $streamFactory);
+            $controller->setControllerContext($request, $responseFactory, $streamFactory, $this->container);
         }
 
         $this->markBenchmark('controller_resolved');

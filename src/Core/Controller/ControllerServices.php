@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core\Controller;
 
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Filesystem\Filesystem;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
-use Lemonade\Framework\Support\ServiceLocator;
 use Lemonade\Framework\Upload\UploadFactory;
 use Lemonade\Framework\Validation\FormValidation;
 use Lemonade\Framework\View\View;
@@ -21,6 +21,10 @@ final class ControllerServices
 {
     /** @var array<class-string, object> */
     private array $services = [];
+
+    public function __construct(
+        private readonly ContainerInterface $container,
+    ) {}
 
     public function context(): ApplicationContext
     {
@@ -86,13 +90,11 @@ final class ControllerServices
             return $cached;
         }
 
-        $container = ServiceLocator::container();
-
-        if ($container === null) {
+        if (!$this->container->isBound($id)) {
             throw new RuntimeException($missingMessage);
         }
 
-        $service = $container->get($id);
+        $service = $this->container->get($id);
 
         if (!$service instanceof $id) {
             throw new RuntimeException($missingMessage);

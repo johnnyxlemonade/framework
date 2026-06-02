@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\View;
 
-use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Lemonade\Framework\Support\ServiceLocator;
 use Lemonade\Framework\View\View;
 use PHPUnit\Framework\TestCase;
 
@@ -24,7 +21,6 @@ final class ViewTest extends TestCase
     protected function tearDown(): void
     {
         $this->deleteRecursive($this->root);
-        ServiceLocator::setContainer(new Container());
     }
 
     public function testRenderSimpleViewAndDataAndSharedData(): void
@@ -113,23 +109,12 @@ final class ViewTest extends TestCase
         self::assertSame('injected.php|John', $output);
     }
 
-    public function testRenderMarksBenchmarkWhenAvailableAndDoesNotCrashWithoutContainer(): void
+    public function testRenderDoesNotRequireContainer(): void
     {
         $this->writeView('bench', 'OK');
         $view = new View($this->viewsPath);
 
         self::assertSame('OK', $view->render('bench'));
-
-        $container = new Container();
-        $benchmark = new Benchmark();
-        $run = $benchmark->start();
-        $container->singleton(Benchmark::class, $benchmark);
-        ServiceLocator::setContainer($container);
-
-        self::assertSame('OK', $view->render('bench'));
-        $marks = array_map(static fn(array $mark): string => $mark['name'], $run->marks());
-        self::assertContains('view_render_start', $marks);
-        self::assertContains('view_render_finished', $marks);
     }
 
     private function writeView(string $name, string $contents): void
