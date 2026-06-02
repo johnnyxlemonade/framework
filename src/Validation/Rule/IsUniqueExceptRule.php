@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation\Rule;
 
+use Lemonade\Framework\Database\Database;
 use Lemonade\Framework\Validation\Rule\Traits\DatabaseRuleTrait;
 
 final class IsUniqueExceptRule implements ValidationRuleInterface
 {
     use DatabaseRuleTrait;
+
+    public function __construct(
+        private readonly Database $database,
+    ) {}
 
     public function validate(mixed $value, ?string $param, array $data): bool
     {
@@ -24,11 +29,6 @@ final class IsUniqueExceptRule implements ValidationRuleInterface
         }
 
         if (!$this->isSafeIdentifier($table) || !$this->isSafeIdentifier($field) || !$this->isSafeIdentifier($idField)) {
-            return false;
-        }
-
-        $db = $this->database();
-        if ($db === null) {
             return false;
         }
 
@@ -48,7 +48,7 @@ final class IsUniqueExceptRule implements ValidationRuleInterface
 
         $sql .= ' LIMIT 1';
 
-        $rows = $db->select($sql, $bindings);
+        $rows = $this->database->select($sql, $bindings);
         $countRaw = $rows[0]['c'] ?? 0;
         $count = is_int($countRaw) ? $countRaw : (is_numeric($countRaw) ? (int) $countRaw : 0);
 

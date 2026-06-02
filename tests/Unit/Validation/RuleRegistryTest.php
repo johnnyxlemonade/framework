@@ -18,15 +18,14 @@ final class RuleRegistryTest extends TestCase
         self::assertFalse($registry->has('unknown_rule'));
     }
 
-    public function testGetReturnsSameInstanceForKnownRuleAndNullForUnknown(): void
+    public function testGetReturnsRegisteredClassForKnownRuleAndNullForUnknown(): void
     {
         $registry = new RuleRegistry();
 
-        $requiredA = $registry->get('required');
-        $requiredB = $registry->get('required');
+        $required = $registry->get('required');
 
-        self::assertInstanceOf(ValidationRuleInterface::class, $requiredA);
-        self::assertSame($requiredA, $requiredB);
+        self::assertIsString($required);
+        self::assertTrue(is_subclass_of($required, ValidationRuleInterface::class));
         self::assertNull($registry->get('missing_rule'));
     }
 
@@ -39,7 +38,7 @@ final class RuleRegistryTest extends TestCase
 
         self::assertTrue($registry->has('custom_class'));
         self::assertTrue($registry->has('custom_instance'));
-        self::assertInstanceOf(RegistryAlwaysPassRule::class, $registry->get('custom_class'));
+        self::assertSame(RegistryAlwaysPassRule::class, $registry->get('custom_class'));
         self::assertInstanceOf(RegistryAlwaysFailRule::class, $registry->get('custom_instance'));
     }
 
@@ -78,10 +77,7 @@ final class RuleRegistryTest extends TestCase
         self::assertSame($instance, $registry->get('custom_replace'));
 
         $registry->addRule('custom_replace', RegistryAlwaysPassRule::class);
-        $resolved = $registry->get('custom_replace');
-
-        self::assertInstanceOf(RegistryAlwaysPassRule::class, $resolved);
-        self::assertNotSame($instance, $resolved);
+        self::assertSame(RegistryAlwaysPassRule::class, $registry->get('custom_replace'));
     }
 }
 

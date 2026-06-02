@@ -120,7 +120,10 @@ final class RuleRegistry
         return $this;
     }
 
-    public function get(string $name): ?ValidationRuleInterface
+    /**
+     * @return class-string<ValidationRuleInterface>|ValidationRuleInterface|null
+     */
+    public function get(string $name): string|ValidationRuleInterface|null
     {
         if (!$this->has($name)) {
             return null;
@@ -130,9 +133,6 @@ final class RuleRegistry
             return $this->instances[$name];
         }
 
-        $class = $this->map[$name];
-        $rule = new $class();
-
-        return $this->instances[$name] = $rule;
+        return $this->map[$name];
     }
 }

@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Validation;
 
 use Lemonade\Framework\Localization\TranslatorInterface;
+use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Validation\FormValidation;
 use Lemonade\Framework\Validation\Rule\RuleRegistry;
 use Lemonade\Framework\Validation\Rule\ValidationRuleFailureDetailsInterface;
 use Lemonade\Framework\Validation\Rule\ValidationRuleInterface;
+use Lemonade\Framework\Validation\ValidationRuleResolver;
 use Lemonade\Framework\Validation\ValidationResult;
 use PHPUnit\Framework\TestCase;
 
@@ -92,7 +95,7 @@ final class FormValidationTest extends TestCase
         $registry->addRule('custom_details', new RuleWithFailureMessage('Failure details message {field}'));
         $registry->addRule('translated_fail', new AlwaysFailRule());
         $registry->addRule('custom_translate_key', new RuleWithFailureTranslationKey('custom_key'));
-        $validator = new FormValidation($translator, $registry);
+        $validator = new FormValidation($translator, $this->createRuleResolver($registry));
 
         $validator->set_rules('a', 'A', 'custom_details')
             ->set_data(['a' => 'x']);
@@ -266,7 +269,7 @@ final class FormValidationTest extends TestCase
     public function testSetLocalePassesLocaleToTranslatorGet(): void
     {
         $translator = new TestTranslator([]);
-        $validation = new FormValidation($translator, new RuleRegistry());
+        $validation = new FormValidation($translator, $this->createRuleResolver(new RuleRegistry()));
         $validation->setLocale('cs')
             ->set_rules('x', 'X', 'required')
             ->set_data(['x' => '']);
@@ -283,7 +286,15 @@ final class FormValidationTest extends TestCase
             'validation.min_length' => '{field} must be at least {param} characters.',
         ]);
 
-        return new FormValidation($translator, new RuleRegistry());
+        return new FormValidation($translator, $this->createRuleResolver(new RuleRegistry()));
+    }
+
+    private function createRuleResolver(RuleRegistry $registry): ValidationRuleResolver
+    {
+        $container = new Container();
+        $container->singleton(ContainerInterface::class, $container);
+
+        return new ValidationRuleResolver($registry, $container);
     }
 
 }

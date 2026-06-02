@@ -6,7 +6,6 @@ namespace Lemonade\Framework\Validation;
 
 use Closure;
 use Lemonade\Framework\Localization\TranslatorInterface;
-use Lemonade\Framework\Validation\Rule\RuleRegistry;
 use Lemonade\Framework\Validation\Rule\ValidationRuleFailureDetailsInterface;
 
 final class FormValidation
@@ -122,7 +121,7 @@ final class FormValidation
 
     public function __construct(
         private readonly TranslatorInterface $translator,
-        private readonly ?RuleRegistry $ruleRegistry = null,
+        private readonly ValidationRuleResolver $ruleResolver,
     ) {}
 
     /**
@@ -464,8 +463,7 @@ final class FormValidation
             return true;
         }
 
-        $registry = $this->ruleRegistry ?? new RuleRegistry();
-        if ($registry->get($rule) !== null) {
+        if ($this->ruleResolver->has($rule)) {
             return false;
         }
 
@@ -594,19 +592,17 @@ final class FormValidation
         if (str_starts_with($rule, 'callback_')) {
             return false;
         }
-        $registry = $this->ruleRegistry ?? new RuleRegistry();
-        $ruleClass = $registry->get($name);
-        if ($ruleClass === null) {
+        $ruleObject = $this->ruleResolver->resolve($name);
+        if ($ruleObject === null) {
             return false;
         }
 
-        return $ruleClass->validate($value, $param, $data);
+        return $ruleObject->validate($value, $param, $data);
     }
 
     private function ruleFailureMessage(string $ruleName): ?string
     {
-        $registry = $this->ruleRegistry ?? new RuleRegistry();
-        $rule = $registry->get($ruleName);
+        $rule = $this->ruleResolver->resolve($ruleName);
 
         if (!$rule instanceof ValidationRuleFailureDetailsInterface) {
             return null;

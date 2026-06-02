@@ -10,23 +10,24 @@ use Psr\Http\Message\StreamFactoryInterface;
 
 trait JsonFetchTrait
 {
+    public function __construct(
+        private readonly ClientInterface $client,
+        private readonly RequestFactoryInterface $requestFactory,
+        private readonly StreamFactoryInterface $streamFactory,
+    ) {}
+
     /**
      * @return array<string, mixed>|null
      */
     protected function fetchJson(string $url): ?array
     {
-        $services = $this->httpServices(requireStreamFactory: false);
-        if ($services === null) {
-            return null;
-        }
-
         try {
-            $request = $services['requestFactory']
+            $request = $this->requestFactory
                 ->createRequest('GET', $url)
                 ->withHeader('User-Agent', 'Lemonade/Validation')
                 ->withHeader('Accept', 'application/json');
 
-            $response = $services['client']->sendRequest($request);
+            $response = $this->client->sendRequest($request);
 
             if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
                 return null;
@@ -44,22 +45,17 @@ trait JsonFetchTrait
      */
     protected function postJson(string $url, array $payload): ?array
     {
-        $services = $this->httpServices(requireStreamFactory: true);
-        if ($services === null || $services['streamFactory'] === null) {
-            return null;
-        }
-
         try {
             $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
-            $request = $services['requestFactory']
+            $request = $this->requestFactory
                 ->createRequest('POST', $url)
                 ->withHeader('User-Agent', 'Lemonade/Validation')
                 ->withHeader('Accept', 'application/json')
                 ->withHeader('Content-Type', 'application/json')
-                ->withBody($services['streamFactory']->createStream($body));
+                ->withBody($this->streamFactory->createStream($body));
 
-            $response = $services['client']->sendRequest($request);
+            $response = $this->client->sendRequest($request);
 
             if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
                 return null;
@@ -77,20 +73,15 @@ trait JsonFetchTrait
      */
     protected function postForm(string $url, array $payload): ?array
     {
-        $services = $this->httpServices(requireStreamFactory: true);
-        if ($services === null || $services['streamFactory'] === null) {
-            return null;
-        }
-
         try {
-            $request = $services['requestFactory']
+            $request = $this->requestFactory
                 ->createRequest('POST', $url)
                 ->withHeader('User-Agent', 'Lemonade/Validation')
                 ->withHeader('Accept', 'application/json')
                 ->withHeader('Content-Type', 'application/x-www-form-urlencoded')
-                ->withBody($services['streamFactory']->createStream(http_build_query($payload)));
+                ->withBody($this->streamFactory->createStream(http_build_query($payload)));
 
-            $response = $services['client']->sendRequest($request);
+            $response = $this->client->sendRequest($request);
 
             if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
                 return null;
@@ -100,38 +91,6 @@ trait JsonFetchTrait
         } catch (\Throwable) {
             return null;
         }
-    }
-
-    /**
-     * @return array{
-     *     client: ClientInterface,
-     *     requestFactory: RequestFactoryInterface,
-     *     streamFactory: StreamFactoryInterface|null
-     * }|null
-     */
-    private function httpServices(bool $requireStreamFactory): ?array
-    {
-        try {
-            $client = service(ClientInterface::class);
-            $requestFactory = service(RequestFactoryInterface::class);
-            $streamFactory = $requireStreamFactory ? service(StreamFactoryInterface::class) : null;
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (!$client instanceof ClientInterface || !$requestFactory instanceof RequestFactoryInterface) {
-            return null;
-        }
-
-        if ($requireStreamFactory && !$streamFactory instanceof StreamFactoryInterface) {
-            return null;
-        }
-
-        return [
-            'client' => $client,
-            'requestFactory' => $requestFactory,
-            'streamFactory' => $streamFactory instanceof StreamFactoryInterface ? $streamFactory : null,
-        ];
     }
 
     /**
