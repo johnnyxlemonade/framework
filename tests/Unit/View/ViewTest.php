@@ -138,6 +138,23 @@ final class ViewTest extends TestCase
         self::assertSame('A:P:missing:missing', $view->render('nested-temporary'));
     }
 
+    public function testShareOnceClearsAfterTemplateException(): void
+    {
+        $this->writeView('throws', '<?php throw new RuntimeException("template failed"); ?>');
+        $this->writeView('temporary', '<?= $requestHelpers ?? "missing" ?>');
+        $view = new View($this->viewsPath);
+        $view->shareOnce('requestHelpers', 'current-request');
+
+        try {
+            $view->render('throws');
+            self::fail('Expected view rendering to throw.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('template failed', $exception->getMessage());
+        }
+
+        self::assertSame('missing', $view->render('temporary'));
+    }
+
     private function writeView(string $name, string $contents): void
     {
         $path = $this->viewsPath . DIRECTORY_SEPARATOR . str_replace('.', DIRECTORY_SEPARATOR, $name) . '.php';

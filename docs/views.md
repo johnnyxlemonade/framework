@@ -26,7 +26,9 @@ return $this->html($html);
 
 ## Explicit View Helpers
 
-The view service provider shares an explicit `$helpers` object with templates. Prefer this object over global service-backed helpers.
+The view service provider shares an explicit `$helpers` object with templates. `$helpers` contains app-scoped helpers only, so it does not hold request, session or flash state.
+
+Prefer `$helpers` over global service-backed helpers for app-scoped view concerns:
 
 ```php
 <link rel="stylesheet" href="<?= htmlspecialchars($helpers->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
@@ -35,8 +37,42 @@ The view service provider shares an explicit `$helpers` object with templates. P
     <?= htmlspecialchars($helpers->lang('navigation.home'), ENT_QUOTES, 'UTF-8') ?>
 </a>
 
+<a href="<?= htmlspecialchars($helpers->localizedUrl('article.detail', ['id' => 123]), ENT_QUOTES, 'UTF-8') ?>">
+    <?= htmlspecialchars($helpers->lang('article.detail'), ENT_QUOTES, 'UTF-8') ?>
+</a>
+
 <?= $helpers->csrfField() ?>
+
+<input type="hidden" name="_token" value="<?= htmlspecialchars($helpers->csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 ```
+
+## Request View Helpers
+
+Request/session-dependent helpers are exposed through `$requestHelpers`. This object is created for the current controller request, shared into the next view render, and then cleared after the top-level `render()`, `template()` or `partial()` call.
+
+`$requestHelpers` is separate from `$helpers` so the app-scoped helper object never stores a stale request or session.
+
+```php
+<input
+    name="email"
+    value="<?= htmlspecialchars((string) $requestHelpers->old('email'), ENT_QUOTES, 'UTF-8') ?>"
+>
+
+<?php if ($message = $requestHelpers->flash('success')): ?>
+    <div class="alert alert-success"><?= htmlspecialchars((string) $message, ENT_QUOTES, 'UTF-8') ?></div>
+<?php endif; ?>
+
+<a class="<?= $requestHelpers->isRouteActive('home') ? 'active' : '' ?>"
+   href="<?= htmlspecialchars($helpers->url('home'), ENT_QUOTES, 'UTF-8') ?>">
+    Home
+</a>
+
+<span><?= htmlspecialchars($requestHelpers->currentPath(), ENT_QUOTES, 'UTF-8') ?></span>
+<span><?= htmlspecialchars($requestHelpers->currentUrl(), ENT_QUOTES, 'UTF-8') ?></span>
+<span><?= htmlspecialchars($requestHelpers->currentFullUrl(), ENT_QUOTES, 'UTF-8') ?></span>
+```
+
+Global service-backed helpers such as `asset()`, `url()`, `csrf_field()`, `lang()`, `old()`, `flash()` and `current_url()` remain available as compatibility API for existing applications. New view code should prefer `$helpers` and `$requestHelpers`.
 
 ## Shared services
 

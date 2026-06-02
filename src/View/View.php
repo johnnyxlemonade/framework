@@ -57,7 +57,10 @@ final class View
         $this->renderDepth++;
 
         try {
-            $this->resetViewState();
+            if ($topLevelRender) {
+                $this->resetViewState();
+            }
+
             $viewData = $this->viewData($data);
             $content = $this->renderFile($view, $viewData);
             if ($this->extends !== null) {
@@ -101,7 +104,10 @@ final class View
         $this->renderDepth++;
 
         try {
-            $this->resetViewState();
+            if ($topLevelRender) {
+                $this->resetViewState();
+            }
+
             $viewData = $this->viewData($data);
             $content = $this->renderFile($contentView, $viewData);
             $this->content = $content;
@@ -155,10 +161,20 @@ final class View
             throw new RuntimeException(sprintf('View not found: %s', $file));
         }
 
-        extract($data, EXTR_SKIP);
+        $bufferLevel = ob_get_level();
         ob_start();
-        include $file;
-        return (string) ob_get_clean();
+
+        try {
+            extract($data, EXTR_SKIP);
+            include $file;
+            return (string) ob_get_clean();
+        } catch (\Throwable $exception) {
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
+
+            throw $exception;
+        }
     }
 
     private function resetViewState(): void
