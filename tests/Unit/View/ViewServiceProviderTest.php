@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Tests\Unit\View;
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Security\Csrf\CsrfTokenManager;
@@ -14,6 +15,7 @@ use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\View;
+use Lemonade\Framework\View\ViewHelpers;
 use Lemonade\Framework\View\ViewServiceProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -48,13 +50,31 @@ final class ViewServiceProviderTest extends TestCase
         $viewB = $container->get(View::class);
         self::assertSame($viewA, $viewB);
 
-        $this->writeView('helper', '<?= get_class($component) ?>|<?= get_class($baseUrl) ?>|<?= get_class($url) ?>|<?= get_class($csrf) ?>');
+        $this->writeView('helper', '<?= get_class($helpers) ?>|<?= get_class($component) ?>|<?= get_class($baseUrl) ?>|<?= get_class($url) ?>|<?= get_class($csrf) ?>');
         $output = $viewA->render('helper');
 
+        self::assertStringContainsString(ViewHelpers::class, $output);
         self::assertStringContainsString(ComponentRegistry::class, $output);
         self::assertStringContainsString(BaseUrlResolver::class, $output);
         self::assertStringContainsString(UrlGenerator::class, $output);
         self::assertStringContainsString(CsrfViewHelper::class, $output);
+    }
+
+    public function testRegisterSharesHelpersVariableIntoRenderedView(): void
+    {
+        $container = $this->buildContainer(new Config([
+            'view' => ['base_path' => $this->viewsPath],
+            'app' => ['base_url' => 'https://example.test'],
+        ]));
+        $provider = new ViewServiceProvider();
+        $provider->register($container);
+
+        $this->writeView('helpers-variable', '<?= $helpers instanceof ' . '\\' . ViewHelpers::class . ' ? $helpers->asset("css/app.css") : "missing" ?>');
+
+        self::assertSame(
+            'https://example.test/css/app.css',
+            $container->get(View::class)->render('helpers-variable'),
+        );
     }
 
     public function testRegisterFallsBackToAppViewsWhenBasePathIsNotScalar(): void
@@ -98,6 +118,7 @@ final class ViewServiceProviderTest extends TestCase
         $session = new InMemorySession();
         $container->singleton(CsrfTokenManager::class, new CsrfTokenManager($session));
         $container->singleton(CsrfViewHelper::class, new CsrfViewHelper($container->get(CsrfTokenManager::class)));
+        $container->singleton(TranslatorInterface::class, new ViewServiceProviderTranslatorStub());
 
         return $container;
     }
@@ -139,6 +160,42 @@ final class ViewServiceProviderTest extends TestCase
         }
 
         @rmdir($path);
+    }
+}
+
+final class ViewServiceProviderTranslatorStub implements TranslatorInterface
+{
+    public function setLocale(?string $locale): self
+    {
+        unset($locale);
+
+        return $this;
+    }
+
+    public function locale(): ?string
+    {
+        return null;
+    }
+
+    public function get(string $key, array $replacements = [], ?string $locale = null): string
+    {
+        unset($replacements, $locale);
+
+        return $key;
+    }
+
+    public function group(string $group, ?string $locale = null): array
+    {
+        unset($locale);
+
+        return [$group => $group];
+    }
+
+    public function all(?string $locale = null): array
+    {
+        unset($locale);
+
+        return ['messages' => ['hello' => 'Hello']];
     }
 }
 
