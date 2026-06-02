@@ -27,17 +27,27 @@ Controller names are resolved against the application controller namespace unles
 Named routes can be used for URL generation:
 
 ```php
-$url = service('url')->route('article.detail', ['id' => 123]);
+$url = $this->url()->route('article.detail', ['id' => 123]);
 ```
 
 Extra parameters become query parameters.
 
 ```php
-$url = service('url')->route('article.detail', [
+$url = $this->url()->route('article.detail', [
     'id' => 123,
     'preview' => 1,
 ]);
 ```
+
+In views, use the explicit shared helper object:
+
+```php
+<a href="<?= htmlspecialchars($helpers->url('article.detail', ['id' => 123]), ENT_QUOTES, 'UTF-8') ?>">
+    Detail
+</a>
+```
+
+The global `service()` helper can still resolve `url` as compatibility API, but new code should prefer controller services, constructor DI, or `$helpers` in views.
 
 Result:
 

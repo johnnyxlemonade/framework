@@ -29,15 +29,28 @@ $container->singleton('custom.service', new CustomService());
 String service identifiers are supported and are used by some framework providers as convenient aliases.
 
 ```php
-$url = service('url');
-$validator = service('validator');
-$filesystem = service('filesystem');
+$container->singleton('custom.service', new CustomService());
 ```
 
-The global `service()` helper delegates to the current framework container. When the container is not available, or when the requested service does not exist, it returns the provided default value.
+The global `service()` helper delegates to the current framework container. It is compatibility API for legacy service-backed global helpers and existing application code. When the container is not available, or when the requested service does not exist, it returns the provided default value.
+
+New code should prefer constructor DI, controller services, explicit view data, or `$helpers` in views.
 
 ```php
 $logger = service('logger', null);
+```
+
+For example, use controller services instead of resolving common services globally:
+
+```php
+$validator = $this->validator();
+$url = $this->url();
+```
+
+In views, use the shared helper object:
+
+```php
+<link rel="stylesheet" href="<?= htmlspecialchars($helpers->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
 ```
 
 ## Autowiring

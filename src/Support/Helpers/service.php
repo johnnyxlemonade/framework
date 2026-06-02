@@ -11,8 +11,9 @@ if (!function_exists('service')) {
      * New framework/runtime code should prefer constructor DI, controller
      * services, explicit view data, or dedicated context/resolver objects.
      *
-     * @deprecated This helper is retained as a BC bridge for service-backed
-     * global helpers and application code during migration.
+     * @deprecated use explicit DI, ControllerServices, or $helpers in views.
+     * This helper is retained as a BC bridge for service-backed global helpers
+     * and application code during migration.
      *
      * @param class-string|non-empty-string $id
      */

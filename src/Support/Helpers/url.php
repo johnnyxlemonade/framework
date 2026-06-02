@@ -9,6 +9,9 @@ use Psr\Http\Message\ServerRequestInterface;
 
 if (!function_exists('url')) {
     /**
+     * @deprecated use explicit DI, ControllerServices, or $helpers in views.
+     * In views prefer $helpers->url().
+     *
      * @param array<string, scalar|null> $params
      */
     function url(string $route, array $params = []): string
@@ -25,6 +28,9 @@ if (!function_exists('url')) {
 
 if (!function_exists('localized_url')) {
     /**
+     * @deprecated use explicit DI, ControllerServices, or $helpers in views.
+     * In views prefer $helpers->localizedUrl().
+     *
      * @param array<string, scalar|null> $params
      */
     function localized_url(string $route, array $params = [], ?string $locale = null): string

@@ -8,6 +8,8 @@ The validator is registered as both `FormValidation::class` and the `validator` 
 $validator = service('validator');
 ```
 
+Resolving the validator through `service('validator')` is compatibility API for existing application code. New code should prefer constructor DI or controller services.
+
 ## Basic usage
 
 ```php

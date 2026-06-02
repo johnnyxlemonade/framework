@@ -24,10 +24,25 @@ return $this->html($html);
 <h1><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></h1>
 ```
 
+## Explicit View Helpers
+
+The view service provider shares an explicit `$helpers` object with templates. Prefer this object over global service-backed helpers.
+
+```php
+<link rel="stylesheet" href="<?= htmlspecialchars($helpers->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
+
+<a href="<?= htmlspecialchars($helpers->url('home'), ENT_QUOTES, 'UTF-8') ?>">
+    <?= htmlspecialchars($helpers->lang('navigation.home'), ENT_QUOTES, 'UTF-8') ?>
+</a>
+
+<?= $helpers->csrfField() ?>
+```
+
 ## Shared services
 
 Shared view services include:
 
+- view helpers
 - component registry
 - base URL resolver
 - URL generator
