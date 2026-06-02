@@ -11,10 +11,13 @@ use Lemonade\Framework\Filesystem\Filesystem;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
+use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
 use Lemonade\Framework\Upload\UploadFactory;
 use Lemonade\Framework\Validation\FormValidation;
+use Lemonade\Framework\View\RequestViewHelpers;
 use Lemonade\Framework\View\View;
+use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
 final class ControllerServices
@@ -24,6 +27,7 @@ final class ControllerServices
 
     public function __construct(
         private readonly ContainerInterface $container,
+        private readonly ServerRequestInterface $request,
     ) {}
 
     public function context(): ApplicationContext
@@ -68,7 +72,15 @@ final class ControllerServices
 
     public function view(): View
     {
-        return $this->service(View::class, 'View service is not available.');
+        $view = $this->service(View::class, 'View service is not available.');
+        $view->shareOnce('requestHelpers', new RequestViewHelpers(
+            request: $this->request,
+            urlGenerator: $this->service(UrlGenerator::class, 'UrlGenerator service is not available.'),
+            flash: $this->optionalService(FlashBagInterface::class),
+            session: $this->optionalService(SessionInterface::class),
+        ));
+
+        return $view;
     }
 
     public function flash(): FlashBagInterface
@@ -103,5 +115,21 @@ final class ControllerServices
         $this->services[$id] = $service;
 
         return $service;
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $id
+     * @return T|null
+     */
+    private function optionalService(string $id): ?object
+    {
+        if (!$this->container->isBound($id)) {
+            return null;
+        }
+
+        $service = $this->container->get($id);
+
+        return $service instanceof $id ? $service : null;
     }
 }

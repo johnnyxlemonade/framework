@@ -117,6 +117,27 @@ final class ViewTest extends TestCase
         self::assertSame('OK', $view->render('bench'));
     }
 
+    public function testShareOnceIsAvailableOnlyForNextRender(): void
+    {
+        $this->writeView('temporary', '<?= $requestHelpers ?? "missing" ?>');
+        $view = new View($this->viewsPath);
+        $view->shareOnce('requestHelpers', 'current-request');
+
+        self::assertSame('current-request', $view->render('temporary'));
+        self::assertSame('missing', $view->render('temporary'));
+    }
+
+    public function testShareOnceSurvivesNestedPartialAndClearsAfterTopLevelRender(): void
+    {
+        $this->writeView('partial-temporary', 'P:<?= $requestHelpers ?? "missing" ?>');
+        $this->writeView('nested-temporary', 'A:<?= $this->partial("partial-temporary") ?>:<?= $requestHelpers ?? "missing" ?>');
+        $view = new View($this->viewsPath);
+        $view->shareOnce('requestHelpers', 'current-request');
+
+        self::assertSame('A:P:current-request:current-request', $view->render('nested-temporary'));
+        self::assertSame('A:P:missing:missing', $view->render('nested-temporary'));
+    }
+
     private function writeView(string $name, string $contents): void
     {
         $path = $this->viewsPath . DIRECTORY_SEPARATOR . str_replace('.', DIRECTORY_SEPARATOR, $name) . '.php';

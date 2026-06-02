@@ -49,7 +49,7 @@ abstract class AbstractController
             $this->controllerContext->responseBuilder(),
         );
 
-        $this->controllerServices = new ControllerServices($container);
+        $this->controllerServices = new ControllerServices($container, $request);
     }
 
     protected function request(): ServerRequestInterface

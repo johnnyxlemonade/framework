@@ -27,4 +27,16 @@ final class ViewSourceGuardTest extends TestCase
 
         self::assertSame([], $violations);
     }
+
+    public function testRequestViewHelpersDoesNotDependOnContainer(): void
+    {
+        $file = dirname(__DIR__, 3)
+            . DIRECTORY_SEPARATOR . 'src'
+            . DIRECTORY_SEPARATOR . 'View'
+            . DIRECTORY_SEPARATOR . 'RequestViewHelpers.php';
+
+        $contents = file_get_contents($file);
+        self::assertIsString($contents);
+        self::assertStringNotContainsString('ContainerInterface', $contents);
+    }
 }

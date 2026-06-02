@@ -12,6 +12,9 @@ use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Http\Request\HttpMethod;
+use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\UrlGenerator;
+use Lemonade\Framework\View\View;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -262,6 +265,65 @@ final class ControllerTest extends TestCase
         $controller->exposedApp();
     }
 
+    public function testViewHelperSharesRequestHelpersForCurrentRender(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents(
+            $viewsPath . DIRECTORY_SEPARATOR . 'current.php',
+            '<?= $requestHelpers->currentPath() ?>|<?= $requestHelpers->currentQuery() ?>',
+        );
+
+        try {
+            $container = new Container();
+            $container->singleton(View::class, new View($viewsPath));
+            $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+
+            $controller = $this->controller(
+                $this->request(uri: 'https://example.test/current?tab=active'),
+                $container,
+            );
+
+            self::assertSame('/current|tab=active', $controller->exposedView()->render('current'));
+        } finally {
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
+    public function testViewHelperRefreshesRequestHelpersForNextRequest(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents($viewsPath . DIRECTORY_SEPARATOR . 'current.php', '<?= $requestHelpers->currentPath() ?>');
+
+        try {
+            $container = new Container();
+            $container->singleton(View::class, new View($viewsPath));
+            $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+            $controller = new ControllerTestSubject();
+
+            $controller->setControllerContext(
+                $this->request(uri: 'https://example.test/first'),
+                $this->responseFactory(),
+                $this->streamFactory(),
+                $container,
+            );
+            self::assertSame('/first', $controller->exposedView()->render('current'));
+
+            $controller->setControllerContext(
+                $this->request(uri: 'https://example.test/second'),
+                $this->responseFactory(),
+                $this->streamFactory(),
+                $container,
+            );
+            self::assertSame('/second', $controller->exposedView()->render('current'));
+        } finally {
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
     public function testSetControllerContextResetsRequestDataAndResponseBuilder(): void
     {
         $controller = $this->controller(
@@ -342,6 +404,11 @@ final class ControllerTestSubject extends AbstractController
     public function exposedRequest(): ServerRequestInterface
     {
         return $this->request();
+    }
+
+    public function exposedView(): View
+    {
+        return $this->view();
     }
 
     public function exposedInput(string $key, mixed $default = null): mixed

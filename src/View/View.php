@@ -13,6 +13,10 @@ final class View
      */
     private array $shared = [];
     /**
+     * @var array<string, mixed>
+     */
+    private array $temporaryShared = [];
+    /**
      * @var array<string, string>
      */
     private array $sections = [];
@@ -20,6 +24,7 @@ final class View
      * @var list<string>
      */
     private array $sectionStack = [];
+    private int $renderDepth = 0;
     private ?string $extends = null;
     private ?string $content = null;
 
@@ -28,6 +33,11 @@ final class View
     public function share(string $key, mixed $value): void
     {
         $this->shared[$key] = $value;
+    }
+
+    public function shareOnce(string $key, mixed $value): void
+    {
+        $this->temporaryShared[$key] = $value;
     }
 
     /**
@@ -43,14 +53,25 @@ final class View
      */
     public function render(string $view, array $data = []): string
     {
-        $this->resetViewState();
-        $content = $this->renderFile($view, array_merge($this->shared, $data));
-        if ($this->extends !== null) {
-            $this->content = $content;
-            return $this->renderFile($this->extends, array_merge($this->shared, $data));
-        }
+        $topLevelRender = $this->renderDepth === 0;
+        $this->renderDepth++;
 
-        return $content;
+        try {
+            $this->resetViewState();
+            $viewData = $this->viewData($data);
+            $content = $this->renderFile($view, $viewData);
+            if ($this->extends !== null) {
+                $this->content = $content;
+                return $this->renderFile($this->extends, $viewData);
+            }
+
+            return $content;
+        } finally {
+            $this->renderDepth--;
+            if ($topLevelRender) {
+                $this->temporaryShared = [];
+            }
+        }
     }
 
     /**
@@ -58,7 +79,17 @@ final class View
      */
     public function partial(string $view, array $data = []): string
     {
-        return $this->renderFile($view, array_merge($this->shared, $data));
+        $topLevelRender = $this->renderDepth === 0;
+        $this->renderDepth++;
+
+        try {
+            return $this->renderFile($view, $this->viewData($data));
+        } finally {
+            $this->renderDepth--;
+            if ($topLevelRender) {
+                $this->temporaryShared = [];
+            }
+        }
     }
 
     /**
@@ -66,10 +97,21 @@ final class View
      */
     public function template(string $layoutView, string $contentView, array $data = []): string
     {
-        $this->resetViewState();
-        $content = $this->renderFile($contentView, array_merge($this->shared, $data));
-        $this->content = $content;
-        return $this->renderFile($layoutView, array_merge($this->shared, $data));
+        $topLevelRender = $this->renderDepth === 0;
+        $this->renderDepth++;
+
+        try {
+            $this->resetViewState();
+            $viewData = $this->viewData($data);
+            $content = $this->renderFile($contentView, $viewData);
+            $this->content = $content;
+            return $this->renderFile($layoutView, $viewData);
+        } finally {
+            $this->renderDepth--;
+            if ($topLevelRender) {
+                $this->temporaryShared = [];
+            }
+        }
     }
 
     public function extend(string $layoutView): void
@@ -125,5 +167,14 @@ final class View
         $this->sectionStack = [];
         $this->extends = null;
         $this->content = null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function viewData(array $data): array
+    {
+        return array_merge($this->shared, $this->temporaryShared, $data);
     }
 }
