@@ -16,15 +16,14 @@ final class OpenApiController
 
     public function show(): ResponseInterface
     {
-        $response = $this->psr17
-            ->createResponse(200)
-            ->withHeader('Content-Type', 'application/json; charset=utf-8');
-
-        $response->getBody()->write((string) json_encode(
+        $body = (string) json_encode(
             $this->generator->generate(),
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        );
 
-        return $response;
+        return $this->psr17
+            ->createResponse(200)
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withBody($this->psr17->createStream($body));
     }
 }

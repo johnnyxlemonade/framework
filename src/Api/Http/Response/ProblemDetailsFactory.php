@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Http\Response;
 
+use JsonException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -16,6 +17,8 @@ final class ProblemDetailsFactory
 
     /**
      * @param array<string, mixed> $extensions
+     *
+     * @throws JsonException
      */
     public function create(
         int $status,
@@ -33,16 +36,15 @@ final class ProblemDetailsFactory
             'instance' => $request->getUri()->getPath(),
         ], $extensions);
 
-        $response = $this->responseFactory
-            ->createResponse($status)
-            ->withHeader('Content-Type', 'application/problem+json; charset=utf-8');
-
-        $response->getBody()->write((string) json_encode(
+        $body = json_encode(
             $payload,
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        );
 
-        return $response;
+        return $this->responseFactory
+            ->createResponse($status)
+            ->withHeader('Content-Type', 'application/problem+json; charset=utf-8')
+            ->withBody($this->responseFactory->createStream($body));
     }
 
     public function unauthenticated(ServerRequestInterface $request): ResponseInterface

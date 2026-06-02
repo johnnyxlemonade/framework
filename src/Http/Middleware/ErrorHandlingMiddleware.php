@@ -50,13 +50,10 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
 
     private function htmlResponse(int $statusCode, string $body): ResponseInterface
     {
-        $response = $this->responseFactory
+        return $this->responseFactory
             ->createResponse($statusCode)
-            ->withHeader('Content-Type', 'text/html; charset=utf-8');
-
-        $response->getBody()->write($body);
-
-        return $response;
+            ->withHeader('Content-Type', 'text/html; charset=utf-8')
+            ->withBody($this->responseFactory->createStream($body));
     }
 
     private function logException(Throwable $exception, ServerRequestInterface $request): void

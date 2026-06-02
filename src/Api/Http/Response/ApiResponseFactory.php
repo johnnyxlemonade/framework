@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Http\Response;
 
+use JsonException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
@@ -15,6 +16,8 @@ final class ApiResponseFactory
 
     /**
      * @param array<string, mixed> $meta
+     *
+     * @throws JsonException
      */
     public function json(mixed $data, int $status = 200, array $meta = []): ResponseInterface
     {
@@ -26,21 +29,22 @@ final class ApiResponseFactory
             $payload['meta'] = $meta;
         }
 
-        $response = $this->responseFactory
-            ->createResponse($status)
-            ->withHeader('Content-Type', 'application/json; charset=utf-8');
-
-        $response->getBody()->write((string) json_encode(
+        $body = json_encode(
             $payload,
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ));
+        );
 
-        return $response;
+        return $this->responseFactory
+            ->createResponse($status)
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withBody($this->responseFactory->createStream($body));
     }
 
     /**
      * @param array<string, mixed> $data
      * @param array<string, mixed> $meta
+     *
+     * @throws JsonException
      */
     public function ok(array $data, array $meta = []): ResponseInterface
     {

@@ -41,13 +41,10 @@ final class DocsController
             . '</tbody></table>'
             . '</body></html>';
 
-        $response = $this->psr17
+        return $this->psr17
             ->createResponse(200)
-            ->withHeader('Content-Type', 'text/html; charset=utf-8');
-
-        $response->getBody()->write($html);
-
-        return $response;
+            ->withHeader('Content-Type', 'text/html; charset=utf-8')
+            ->withBody($this->psr17->createStream($html));
     }
 
     private function apiPrefix(): string
