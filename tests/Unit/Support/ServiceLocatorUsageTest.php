@@ -54,22 +54,21 @@ final class ServiceLocatorUsageTest extends TestCase
         self::assertSame([], $violations);
     }
 
-    public function testGlobalServiceHelperIsNotCalledInSource(): void
+    public function testRemovedGlobalServiceBackedHelpersAreNotCalledInSource(): void
     {
         $root = dirname(__DIR__, 3);
         $src = $root . DIRECTORY_SEPARATOR . 'src';
-        $serviceHelper = $this->normalizePath($src . DIRECTORY_SEPARATOR . 'Support/Helpers/service.php');
 
         $violations = [];
         foreach ($this->phpFiles($src) as $file) {
             $path = $this->normalizePath($file->getPathname());
             $contents = file_get_contents($file->getPathname());
-            if ($contents === false || !$this->containsGlobalServiceHelperCall($contents)) {
+            if ($contents === false) {
                 continue;
             }
 
-            if ($path !== $serviceHelper) {
-                $violations[] = $path;
+            foreach ($this->removedGlobalHelperCalls($contents) as $helper) {
+                $violations[] = $path . ' uses ' . $helper . '()';
             }
         }
 
@@ -116,12 +115,55 @@ final class ServiceLocatorUsageTest extends TestCase
         }
     }
 
-    private function containsGlobalServiceHelperCall(string $contents): bool
+    /**
+     * @return list<string>
+     */
+    private function removedGlobalHelperNames(): array
+    {
+        return [
+            'service',
+            'asset',
+            'event',
+            'queue',
+            'config',
+            'csrf_field',
+            'csrf_token',
+            'flash',
+            'lang',
+            'current_locale',
+            'lang_group',
+            'lang_all',
+            'old',
+            'base_path',
+            'app_path',
+            'storage_path',
+            'url',
+            'localized_url',
+            'current_path',
+            'current_query',
+            'current_url',
+            'current_full_url',
+            'is_url_active',
+            'is_route_active',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function removedGlobalHelperCalls(string $contents): array
     {
         $tokens = token_get_all($contents);
+        $removed = array_fill_keys($this->removedGlobalHelperNames(), true);
+        $calls = [];
 
         foreach ($tokens as $index => $token) {
-            if (!is_array($token) || $token[0] !== T_STRING || strtolower($token[1]) !== 'service') {
+            if (!is_array($token) || $token[0] !== T_STRING) {
+                continue;
+            }
+
+            $name = $token[1];
+            if (!isset($removed[$name])) {
                 continue;
             }
 
@@ -135,10 +177,10 @@ final class ServiceLocatorUsageTest extends TestCase
                 continue;
             }
 
-            return true;
+            $calls[] = $name;
         }
 
-        return false;
+        return array_values(array_unique($calls));
     }
 
     /**
