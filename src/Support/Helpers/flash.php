@@ -2,17 +2,9 @@
 
 declare(strict_types=1);
 
-use Lemonade\Framework\Session\Flash\FlashBagInterface;
-
 if (!function_exists('flash')) {
     function flash(string $key, mixed $default = null): mixed
     {
-        $bag = service(FlashBagInterface::class);
-
-        if (!$bag instanceof FlashBagInterface) {
-            return $default;
-        }
-
-        return $bag->pull($key, $default);
+        throw new LogicException('The global flash() helper no longer resolves framework services. In views use $requestHelpers->flash(); in controllers use $this->flash() or inject FlashBagInterface explicitly.');
     }
 }

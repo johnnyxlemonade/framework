@@ -2,21 +2,13 @@
 
 declare(strict_types=1);
 
-use Lemonade\Framework\Support\BaseUrlResolver;
-
 if (!function_exists('asset')) {
     /**
-     * @deprecated use explicit DI, ControllerServices, or $helpers in views.
+     * @deprecated removed; use explicit DI, ControllerServices, or $helpers in views.
      * In views prefer $helpers->asset().
      */
     function asset(string $path): string
     {
-        $baseUrl = service(BaseUrlResolver::class);
-
-        if ($baseUrl instanceof BaseUrlResolver) {
-            return $baseUrl->baseUrl($path);
-        }
-
-        return '/' . ltrim($path, '/');
+        throw new LogicException('The global asset() helper no longer resolves framework services. In views use $helpers->asset(); elsewhere inject BaseUrlResolver explicitly.');
     }
 }

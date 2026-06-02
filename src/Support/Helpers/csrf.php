@@ -2,38 +2,24 @@
 
 declare(strict_types=1);
 
-use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
-
 if (!function_exists('csrf_field')) {
     /**
-     * @deprecated use explicit DI, ControllerServices, or $helpers in views.
+     * @deprecated removed; use explicit DI, ControllerServices, or $helpers in views.
      * In views prefer $helpers->csrfField().
      */
     function csrf_field(string $name = 'default'): string
     {
-        $csrf = service(CsrfViewHelper::class);
-
-        if (!$csrf instanceof CsrfViewHelper) {
-            return '';
-        }
-
-        return $csrf->field($name);
+        throw new LogicException('The global csrf_field() helper no longer resolves framework services. In views use $helpers->csrfField(); elsewhere inject CsrfViewHelper explicitly.');
     }
 }
 
 if (!function_exists('csrf_token')) {
     /**
-     * @deprecated use explicit DI, ControllerServices, or $helpers in views.
+     * @deprecated removed; use explicit DI, ControllerServices, or $helpers in views.
      * In views prefer $helpers->csrfToken().
      */
     function csrf_token(string $name = 'default'): string
     {
-        $csrf = service(CsrfViewHelper::class);
-
-        if (!$csrf instanceof CsrfViewHelper) {
-            return '';
-        }
-
-        return $csrf->token($name);
+        throw new LogicException('The global csrf_token() helper no longer resolves framework services. In views use $helpers->csrfToken(); elsewhere inject CsrfViewHelper explicitly.');
     }
 }

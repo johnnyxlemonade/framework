@@ -16,7 +16,6 @@ use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkServiceProvider;
 use Lemonade\Framework\Routing\Router;
-use Lemonade\Framework\Support\ServiceLocator;
 use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -36,21 +35,9 @@ final class Framework
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
     ) {
-        $this->bootCompatibilityHelperRuntime();
-
         $this->router = new Router();
 
         $this->registerCoreServices();
-    }
-
-    private function bootCompatibilityHelperRuntime(): void
-    {
-        /*
-         * Compatibility bridge for legacy global helper functions only.
-         * New framework internals must not use ServiceLocator; prefer
-         * constructor DI, ControllerServices, $helpers, or $requestHelpers.
-         */
-        ServiceLocator::setContainer($this->container);
     }
 
     private function registerCoreServices(): void

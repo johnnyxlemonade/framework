@@ -72,7 +72,7 @@ Request/session-dependent helpers are exposed through `$requestHelpers`. This ob
 <span><?= htmlspecialchars($requestHelpers->currentFullUrl(), ENT_QUOTES, 'UTF-8') ?></span>
 ```
 
-Global service-backed helpers such as `asset()`, `url()`, `csrf_field()`, `lang()`, `old()`, `flash()` and `current_url()` remain available as compatibility API for existing applications. New view code should prefer `$helpers` and `$requestHelpers`.
+Global service-backed helpers such as `asset()`, `url()`, `csrf_field()`, `lang()`, `old()`, `flash()` and `current_url()` no longer resolve framework services. They are removed runtime API and will fail with an explicit exception. Use `$helpers` and `$requestHelpers` in templates.
 
 ## Shared services
 

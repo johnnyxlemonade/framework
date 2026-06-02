@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 
 final class DocsServiceHelperUsageTest extends TestCase
 {
-    public function testServiceHelperInDocsIsOnlyPresentedAsCompatibilityApi(): void
+    public function testServiceHelperInDocsIsOnlyPresentedAsRemovedApi(): void
     {
         $docsDirectory = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'docs';
         $files = glob($docsDirectory . DIRECTORY_SEPARATOR . '*.md');
@@ -25,8 +25,9 @@ final class DocsServiceHelperUsageTest extends TestCase
             }
 
             if (
-                !str_contains($contents, 'Compatibility `service()` helper')
-                || !str_contains($contents, 'compatibility API')
+                !str_contains($contents, 'Removed `service()` helper')
+                || str_contains($contents, 'Compatibility `service()` helper')
+                || str_contains($contents, 'compatibility API')
             ) {
                 $violations[] = basename($file);
             }

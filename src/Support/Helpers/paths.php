@@ -2,43 +2,23 @@
 
 declare(strict_types=1);
 
-use Lemonade\Framework\Core\Context\ApplicationContext;
-
 if (!function_exists('base_path')) {
     function base_path(string $path = ''): string
     {
-        $context = service(ApplicationContext::class);
-
-        if (!$context instanceof ApplicationContext) {
-            return $path;
-        }
-
-        return $context->path($path);
+        throw new LogicException('The global base_path() helper no longer resolves framework services. Inject ApplicationContext explicitly.');
     }
 }
 
 if (!function_exists('app_path')) {
     function app_path(string $path = ''): string
     {
-        $context = service(ApplicationContext::class);
-
-        if (!$context instanceof ApplicationContext) {
-            return $path;
-        }
-
-        return $context->appPath($path);
+        throw new LogicException('The global app_path() helper no longer resolves framework services. Inject ApplicationContext explicitly.');
     }
 }
 
 if (!function_exists('storage_path')) {
     function storage_path(string $path = ''): string
     {
-        $context = service(ApplicationContext::class);
-
-        if (!$context instanceof ApplicationContext) {
-            return $path;
-        }
-
-        return $context->storagePath($path);
+        throw new LogicException('The global storage_path() helper no longer resolves framework services. Inject ApplicationContext explicitly.');
     }
 }

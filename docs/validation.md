@@ -23,12 +23,16 @@ if (!$result->isValid()) {
 
 The exact rule set depends on the registered rule registry and application configuration.
 
-## Compatibility `service()` helper
+## Removed `service()` helper
 
-Resolving the validator through `service('validator')` is compatibility API for existing application code. New code should prefer constructor DI or controller services.
+Resolving the validator through `service('validator')` has been removed. Use controller services or constructor DI.
 
 ```php
-$validator = service('validator');
+// Controller:
+$validator = $this->validator();
+
+// Service:
+public function __construct(private FormValidation $validator) {}
 ```
 
 ## Localization

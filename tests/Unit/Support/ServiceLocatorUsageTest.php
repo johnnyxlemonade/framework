@@ -11,55 +11,54 @@ use SplFileInfo;
 
 final class ServiceLocatorUsageTest extends TestCase
 {
-    public function testServiceLocatorContainerIsOnlyUsedByServiceHelperInSource(): void
+    public function testServiceLocatorAndHelperRuntimeAreRemovedFromSource(): void
     {
         $root = dirname(__DIR__, 3);
         $src = $root . DIRECTORY_SEPARATOR . 'src';
-        $allowed = $this->normalizePath($src . DIRECTORY_SEPARATOR . 'Support/Helpers/service.php');
 
         $violations = [];
         foreach ($this->phpFiles($src) as $file) {
-            $path = $this->normalizePath($file->getPathname());
             $contents = file_get_contents($file->getPathname());
-            if ($contents === false || !str_contains($contents, 'ServiceLocator::container(')) {
+            if ($contents === false) {
                 continue;
             }
 
-            if ($path !== $allowed) {
-                $violations[] = $path;
+            if (str_contains($contents, 'ServiceLocator') || str_contains($contents, 'HelperRuntime')) {
+                $violations[] = $this->normalizePath($file->getPathname());
             }
         }
 
         self::assertSame([], $violations);
     }
 
-    public function testServiceLocatorSetContainerIsOnlyUsedByFrameworkCompatibilityBootstrap(): void
+    public function testServiceLocatorStaticCallsAreRemovedFromSource(): void
     {
         $root = dirname(__DIR__, 3);
         $src = $root . DIRECTORY_SEPARATOR . 'src';
-        $allowed = $this->normalizePath($src . DIRECTORY_SEPARATOR . 'Core/Framework.php');
 
         $violations = [];
         foreach ($this->phpFiles($src) as $file) {
-            $path = $this->normalizePath($file->getPathname());
             $contents = file_get_contents($file->getPathname());
-            if ($contents === false || !str_contains($contents, 'ServiceLocator::setContainer(')) {
+            if ($contents === false) {
                 continue;
             }
 
-            if ($path !== $allowed || !str_contains($contents, 'bootCompatibilityHelperRuntime')) {
-                $violations[] = $path;
+            if (!str_contains($contents, 'ServiceLocator::container(')
+                && !str_contains($contents, 'ServiceLocator::setContainer(')) {
+                continue;
             }
+
+            $violations[] = $this->normalizePath($file->getPathname());
         }
 
         self::assertSame([], $violations);
     }
 
-    public function testGlobalServiceHelperCallsInSourceAreOnlyInHelperCompatibilityLayer(): void
+    public function testGlobalServiceHelperIsNotCalledInSource(): void
     {
         $root = dirname(__DIR__, 3);
         $src = $root . DIRECTORY_SEPARATOR . 'src';
-        $allowedPrefix = $this->normalizePath($src . DIRECTORY_SEPARATOR . 'Support/Helpers/');
+        $serviceHelper = $this->normalizePath($src . DIRECTORY_SEPARATOR . 'Support/Helpers/service.php');
 
         $violations = [];
         foreach ($this->phpFiles($src) as $file) {
@@ -69,7 +68,7 @@ final class ServiceLocatorUsageTest extends TestCase
                 continue;
             }
 
-            if (!str_starts_with($path, $allowedPrefix)) {
+            if ($path !== $serviceHelper) {
                 $violations[] = $path;
             }
         }
@@ -77,7 +76,7 @@ final class ServiceLocatorUsageTest extends TestCase
         self::assertSame([], $violations);
     }
 
-    public function testCoreControllerValidationAndViewDoNotUseServiceLocator(): void
+    public function testCoreControllerValidationAndViewDoNotUseStaticHelperRuntime(): void
     {
         $root = dirname(__DIR__, 3);
         $src = $root . DIRECTORY_SEPARATOR . 'src';
@@ -91,7 +90,8 @@ final class ServiceLocatorUsageTest extends TestCase
         foreach ($directories as $directory) {
             foreach ($this->phpFiles($directory) as $file) {
                 $contents = file_get_contents($file->getPathname());
-                if ($contents !== false && str_contains($contents, 'ServiceLocator')) {
+                if ($contents !== false
+                    && (str_contains($contents, 'ServiceLocator') || str_contains($contents, 'HelperRuntime'))) {
                     $violations[] = $this->normalizePath($file->getPathname());
                 }
             }

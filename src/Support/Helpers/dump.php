@@ -8,12 +8,6 @@ use Lemonade\Framework\Debug\Dump\DefaultDumperFactory;
 if (!function_exists('dumper')) {
     function dumper(): DumperInterface
     {
-        $dumper = service(DumperInterface::class);
-
-        if ($dumper instanceof DumperInterface) {
-            return $dumper;
-        }
-
         return DefaultDumperFactory::create();
     }
 }
