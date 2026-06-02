@@ -363,6 +363,16 @@ abstract class AbstractController
         return $this->services()->flash();
     }
 
+    /**
+     * @template T of object
+     * @param class-string<T> $id
+     * @return T
+     */
+    protected function controllerService(string $id): object
+    {
+        return $this->services()->get($id);
+    }
+
     protected function setLang(?string $locale): void
     {
         $this->translator()->setLocale($locale);

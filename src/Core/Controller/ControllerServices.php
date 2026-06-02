@@ -17,6 +17,7 @@ use Lemonade\Framework\Upload\UploadFactory;
 use Lemonade\Framework\Validation\FormValidation;
 use Lemonade\Framework\View\RequestViewHelpers;
 use Lemonade\Framework\View\View;
+use Lemonade\Framework\View\ViewHelpers;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
@@ -73,6 +74,10 @@ final class ControllerServices
     public function view(): View
     {
         $view = $this->service(View::class, 'View service is not available.');
+        $view->shareOnce(
+            'helpers',
+            $this->service(ViewHelpers::class, 'ViewHelpers service is not available.'),
+        );
         $view->shareOnce('requestHelpers', new RequestViewHelpers(
             request: $this->request,
             urlGenerator: $this->service(UrlGenerator::class, 'UrlGenerator service is not available.'),
@@ -81,6 +86,16 @@ final class ControllerServices
         ));
 
         return $view;
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $id
+     * @return T
+     */
+    public function get(string $id, ?string $missingMessage = null): object
+    {
+        return $this->service($id, $missingMessage ?? sprintf('Service "%s" is not available.', $id));
     }
 
     public function flash(): FlashBagInterface

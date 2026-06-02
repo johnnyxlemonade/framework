@@ -17,7 +17,7 @@ final class ViewServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
-        $container->singleton(ViewHelpers::class, static fn (ContainerInterface $container): ViewHelpers => new ViewHelpers(
+        $container->singleton(ViewHelpers::class, static fn(ContainerInterface $container): ViewHelpers => new ViewHelpers(
             baseUrl: $container->get(BaseUrlResolver::class),
             urlGenerator: $container->get(UrlGenerator::class),
             csrf: $container->get(CsrfViewHelper::class),

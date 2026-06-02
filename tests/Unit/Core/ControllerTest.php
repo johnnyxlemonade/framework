@@ -7,14 +7,21 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\AbstractController;
+use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Http\Request\HttpMethod;
+use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
+use Lemonade\Framework\Security\Csrf\CsrfTokenManager;
+use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
+use Lemonade\Framework\Session\Contract\SessionInterface;
+use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\View;
+use Lemonade\Framework\View\ViewHelpers;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -278,6 +285,7 @@ final class ControllerTest extends TestCase
             $container = new Container();
             $container->singleton(View::class, new View($viewsPath));
             $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+            $this->registerViewHelpers($container);
 
             $controller = $this->controller(
                 $this->request(uri: 'https://example.test/current?tab=active'),
@@ -301,6 +309,7 @@ final class ControllerTest extends TestCase
             $container = new Container();
             $container->singleton(View::class, new View($viewsPath));
             $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+            $this->registerViewHelpers($container);
             $controller = new ControllerTestSubject();
 
             $controller->setControllerContext(
@@ -396,6 +405,104 @@ final class ControllerTest extends TestCase
     private function streamFactory(): StreamFactoryInterface
     {
         return $this->psr17;
+    }
+
+    private function registerViewHelpers(Container $container): void
+    {
+        $config = new Config(['app' => ['base_url' => 'https://example.test']]);
+        $session = new ControllerTestSession();
+        $csrf = new CsrfViewHelper(new CsrfTokenManager($session));
+
+        $container->singleton(Config::class, $config);
+        $container->singleton(BaseUrlResolver::class, static fn(): BaseUrlResolver => new BaseUrlResolver($config));
+        $container->singleton(CsrfViewHelper::class, $csrf);
+        $container->singleton(TranslatorInterface::class, new ControllerTestTranslator());
+        $container->singleton(ViewHelpers::class, static fn(ContainerInterface $container): ViewHelpers => new ViewHelpers(
+            baseUrl: $container->get(BaseUrlResolver::class),
+            urlGenerator: $container->get(UrlGenerator::class),
+            csrf: $container->get(CsrfViewHelper::class),
+            translator: $container->get(TranslatorInterface::class),
+            config: $container->get(Config::class),
+        ));
+    }
+}
+
+final class ControllerTestSession implements SessionInterface
+{
+    /** @var array<string, mixed> */
+    private array $values = [];
+
+    public function start(): void {}
+
+    public function started(): bool
+    {
+        return true;
+    }
+
+    public function get(string $key, mixed $default = null): mixed
+    {
+        return $this->values[$key] ?? $default;
+    }
+
+    public function set(string $key, mixed $value): void
+    {
+        $this->values[$key] = $value;
+    }
+
+    public function has(string $key): bool
+    {
+        return array_key_exists($key, $this->values);
+    }
+
+    public function remove(string $key): void
+    {
+        unset($this->values[$key]);
+    }
+
+    public function clear(): void
+    {
+        $this->values = [];
+    }
+
+    public function regenerate(bool $deleteOldSession = true): void
+    {
+        unset($deleteOldSession);
+    }
+}
+
+final class ControllerTestTranslator implements TranslatorInterface
+{
+    public function setLocale(?string $locale): self
+    {
+        unset($locale);
+
+        return $this;
+    }
+
+    public function locale(): ?string
+    {
+        return null;
+    }
+
+    public function get(string $key, array $replacements = [], ?string $locale = null): string
+    {
+        unset($replacements, $locale);
+
+        return $key;
+    }
+
+    public function group(string $group, ?string $locale = null): array
+    {
+        unset($group, $locale);
+
+        return [];
+    }
+
+    public function all(?string $locale = null): array
+    {
+        unset($locale);
+
+        return [];
     }
 }
 

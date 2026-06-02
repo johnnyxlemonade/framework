@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Validation;
 
-use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Validation\FormValidation;
 use Lemonade\Framework\Validation\Rule\RuleRegistry;
 use Lemonade\Framework\Validation\Rule\ValidationRuleFailureDetailsInterface;
 use Lemonade\Framework\Validation\Rule\ValidationRuleInterface;
-use Lemonade\Framework\Validation\ValidationRuleResolver;
 use Lemonade\Framework\Validation\ValidationResult;
+use Lemonade\Framework\Validation\ValidationRuleResolver;
 use PHPUnit\Framework\TestCase;
 
 final class FormValidationTest extends TestCase
