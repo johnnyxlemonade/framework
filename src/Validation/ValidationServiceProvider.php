@@ -17,13 +17,13 @@ final class ValidationServiceProvider implements ServiceProviderInterface
         $container->singleton('validation.rules', RuleRegistry::class);
         $container->singleton(ValidationRuleResolver::class, ValidationRuleResolver::class);
 
-        $container->singleton(FormValidation::class, static function (ContainerInterface $container): FormValidation {
+        $container->set(FormValidation::class, static function (ContainerInterface $container): FormValidation {
             return new FormValidation(
                 translator: $container->get(TranslatorInterface::class),
                 ruleResolver: $container->get(ValidationRuleResolver::class),
             );
         });
 
-        $container->singleton('validator', FormValidation::class);
+        $container->set('validator', FormValidation::class);
     }
 }

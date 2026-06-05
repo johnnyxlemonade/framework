@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Validation;
 
+use InvalidArgumentException;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Localization\TranslatorInterface;
@@ -12,80 +13,233 @@ use Lemonade\Framework\Validation\Rule\RuleRegistry;
 use Lemonade\Framework\Validation\Rule\ValidationRuleFailureDetailsInterface;
 use Lemonade\Framework\Validation\Rule\ValidationRuleInterface;
 use Lemonade\Framework\Validation\ValidationResult;
+use Lemonade\Framework\Validation\ValidationRule;
+use Lemonade\Framework\Validation\ValidationRuleDefinition;
+use Lemonade\Framework\Validation\ValidationRuleName;
 use Lemonade\Framework\Validation\ValidationRuleResolver;
+use Lemonade\Framework\Validation\ValidationSchema;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class FormValidationTest extends TestCase
 {
-    public function testSetDataAndGetValidationData(): void
+    public function testFluentTypedApiValidatesFields(): void
     {
-        $validation = $this->createValidator();
-        $validation->set_data(['name' => 'John']);
+        $validator = $this->createValidator();
 
-        self::assertSame(['name' => 'John'], $validation->getValidationData());
+        $result = $validator
+            ->field('email', 'Email')
+                ->required(message: 'Email is required.')
+                ->email(message: 'Email is invalid.')
+                ->maxLength(100)
+            ->field('name', 'Name')
+                ->required()
+                ->maxLength(120)
+            ->validate([
+                'email' => 'john@example.com',
+                'name' => 'John',
+            ]);
+
+        self::assertInstanceOf(ValidationResult::class, $result);
+        self::assertTrue($result->isValid());
+        self::assertSame('john@example.com', $result->validated()['email']);
     }
 
-    public function testSetRulesSingleFieldAndRun(): void
+    public function testSchemaApiValidatesExplicitSchema(): void
     {
-        $validation = $this->createValidator();
-        $validation->set_rules('email', 'Email', 'required|valid_email')
-            ->set_data(['email' => 'john@example.com']);
+        $validator = $this->createValidator();
+        $schema = ValidationSchema::create()
+            ->field('email', 'Email')
+                ->required(message: 'Email is required.')
+                ->email(message: 'Email is invalid.')
+                ->maxLength(100)
+                ->end()
+            ->field('password', 'Password')
+                ->required()
+                ->minLength(8)
+                ->end();
 
-        self::assertTrue($validation->run());
+        $result = $validator->validate([
+            'email' => 'bad',
+            'password' => 'secret12',
+        ], $schema);
+
+        self::assertFalse($result->isValid());
+        self::assertSame('Email is invalid.', $result->error('email'));
     }
 
-    public function testSetRulesArrayDefinitionAndIgnoresInvalidRows(): void
+    public function testLowLevelTypedRuleApiValidatesFields(): void
     {
-        $validation = $this->createValidator();
-        $rows = [
-            ['field' => 'name', 'label' => 'Name', 'rules' => 'required'],
-            ['field' => [], 'label' => 'Invalid row', 'rules' => 'required'],
-            ['field' => 'email', 'rules' => 'required|valid_email'],
-        ];
+        $validator = $this->createValidator();
 
-        $validation->set_rules($rows)
-            ->set_data(['name' => 'John', 'email' => 'john@example.com']);
+        $result = $validator
+            ->field('email', 'Email')
+                ->addRule(ValidationRule::required())
+                ->addRule(ValidationRule::email())
+                ->addRule(ValidationRule::maxLength(100))
+            ->validate(['email' => 'john@example.com']);
 
-        self::assertTrue($validation->run());
+        self::assertTrue($result->isValid());
+        self::assertSame('john@example.com', $result->validated()['email']);
     }
 
-    public function testRunFalseAndErrorsMethods(): void
+    public function testMessageCanTargetStableRuleName(): void
     {
-        $validation = $this->createValidator();
-        $validation->set_rules('email', 'Email', 'required|valid_email')
-            ->set_data(['email' => 'bad-mail']);
+        $validator = $this->createValidator();
+        $schema = ValidationSchema::create()
+            ->field('name', 'Name')
+                ->minLength(3)
+                ->message(ValidationRuleName::MIN_LENGTH, 'Name is too short.')
+                ->end();
 
-        self::assertFalse($validation->run());
-        self::assertArrayHasKey('email', $validation->error_array());
-        self::assertStringContainsString('Email', $validation->error('email'));
-        self::assertSame('[[Email must be a valid email.]]', $validation->error('email', '[[', ']]'));
-        self::assertStringContainsString('<p>Email must be a valid email.</p>', $validation->error_string());
+        $result = $validator->validate(['name' => 'ab'], $schema);
+
+        self::assertFalse($result->isValid());
+        self::assertSame('Name is too short.', $result->error('name'));
     }
 
-    public function testSetErrorDelimitersAffectsErrorAndErrorString(): void
+    public function testValidationRuleNameListsOnlyBuiltInRules(): void
     {
-        $validation = $this->createValidator();
-        $validation->set_error_delimiters('<div>', '</div>')
-            ->set_rules('email', 'Email', 'valid_email')
-            ->set_data(['email' => 'bad']);
-
-        self::assertFalse($validation->run());
-        self::assertSame('<div>Email must be a valid email.</div>', $validation->error('email'));
-        self::assertStringContainsString('<div>Email must be a valid email.</div>', $validation->error_string());
+        self::assertContains(ValidationRuleName::EMAIL, ValidationRuleName::builtIn());
+        self::assertTrue(ValidationRuleName::isBuiltIn(ValidationRuleName::EMAIL));
+        self::assertFalse(ValidationRuleName::isBuiltIn('slug'));
     }
 
-    public function testMessagePriorityPerFieldOverGlobalAndDefaultWithParams(): void
+    public function testRuleDefinitionNormalizesValues(): void
     {
-        $validation = $this->createValidator();
-        $validation->set_message('min_length', 'GLOBAL {field} {param}')
-            ->set_rules('name', 'Name', 'min_length[3]', ['min_length' => 'FIELD {field} {param}'])
-            ->set_data(['name' => 'ab']);
+        $rule = ValidationRuleDefinition::create(' max_length ', ' 100 ', ' Too long ');
 
-        self::assertFalse($validation->run());
-        self::assertStringContainsString('FIELD Name 3', $validation->error('name'));
+        self::assertSame('max_length', $rule->name());
+        self::assertSame('100', $rule->param());
+        self::assertSame('Too long', $rule->message());
+
+        $custom = ValidationRuleDefinition::create(' slug ', '   ', '');
+        self::assertSame('slug', $custom->name());
+        self::assertNull($custom->param());
+        self::assertNull($custom->message());
     }
 
-    public function testMessagePriorityFailureDetailsAndTranslatedAndFallback(): void
+    public function testRuleDefinitionRejectsEmptyName(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        ValidationRuleDefinition::create('   ');
+    }
+
+    public function testRuleDefinitionWithMessageRejectsEmptyMessage(): void
+    {
+        $rule = ValidationRuleDefinition::create(ValidationRuleName::EMAIL);
+
+        $this->expectException(InvalidArgumentException::class);
+        $rule->withMessage('   ');
+    }
+
+    public function testSchemaNormalizesFieldNameAndEmptyLabel(): void
+    {
+        $schema = ValidationSchema::create()
+            ->field(' email ', '')
+                ->required()
+                ->end();
+
+        self::assertArrayHasKey('email', $schema->fields());
+        self::assertSame('email', $schema->fields()['email']->label());
+    }
+
+    public function testSchemaRejectsEmptyFieldName(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        ValidationSchema::create()->field('   ');
+    }
+
+    public function testSchemaAddRuleRejectsEmptyFieldName(): void
+    {
+        $schema = ValidationSchema::create();
+
+        $this->expectException(InvalidArgumentException::class);
+        $schema->addRule('', ValidationRuleDefinition::create(ValidationRuleName::REQUIRED));
+    }
+
+    public function testSchemaMessageRejectsEmptyFieldName(): void
+    {
+        $schema = ValidationSchema::create();
+
+        $this->expectException(InvalidArgumentException::class);
+        $schema->message('', ValidationRuleName::REQUIRED, 'Required.');
+    }
+
+    public function testCustomRegisteredRule(): void
+    {
+        $registry = new RuleRegistry();
+        $registry->addRule('slug', SlugRule::class);
+        $validator = new FormValidation(new TestTranslator([]), $this->createRuleResolver($registry));
+
+        $result = $validator
+            ->field('slug', 'URL slug')
+                ->required()
+                ->custom('slug', message: 'Slug is invalid.')
+            ->validate(['slug' => 'Invalid Slug']);
+
+        self::assertFalse($result->isValid());
+        self::assertSame('Slug is invalid.', $result->error('slug'));
+    }
+
+    public function testValidationRuleRejectsInvalidParameters(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        ValidationRule::maxLength(0);
+    }
+
+    public function testValidationRuleRejectsEmptyInList(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        ValidationRule::inList([]);
+    }
+
+    public function testValidationRuleRejectsEmptyRequiredIfField(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        ValidationRule::requiredIf('', 'x');
+    }
+
+    public function testValidationRuleTwoDatesNormalizesOrRejectsInvalidParameters(): void
+    {
+        self::assertNull(ValidationRule::twoDates()->param());
+        self::assertSame('start#end', ValidationRule::twoDates(' start ', ' end ')->param());
+
+        $this->expectException(InvalidArgumentException::class);
+        ValidationRule::twoDates('start', '   ');
+    }
+
+    public function testUnknownRuleFailsFast(): void
+    {
+        $validator = $this->createValidator();
+
+        $this->expectException(RuntimeException::class);
+        $validator
+            ->field('value', 'Value')
+                ->custom('missing_rule')
+            ->validate(['value' => 'x']);
+    }
+
+    public function testErrorAccessorsAndFormattingData(): void
+    {
+        $validator = $this->createValidator();
+        $result = $validator
+            ->field('email', 'Email')
+                ->required()
+                ->email()
+            ->validate(['email' => 'bad-mail']);
+
+        self::assertFalse($result->isValid());
+        self::assertSame('Email must be a valid email.', $result->error('email'));
+        self::assertSame(['email' => 'Email must be a valid email.'], $result->errors());
+
+        self::assertSame(['email' => ['valid_email']], $result->failedRules());
+        self::assertTrue($result->failedOnlyOnRule('email', ValidationRuleName::EMAIL));
+        self::assertSame('bad-mail', $result->getValueIfFailedOnlyOnRule('email', ValidationRuleName::EMAIL));
+        self::assertSame(['email' => 'bad-mail'], $result->toArray()['input']);
+    }
+
+    public function testFailureDetailsAndTranslationsArePreserved(): void
     {
         $translator = new TestTranslator([
             'validation.translated_fail' => 'Translated message {field}',
@@ -97,185 +251,107 @@ final class FormValidationTest extends TestCase
         $registry->addRule('custom_translate_key', new RuleWithFailureTranslationKey('custom_key'));
         $validator = new FormValidation($translator, $this->createRuleResolver($registry));
 
-        $validator->set_rules('a', 'A', 'custom_details')
-            ->set_data(['a' => 'x']);
-        self::assertFalse($validator->run());
-        self::assertStringContainsString('Failure details message A', $validator->error('a'));
+        $details = $validator
+            ->field('a', 'A')
+                ->custom('custom_details')
+            ->validate(['a' => 'x']);
+        self::assertSame('Failure details message A', $details->error('a'));
 
-        $validator->reset_validation()
-            ->set_rules('b', 'B', 'translated_fail')
-            ->set_data(['b' => 'x']);
-        self::assertFalse($validator->run());
-        self::assertStringContainsString('Translated message B', $validator->error('b'));
+        $translated = $validator
+            ->field('b', 'B')
+                ->custom('translated_fail')
+            ->validate(['b' => 'x']);
+        self::assertSame('Translated message B', $translated->error('b'));
 
-        $validator->reset_validation()
-            ->set_rules('c', 'C', 'custom_translate_key')
-            ->set_data(['c' => 'x']);
-        self::assertFalse($validator->run());
-        self::assertStringContainsString('Rule key message C', $validator->error('c'));
+        $key = $validator
+            ->field('c', 'C')
+                ->custom('custom_translate_key')
+            ->validate(['c' => 'x']);
+        self::assertSame('Rule key message C', $key->error('c'));
     }
 
-    public function testValidatedAndResetValidation(): void
+    public function testRequiredRulesRunBeforeOptionalRules(): void
     {
-        $validation = $this->createValidator();
-        $validation->set_rules('name', 'Name', 'trim|required')
-            ->set_data(['name' => '  John  ']);
+        $validator = $this->createValidator();
 
-        self::assertTrue($validation->run());
-        self::assertSame('John', $validation->validated()['name']);
+        $missing = $validator
+            ->field('email', 'Email')
+                ->email()
+                ->required()
+            ->validate(['email' => '']);
 
-        $validation->reset_validation();
-        self::assertSame([], $validation->validated());
-        self::assertSame([], $validation->error_array());
-        self::assertSame([], $validation->getValidationData());
-    }
+        self::assertFalse($missing->isValid());
+        self::assertSame('Email is required.', $missing->error('email'));
 
-    public function testValidateReturnsValidationResult(): void
-    {
-        $validation = $this->createValidator();
-        $result = $validation->validate(
-            ['email' => 'bad'],
-            [
-                'email' => ['label' => 'Email', 'rules' => 'required|valid_email'],
-            ],
-        );
+        $optional = $validator
+            ->field('optional_email', 'Optional Email')
+                ->email()
+                ->minLength(10)
+            ->validate(['optional_email' => '']);
 
-        self::assertInstanceOf(ValidationResult::class, $result);
-        self::assertFalse($result->isValid());
-        self::assertNotNull($result->error('email'));
-    }
-
-    public function testFormatDataAfterValidationForValidAndInvalid(): void
-    {
-        $validation = $this->createValidator();
-        $validation->set_rules('name', 'Name', 'required')
-            ->set_data(['name' => 'John']);
-        self::assertTrue($validation->run());
-        $ok = $validation->formatDataAfterValidation(true);
-        self::assertSame(['name' => 'John'], $ok['valid']);
-        self::assertSame([], $ok['input']);
-
-        $validation->reset_validation()
-            ->set_rules('name', 'Name', 'required')
-            ->set_data(['name' => '']);
-        self::assertFalse($validation->run());
-        $fail = $validation->formatDataAfterValidation(false);
-        self::assertIsArray($fail['errors']);
-        self::assertIsArray($fail['failed_rules']);
-        self::assertSame([], $fail['valid']);
-        self::assertSame(['name' => ''], $fail['input']);
-        self::assertArrayHasKey('name', $fail['errors']);
-        self::assertArrayHasKey('name', $fail['failed_rules']);
-    }
-
-    public function testFailedOnlyOnRuleAndGetValueIfFailedOnlyOnRule(): void
-    {
-        $validation = $this->createValidator();
-        $validation->set_rules('name', 'Name', 'required')
-            ->set_data(['name' => '']);
-        self::assertFalse($validation->run());
-        $data = $validation->formatDataAfterValidation(false);
-
-        self::assertTrue($validation->failedOnlyOnRule($data, 'name', 'required'));
-        self::assertSame('', $validation->getValueIfFailedOnlyOnRule($data, 'name', 'required'));
-        self::assertNull($validation->getValueIfFailedOnlyOnRule($data, 'name', 'valid_email'));
-    }
-
-    public function testEncodePhpTagsAndPrepRules(): void
-    {
-        $validation = $this->createValidator();
-        self::assertSame('&lt;?php ?&gt;', $validation->encode_php_tags('<?php ?>'));
-
-        $validation->set_rules('content', 'Content', 'encode_php_tags|required')
-            ->set_data(['content' => '<?php ?>']);
-        self::assertTrue($validation->run());
-        self::assertSame('&lt;?php ?&gt;', $validation->validated()['content']);
-
-        $validation->reset_validation()
-            ->set_rules('name', 'Name', 'trim|required')
-            ->set_data(['name' => '  John  ']);
-        self::assertTrue($validation->run());
-        self::assertSame('John', $validation->validated()['name']);
-    }
-
-    public function testClosureRulePassAndFailWithClosureName(): void
-    {
-        $passing = static function (mixed $value, array $data): bool {
-            unset($data);
-            return is_string($value) && $value === 'ok';
-        };
-        $failing = static function (mixed $value, array $data): bool {
-            unset($value, $data);
-            return false;
-        };
-
-        $validation = $this->createValidator();
-        $validation->set_rules('v', 'V', [$passing])
-            ->set_data(['v' => 'ok']);
-        self::assertTrue($validation->run());
-
-        $validation->reset_validation()
-            ->set_rules('v', 'V', [$failing])
-            ->set_data(['v' => 'ok']);
-        self::assertFalse($validation->run());
-        $formatted = $validation->formatDataAfterValidation(false);
-        self::assertIsArray($formatted['failed_rules']);
-        self::assertIsArray($formatted['failed_rules']['v']);
-        self::assertSame(['closure'], $formatted['failed_rules']['v']);
-    }
-
-    public function testRequiredIsEvaluatedBeforeOtherRulesAndOptionalEmptySkipsNonRequired(): void
-    {
-        $validation = $this->createValidator();
-        $validation->set_rules('email', 'Email', 'valid_email|required')
-            ->set_data(['email' => '']);
-        self::assertFalse($validation->run());
-        self::assertStringContainsString('is required', $validation->error('email'));
-
-        $validation->reset_validation()
-            ->set_rules('optional_email', 'Optional Email', 'valid_email|min_length[10]')
-            ->set_data(['optional_email' => '']);
-        self::assertTrue($validation->run());
+        self::assertTrue($optional->isValid());
     }
 
     public function testRequiredIfWithWithoutAndSkipRules(): void
     {
-        $validation = $this->createValidator();
-        $validation->set_rules('target', 'Target', 'required_if[mode,strict]')
-            ->set_data(['mode' => 'strict', 'target' => '']);
-        self::assertFalse($validation->run());
+        $validator = $this->createValidator();
 
-        $validation->reset_validation()
-            ->set_rules('target', 'Target', 'required_with[other]')
-            ->set_data(['other' => 'x', 'target' => '']);
-        self::assertFalse($validation->run());
+        $requiredIf = $validator
+            ->field('target', 'Target')
+                ->requiredIf('mode', 'strict')
+            ->validate(['mode' => 'strict', 'target' => '']);
+        self::assertFalse($requiredIf->isValid());
 
-        $validation->reset_validation()
-            ->set_rules('target', 'Target', 'required_without[other]')
-            ->set_data(['other' => '', 'target' => '']);
-        self::assertFalse($validation->run());
+        $requiredWith = $validator
+            ->field('target', 'Target')
+                ->requiredWithMessage('Target is required with other.', 'other')
+            ->validate(['other' => 'x', 'target' => '']);
+        self::assertFalse($requiredWith->isValid());
+        self::assertSame('Target is required with other.', $requiredWith->error('target'));
 
-        $validation->reset_validation()
-            ->set_rules('field', 'Field', 'skip_if[mode,skip]|valid_email')
-            ->set_data(['mode' => 'skip', 'field' => 'not-an-email']);
-        self::assertTrue($validation->run());
+        $requiredWithout = $validator
+            ->field('target', 'Target')
+                ->requiredWithout('other')
+            ->validate(['other' => '', 'target' => '']);
+        self::assertFalse($requiredWithout->isValid());
 
-        $validation->reset_validation()
-            ->set_rules('field', 'Field', 'skip_unless[mode,run]|valid_email')
-            ->set_data(['mode' => 'other', 'field' => 'not-an-email']);
-        self::assertTrue($validation->run());
+        $skipIf = $validator
+            ->field('field', 'Field')
+                ->skipIf('mode', 'skip')
+                ->email()
+            ->validate(['mode' => 'skip', 'field' => 'not-an-email']);
+        self::assertTrue($skipIf->isValid());
+
+        $skipUnless = $validator
+            ->field('field', 'Field')
+                ->skipUnless('mode', 'run')
+                ->email()
+            ->validate(['mode' => 'other', 'field' => 'not-an-email']);
+        self::assertTrue($skipUnless->isValid());
     }
 
     public function testSetLocalePassesLocaleToTranslatorGet(): void
     {
         $translator = new TestTranslator([]);
-        $validation = new FormValidation($translator, $this->createRuleResolver(new RuleRegistry()));
-        $validation->setLocale('cs')
-            ->set_rules('x', 'X', 'required')
-            ->set_data(['x' => '']);
+        $validator = new FormValidation($translator, $this->createRuleResolver(new RuleRegistry()));
+        $validator->setLocale('cs')
+            ->field('x', 'X')
+                ->required()
+            ->validate(['x' => '']);
 
-        self::assertFalse($validation->run());
         self::assertSame('cs', $translator->lastLocale);
+    }
+
+    public function testResetValidationClearsCurrentBuilderState(): void
+    {
+        $validator = $this->createValidator();
+        $validator->field('name', 'Name')->required();
+        $validator->reset();
+
+        $result = $validator->validate(['name' => '']);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->errors());
     }
 
     private function createValidator(): FormValidation
@@ -296,16 +372,13 @@ final class FormValidationTest extends TestCase
 
         return new ValidationRuleResolver($registry, $container);
     }
-
 }
 
 final class TestTranslator implements TranslatorInterface
 {
     public ?string $lastLocale = null;
 
-    /**
-     * @param array<string, string> $messages
-     */
+    /** @param array<string, string> $messages */
     public function __construct(private array $messages) {}
 
     public function setLocale(?string $locale): TranslatorInterface
@@ -402,5 +475,15 @@ final class RuleWithFailureTranslationKey implements ValidationRuleInterface, Va
     public function pullFailureTranslationKey(): ?string
     {
         return $this->translationKey;
+    }
+}
+
+final class SlugRule implements ValidationRuleInterface
+{
+    public function validate(mixed $value, ?string $param, array $data): bool
+    {
+        unset($param, $data);
+
+        return is_string($value) && preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $value) === 1;
     }
 }

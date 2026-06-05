@@ -12,6 +12,7 @@ use Lemonade\Framework\Database\DatabaseDriverInterface;
 use Lemonade\Framework\Database\DatabaseResultInterface;
 use Lemonade\Framework\Validation\Rule\RuleRegistry;
 use Lemonade\Framework\Validation\Rule\ValidationRuleInterface;
+use Lemonade\Framework\Validation\Rule\ValidEmailHeavyRule;
 use Lemonade\Framework\Validation\Rule\ValidIcoActiveRule;
 use Lemonade\Framework\Validation\Rule\ValidRowIdRule;
 use Lemonade\Framework\Validation\ValidationRuleResolver;
@@ -79,6 +80,17 @@ final class ValidationRuleResolverTest extends TestCase
         self::assertTrue($rule->validate('12345678', null, []));
         self::assertInstanceOf(RequestInterface::class, $client->lastRequest);
         self::assertSame('https://api.core1.agency/validator/company?value=12345678', (string) $client->lastRequest->getUri());
+    }
+
+    public function testFailureDetailsAreConsumedOnCachedRuleInstance(): void
+    {
+        $client = new ResolverHttpClient(new Response(200, [], '{"valid":false,"translate":"blacklist"}'));
+        $factory = new Psr17Factory();
+        $rule = new ValidEmailHeavyRule($client, $factory, $factory);
+
+        self::assertFalse($rule->validate('blocked@example.test', null, []));
+        self::assertSame('blacklist', $rule->pullFailureTranslationKey());
+        self::assertNull($rule->pullFailureTranslationKey());
     }
 
     public function testValidationSourceDoesNotUseGlobalServiceResolving(): void
