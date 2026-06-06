@@ -3,23 +3,31 @@
 
 declare(strict_types=1);
 
+use Lemonade\Framework\Core\Cli\CliEnvironmentResolver;
 use Lemonade\Framework\Core\CliKernelFactory;
 use Lemonade\Framework\Core\Context\ApplicationContextFactory;
 
 $packageRoot = dirname(__DIR__);
-$projectRoot = dirname($packageRoot);
 
-$autoload = $packageRoot . '/vendor/autoload.php';
+$autoload = $_composer_autoload_path ?? null;
+
+if (!is_string($autoload) || !is_file($autoload)) {
+    $autoload = $packageRoot . '/vendor/autoload.php';
+}
 
 if (!is_file($autoload)) {
-    $autoload = $projectRoot . '/vendor/autoload.php';
+    fwrite(STDERR, "Unable to locate Composer autoload.php.\n");
+    exit(1);
 }
 
 require $autoload;
 
-$basePath = is_dir($projectRoot . '/app') && is_dir($projectRoot . '/storage')
-    ? $projectRoot
-    : $packageRoot;
+$resolver = new CliEnvironmentResolver();
+
+$basePath = $resolver->resolveBasePath(
+    packageRoot: $packageRoot,
+);
+
 $context = (new ApplicationContextFactory())->fromGlobals($basePath);
 
 $argv = isset($_SERVER['argv']) && is_array($_SERVER['argv'])
