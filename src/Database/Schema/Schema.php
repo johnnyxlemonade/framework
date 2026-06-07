@@ -24,8 +24,8 @@ final class Schema
         Closure $definition,
         bool $ifNotExists = false,
     ): bool {
-        return $this->execute(
-            $this->compiler->compileCreate(
+        return $this->executeMany(
+            $this->compiler->compileCreateStatements(
                 table: $table,
                 definition: $definition,
                 ifNotExists: $ifNotExists,
@@ -35,9 +35,7 @@ final class Schema
 
     public function createTable(TableDefinition $definition): bool
     {
-        return $this->execute(
-            $this->compiler->compileCreateTable($definition),
-        );
+        return $this->executeMany($this->compiler->compileCreateTableStatements($definition));
     }
 
     /**
@@ -96,6 +94,23 @@ final class Schema
         bool $ifNotExists = false,
     ): string {
         return $this->compiler->compileCreate(
+            table: $table,
+            definition: $definition,
+            ifNotExists: $ifNotExists,
+        );
+    }
+
+    /**
+     * @param Closure(TableBlueprint):void $definition
+     *
+     * @return non-empty-list<string>
+     */
+    public function compileCreateStatements(
+        string $table,
+        Closure $definition,
+        bool $ifNotExists = false,
+    ): array {
+        return $this->compiler->compileCreateStatements(
             table: $table,
             definition: $definition,
             ifNotExists: $ifNotExists,

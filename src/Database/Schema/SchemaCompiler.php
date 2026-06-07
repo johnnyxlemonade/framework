@@ -22,11 +22,28 @@ final class SchemaCompiler
         Closure $definition,
         bool $ifNotExists = false,
     ): string {
+        return $this->compileCreateStatements(
+            table: $table,
+            definition: $definition,
+            ifNotExists: $ifNotExists,
+        )[0];
+    }
+
+    /**
+     * @param Closure(TableBlueprint):void $definition
+     *
+     * @return non-empty-list<string>
+     */
+    public function compileCreateStatements(
+        string $table,
+        Closure $definition,
+        bool $ifNotExists = false,
+    ): array {
         $blueprint = new TableBlueprint($table);
 
         $definition($blueprint);
 
-        return $this->compileCreateTable(
+        return $this->compileCreateTableStatements(
             $blueprint
                 ->toDefinition()
                 ->withIfNotExists($ifNotExists),
@@ -36,6 +53,14 @@ final class SchemaCompiler
     public function compileCreateTable(TableDefinition $definition): string
     {
         return $this->grammar->compileCreateTable($definition);
+    }
+
+    /**
+     * @return non-empty-list<string>
+     */
+    public function compileCreateTableStatements(TableDefinition $definition): array
+    {
+        return $this->grammar->compileCreateTableStatements($definition);
     }
 
     /**

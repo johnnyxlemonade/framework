@@ -58,6 +58,14 @@ final class OdbcSchemaGrammar implements SchemaGrammarInterface
     }
 
     /**
+     * @return non-empty-list<string>
+     */
+    public function compileCreateTableStatements(TableDefinition $table): array
+    {
+        return [$this->compileCreateTable($table)];
+    }
+
+    /**
      * @return list<string>
      */
     public function compileAlterTable(TableDefinition $table): array

@@ -213,41 +213,41 @@ final class TableBlueprint
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public function primary(string|array $columns, ?string $name = null): void
+    public function primary(string|array $columns, ?string $name = null, bool $ifNotExists = false): void
     {
-        $this->indexes[] = IndexDefinition::primary($columns, $name);
+        $this->indexes[] = IndexDefinition::primary($columns, $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public function index(string|array $columns, ?string $name = null): void
+    public function index(string|array $columns, ?string $name = null, bool $ifNotExists = false): void
     {
-        $this->indexes[] = IndexDefinition::index($columns, $name);
+        $this->indexes[] = IndexDefinition::index($columns, $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public function unique(string|array $columns, ?string $name = null): void
+    public function unique(string|array $columns, ?string $name = null, bool $ifNotExists = false): void
     {
-        $this->indexes[] = IndexDefinition::unique($columns, $name);
+        $this->indexes[] = IndexDefinition::unique($columns, $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public function fulltext(string|array $columns, ?string $name = null): void
+    public function fulltext(string|array $columns, ?string $name = null, bool $ifNotExists = false): void
     {
-        $this->indexes[] = IndexDefinition::fulltext($columns, $name);
+        $this->indexes[] = IndexDefinition::fulltext($columns, $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public function spatial(string|array $columns, ?string $name = null): void
+    public function spatial(string|array $columns, ?string $name = null, bool $ifNotExists = false): void
     {
-        $this->indexes[] = IndexDefinition::spatial($columns, $name);
+        $this->indexes[] = IndexDefinition::spatial($columns, $name, $ifNotExists);
     }
 
     public function dropIndex(string $name): void

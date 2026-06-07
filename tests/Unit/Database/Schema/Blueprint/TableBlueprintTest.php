@@ -105,6 +105,17 @@ final class TableBlueprintTest extends TestCase
         self::assertSame('MyISAM', $def->options()?->engineName());
     }
 
+    public function testIndexCanBeMarkedAsIfNotExists(): void
+    {
+        $table = new TableBlueprint('posts');
+        $table->index('slug', 'idx_posts_slug', ifNotExists: true);
+
+        $index = $table->toDefinition()->indexes()[0];
+
+        self::assertTrue($index->ifNotExists());
+        self::assertSame('idx_posts_slug', $index->resolvedName());
+    }
+
     public function testForeignWithEmptyColumnsThrows(): void
     {
         $table = new TableBlueprint('x');

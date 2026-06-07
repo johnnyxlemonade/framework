@@ -75,6 +75,21 @@ final class MysqlSchemaGrammarTest extends TestCase
         self::assertSame('RENAME TABLE `pre_old` TO `pre_new`', $grammar->compileRenameTable('old', 'new'));
     }
 
+    public function testCompileCreateTableStatementsKeepsMysqlIndexesInline(): void
+    {
+        $grammar = $this->grammar();
+        $table = new TableBlueprint('jobs');
+        $table->id();
+        $table->string('queue_name', 120);
+        $table->index(['queue_name', 'id'], 'idx_queue_id', ifNotExists: true);
+
+        $sql = $grammar->compileCreateTableStatements($table->toDefinition()->withIfNotExists(true));
+
+        self::assertCount(1, $sql);
+        self::assertStringContainsString('CREATE TABLE IF NOT EXISTS `jobs`', $sql[0]);
+        self::assertStringContainsString('KEY `idx_queue_id` (`queue_name`, `id`)', $sql[0]);
+    }
+
     public function testCompileColumnsAddModifyChangeDropAndColumnFlags(): void
     {
         $grammar = $this->grammar(['prefix' => 'p_']);

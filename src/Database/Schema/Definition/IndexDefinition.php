@@ -15,46 +15,47 @@ final class IndexDefinition
         private readonly IndexType $type,
         private readonly array $columns,
         private readonly ?string $name = null,
+        private readonly bool $ifNotExists = false,
     ) {}
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public static function primary(string|array $columns, ?string $name = null): self
+    public static function primary(string|array $columns, ?string $name = null, bool $ifNotExists = false): self
     {
-        return new self(IndexType::Primary, self::normalizeColumns($columns), $name);
+        return new self(IndexType::Primary, self::normalizeColumns($columns), $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public static function index(string|array $columns, ?string $name = null): self
+    public static function index(string|array $columns, ?string $name = null, bool $ifNotExists = false): self
     {
-        return new self(IndexType::Index, self::normalizeColumns($columns), $name);
+        return new self(IndexType::Index, self::normalizeColumns($columns), $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public static function unique(string|array $columns, ?string $name = null): self
+    public static function unique(string|array $columns, ?string $name = null, bool $ifNotExists = false): self
     {
-        return new self(IndexType::Unique, self::normalizeColumns($columns), $name);
+        return new self(IndexType::Unique, self::normalizeColumns($columns), $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public static function fulltext(string|array $columns, ?string $name = null): self
+    public static function fulltext(string|array $columns, ?string $name = null, bool $ifNotExists = false): self
     {
-        return new self(IndexType::Fulltext, self::normalizeColumns($columns), $name);
+        return new self(IndexType::Fulltext, self::normalizeColumns($columns), $name, $ifNotExists);
     }
 
     /**
      * @param string|non-empty-list<string> $columns
      */
-    public static function spatial(string|array $columns, ?string $name = null): self
+    public static function spatial(string|array $columns, ?string $name = null, bool $ifNotExists = false): self
     {
-        return new self(IndexType::Spatial, self::normalizeColumns($columns), $name);
+        return new self(IndexType::Spatial, self::normalizeColumns($columns), $name, $ifNotExists);
     }
 
     public function type(): IndexType
@@ -73,6 +74,16 @@ final class IndexDefinition
     public function name(): ?string
     {
         return $this->name;
+    }
+
+    public function ifNotExists(): bool
+    {
+        return $this->ifNotExists;
+    }
+
+    public function withIfNotExists(bool $ifNotExists = true): self
+    {
+        return new self($this->type, $this->columns, $this->name, $ifNotExists);
     }
 
     public function resolvedName(): string

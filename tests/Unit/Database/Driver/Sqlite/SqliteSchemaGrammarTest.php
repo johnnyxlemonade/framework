@@ -57,6 +57,24 @@ final class SqliteSchemaGrammarTest extends TestCase
         $grammar->compileCreateTable($table->toDefinition());
     }
 
+    public function testCompileCreateTableStatementsMovesPlainIndexesAfterCreateTable(): void
+    {
+        $grammar = $this->grammar();
+        $table = new TableBlueprint('users');
+        $table->id();
+        $table->string('email');
+        $table->index('email', 'idx_users_email', ifNotExists: true);
+
+        $sql = $grammar->compileCreateTableStatements($table->toDefinition()->withIfNotExists(true));
+
+        self::assertCount(2, $sql);
+        self::assertStringContainsString('CREATE TABLE IF NOT EXISTS "users"', $sql[0]);
+        self::assertStringContainsString('"id" INTEGER PRIMARY KEY AUTOINCREMENT', $sql[0]);
+        self::assertStringNotContainsString('PRIMARY KEY ("id")', $sql[0]);
+        self::assertStringNotContainsString('INDEX', $sql[0]);
+        self::assertSame('CREATE INDEX IF NOT EXISTS "idx_users_email" ON "users" ("email")', $sql[1]);
+    }
+
     public function testCompileCreateTableSupportsAutoIncrementColumnDefinition(): void
     {
         $grammar = $this->grammar();
@@ -81,6 +99,10 @@ final class SqliteSchemaGrammarTest extends TestCase
         self::assertSame(
             'CREATE INDEX "p_index_name" ON "p_users" ("name")',
             $grammar->compileAddIndex('users', IndexDefinition::index('name')),
+        );
+        self::assertSame(
+            'CREATE INDEX IF NOT EXISTS "p_index_name" ON "p_users" ("name")',
+            $grammar->compileAddIndex('users', IndexDefinition::index('name', ifNotExists: true)),
         );
         self::assertSame(
             'CREATE UNIQUE INDEX "p_uniq_email" ON "p_users" ("email")',

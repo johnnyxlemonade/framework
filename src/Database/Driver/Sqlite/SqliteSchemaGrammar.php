@@ -45,6 +45,10 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         }
 
         foreach ($table->indexes() as $index) {
+            if ($this->isPrimaryIndexCoveredByAutoIncrementColumn($index, $table)) {
+                continue;
+            }
+
             $definitions[] = $this->compileCreateTableIndex($index);
         }
 
@@ -58,6 +62,46 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
             $this->table($table->name()),
             implode(",\n\t", $definitions),
         );
+    }
+
+    /**
+     * @return non-empty-list<string>
+     */
+    public function compileCreateTableStatements(TableDefinition $table): array
+    {
+        $createTable = \Lemonade\Framework\Database\Schema\Definition\TableDefinition::create($table->name())
+            ->withIfNotExists($table->ifNotExists())
+            ->withOptions($table->options());
+
+        foreach ($table->columns() as $column) {
+            $createTable = $createTable->withColumn($column);
+        }
+
+        foreach ($table->indexes() as $index) {
+            if ($index->type() === IndexType::Index) {
+                continue;
+            }
+
+            if ($this->isPrimaryIndexCoveredByAutoIncrementColumn($index, $table)) {
+                continue;
+            }
+
+            $createTable = $createTable->withIndex($index);
+        }
+
+        foreach ($table->foreignKeys() as $foreignKey) {
+            $createTable = $createTable->withForeignKey($foreignKey);
+        }
+
+        $statements = [$this->compileCreateTable($createTable)];
+
+        foreach ($table->indexes() as $index) {
+            if ($index->type() === IndexType::Index) {
+                $statements[] = $this->compileAddIndex($table->name(), $index);
+            }
+        }
+
+        return $statements;
     }
 
     /**
@@ -146,13 +190,15 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
                 'SQLite schema grammar does not support adding PRIMARY KEY after table creation.',
             ),
             IndexType::Unique => sprintf(
-                'CREATE UNIQUE INDEX %s ON %s (%s)',
+                'CREATE UNIQUE INDEX %s%s ON %s (%s)',
+                $index->ifNotExists() ? 'IF NOT EXISTS ' : '',
                 $this->identifier($this->indexName($index)),
                 $this->table($table),
                 $this->columnList($index->columns()),
             ),
             IndexType::Index => sprintf(
-                'CREATE INDEX %s ON %s (%s)',
+                'CREATE INDEX %s%s ON %s (%s)',
+                $index->ifNotExists() ? 'IF NOT EXISTS ' : '',
                 $this->identifier($this->indexName($index)),
                 $this->table($table),
                 $this->columnList($index->columns()),
@@ -215,9 +261,34 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         return match ($column->type()) {
             ColumnType::Boolean => 'INTEGER',
             ColumnType::Uuid,
-            ColumnType::Json => 'TEXT',
+            ColumnType::Json,
+            ColumnType::Text,
+            ColumnType::MediumText,
+            ColumnType::LongText => 'TEXT',
+            ColumnType::TinyInteger,
+            ColumnType::SmallInteger,
+            ColumnType::MediumInteger,
+            ColumnType::Integer,
+            ColumnType::BigInteger => 'INTEGER',
             default => strtoupper($column->typeValue()),
         };
+    }
+
+    private function isPrimaryIndexCoveredByAutoIncrementColumn(IndexDefinition $index, TableDefinition $table): bool
+    {
+        if ($index->type() !== IndexType::Primary || count($index->columns()) !== 1) {
+            return false;
+        }
+
+        $columnName = $index->columns()[0];
+
+        foreach ($table->columns() as $column) {
+            if ($column->name() === $columnName && $column->isAutoIncrement()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function compileLength(ColumnDefinition $column): string

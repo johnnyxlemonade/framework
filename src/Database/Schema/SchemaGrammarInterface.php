@@ -18,6 +18,11 @@ interface SchemaGrammarInterface
     public function compileCreateTable(TableDefinition $table): string;
 
     /**
+     * @return non-empty-list<string>
+     */
+    public function compileCreateTableStatements(TableDefinition $table): array;
+
+    /**
      * @return list<string>
      */
     public function compileAlterTable(TableDefinition $table): array;

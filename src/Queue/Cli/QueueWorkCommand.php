@@ -22,7 +22,7 @@ final class QueueWorkCommand implements CommandInterface
 
     public function description(): string
     {
-        return 'Process queued jobs (database/sync transport) in a worker loop.';
+        return 'Process queued jobs from an async transport.';
     }
 
     /**
@@ -40,6 +40,14 @@ final class QueueWorkCommand implements CommandInterface
 
             return 1;
         }
+
+        fwrite(STDOUT, sprintf(
+            "[queue] waiting queue=%s transport=%s max=%d sleep=%dms\n",
+            $queueName,
+            $transport,
+            $max,
+            $sleepMs,
+        ));
 
         $processed = 0;
 

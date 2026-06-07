@@ -41,6 +41,18 @@ final class SchemaCompilerTest extends TestCase
         self::assertSame('SQL_CREATE_users_0', $compiler->compileCreateTable($def));
     }
 
+    public function testCompileCreateStatementsReturnsGrammarStatementList(): void
+    {
+        $grammar = new RecordingSchemaGrammar();
+        $compiler = new SchemaCompiler($grammar);
+
+        $sql = $compiler->compileCreateStatements('users', function ($table): void {
+            $table->string('name');
+        }, true);
+
+        self::assertSame(['SQL_CREATE_users_1'], $sql);
+    }
+
     public function testCompileTableBuildsBlueprintAndDelegatesToAlter(): void
     {
         $grammar = new RecordingSchemaGrammar();
@@ -89,6 +101,11 @@ final class RecordingSchemaGrammar implements SchemaGrammarInterface
         $this->lastCreateTable = $table;
 
         return sprintf('SQL_CREATE_%s_%d', $table->name(), $table->ifNotExists() ? 1 : 0);
+    }
+
+    public function compileCreateTableStatements(TableDefinition $table): array
+    {
+        return [$this->compileCreateTable($table)];
     }
 
     public function compileAlterTable(TableDefinition $table): array
