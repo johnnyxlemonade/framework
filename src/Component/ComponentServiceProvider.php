@@ -6,14 +6,16 @@ namespace Lemonade\Framework\Component;
 
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbServiceProvider;
+use Lemonade\Framework\Component\Config\ComponentConfig;
+use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
+use Lemonade\Framework\Component\Config\ComponentConfigResolver;
 use Lemonade\Framework\Component\Meta\MetaComponent;
 use Lemonade\Framework\Component\Meta\MetaServiceProvider;
 use Lemonade\Framework\Component\Pagination\PaginationComponent;
 use Lemonade\Framework\Component\Pagination\PaginationServiceProvider;
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
-use LogicException;
 
 final class ComponentServiceProvider implements ServiceProviderInterface
 {
@@ -28,6 +30,16 @@ final class ComponentServiceProvider implements ServiceProviderInterface
 
     public function register(ContainerInterface $container): void
     {
+        $container->singleton(ComponentConfigResolver::class, ComponentConfigResolver::class);
+        $container->singleton(ComponentConfig::class, static function (ContainerInterface $container): ComponentConfig {
+            return $container
+                ->get(ComponentConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    ComponentConfigDefinition::moduleKey(),
+                    ComponentConfigDefinition::class,
+                ));
+        });
+
         $this->registerBreadcrumb($container);
         $this->registerPagination($container);
         $this->registerMeta($container);
@@ -58,69 +70,11 @@ final class ComponentServiceProvider implements ServiceProviderInterface
                 $registry->register($name, $componentClass);
             }
 
-            foreach ($this->resolveCustomComponents($container) as $name => $componentClass) {
+            foreach ($container->get(ComponentConfig::class)->components as $name => $componentClass) {
                 $registry->register($name, $componentClass);
             }
 
             return $registry;
         });
-    }
-
-    /**
-     * @return array<string, class-string>
-     */
-    private function resolveCustomComponents(ContainerInterface $container): array
-    {
-        $config = $container->get(Config::class);
-
-        if (!$config instanceof Config) {
-            throw new LogicException(sprintf(
-                'Service [%s] must resolve to %s, %s given.',
-                Config::class,
-                Config::class,
-                get_debug_type($config),
-            ));
-        }
-
-        $components = $config->get('components', []);
-
-        if (!is_array($components)) {
-            throw new LogicException(sprintf(
-                'Config key [components] must be array, %s given.',
-                get_debug_type($components),
-            ));
-        }
-
-        $resolved = [];
-
-        foreach ($components as $name => $componentClass) {
-            if (!is_string($name) || trim($name) === '') {
-                throw new LogicException(sprintf(
-                    'Config key [components] must use non-empty string keys, %s given.',
-                    get_debug_type($name),
-                ));
-            }
-
-            if (!is_string($componentClass) || trim($componentClass) === '') {
-                throw new LogicException(sprintf(
-                    'Component [%s] must be a non-empty class-string, %s given.',
-                    $name,
-                    get_debug_type($componentClass),
-                ));
-            }
-
-            if (!class_exists($componentClass)) {
-                throw new LogicException(sprintf(
-                    'Component [%s] references non-existing class [%s].',
-                    $name,
-                    $componentClass,
-                ));
-            }
-
-            /** @var class-string $componentClass */
-            $resolved[$name] = $componentClass;
-        }
-
-        return $resolved;
     }
 }

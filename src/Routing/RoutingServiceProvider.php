@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Routing;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\LocaleResolverInterface;
 
 final class RoutingServiceProvider implements ServiceProviderInterface
@@ -15,7 +15,7 @@ final class RoutingServiceProvider implements ServiceProviderInterface
     {
         $container->singleton(LocaleUrlStrategyInterface::class, static function (ContainerInterface $container): LocaleUrlStrategyInterface {
             return new ConfigLocaleUrlStrategy(
-                $container->get(Config::class),
+                $container->get(LocalizationConfig::class),
             );
         });
 

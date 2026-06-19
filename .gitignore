@@ -1,0 +1,34 @@
+# Composer
+/vendor/
+composer.lock
+
+# PHPUnit
+/build/phpunit/
+/.phpunit.cache/
+/.phpunit.result.cache
+
+# Coverage
+/build/coverage/
+coverage/
+
+# PHPStan
+/build/phpstan/
+.phpstan.cache
+
+# PHP CS Fixer
+/build/php-cs-fixer/
+
+# IDE / editor
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

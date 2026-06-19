@@ -35,17 +35,19 @@ app/Config/Providers.php
 ```php
 <?php
 
-use App\Providers\AppServiceProvider;
+declare(strict_types=1);
 
-return [
-    'providers' => [
+use App\Providers\AppServiceProvider;
+use Lemonade\Framework\Core\Config\ProvidersConfigDefinition;
+
+return ProvidersConfigDefinition::create()
+    ->providers([
         AppServiceProvider::class,
-    ],
-];
+    ]);
 ```
 
 ## Bootstrap order
 
-Framework providers are loaded from the framework default configuration key `framework.providers`. Application providers are loaded from the application configuration key `providers`.
+Framework providers are resolved from `FrameworkConfigDefinition`. Application providers are resolved from `ProvidersConfigDefinition`.
 
 During bootstrap, the kernel registers core framework providers first, then common framework providers, and finally application providers. This allows application code to extend or override services after the framework services have been registered.

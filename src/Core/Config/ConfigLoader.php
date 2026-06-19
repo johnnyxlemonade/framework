@@ -19,22 +19,22 @@ final class ConfigLoader
         ApplicationContext $context,
         string $entrypoint,
     ): void {
-        /** @var list<array{file: string, root_key: ?string}> $specs */
+        /** @var list<string> $specs */
         $specs = $this->resolveConfigFileSpecs($context, $entrypoint);
 
-        foreach ($specs as $spec) {
-            $path = $context->configPath($spec['file']);
+        foreach ($specs as $file) {
+            $path = $context->configPath($file);
 
             if (!is_file($path)) {
                 continue;
             }
 
-            $framework->configFromFile($path, $spec['root_key']);
+            $framework->configFromFile($path);
         }
     }
 
     /**
-     * @return list<array{file: string, root_key: ?string}>
+     * @return list<string>
      */
     public function resolveConfigFileSpecs(
         ApplicationContext $context,
@@ -73,11 +73,11 @@ final class ConfigLoader
             ? [$shared, $http]
             : [$shared, $cli];
 
-        /** @var list<array{file: string, root_key: ?string}> $resolved */
+        /** @var list<string> $resolved */
         $resolved = [];
         foreach ($sections as $section) {
-            foreach ($this->normalizeFilesMapping($section) as $spec) {
-                $resolved[] = $spec;
+            foreach ($this->normalizeFilesList($section) as $file) {
+                $resolved[] = $file;
             }
         }
 
@@ -85,40 +85,23 @@ final class ConfigLoader
     }
 
     /**
-     * @param array<mixed, mixed> $files
-     * @return list<array{file: string, root_key: ?string}>
+     * @param array<mixed> $files
+     * @return list<string>
      */
-    private function normalizeFilesMapping(array $files): array
+    private function normalizeFilesList(array $files): array
     {
-        /** @var list<array{file: string, root_key: ?string}> $normalized */
+        /** @var list<string> $normalized */
         $normalized = [];
 
-        foreach ($files as $key => $value) {
-            if (!is_string($key) || trim($key) === '') {
+        foreach ($files as $value) {
+            if (!is_string($value) || trim($value) === '') {
                 throw new LogicException(sprintf(
                     'Config manifest "%s" contains invalid file name.',
                     self::CONFIG_MANIFEST,
                 ));
             }
 
-            if (!is_string($value) && $value !== null) {
-                throw new LogicException(sprintf(
-                    'Config manifest "%s" contains invalid root key mapping.',
-                    self::CONFIG_MANIFEST,
-                ));
-            }
-
-            if (is_string($value) && trim($value) === '') {
-                throw new LogicException(sprintf(
-                    'Config manifest "%s" contains invalid root key mapping.',
-                    self::CONFIG_MANIFEST,
-                ));
-            }
-
-            $normalized[] = [
-                'file' => trim($key),
-                'root_key' => is_string($value) ? trim($value) : null,
-            ];
+            $normalized[] = trim($value);
         }
 
         return $normalized;

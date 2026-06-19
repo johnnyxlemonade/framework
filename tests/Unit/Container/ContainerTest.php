@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Container;
 
+use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\Exception\ContainerException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
@@ -326,13 +326,7 @@ final class ContainerTest extends TestCase
     {
         $logger = new ContainerDiagnosticLogger();
         $container = new Container();
-        $container->singleton(Config::class, new Config([
-            'app' => [
-                'container' => [
-                    'autowire_fallback_warning' => false,
-                ],
-            ],
-        ]));
+        $container->singleton(ContainerConfig::class, new ContainerConfig(false));
         $container->setDiagnosticLogger($logger);
 
         $container->get(\App\Services\ContainerAutowireFallbackService::class);
@@ -395,13 +389,7 @@ final class ContainerTest extends TestCase
     private function diagnosticContainer(ContainerDiagnosticLogger $logger): Container
     {
         $container = new Container();
-        $container->singleton(Config::class, new Config([
-            'app' => [
-                'container' => [
-                    'autowire_fallback_warning' => true,
-                ],
-            ],
-        ]));
+        $container->singleton(ContainerConfig::class, new ContainerConfig(true));
         $container->setDiagnosticLogger($logger);
 
         return $container;

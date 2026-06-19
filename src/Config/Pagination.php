@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-return [
-    'default_per_page' => 20,
-    'max_per_page' => 100,
-    'visible_pages' => 7,
-    'show_first_last' => true,
-    'classes' => [],
-];
+use Lemonade\Framework\Component\Pagination\Config\PaginationConfigDefinition;
+
+return PaginationConfigDefinition::create()
+    ->defaultPerPage(20)
+    ->maxPerPage(100)
+    ->visiblePages(7)
+    ->showFirstLast(true)
+    ->classes([]);

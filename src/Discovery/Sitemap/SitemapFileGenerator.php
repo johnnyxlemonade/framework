@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Discovery\Sitemap;
 
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Discovery\Config\SitemapConfig;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
 use Lemonade\Framework\Support\Xml\XmlStreamWriter;
 use Psr\Log\LoggerInterface;
@@ -16,7 +16,7 @@ final class SitemapFileGenerator
     public function __construct(
         private readonly SitemapGenerator $generator,
         private readonly SitemapIndexGenerator $indexGenerator,
-        private readonly Config $config,
+        private readonly SitemapConfig $config,
         private readonly ApplicationContext $context,
         private readonly DirectoryManagerInterface $directories,
         private readonly ?LoggerInterface $logger = null,
@@ -24,16 +24,16 @@ final class SitemapFileGenerator
 
     public function generate(): SitemapGenerationResult
     {
-        $relativePath = $this->config->string('discovery.sitemap.cache_path', 'storage/cache/discovery') ?? 'storage/cache/discovery';
+        $relativePath = $this->config->cachePath;
         $outputPath = $this->context->basePath() . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath);
         $this->directories->create($outputPath);
 
-        $maxUrls = max(1, $this->config->int('discovery.sitemap.max_urls_per_file', 50000));
-        $maxBytes = max(1, $this->config->int('discovery.sitemap.max_uncompressed_bytes', 52428800));
-        $baseFilename = $this->config->string('discovery.sitemap.filename', 'sitemap.xml') ?? 'sitemap.xml';
-        $indexFilename = $this->config->string('discovery.sitemap.index_filename', 'sitemap.xml') ?? 'sitemap.xml';
-        $gzip = $this->config->bool('discovery.sitemap.gzip', false);
-        $baseUrl = rtrim($this->config->string('discovery.sitemap.base_url') ?? '', '/');
+        $maxUrls = max(1, $this->config->maxUrlsPerFile);
+        $maxBytes = max(1, $this->config->maxUncompressedBytes);
+        $baseFilename = $this->config->filename;
+        $indexFilename = $this->config->indexFilename;
+        $gzip = $this->config->gzip;
+        $baseUrl = rtrim($this->config->baseUrl ?? '', '/');
         $lastmod = date('Y-m-d');
 
         /** @var list<SitemapFile> $files */

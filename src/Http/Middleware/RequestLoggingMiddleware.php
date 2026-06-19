@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Http\Logging\HttpLogContext;
 use Psr\Http\Message\ResponseInterface;
@@ -15,7 +15,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 final class RequestLoggingMiddleware implements MiddlewareInterface
 {
     public function __construct(
-        private readonly Config $config,
+        private readonly LoggingConfig $config,
         private readonly LogManager $logs,
         private readonly HttpLogContext $context,
     ) {}
@@ -72,7 +72,7 @@ final class RequestLoggingMiddleware implements MiddlewareInterface
 
     private function shouldLogResponse(ResponseInterface $response): bool
     {
-        $minStatus = $this->config->int('request.log.min_status', 0);
+        $minStatus = $this->config->requestMinStatus;
 
         if ($minStatus <= 0) {
             return true;

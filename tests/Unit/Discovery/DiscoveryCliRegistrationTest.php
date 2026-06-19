@@ -25,10 +25,16 @@ final class DiscoveryCliRegistrationTest extends TestCase
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-discovery-cli-' . uniqid('', true);
         $this->writeConfigFile(
             'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null], 'http' => [], 'cli' => ['Commands.php' => null]];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
         );
-        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
+        );
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+        );
     }
 
     protected function tearDown(): void

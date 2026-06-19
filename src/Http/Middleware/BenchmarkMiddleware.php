@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkResponseInjector;
@@ -19,7 +19,7 @@ final class BenchmarkMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private readonly Benchmark $benchmark,
-        private readonly Config $config,
+        private readonly LoggingConfig $config,
         private readonly LogManager $logs,
         private readonly BenchmarkResponseInjector $injector,
     ) {}
@@ -71,7 +71,7 @@ final class BenchmarkMiddleware implements MiddlewareInterface
 
     private function logRun(BenchmarkRun $run): void
     {
-        if (!(bool) $this->config->get('benchmark.log.enabled', false)) {
+        if (!$this->config->benchmark->enabled) {
             return;
         }
 

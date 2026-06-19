@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Http\Client;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Config\HttpClientConfig;
+use Lemonade\Framework\Http\Config\HttpClientConfigDefinition;
+use Lemonade\Framework\Http\Config\HttpClientConfigResolver;
 use Psr\Http\Client\ClientInterface;
 
 final class CurlHttpClientServiceProvider implements ServiceProviderInterface
@@ -15,6 +18,16 @@ final class CurlHttpClientServiceProvider implements ServiceProviderInterface
 
     public function register(ContainerInterface $container): void
     {
+        $container->singleton(HttpClientConfigResolver::class, HttpClientConfigResolver::class);
+        $container->singleton(HttpClientConfig::class, static function (ContainerInterface $container): HttpClientConfig {
+            return $container
+                ->get(HttpClientConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    HttpClientConfigDefinition::moduleKey(),
+                    HttpClientConfigDefinition::class,
+                ));
+        });
+
         $container->singleton(ClientInterface::class, static function (ContainerInterface $container): ClientInterface {
             if (!class_exists(self::CURL_CLIENT_CLASS)) {
                 throw new \RuntimeException(
@@ -28,20 +41,17 @@ final class CurlHttpClientServiceProvider implements ServiceProviderInterface
                 );
             }
 
-            $config = $container->get(Config::class);
-            $timeout = $config->int('http.client.timeout', 10);
-            $connectTimeout = $config->int('http.client.connect_timeout', 5);
-            $verifySsl = $config->bool('http.client.verify_ssl', true);
+            $config = $container->get(HttpClientConfig::class);
 
             $clientClass = self::CURL_CLIENT_CLASS;
             $client = new $clientClass(
                 null,
                 null,
                 [
-                    \CURLOPT_TIMEOUT => $timeout,
-                    \CURLOPT_CONNECTTIMEOUT => $connectTimeout,
-                    \CURLOPT_SSL_VERIFYPEER => $verifySsl,
-                    \CURLOPT_SSL_VERIFYHOST => $verifySsl ? 2 : 0,
+                    \CURLOPT_TIMEOUT => (int) round($config->timeout),
+                    \CURLOPT_CONNECTTIMEOUT => (int) round($config->connectTimeout),
+                    \CURLOPT_SSL_VERIFYPEER => $config->verifySsl,
+                    \CURLOPT_SSL_VERIFYHOST => $config->verifySsl ? 2 : 0,
                 ],
             );
 

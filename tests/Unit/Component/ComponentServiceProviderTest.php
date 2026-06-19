@@ -8,16 +8,21 @@ use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbFactory;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbRenderer;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbServiceProvider;
+use Lemonade\Framework\Component\Breadcrumb\Config\BreadcrumbsConfigDefinition;
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Component\ComponentServiceProvider;
+use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
+use Lemonade\Framework\Component\Config\ComponentConfigResolver;
+use Lemonade\Framework\Component\Meta\Config\MetaConfigDefinition;
 use Lemonade\Framework\Component\Meta\MetaComponent;
 use Lemonade\Framework\Component\Meta\MetaServiceProvider;
+use Lemonade\Framework\Component\Pagination\Config\PaginationConfigDefinition;
 use Lemonade\Framework\Component\Pagination\PaginationComponent;
 use Lemonade\Framework\Component\Pagination\PaginationFactory;
 use Lemonade\Framework\Component\Pagination\PaginationRenderer;
 use Lemonade\Framework\Component\Pagination\PaginationServiceProvider;
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use LogicException;
 use Nyholm\Psr7\ServerRequest;
@@ -80,11 +85,9 @@ final class ComponentServiceProviderTest extends TestCase
 
     public function testRegistryRegistersComponentFromConfig(): void
     {
-        $container = $this->buildContainer(new Config([
-            'components' => [
-                'navigation' => TestNavigationComponent::class,
-            ],
-        ]));
+        $container = $this->buildContainer(
+            ComponentConfigDefinition::create()->component('navigation', TestNavigationComponent::class),
+        );
         $provider = new ComponentServiceProvider();
         $provider->register($container);
 
@@ -98,11 +101,9 @@ final class ComponentServiceProviderTest extends TestCase
 
     public function testGetWithExpectedClassReturnsTypedNavigationComponent(): void
     {
-        $container = $this->buildContainer(new Config([
-            'components' => [
-                'navigation' => TestNavigationComponent::class,
-            ],
-        ]));
+        $container = $this->buildContainer(
+            ComponentConfigDefinition::create()->component('navigation', TestNavigationComponent::class),
+        );
         $provider = new ComponentServiceProvider();
         $provider->register($container);
 
@@ -116,11 +117,9 @@ final class ComponentServiceProviderTest extends TestCase
 
     public function testGetWithoutExpectedClassRemainsBackwardCompatibleAndReturnsObject(): void
     {
-        $container = $this->buildContainer(new Config([
-            'components' => [
-                'navigation' => TestNavigationComponent::class,
-            ],
-        ]));
+        $container = $this->buildContainer(
+            ComponentConfigDefinition::create()->component('navigation', TestNavigationComponent::class),
+        );
         $provider = new ComponentServiceProvider();
         $provider->register($container);
 
@@ -134,11 +133,9 @@ final class ComponentServiceProviderTest extends TestCase
 
     public function testGetThrowsClearExceptionForExpectedClassMismatch(): void
     {
-        $container = $this->buildContainer(new Config([
-            'components' => [
-                'navigation' => TestNavigationComponent::class,
-            ],
-        ]));
+        $container = $this->buildContainer(
+            ComponentConfigDefinition::create()->component('navigation', TestNavigationComponent::class),
+        );
         $provider = new ComponentServiceProvider();
         $provider->register($container);
 
@@ -151,50 +148,40 @@ final class ComponentServiceProviderTest extends TestCase
         $registry->get('navigation', WrongComponent::class);
     }
 
-    public function testNonArrayComponentsConfigThrowsLogicException(): void
+    public function testResolverRejectsEmptyComponentName(): void
     {
-        $container = $this->buildContainer(new Config([
-            'components' => 'invalid',
-        ]));
-        $provider = new ComponentServiceProvider();
-        $provider->register($container);
-
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Config key [components] must be array');
-
-        $container->get(ComponentRegistry::class);
-    }
-
-    public function testNonExistingComponentClassThrowsLogicException(): void
-    {
-        $container = $this->buildContainer(new Config([
-            'components' => [
-                'slider' => 'App\\Component\\MissingSliderComponent',
-            ],
-        ]));
-        $provider = new ComponentServiceProvider();
-        $provider->register($container);
-
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('references non-existing class');
-
-        $container->get(ComponentRegistry::class);
-    }
-
-    public function testNonStringComponentKeyThrowsLogicException(): void
-    {
-        $container = $this->buildContainer(new Config([
-            'components' => [
-                10 => TestNavigationComponent::class,
-            ],
-        ]));
-        $provider = new ComponentServiceProvider();
-        $provider->register($container);
-
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('must use non-empty string keys');
 
-        $container->get(ComponentRegistry::class);
+        (new ComponentConfigResolver())->resolve(
+            ComponentConfigDefinition::create()->component('', TestNavigationComponent::class),
+        );
+    }
+
+    public function testResolverRejectsNonExistingComponentClass(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('references non-existing class');
+
+        $definition = ComponentConfigDefinition::create()->component('slider', TestNavigationComponent::class);
+        $this->overrideComponentDefinitionMap($definition, ['slider' => 'App\\Component\\MissingSliderComponent']);
+
+        (new ComponentConfigResolver())->resolve(
+            $definition,
+        );
+    }
+
+    public function testResolverRejectsEmptyComponentClass(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('must be a non-empty class-string');
+
+        $definition = ComponentConfigDefinition::create()->component('navigation', TestNavigationComponent::class);
+        $this->overrideComponentDefinitionMap($definition, ['navigation' => '']);
+
+        (new ComponentConfigResolver())->resolve(
+            $definition,
+        );
     }
 
     public function testGetThrowsClearExceptionForUnknownComponent(): void
@@ -246,14 +233,48 @@ final class ComponentServiceProviderTest extends TestCase
         self::assertTrue($container->isBound(MetaComponent::class));
     }
 
-    private function buildContainer(?Config $config = null): Container
+    private function buildContainer(?ComponentConfigDefinition $components = null): Container
     {
         $container = new Container();
-        $container->singleton(Config::class, $config ?? new Config([]));
+        $registry = new ConfigDefinitionRegistry();
+        $registry->addDefinition(
+            PaginationConfigDefinition::create()
+                ->defaultPerPage(20)
+                ->maxPerPage(100)
+                ->visiblePages(7)
+                ->showFirstLast(),
+        );
+        $registry->addDefinition(
+            BreadcrumbsConfigDefinition::create()
+                ->frontendRoot('Domu', '/')
+                ->adminRoot('Admin', '/admin'),
+        );
+        $registry->addDefinition(
+            MetaConfigDefinition::create()
+                ->websiteName('website')
+                ->charset('UTF-8')
+                ->viewport('width=device-width, initial-scale=1')
+                ->rating('General')
+                ->titleSeparator(' - '),
+        );
+        if ($components instanceof ComponentConfigDefinition) {
+            $registry->addDefinition($components);
+        }
+        $container->singleton(ConfigDefinitionRegistry::class, $registry);
         $container->singleton(ServerRequestInterface::class, new ServerRequest('GET', '/'));
         $container->singleton(TranslatorInterface::class, new TestTranslator());
 
         return $container;
+    }
+
+    /**
+     * @param array<mixed> $components
+     */
+    private function overrideComponentDefinitionMap(ComponentConfigDefinition $definition, array $components): void
+    {
+        $property = new \ReflectionProperty($definition, 'components');
+        $property->setAccessible(true);
+        $property->setValue($definition, $components);
     }
 }
 

@@ -20,7 +20,7 @@ bin/lemonade
    -> register ConsoleServiceProvider
    -> register application providers
 -> build CommandRegistry
-   -> read configured command classes from config key "commands"
+   -> resolve configured command classes from CommandsConfig
    -> validate command classes
    -> register commands
 -> resolve command name from argv
@@ -71,13 +71,15 @@ Commands are configured in `app/Config/Commands.php`.
 ```php
 <?php
 
-use App\Console\ImportProductsCommand;
+declare(strict_types=1);
 
-return [
-    'commands' => [
+use App\Console\ImportProductsCommand;
+use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
+
+return CommandsConfigDefinition::create()
+    ->commands([
         ImportProductsCommand::class,
-    ],
-];
+    ]);
 ```
 
 ## Running commands

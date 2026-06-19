@@ -2,6 +2,6 @@
 
 declare(strict_types=1);
 
-return [
-    'listeners' => [],
-];
+use Lemonade\Framework\Event\Config\EventsConfigDefinition;
+
+return EventsConfigDefinition::create();

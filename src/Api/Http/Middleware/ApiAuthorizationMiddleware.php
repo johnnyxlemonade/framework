@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Http\Middleware;
 
+use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
 use Lemonade\Framework\Api\Security\ScopeVoter;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -22,7 +23,8 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
         private readonly ApiAuthenticatorInterface $authenticator,
         private readonly ScopeVoter $scopeVoter,
         private readonly ProblemDetailsFactory $problems,
-        private readonly Config $config,
+        private readonly ApiConfig $apiConfig,
+        private readonly AppConfig $appConfig,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -66,7 +68,7 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
 
     private function isDebug(): bool
     {
-        return (bool) $this->config->get('app.debug', false);
+        return $this->appConfig->debug;
     }
 
     private function resolveRegistryPath(string $requestPath): ?string
@@ -74,9 +76,7 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
         $normalizedPath = '/' . trim($requestPath, '/');
         $normalizedPath = $normalizedPath === '/' ? '/' : rtrim($normalizedPath, '/');
 
-        $prefix = $this->config->string('api.prefix', '/api') ?? '/api';
-        $normalizedPrefix = '/' . trim($prefix, '/');
-        $normalizedPrefix = $normalizedPrefix === '/' ? '' : rtrim($normalizedPrefix, '/');
+        $normalizedPrefix = $this->apiConfig->prefix;
 
         if ($normalizedPrefix === '') {
             return $normalizedPath;

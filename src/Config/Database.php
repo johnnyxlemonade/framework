@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-return [
-    'default' => null,
-    'connections' => [],
-];
+use Lemonade\Framework\Database\Config\DatabaseConfigDefinition;
+
+return DatabaseConfigDefinition::create()
+    ->defaultConnection(null);

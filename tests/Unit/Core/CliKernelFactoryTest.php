@@ -29,9 +29,12 @@ final class CliKernelFactoryTest extends TestCase
         CliKernelFactoryProbeCommand::$lastValue = null;
         $this->writeConfigFile(
             'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null], 'http' => [], 'cli' => ['Commands.php' => 'commands']];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
         );
-        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
+        );
     }
 
     protected function tearDown(): void
@@ -147,7 +150,10 @@ final class CliKernelFactoryTest extends TestCase
     private function writeCommandsConfig(array $commands): void
     {
         $commandsCode = var_export($commands, true);
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn {$commandsCode};\n");
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands({$commandsCode});\n",
+        );
     }
 
     private function writeConfigFile(string $file, string $contents): void

@@ -4,17 +4,19 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Documentation;
 
+use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpoint;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\FrameworkInfo;
 
 final class OpenApiGenerator
 {
     public function __construct(
         private readonly ApiEndpointRegistry $endpoints,
-        private readonly Config $config,
+        private readonly ApiConfig $apiConfig,
+        private readonly AppConfig $appConfig,
         private readonly FrameworkInfo $frameworkInfo,
     ) {}
 
@@ -157,7 +159,7 @@ final class OpenApiGenerator
     private function servers(): array
     {
         $prefix = $this->apiPrefix();
-        $baseUrl = rtrim($this->config->string('app.base_url', '') ?? '', '/');
+        $baseUrl = rtrim($this->appConfig->baseUrl ?? '', '/');
 
         if ($baseUrl !== '') {
             return [[
@@ -172,9 +174,7 @@ final class OpenApiGenerator
 
     private function apiPrefix(): string
     {
-        $prefix = $this->config->string('api.prefix', '/api') ?? '/api';
-        $normalizedPrefix = '/' . trim($prefix, '/');
-        return $normalizedPrefix === '/' ? '' : rtrim($normalizedPrefix, '/');
+        return $this->apiConfig->prefix;
     }
 
     /**

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Support;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Http\Request\ServerHelper;
 
 final class BaseUrlResolver
 {
     public function __construct(
-        private readonly Config $config,
+        private readonly AppConfig $config,
     ) {}
 
     public function __invoke(string $path = ''): string
@@ -31,9 +31,8 @@ final class BaseUrlResolver
 
     private function configuredBaseUrl(): ?string
     {
-        $baseUrl = $this->config->get('app.base_url');
-
-        if (!is_string($baseUrl) || trim($baseUrl) === '') {
+        $baseUrl = $this->config->baseUrl;
+        if ($baseUrl === null || trim($baseUrl) === '') {
             return null;
         }
 

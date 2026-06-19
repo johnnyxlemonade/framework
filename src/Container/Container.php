@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Container;
 
 use Closure;
+use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Exception\ContainerException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -205,10 +205,10 @@ final class Container implements ContainerInterface
 
     private function isAutowireFallbackWarningEnabled(): bool
     {
-        $config = $this->peekConfig();
+        $config = $this->peekContainerConfig();
 
-        if ($config instanceof Config) {
-            return $config->bool('app.container.autowire_fallback_warning', false);
+        if ($config instanceof ContainerConfig) {
+            return $config->autowireFallbackWarning;
         }
 
         $context = $this->peekContext();
@@ -230,14 +230,18 @@ final class Container implements ContainerInterface
         return $binding instanceof ApplicationContext ? $binding : null;
     }
 
-    private function peekConfig(): ?Config
+    private function peekContainerConfig(): ?ContainerConfig
     {
-        if (isset($this->instances[Config::class]) && $this->instances[Config::class] instanceof Config) {
-            return $this->instances[Config::class];
+        if (
+            isset($this->instances[ContainerConfig::class])
+            && $this->instances[ContainerConfig::class] instanceof ContainerConfig
+        ) {
+            return $this->instances[ContainerConfig::class];
         }
 
-        $binding = $this->bindings[Config::class]['concrete'] ?? null;
-        return $binding instanceof Config ? $binding : null;
+        $binding = $this->bindings[ContainerConfig::class]['concrete'] ?? null;
+
+        return $binding instanceof ContainerConfig ? $binding : null;
     }
 
     private function peekLogger(): ?LoggerInterface

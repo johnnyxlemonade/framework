@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-return [
-    'default_locale' => 'en',
-    'fallback_locale' => 'en',
-    'supported_locales' => ['en'],
-    'url' => [
-        'localized_route_name_prefix' => 'localized.',
-        'route_prefix' => '/{locale}',
-        'locale_parameter' => 'locale',
-    ],
-];
+use Lemonade\Framework\Localization\Config\LocalizationConfigDefinition;
+
+return LocalizationConfigDefinition::create()
+    ->defaultLocale('en')
+    ->fallbackLocale('en')
+    ->supportedLocales(['en'])
+    ->urlEnabled(false)
+    ->localizedRouteNamePrefix('localized.')
+    ->routePrefix('/{locale}')
+    ->localeParameter('locale')
+    ->includeDefaultLocale(false);

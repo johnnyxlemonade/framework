@@ -188,13 +188,15 @@ Application providers are configured in `app/Config/Providers.php`.
 ```php
 <?php
 
-use App\Providers\AppServiceProvider;
+declare(strict_types=1);
 
-return [
-    'providers' => [
+use App\Providers\AppServiceProvider;
+use Lemonade\Framework\Core\Config\ProvidersConfigDefinition;
+
+return ProvidersConfigDefinition::create()
+    ->providers([
         AppServiceProvider::class,
-    ],
-];
+    ]);
 ```
 
 ### CLI Command
@@ -230,6 +232,20 @@ final class ImportProductsCommand implements CommandInterface
         return 0;
     }
 }
+```
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Console\ImportProductsCommand;
+use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
+
+return CommandsConfigDefinition::create()
+    ->commands([
+        ImportProductsCommand::class,
+    ]);
 ```
 
 Run commands through:

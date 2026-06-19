@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Observability\Benchmark;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
 use Nyholm\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
 
 final class BenchmarkResponseInjector
 {
     public function __construct(
-        private readonly Config $config,
+        private readonly BenchmarkConfig $config,
     ) {}
 
     public function inject(ResponseInterface $response, BenchmarkRun $run): ResponseInterface
@@ -27,8 +27,7 @@ final class BenchmarkResponseInjector
             ->withHeader('X-Benchmark-Peak-Memory', (string) $peakBytes)
             ->withHeader('X-Benchmark-Peak-Allocated-Memory', (string) $peakAllocatedBytes);
 
-        $injectHtmlComment = (bool) $this->config->get('benchmark.inject_html_comment', true);
-        if (!$injectHtmlComment) {
+        if (!$this->config->injectHtmlComment) {
             return $response;
         }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Http\Config\CorsConfig;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -14,13 +14,13 @@ use Psr\Http\Server\RequestHandlerInterface;
 final class CorsMiddleware implements MiddlewareInterface
 {
     public function __construct(
-        private readonly Config $config,
+        private readonly CorsConfig $config,
         private readonly ResponseFactoryInterface $responseFactory,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if (!$this->config->bool('cors.enabled', false)) {
+        if (!$this->config->enabled) {
             return $handler->handle($request);
         }
 
@@ -29,8 +29,8 @@ final class CorsMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $allowedOrigins = $this->stringList('cors.allowed_origins');
-        $allowCredentials = $this->config->bool('cors.allow_credentials', false);
+        $allowedOrigins = $this->config->allowedOrigins;
+        $allowCredentials = $this->config->allowCredentials;
 
         if ($allowCredentials && in_array('*', $allowedOrigins, true)) {
             throw new \InvalidArgumentException(
@@ -78,11 +78,11 @@ final class CorsMiddleware implements MiddlewareInterface
         bool $allowCredentials,
         bool $preflight,
     ): ResponseInterface {
-        $allowedOrigins = $this->stringList('cors.allowed_origins');
-        $allowedMethods = $this->stringList('cors.allowed_methods');
-        $allowedHeaders = $this->stringList('cors.allowed_headers');
-        $exposedHeaders = $this->stringList('cors.exposed_headers');
-        $maxAge = $this->maxAge();
+        $allowedOrigins = $this->config->allowedOrigins;
+        $allowedMethods = $this->config->allowedMethods;
+        $allowedHeaders = $this->config->allowedHeaders;
+        $exposedHeaders = $this->config->exposedHeaders;
+        $maxAge = $this->config->maxAge;
 
         $allowOriginHeader = in_array('*', $allowedOrigins, true) && !$allowCredentials ? '*' : $origin;
         $response = $response->withHeader('Access-Control-Allow-Origin', $allowOriginHeader);
@@ -133,52 +133,5 @@ final class CorsMiddleware implements MiddlewareInterface
         }
 
         return $response->withHeader('Vary', implode(', ', $parts));
-    }
-
-    private function maxAge(): ?int
-    {
-        $value = $this->config->get('cors.max_age');
-
-        if ($value === null) {
-            return null;
-        }
-
-        if (is_int($value)) {
-            return $value;
-        }
-
-        if (is_string($value) && is_numeric($value)) {
-            return (int) $value;
-        }
-
-        if (is_float($value)) {
-            return (int) $value;
-        }
-
-        return null;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function stringList(string $key): array
-    {
-        $raw = $this->config->array($key, []);
-        $values = [];
-
-        foreach ($raw as $item) {
-            if (!is_scalar($item)) {
-                continue;
-            }
-
-            $value = trim((string) $item);
-            if ($value === '') {
-                continue;
-            }
-
-            $values[] = $value;
-        }
-
-        return array_values(array_unique($values));
     }
 }

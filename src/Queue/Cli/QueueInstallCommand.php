@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Queue\Cli;
 
 use Lemonade\Framework\Cli\CommandInterface;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Database\Schema\Blueprint\TableBlueprint;
 use Lemonade\Framework\Database\Schema\Schema;
+use Lemonade\Framework\Queue\Config\QueueConfig;
 
 final class QueueInstallCommand implements CommandInterface
 {
@@ -16,7 +16,7 @@ final class QueueInstallCommand implements CommandInterface
 
     public function __construct(
         private readonly Schema $schema,
-        private readonly Config $config,
+        private readonly QueueConfig $config,
         mixed $stdout = null,
     ) {
         if ($stdout !== null && !is_resource($stdout)) {
@@ -43,8 +43,8 @@ final class QueueInstallCommand implements CommandInterface
     {
         unset($args);
 
-        $table = $this->config->string('queue.database.table', 'system_queue_job') ?? 'system_queue_job';
-        $failed = $this->config->string('queue.database.failed_table', 'system_queue_failed_job') ?? 'system_queue_failed_job';
+        $table = $this->config->database->table;
+        $failed = $this->config->database->failedTable;
 
         $this->schema->create($table, $this->defineQueueJobTable(...), ifNotExists: true);
         $this->schema->create($failed, $this->defineFailedJobTable(...), ifNotExists: true);

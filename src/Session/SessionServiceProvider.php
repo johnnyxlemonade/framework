@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Session;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
+use Lemonade\Framework\Session\Config\SessionConfig;
+use Lemonade\Framework\Session\Config\SessionConfigDefinition;
+use Lemonade\Framework\Session\Config\SessionConfigResolver;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Exception\UnsupportedSessionDriverException;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
@@ -34,49 +37,52 @@ final class SessionServiceProvider implements ServiceProviderInterface
 
     public function register(ContainerInterface $container): void
     {
+        $container->singleton(SessionConfigResolver::class, SessionConfigResolver::class);
+        $container->singleton(SessionConfig::class, static function (ContainerInterface $container): SessionConfig {
+            return $container
+                ->get(SessionConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    SessionConfigDefinition::moduleKey(),
+                    SessionConfigDefinition::class,
+                ));
+        });
         $container->singleton(SessionStorageInterface::class, static function (ContainerInterface $container): SessionStorageInterface {
-            $config = $container->get(Config::class);
+            $config = $container->get(SessionConfig::class);
             $context = $container->get(ApplicationContext::class);
 
-            $driver = strtolower($config->string('session.driver', 'native') ?? 'native');
-            $cookieName = $config->string('session.cookie', 'LEMONADE_SESSION') ?? 'LEMONADE_SESSION';
-            $lifetime = $config->int('session.lifetime', 7200);
+            $driver = $config->driver;
+            $cookieName = $config->cookie;
+            $lifetime = $config->lifetime;
 
             return match ($driver) {
                 'native' => new NativeSessionStorage(
                     cookieName: $cookieName,
                     lifetimeSeconds: $lifetime,
-                    savePath: $context->resolveSessionPath($config->string(
-                        'session.native.path',
-                        'sessions',
-                    ) ?? 'sessions'),
+                    savePath: $context->resolveSessionPath($config->native->path),
                 ),
 
                 'file' => new FileSessionStorage(
-                    directory: $context->resolveSessionPath($config->string(
-                        'session.file.path',
-                        'sessions',
-                    ) ?? 'sessions'),
+                    directory: $context->resolveSessionPath($config->file->path),
                     lifetimeSeconds: $lifetime,
                     cookieName: $cookieName,
                 ),
 
                 'database' => new DatabaseSessionStorage(
                     connection: $container->get(ConnectionInterface::class),
-                    table: $config->string('session.database.table', 'sessions') ?? 'sessions',
+                    table: $config->database->table,
                     lifetimeSeconds: $lifetime,
                     cookieName: $cookieName,
                 ),
 
                 'redis' => new RedisSessionStorage(
-                    host: $config->string('session.redis.host', '127.0.0.1') ?? '127.0.0.1',
-                    port: $config->int('session.redis.port', 6379),
-                    database: $config->int('session.redis.database', 0),
-                    password: self::nullableString($config->get('session.redis.password')),
-                    prefix: $config->string('session.redis.prefix', 'sess:') ?? 'sess:',
+                    host: $config->redis->host,
+                    port: $config->redis->port,
+                    database: $config->redis->database,
+                    password: $config->redis->password,
+                    prefix: $config->redis->prefix,
                     lifetimeSeconds: $lifetime,
                     cookieName: $cookieName,
-                    timeout: self::toFloat($config->get('session.redis.timeout'), 2.5),
+                    timeout: $config->redis->timeout,
                 ),
 
                 default => throw UnsupportedSessionDriverException::forDriver(
@@ -95,31 +101,4 @@ final class SessionServiceProvider implements ServiceProviderInterface
         $container->singleton('flash', FlashBagInterface::class);
     }
 
-    private static function nullableString(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if (!is_scalar($value)) {
-            return null;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? null : $normalized;
-    }
-
-    private static function toFloat(mixed $value, float $default): float
-    {
-        if (is_float($value) || is_int($value)) {
-            return (float) $value;
-        }
-
-        if (is_string($value) && is_numeric($value)) {
-            return (float) $value;
-        }
-
-        return $default;
-    }
 }

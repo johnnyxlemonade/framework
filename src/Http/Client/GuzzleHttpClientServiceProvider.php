@@ -5,14 +5,27 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Http\Client;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Config\HttpClientConfig;
+use Lemonade\Framework\Http\Config\HttpClientConfigDefinition;
+use Lemonade\Framework\Http\Config\HttpClientConfigResolver;
 use Psr\Http\Client\ClientInterface;
 
 final class GuzzleHttpClientServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
+        $container->singleton(HttpClientConfigResolver::class, HttpClientConfigResolver::class);
+        $container->singleton(HttpClientConfig::class, static function (ContainerInterface $container): HttpClientConfig {
+            return $container
+                ->get(HttpClientConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    HttpClientConfigDefinition::moduleKey(),
+                    HttpClientConfigDefinition::class,
+                ));
+        });
+
         $container->singleton(ClientInterface::class, static function (ContainerInterface $container): ClientInterface {
             if (!class_exists(\GuzzleHttp\Client::class)) {
                 throw new \RuntimeException(
@@ -20,14 +33,12 @@ final class GuzzleHttpClientServiceProvider implements ServiceProviderInterface
                 );
             }
 
-            $config = $container->get(Config::class);
-            $timeout = $config->get('http.client.timeout', 10.0);
-            $connectTimeout = $config->get('http.client.connect_timeout', 5.0);
+            $config = $container->get(HttpClientConfig::class);
 
             return new \GuzzleHttp\Client([
-                'timeout' => is_numeric($timeout) ? (float) $timeout : 10.0,
-                'connect_timeout' => is_numeric($connectTimeout) ? (float) $connectTimeout : 5.0,
-                'verify' => $config->bool('http.client.verify_ssl', true),
+                'timeout' => $config->timeout,
+                'connect_timeout' => $config->connectTimeout,
+                'verify' => $config->verifySsl,
             ]);
         });
 

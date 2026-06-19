@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Discovery;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
+use Lemonade\Framework\Discovery\Config\SitemapConfig;
+use Lemonade\Framework\Discovery\Config\SitemapRouteConfig;
 use Lemonade\Framework\Discovery\Sitemap\RouteSitemapProvider;
 use Lemonade\Framework\Discovery\Sitemap\SitemapFile;
 use Lemonade\Framework\Discovery\Sitemap\SitemapGenerator;
@@ -22,17 +24,14 @@ final class SitemapGeneratorsTest extends TestCase
     {
         $router = new Router();
         $router->getNamed('home', '/', 'HomeController@index');
-        $config = new Config([
-            'app' => ['base_url' => 'https://example.com'],
-            'discovery' => [
-                'sitemap' => [
-                    'routes' => ['home'],
-                    'providers' => [],
-                ],
-            ],
-        ]);
+        $baseUrl = 'https://example.com';
+        $config = $this->sitemapConfig(routes: [new SitemapRouteConfig('home', [], null, null, null)]);
         $registry = new SitemapProviderRegistry(new Container(), $config, new RouteSitemapProvider($config, new UrlGenerator($router)));
-        $generator = new SitemapGenerator($registry, new BaseUrlResolver($config), $config);
+        $generator = new SitemapGenerator(
+            $registry,
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            $config,
+        );
 
         $stream = fopen('php://temp', 'w+b');
         self::assertIsResource($stream);
@@ -61,5 +60,29 @@ final class SitemapGeneratorsTest extends TestCase
         self::assertIsString($xml);
         self::assertStringContainsString('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', $xml);
         self::assertStringContainsString('<loc>https://example.com/sitemap-1.xml</loc>', $xml);
+    }
+
+    /**
+     * @param list<SitemapRouteConfig> $routes
+     */
+    private function sitemapConfig(array $routes = []): SitemapConfig
+    {
+        return new SitemapConfig(
+            enabled: false,
+            route: '/sitemap.xml',
+            cliOutput: true,
+            mode: 'stream',
+            baseUrl: null,
+            routes: $routes,
+            providers: [],
+            cachePath: 'storage/cache/discovery',
+            filename: 'sitemap.xml',
+            indexFilename: 'sitemap.xml',
+            gzip: false,
+            maxUrlsPerFile: 50000,
+            maxUncompressedBytes: 52428800,
+            deduplicate: false,
+            onInvalidUrl: 'fail',
+        );
     }
 }

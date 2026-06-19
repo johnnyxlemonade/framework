@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Http\Error\ErrorPageRenderer;
 use Lemonade\Framework\Http\Exception\NotFoundHttpException;
@@ -20,7 +20,7 @@ use Throwable;
 final class ErrorHandlingMiddleware implements MiddlewareInterface
 {
     public function __construct(
-        private readonly Config $config,
+        private readonly LoggingConfig $config,
         private readonly Psr17Factory $responseFactory,
         private readonly LogManager $logs,
         private readonly HttpLogContext $httpLogContext,
@@ -83,7 +83,7 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
         }
 
         if ($exception instanceof RouteNotFoundException || $exception instanceof NotFoundHttpException) {
-            return (bool) $this->config->get('error.log.not_found', false);
+            return $this->config->errorLogNotFound;
         }
 
         return true;

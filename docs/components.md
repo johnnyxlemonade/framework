@@ -12,27 +12,25 @@ Applications may register additional components through configuration. This is u
 
 ## Registering Custom Components
 
-Custom components are configured through the top-level `components` config key.
+Custom components are configured through `ComponentConfigDefinition`.
 
 ```php
 <?php
 
-use App\Component\NavigationComponent;
+declare(strict_types=1);
 
-return [
-    'components' => [
-        'navigation' => NavigationComponent::class,
-    ],
-];
+use App\Component\NavigationComponent;
+use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
+
+return ComponentConfigDefinition::create()
+    ->component('navigation', NavigationComponent::class);
 ```
 
-This can be placed in an existing loaded config file, for example:
+This can be placed in a dedicated config file, for example:
 
 ```text
-app/Config/App.php
+app/Config/Components.php
 ```
-
-Do not create a separate config file unless the application kernel is configured to load it.
 
 ## Component Class Example
 
@@ -117,45 +115,31 @@ Application configuration is registered after framework defaults. This means an 
 ```php
 <?php
 
-use App\Component\CustomBreadcrumbComponent;
+declare(strict_types=1);
 
-return [
-    'components' => [
-        'breadcrumb' => CustomBreadcrumbComponent::class,
-    ],
-];
+use App\Component\CustomBreadcrumbComponent;
+use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
+
+return ComponentConfigDefinition::create()
+    ->component('breadcrumb', CustomBreadcrumbComponent::class);
 ```
 
 Only do this when the replacement component is compatible with the expected framework usage.
 
 ## Invalid Configuration
 
-The `components` config key must be an array.
-
-Each key must be a non-empty string component name. Each value must be a non-empty class-string referencing an existing component class.
+Each component name must be a non-empty string. Each component class must be a non-empty class-string referencing an existing component class.
 
 Invalid examples:
 
 ```php
-return [
-    'components' => 'navigation',
-];
+ComponentConfigDefinition::create()
+    ->component('', NavigationComponent::class);
 ```
 
 ```php
-return [
-    'components' => [
-        '' => NavigationComponent::class,
-    ],
-];
-```
-
-```php
-return [
-    'components' => [
-        'navigation' => 'MissingNavigationComponent',
-    ],
-];
+ComponentConfigDefinition::create()
+    ->component('navigation', 'MissingNavigationComponent');
 ```
 
 Invalid configuration should fail during component registry creation with a clear exception.

@@ -2,22 +2,25 @@
 
 declare(strict_types=1);
 
-return [
-    'profiles' => [
-        'file' => [
-            'max_size' => 2 * 1024 * 1024,
-            'allowed_mime_types' => [
-                'application/pdf',
-                'application/msword',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'text/plain',
-            ],
-            'target_dir' => 'storage/uploads/files',
+use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
+
+return UploadConfigDefinition::create()
+    ->fileProfile(
+        profile: 'default',
+        targetDirectory: 'files',
+        maxBytes: 2 * 1024 * 1024,
+        allowedMimeTypes: [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
         ],
-        'image' => [
-            'max_size' => 2 * 1024 * 1024,
-            'allowed_mime_types' => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-            'target_dir' => 'storage/uploads/images',
-        ],
-    ],
-];
+    )
+    ->imageProfile(
+        profile: 'default',
+        targetDirectory: 'images',
+        maxBytes: 2 * 1024 * 1024,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+        reencode: true,
+    );

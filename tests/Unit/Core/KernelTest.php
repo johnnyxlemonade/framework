@@ -157,15 +157,8 @@ final class KernelTest extends TestCase
     public function testBootstrapSkipsMissingConventionalConfigFiles(): void
     {
         $configDir = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Localization.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Cache.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Logging.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Session.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Database.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Breadcrumbs.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Upload.php');
         @unlink($configDir . DIRECTORY_SEPARATOR . 'Api.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Providers.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Framework.php');
 
         $kernel = $this->kernel(false);
         $response = $kernel->run(new ServerRequest('GET', '/missing'));
@@ -287,27 +280,26 @@ final class KernelTest extends TestCase
         $defaults = [
             'Config.php',
             'App.php',
-            'Localization.php',
-            'Cache.php',
-            'Logging.php',
-            'Session.php',
-            'Database.php',
-            'Breadcrumbs.php',
-            'Upload.php',
+            'Framework.php',
             'Api.php',
-            'Providers.php',
+            'Commands.php',
         ];
 
         foreach ($defaults as $file) {
             if ($file === 'Config.php') {
                 $this->writeConfigFile(
                     'Config.php',
-                    "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null, 'Localization.php' => null, 'Cache.php' => null, 'Logging.php' => null, 'Session.php' => null, 'Database.php' => null, 'Breadcrumbs.php' => null, 'Upload.php' => null, 'Api.php' => 'api', 'Providers.php' => null], 'http' => [], 'cli' => ['Commands.php' => null]];\n",
+                    "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php', 'Framework.php', 'Api.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
                 );
                 continue;
             }
 
-            $this->writeConfigFile($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
+            $this->writeConfigFile($file, match ($file) {
+                'App.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
+                'Framework.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\FrameworkConfigDefinition;\n\nreturn FrameworkConfigDefinition::create();\n",
+                'Api.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create();\n",
+                'Commands.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+            });
         }
 
         $this->writeRoutingNoRoutes();

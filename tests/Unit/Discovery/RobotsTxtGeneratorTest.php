@@ -6,7 +6,10 @@ namespace Lemonade\Framework\Tests\Unit\Discovery;
 
 use DateTimeImmutable;
 use Lemonade\Framework\Clock\ClockInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
+use Lemonade\Framework\Discovery\Config\RobotsConfig;
+use Lemonade\Framework\Discovery\Config\RobotsHeaderConfig;
+use Lemonade\Framework\Discovery\Config\RobotsRuleConfig;
 use Lemonade\Framework\Discovery\Robots\RobotsTxtGenerator;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use PHPUnit\Framework\TestCase;
@@ -15,33 +18,21 @@ final class RobotsTxtGeneratorTest extends TestCase
 {
     public function testGeneratesRulesAndAbsoluteSitemap(): void
     {
-        $config = new Config([
-            'app' => ['base_url' => 'https://example.com'],
-            'discovery' => [
-                'robots' => [
-                    'header' => [
-                        'enabled' => true,
-                        'generator' => 'Lemonade Framework',
-                        'date_format' => 'Y-m-d H:i:s',
-                    ],
-                    'rules' => [
-                        '*' => [
-                            'allow' => ['/'],
-                            'disallow' => ['/admin', '/login'],
-                        ],
-                        'Googlebot' => [
-                            'allow' => ['/docs'],
-                            'disallow' => [],
-                        ],
-                    ],
-                    'sitemaps' => ['/sitemap.xml'],
-                ],
+        $baseUrl = 'https://example.com';
+        $config = new RobotsConfig(
+            enabled: true,
+            route: '/robots.txt',
+            header: new RobotsHeaderConfig(true, 'Lemonade Framework', 'Y-m-d H:i:s'),
+            rules: [
+                new RobotsRuleConfig('*', ['/'], ['/admin', '/login']),
+                new RobotsRuleConfig('Googlebot', ['/docs'], []),
             ],
-        ]);
+            sitemaps: ['/sitemap.xml'],
+        );
 
         $txt = (new RobotsTxtGenerator(
             $config,
-            new BaseUrlResolver($config),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
             new FixedClock(new DateTimeImmutable('2026-05-29 14:16:39')),
         ))->generate();
 
@@ -54,27 +45,20 @@ final class RobotsTxtGeneratorTest extends TestCase
 
     public function testHeaderCanBeDisabled(): void
     {
-        $config = new Config([
-            'app' => ['base_url' => 'https://example.com'],
-            'discovery' => [
-                'robots' => [
-                    'header' => [
-                        'enabled' => false,
-                    ],
-                    'rules' => [
-                        '*' => [
-                            'allow' => ['/'],
-                            'disallow' => ['/admin'],
-                        ],
-                    ],
-                    'sitemaps' => ['/sitemap.xml'],
-                ],
+        $baseUrl = 'https://example.com';
+        $config = new RobotsConfig(
+            enabled: true,
+            route: '/robots.txt',
+            header: new RobotsHeaderConfig(false, 'Lemonade Framework', 'Y-m-d H:i:s'),
+            rules: [
+                new RobotsRuleConfig('*', ['/'], ['/admin']),
             ],
-        ]);
+            sitemaps: ['/sitemap.xml'],
+        );
 
         $txt = (new RobotsTxtGenerator(
             $config,
-            new BaseUrlResolver($config),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
             new FixedClock(new DateTimeImmutable('2026-05-29 14:16:39')),
         ))->generate();
 

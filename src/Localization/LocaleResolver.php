@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Localization;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use RuntimeException;
 
 use function array_unique;
 use function array_values;
 use function in_array;
-use function is_array;
 use function is_string;
 use function sprintf;
 use function strtolower;
@@ -20,7 +19,7 @@ final class LocaleResolver implements LocaleResolverInterface
 {
     public function __construct(
         private readonly TranslatorInterface $translator,
-        private readonly Config $config,
+        private readonly LocalizationConfig $config,
     ) {}
 
     public function resolve(): string
@@ -33,13 +32,13 @@ final class LocaleResolver implements LocaleResolverInterface
             return $runtime;
         }
 
-        $default = $this->configuredLocale('localization.default_locale');
+        $default = $this->configuredLocale($this->config->defaultLocale, 'default_locale');
 
         if (in_array($default, $supported, true)) {
             return $default;
         }
 
-        $fallback = $this->configuredLocale('localization.fallback_locale');
+        $fallback = $this->configuredLocale($this->config->fallbackLocale, 'fallback_locale');
 
         if (in_array($fallback, $supported, true)) {
             return $fallback;
@@ -53,15 +52,8 @@ final class LocaleResolver implements LocaleResolverInterface
      */
     private function supportedLocales(): array
     {
-        $configured = $this->config->get('localization.supported_locales');
-
-        if (!is_array($configured)) {
-            throw new RuntimeException('Config key "localization.supported_locales" must be a non-empty array.');
-        }
-
         $locales = [];
-
-        foreach ($configured as $locale) {
+        foreach ($this->config->supportedLocales as $locale) {
             $normalized = $this->normalizeLocale($locale);
 
             if ($normalized === null) {
@@ -74,18 +66,18 @@ final class LocaleResolver implements LocaleResolverInterface
         $locales = array_values(array_unique($locales));
 
         if ($locales === []) {
-            throw new RuntimeException('Config key "localization.supported_locales" must contain at least one valid locale.');
+            throw new RuntimeException('Localization supported locales must contain at least one valid locale.');
         }
 
         return $locales;
     }
 
-    private function configuredLocale(string $key): string
+    private function configuredLocale(string $value, string $label): string
     {
-        $locale = $this->normalizeLocale($this->config->get($key));
+        $locale = $this->normalizeLocale($value);
 
         if ($locale === null) {
-            throw new RuntimeException(sprintf('Config key "%s" must contain a valid locale.', $key));
+            throw new RuntimeException(sprintf('Localization config key "%s" must contain a valid locale.', $label));
         }
 
         return $locale;

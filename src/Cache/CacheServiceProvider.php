@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Cache;
 
+use Lemonade\Framework\Cache\Config\CacheConfig;
+use Lemonade\Framework\Cache\Config\CacheConfigDefinition;
+use Lemonade\Framework\Cache\Config\CacheConfigResolver;
 use Lemonade\Framework\Cache\Store\ArrayCacheItemPool;
 use Lemonade\Framework\Cache\Store\FileCacheItemPool;
 use Lemonade\Framework\Cache\Store\NullCacheItemPool;
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
@@ -21,15 +24,24 @@ final class CacheServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
+        $container->singleton(CacheConfigResolver::class, CacheConfigResolver::class);
+        $container->singleton(CacheConfig::class, static function (ContainerInterface $container): CacheConfig {
+            return $container
+                ->get(CacheConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    CacheConfigDefinition::moduleKey(),
+                    CacheConfigDefinition::class,
+                ));
+        });
         $container->singleton(ArrayCacheItemPool::class, ArrayCacheItemPool::class);
         $container->singleton(NullCacheItemPool::class, NullCacheItemPool::class);
 
         $container->singleton(FileCacheItemPool::class, static function (ContainerInterface $container): FileCacheItemPool {
-            $config = $container->get(Config::class);
+            $config = $container->get(CacheConfig::class);
             $context = $container->get(ApplicationContext::class);
 
             $path = $context->resolveStoragePath(
-                $config->string('cache.stores.file.path', 'cache/framework') ?? 'cache/framework',
+                $config->fileStore->path,
             );
 
             return new FileCacheItemPool(
@@ -39,8 +51,8 @@ final class CacheServiceProvider implements ServiceProviderInterface
         });
 
         $container->singleton(CacheItemPoolInterface::class, static function (ContainerInterface $container): CacheItemPoolInterface {
-            $config = $container->get(Config::class);
-            $default = $config->string('cache.default', 'file') ?? 'file';
+            $config = $container->get(CacheConfig::class);
+            $default = $config->defaultStore;
 
             return match ($default) {
                 'array' => $container->get(ArrayCacheItemPool::class),

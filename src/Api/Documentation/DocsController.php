@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Documentation;
 
+use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
-use Lemonade\Framework\Core\Config;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
@@ -13,7 +13,7 @@ final class DocsController
 {
     public function __construct(
         private readonly ApiEndpointRegistry $endpoints,
-        private readonly Config $config,
+        private readonly ApiConfig $config,
         private readonly Psr17Factory $psr17,
     ) {}
 
@@ -31,7 +31,7 @@ final class DocsController
             );
         }
 
-        $openApiUrl = $this->apiPrefix() . ($this->config->string('api.framework.openapi.route', '/framework/openapi.json') ?? '/framework/openapi.json');
+        $openApiUrl = $this->apiPrefix() . $this->config->framework->openapi->route;
 
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Lemonade Framework API Docs</title></head><body>'
             . '<h1>Lemonade Framework API</h1>'
@@ -49,9 +49,6 @@ final class DocsController
 
     private function apiPrefix(): string
     {
-        $prefix = $this->config->string('api.prefix', '/api') ?? '/api';
-        $normalized = '/' . trim($prefix, '/');
-
-        return $normalized === '/' ? '' : rtrim($normalized, '/');
+        return $this->config->prefix;
     }
 }

@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Localization;
 
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
+use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\FileTranslator;
 use PHPUnit\Framework\TestCase;
 
@@ -284,14 +285,54 @@ final class FileTranslatorTest extends TestCase
      */
     private function translator(array $config = []): FileTranslator
     {
+        $localization = is_array($config['localization'] ?? null) ? $config['localization'] : [];
+        $url = is_array($localization['url'] ?? null) ? $localization['url'] : [];
+
         return new FileTranslator(
             new ApplicationContext(
                 Environment::Testing,
                 new Path($this->root),
                 DebugMode::disabled(),
             ),
-            new Config($config),
+            new LocalizationConfig(
+                defaultLocale: $this->stringOr($localization['default_locale'] ?? null, 'cs'),
+                fallbackLocale: $this->stringOr($localization['fallback_locale'] ?? null, 'cs'),
+                supportedLocales: ['cs', 'en'],
+                url: new LocalizationUrlConfig(
+                    enabled: $this->boolOr($url['enabled'] ?? null, false),
+                    localizedRouteNamePrefix: $this->stringOr($url['localized_route_name_prefix'] ?? null, 'localized.'),
+                    routePrefix: $this->stringOr($url['route_prefix'] ?? null, '/{locale}'),
+                    localeParameter: $this->stringOr($url['locale_parameter'] ?? null, 'locale'),
+                    includeDefaultLocale: $this->boolOr($url['include_default_locale'] ?? null, false),
+                ),
+            ),
         );
+    }
+
+    private function stringOr(mixed $value, string $default): string
+    {
+        if (!is_scalar($value)) {
+            return $default;
+        }
+
+        $normalized = trim((string) $value);
+
+        return $normalized === '' ? $default : $normalized;
+    }
+
+    private function boolOr(mixed $value, bool $default): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (!is_scalar($value)) {
+            return $default;
+        }
+
+        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        return $resolved ?? $default;
     }
 
     /**

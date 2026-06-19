@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Discovery;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Discovery\Config\SitemapConfig;
+use Lemonade\Framework\Discovery\Config\SitemapRouteConfig;
 use Lemonade\Framework\Discovery\Sitemap\RouteSitemapProvider;
 use Lemonade\Framework\Discovery\Sitemap\SitemapProviderInterface;
 use Lemonade\Framework\Discovery\Sitemap\SitemapProviderRegistry;
@@ -22,16 +23,12 @@ final class RouteAndRegistryTest extends TestCase
         $router->getNamed('home', '/', 'HomeController@index');
         $router->getNamed('page.detail', '/page/{slug}', 'PageController@detail');
 
-        $config = new Config([
-            'discovery' => [
-                'sitemap' => [
-                    'routes' => [
-                        'home',
-                        ['name' => 'page.detail', 'params' => ['slug' => 'about'], 'priority' => 0.6],
-                    ],
-                ],
+        $config = $this->sitemapConfig(
+            routes: [
+                new SitemapRouteConfig('home', [], null, null, null),
+                new SitemapRouteConfig('page.detail', ['slug' => 'about'], null, null, 0.6),
             ],
-        ]);
+        );
 
         $urls = [];
         foreach ((new RouteSitemapProvider($config, new UrlGenerator($router)))->urls() as $url) {
@@ -46,14 +43,7 @@ final class RouteAndRegistryTest extends TestCase
     {
         $container = new Container();
         $container->singleton(TestProvider::class, TestProvider::class);
-        $config = new Config([
-            'discovery' => [
-                'sitemap' => [
-                    'providers' => [TestProvider::class],
-                    'routes' => [],
-                ],
-            ],
-        ]);
+        $config = $this->sitemapConfig(providers: [TestProvider::class]);
 
         $routeProvider = new RouteSitemapProvider($config, new UrlGenerator(new Router()));
         $registry = new SitemapProviderRegistry($container, $config, $routeProvider);
@@ -64,6 +54,31 @@ final class RouteAndRegistryTest extends TestCase
 
         self::assertCount(2, $providers);
         self::assertInstanceOf(TestProvider::class, $providers[1]);
+    }
+
+    /**
+     * @param list<SitemapRouteConfig> $routes
+     * @param list<class-string<SitemapProviderInterface>> $providers
+     */
+    private function sitemapConfig(array $routes = [], array $providers = []): SitemapConfig
+    {
+        return new SitemapConfig(
+            enabled: false,
+            route: '/sitemap.xml',
+            cliOutput: true,
+            mode: 'stream',
+            baseUrl: null,
+            routes: $routes,
+            providers: $providers,
+            cachePath: 'storage/cache/discovery',
+            filename: 'sitemap.xml',
+            indexFilename: 'sitemap.xml',
+            gzip: false,
+            maxUrlsPerFile: 50000,
+            maxUncompressedBytes: 52428800,
+            deduplicate: false,
+            onInvalidUrl: 'fail',
+        );
     }
 }
 

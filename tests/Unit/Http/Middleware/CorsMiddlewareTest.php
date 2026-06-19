@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
@@ -211,25 +211,88 @@ final class CorsMiddlewareTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $config
+     * @param array<string, mixed> $overrides
      */
-    private function middleware(array $config): CorsMiddleware
+    private function middleware(array $overrides): CorsMiddleware
     {
         $factory = new Psr17Factory();
-        $state = new Config([
-            'cors' => [
-                'enabled' => false,
-                'allowed_origins' => [],
-                'allowed_methods' => [],
-                'allowed_headers' => [],
-                'exposed_headers' => [],
-                'allow_credentials' => false,
-                'max_age' => null,
-            ],
-        ]);
-        $state->merge($config);
+        $cors = isset($overrides['cors']) && is_array($overrides['cors'])
+            ? $overrides['cors']
+            : [];
 
-        return new CorsMiddleware($state, $factory);
+        return new CorsMiddleware(
+            new CorsConfig(
+                enabled: $this->toBool($cors['enabled'] ?? false),
+                allowedOrigins: $this->stringList($cors['allowed_origins'] ?? []),
+                allowedMethods: $this->stringList($cors['allowed_methods'] ?? []),
+                allowedHeaders: $this->stringList($cors['allowed_headers'] ?? []),
+                exposedHeaders: $this->stringList($cors['exposed_headers'] ?? []),
+                allowCredentials: $this->toBool($cors['allow_credentials'] ?? false),
+                maxAge: $this->nullableInt($cors['max_age'] ?? null),
+            ),
+            $factory,
+        );
+    }
+
+    /**
+     * @return list<non-empty-string>
+     */
+    private function stringList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($values as $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $item = trim((string) $value);
+            if ($item === '' || in_array($item, $normalized, true)) {
+                continue;
+            }
+
+            $normalized[] = $item;
+        }
+
+        return $normalized;
+    }
+
+    private function toBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (!is_scalar($value)) {
+            return false;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN) === true;
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return (int) $value;
+        }
+
+        if (is_string($value) && is_numeric($value)) {
+            return (int) $value;
+        }
+
+        return null;
     }
 }
 

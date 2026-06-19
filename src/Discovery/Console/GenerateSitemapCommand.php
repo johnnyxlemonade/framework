@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Discovery\Console;
 
 use Lemonade\Framework\Cli\CommandInterface;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Discovery\Config\SitemapConfig;
 use Lemonade\Framework\Discovery\Sitemap\SitemapFileGenerator;
 use RuntimeException;
 
@@ -29,7 +29,7 @@ final class GenerateSitemapCommand implements CommandInterface
 
     public function __construct(
         private readonly SitemapFileGenerator $fileGenerator,
-        private readonly Config $config,
+        private readonly SitemapConfig $config,
         private readonly ApplicationContext $context,
         mixed $stdout = null,
         mixed $stderr = null,
@@ -59,8 +59,8 @@ final class GenerateSitemapCommand implements CommandInterface
     {
         unset($args);
         $start = microtime(true);
-        $cliOutput = $this->config->bool('discovery.sitemap.cli_output', true);
-        $relativePath = $this->config->string('discovery.sitemap.cache_path', 'storage/cache/discovery') ?? 'storage/cache/discovery';
+        $cliOutput = $this->config->cliOutput;
+        $relativePath = $this->config->cachePath;
         $cachePath = $this->context->basePath() . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath);
         if (!is_dir($cachePath)) {
             mkdir($cachePath, 0775, true);

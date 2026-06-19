@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Logging;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Logging\Config\LoggingChannelConfig;
+use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -17,7 +18,7 @@ final class LogManager
     private array $loggers = [];
 
     public function __construct(
-        private readonly Config $config,
+        private readonly LoggingConfig $config,
         private readonly LogFilePathResolver $pathResolver,
         private readonly DirectoryManagerInterface $directoryManager,
     ) {}
@@ -60,7 +61,9 @@ final class LogManager
 
     public function enabled(string $channel, bool $default = false): bool
     {
-        return $this->config->bool($channel . '.log.enabled', $default);
+        $channelConfig = $this->channelConfig($channel);
+
+        return $channelConfig instanceof LoggingChannelConfig ? $channelConfig->enabled : $default;
     }
 
     private function logger(
@@ -76,14 +79,25 @@ final class LogManager
             return $this->loggers[$channel] = new NullLogger();
         }
 
-        $file = $this->config->string($channel . '.log.file', $defaultFile) ?? $defaultFile;
-
-        $days = $this->config->int($channel . '.log.days', 7);
+        $channelConfig = $this->channelConfig($channel);
+        $file = $channelConfig instanceof LoggingChannelConfig ? $channelConfig->path : $defaultFile;
+        $days = $channelConfig instanceof LoggingChannelConfig ? $channelConfig->days : 7;
 
         return $this->loggers[$channel] = new RotatingFileLogger(
             file: $this->pathResolver->resolve($file, $defaultFile),
             directoryManager: $this->directoryManager,
             retentionDays: $days,
         );
+    }
+
+    private function channelConfig(string $channel): ?LoggingChannelConfig
+    {
+        return match ($channel) {
+            'app' => $this->config->app,
+            'error' => $this->config->error,
+            'request' => $this->config->request,
+            'benchmark' => $this->config->benchmark,
+            default => null,
+        };
     }
 }

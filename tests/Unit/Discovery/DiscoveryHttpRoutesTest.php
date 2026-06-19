@@ -11,6 +11,8 @@ use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\CoreServiceProvider;
 use Lemonade\Framework\Core\Framework;
+use Lemonade\Framework\Core\Logging\LoggingServiceProvider;
+use Lemonade\Framework\Discovery\Config\DiscoveryConfigDefinition;
 use Lemonade\Framework\Discovery\DiscoveryServiceProvider;
 use Lemonade\Framework\Filesystem\FilesystemServiceProvider;
 use Lemonade\Framework\Http\HttpServiceProvider;
@@ -27,6 +29,7 @@ final class DiscoveryHttpRoutesTest extends TestCase
             new ApplicationContext(Environment::Testing, new Path(__DIR__), DebugMode::disabled()),
         );
         $framework->register(new CoreServiceProvider());
+        $framework->register(new LoggingServiceProvider());
         $framework->register(new FilesystemServiceProvider());
         $framework->register(new HttpServiceProvider());
         $framework->register(new DiscoveryServiceProvider());
@@ -42,13 +45,13 @@ final class DiscoveryHttpRoutesTest extends TestCase
             new Container(),
             new ApplicationContext(Environment::Testing, new Path(__DIR__), DebugMode::disabled()),
         );
-        $framework->config([
-            'discovery' => [
-                'robots' => ['enabled' => true],
-                'sitemap' => ['enabled' => true],
-            ],
-        ]);
+        $framework->config(
+            DiscoveryConfigDefinition::create()
+                ->robotsEnabled()
+                ->sitemapEnabled(),
+        );
         $framework->register(new CoreServiceProvider());
+        $framework->register(new LoggingServiceProvider());
         $framework->register(new FilesystemServiceProvider());
         $framework->register(new HttpServiceProvider());
         $framework->register(new DiscoveryServiceProvider());

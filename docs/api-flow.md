@@ -20,8 +20,8 @@ HTTP request
 -> ApiServiceProvider
    -> register ApiEndpointRegistry
    -> register framework API endpoint provider
-   -> register app API endpoint providers from config key "api.endpoint_providers"
-   -> register API routes under configured "api.prefix"
+   -> register app API endpoint providers from ApiConfig
+   -> register API routes under configured ApiConfig::prefix
 -> API middleware
    -> resolve request path against ApiEndpointRegistry
    -> skip non-API requests
@@ -59,24 +59,16 @@ Applications can override them in `app/Config/Api.php`.
 
 declare(strict_types=1);
 
-return [
-    'enabled' => true,
-    'prefix' => '/api',
+use App\Api\AppApiEndpointProvider;
+use Lemonade\Framework\Api\Config\ApiConfigDefinition;
 
-    'endpoint_providers' => [
-        // App\Api\AppApiEndpointProvider::class,
-    ],
-
-    'framework' => [
-        'openapi' => [
-            'access' => 'public',
-        ],
-        'docs' => [
-            'enabled' => true,
-            'access' => 'public',
-        ],
-    ],
-];
+return ApiConfigDefinition::create()
+    ->enabled()
+    ->prefix('/api')
+    ->endpointProvider(AppApiEndpointProvider::class)
+    ->openApiAccess('public')
+    ->docsEnabled()
+    ->docsAccess('public');
 ```
 
 Framework defaults are conservative:
@@ -125,9 +117,8 @@ final class AppApiEndpointProvider implements ApiEndpointProviderInterface
 Register the provider in `app/Config/Api.php`:
 
 ```php
-'endpoint_providers' => [
-    App\Api\AppApiEndpointProvider::class,
-],
+return ApiConfigDefinition::create()
+    ->endpointProvider(App\Api\AppApiEndpointProvider::class);
 ```
 
 The endpoint will be available under `GET /api/app/ping` and will also appear in generated OpenAPI output.

@@ -6,7 +6,7 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\FrameworkConfigDefinition;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
@@ -23,11 +23,9 @@ final class KernelBootstrapTraitTest extends TestCase
     {
         $container = new Container();
         $subject = new KernelBootstrapTraitHarness($container);
-        $container->singleton(Config::class, new Config([
-            'framework' => [
-                'providers' => ['Definitely\\Missing\\Provider'],
-            ],
-        ]));
+        $subject->framework->config(
+            FrameworkConfigDefinition::create()->providers(['Definitely\\Missing\\Provider']),
+        );
 
         $this->expectException(LogicException::class);
         $subject->commonProviderClasses();
@@ -37,11 +35,9 @@ final class KernelBootstrapTraitTest extends TestCase
     {
         $container = new Container();
         $subject = new KernelBootstrapTraitHarness($container);
-        $container->singleton(Config::class, new Config([
-            'framework' => [
-                'providers' => [NotAServiceProvider::class],
-            ],
-        ]));
+        $subject->framework->config(
+            FrameworkConfigDefinition::create()->providers([NotAServiceProvider::class]),
+        );
 
         $this->expectException(LogicException::class);
         $subject->commonProviderClasses();
@@ -51,11 +47,9 @@ final class KernelBootstrapTraitTest extends TestCase
     {
         $container = new Container();
         $subject = new KernelBootstrapTraitHarness($container);
-        $container->singleton(Config::class, new Config([
-            'framework' => [
-                'providers' => [ValidServiceProvider::class],
-            ],
-        ]));
+        $subject->framework->config(
+            FrameworkConfigDefinition::create()->providers([ValidServiceProvider::class]),
+        );
 
         self::assertSame([ValidServiceProvider::class], $subject->commonProviderClasses());
     }

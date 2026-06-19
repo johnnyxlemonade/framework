@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Lemonade\Framework\Api\ApiServiceProvider;
 use Lemonade\Framework\Component\ComponentServiceProvider;
+use Lemonade\Framework\Core\Config\FrameworkConfigDefinition;
 use Lemonade\Framework\Database\DatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcDatabaseServiceProvider;
@@ -21,30 +22,24 @@ use Lemonade\Framework\Upload\UploadServiceProvider;
 use Lemonade\Framework\Validation\ValidationServiceProvider;
 use Lemonade\Framework\View\ViewServiceProvider;
 
-return [
-    'app' => [
-        'timezone' => null,
-    ],
-    'framework' => [
-        'providers' => [
-            LocalizationServiceProvider::class,
-            ApiServiceProvider::class,
-            RoutingServiceProvider::class,
-            DiscoveryServiceProvider::class,
-            SecurityServiceProvider::class,
-            DatabaseServiceProvider::class,
-            MysqlDatabaseServiceProvider::class,
-            OdbcDatabaseServiceProvider::class,
-            PdoDatabaseServiceProvider::class,
-            SqliteDatabaseServiceProvider::class,
-            SessionServiceProvider::class,
-            ComponentServiceProvider::class,
-            ValidationServiceProvider::class,
-            UploadServiceProvider::class,
-            DebugServiceProvider::class,
-            ViewServiceProvider::class,
-            EventServiceProvider::class,
-            QueueServiceProvider::class,
-        ],
-    ],
-];
+return FrameworkConfigDefinition::create()
+    ->providers([
+        LocalizationServiceProvider::class,
+        ApiServiceProvider::class,
+        RoutingServiceProvider::class,
+        DiscoveryServiceProvider::class,
+        SecurityServiceProvider::class,
+        DatabaseServiceProvider::class,
+        MysqlDatabaseServiceProvider::class,
+        OdbcDatabaseServiceProvider::class,
+        PdoDatabaseServiceProvider::class,
+        SqliteDatabaseServiceProvider::class,
+        SessionServiceProvider::class,
+        ComponentServiceProvider::class,
+        ValidationServiceProvider::class,
+        UploadServiceProvider::class,
+        DebugServiceProvider::class,
+        ViewServiceProvider::class,
+        EventServiceProvider::class,
+        QueueServiceProvider::class,
+    ]);

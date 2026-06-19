@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Discovery\Sitemap;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Discovery\Config\SitemapConfig;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\Support\Xml\XmlStreamWriter;
 use Psr\Log\LoggerInterface;
@@ -14,7 +14,7 @@ final class SitemapGenerator
     public function __construct(
         private readonly SitemapProviderRegistry $registry,
         private readonly BaseUrlResolver $baseUrlResolver,
-        private readonly Config $config,
+        private readonly SitemapConfig $config,
         private readonly ?LoggerInterface $logger = null,
     ) {}
 
@@ -23,9 +23,9 @@ final class SitemapGenerator
      */
     public function urls(): iterable
     {
-        $deduplicate = $this->config->bool('discovery.sitemap.deduplicate', false);
-        $invalidMode = $this->config->string('discovery.sitemap.on_invalid_url', 'fail') ?? 'fail';
-        $baseUrl = $this->config->string('discovery.sitemap.base_url');
+        $deduplicate = $this->config->deduplicate;
+        $invalidMode = $this->config->onInvalidUrl;
+        $baseUrl = $this->config->baseUrl;
         $seen = [];
 
         foreach ($this->registry->providers() as $provider) {

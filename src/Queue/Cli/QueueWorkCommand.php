@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Queue\Cli;
 
 use Lemonade\Framework\Cli\CommandInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Queue\Config\QueueConfig;
 use Lemonade\Framework\Queue\QueueBusInterface;
 
 final class QueueWorkCommand implements CommandInterface
 {
     public function __construct(
         private readonly QueueBusInterface $queue,
-        private readonly Config $config,
+        private readonly QueueConfig $config,
     ) {}
 
     public function name(): string
@@ -31,7 +31,7 @@ final class QueueWorkCommand implements CommandInterface
     public function run(array $args): int
     {
         $queueName = $args[0] ?? 'default';
-        $transport = $args[1] ?? ($this->config->string('queue.default', 'sync') ?? 'sync');
+        $transport = $args[1] ?? $this->config->defaultTransport;
         $max = isset($args[2]) && is_numeric($args[2]) ? max(0, (int) $args[2]) : 0;
         $sleepMs = isset($args[3]) && is_numeric($args[3]) ? max(50, (int) $args[3]) : 500;
 

@@ -8,11 +8,14 @@ use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Http\Request\HttpMethod;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
+use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
@@ -410,19 +413,21 @@ final class ControllerTest extends TestCase
     private function registerViewHelpers(Container $container): void
     {
         $config = new Config(['app' => ['base_url' => 'https://example.test']]);
+        $appConfig = new AppConfig(null, 'https://example.test', '', 'testing', false, '', '', '');
         $session = new ControllerTestSession();
         $csrf = new CsrfViewHelper(new CsrfTokenManager($session));
 
         $container->singleton(Config::class, $config);
-        $container->singleton(BaseUrlResolver::class, static fn(): BaseUrlResolver => new BaseUrlResolver($config));
+        $container->singleton(BaseUrlResolver::class, static fn(): BaseUrlResolver => new BaseUrlResolver($appConfig));
         $container->singleton(CsrfViewHelper::class, $csrf);
         $container->singleton(TranslatorInterface::class, new ControllerTestTranslator());
+        $container->singleton(LocalizationConfig::class, new LocalizationConfig('en', 'en', ['en'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false)));
         $container->singleton(ViewHelpers::class, static fn(ContainerInterface $container): ViewHelpers => new ViewHelpers(
             baseUrl: $container->get(BaseUrlResolver::class),
             urlGenerator: $container->get(UrlGenerator::class),
             csrf: $container->get(CsrfViewHelper::class),
             translator: $container->get(TranslatorInterface::class),
-            config: $container->get(Config::class),
+            config: $container->get(LocalizationConfig::class),
         ));
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Http\Config\HtmlMinifyConfig;
 use Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware;
 use Lemonade\Framework\Http\Response\HtmlMinifier;
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -25,10 +25,8 @@ final class HtmlMinifyMiddlewareTest extends TestCase
 
         $handler = new FixedResponseHandler($response);
 
-        $disabled = new HtmlMinifyMiddleware(new HtmlMinifier(), new Config([
-            'html_minify' => ['enabled' => false],
-        ]));
-        $missing = new HtmlMinifyMiddleware(new HtmlMinifier(), new Config([]));
+        $disabled = new HtmlMinifyMiddleware(new HtmlMinifier(), new HtmlMinifyConfig(false));
+        $missing = new HtmlMinifyMiddleware(new HtmlMinifier(), new HtmlMinifyConfig(false));
 
         self::assertSame($response, $disabled->process($request, $handler));
         self::assertSame($response, $missing->process($request, $handler));
@@ -42,9 +40,7 @@ final class HtmlMinifyMiddlewareTest extends TestCase
             ->withHeader('Content-Type', 'application/json')
             ->withBody($factory->createStream('{ "a": 1 }'));
 
-        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new Config([
-            'html_minify' => ['enabled' => true],
-        ]));
+        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new HtmlMinifyConfig(true));
 
         self::assertSame($response, $middleware->process($request, new FixedResponseHandler($response)));
     }
@@ -59,9 +55,7 @@ final class HtmlMinifyMiddlewareTest extends TestCase
             ->withHeader('Content-Length', (string) strlen($html))
             ->withBody($factory->createStream($html));
 
-        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new Config([
-            'html_minify' => ['enabled' => true],
-        ]));
+        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new HtmlMinifyConfig(true));
 
         $processed = $middleware->process($request, new FixedResponseHandler($response));
         $minifiedBody = (string) $processed->getBody();
@@ -82,9 +76,7 @@ final class HtmlMinifyMiddlewareTest extends TestCase
             ->withHeader('Content-Type', 'text/html')
             ->withBody($factory->createStream(" \n\t "));
 
-        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new Config([
-            'html_minify' => ['enabled' => true],
-        ]));
+        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new HtmlMinifyConfig(true));
 
         self::assertSame($response, $middleware->process($request, new FixedResponseHandler($response)));
     }
@@ -98,9 +90,7 @@ final class HtmlMinifyMiddlewareTest extends TestCase
             ->withBody($factory->createStream('<div>x</div>'));
 
         $handler = new FixedResponseHandler($response);
-        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new Config([
-            'html_minify' => ['enabled' => true],
-        ]));
+        $middleware = new HtmlMinifyMiddleware(new HtmlMinifier(), new HtmlMinifyConfig(true));
 
         $processed = $middleware->process($request, $handler);
 

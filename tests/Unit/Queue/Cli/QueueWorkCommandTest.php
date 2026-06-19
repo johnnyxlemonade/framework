@@ -50,8 +50,9 @@ declare(strict_types=1);
 
 require %s;
 
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Queue\Cli\QueueWorkCommand;
+use Lemonade\Framework\Queue\Config\QueueConfig;
+use Lemonade\Framework\Queue\Config\QueueDatabaseConfig;
 use Lemonade\Framework\Queue\QueueBusInterface;
 
 $queue = new class implements QueueBusInterface {
@@ -76,7 +77,10 @@ $queue = new class implements QueueBusInterface {
     }
 };
 
-$command = new QueueWorkCommand($queue, new Config());
+$command = new QueueWorkCommand(
+    $queue,
+    new QueueConfig('sync', ['sync', 'database'], [], new QueueDatabaseConfig('system_queue_job', 'system_queue_failed_job')),
+);
 %s
 PHP, var_export($autoload, true), $commandCode));
 

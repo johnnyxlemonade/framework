@@ -2,25 +2,24 @@
 
 declare(strict_types=1);
 
-return [
-    'app' => [
-        'enabled' => true,
-        'path' => 'storage/writable/logs/app.log',
-        'level' => 'info',
-    ],
-    'error' => [
-        'enabled' => true,
-        'path' => 'storage/writable/logs/error.log',
-        'level' => 'error',
-    ],
-    'request' => [
-        'enabled' => false,
-        'path' => 'storage/writable/logs/request.log',
-        'level' => 'info',
-    ],
-    'benchmark' => [
-        'enabled' => false,
-        'path' => 'storage/writable/logs/benchmark.log',
-        'level' => 'debug',
-    ],
-];
+use Lemonade\Framework\Core\Logging\Config\LoggingConfigDefinition;
+
+return LoggingConfigDefinition::create()
+    ->appEnabled()
+    ->appPath('app.log')
+    ->appLevel('info')
+    ->appDays(7)
+    ->errorEnabled()
+    ->errorPath('error.log')
+    ->errorLevel('error')
+    ->errorDays(7)
+    ->errorLogNotFound(false)
+    ->requestEnabled(false)
+    ->requestPath('request.log')
+    ->requestLevel('info')
+    ->requestDays(7)
+    ->requestMinStatus(0)
+    ->benchmarkEnabled(false)
+    ->benchmarkPath('benchmark.log')
+    ->benchmarkLevel('debug')
+    ->benchmarkDays(7);

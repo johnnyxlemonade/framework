@@ -6,7 +6,10 @@ namespace Lemonade\Framework\Tests\Unit\View;
 
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
+use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
@@ -14,6 +17,7 @@ use Lemonade\Framework\Security\Csrf\CsrfTokenManager;
 use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Support\BaseUrlResolver;
+use Lemonade\Framework\View\Config\ViewConfigDefinition;
 use Lemonade\Framework\View\View;
 use Lemonade\Framework\View\ViewHelpers;
 use Lemonade\Framework\View\ViewServiceProvider;
@@ -37,10 +41,7 @@ final class ViewServiceProviderTest extends TestCase
 
     public function testRegisterBindsViewSingletonWithConfiguredBasePathAndHelpers(): void
     {
-        $container = $this->buildContainer(new Config([
-            'view' => ['base_path' => $this->viewsPath],
-            'app' => ['base_url' => 'https://example.test'],
-        ]));
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
         $provider = new ViewServiceProvider();
         $provider->register($container);
 
@@ -62,10 +63,7 @@ final class ViewServiceProviderTest extends TestCase
 
     public function testRegisterSharesHelpersVariableIntoRenderedView(): void
     {
-        $container = $this->buildContainer(new Config([
-            'view' => ['base_path' => $this->viewsPath],
-            'app' => ['base_url' => 'https://example.test'],
-        ]));
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
         $provider = new ViewServiceProvider();
         $provider->register($container);
 
@@ -77,12 +75,9 @@ final class ViewServiceProviderTest extends TestCase
         );
     }
 
-    public function testRegisterFallsBackToAppViewsWhenBasePathIsNotScalar(): void
+    public function testRegisterUsesDefaultBasePathWhenViewConfigIsNotBound(): void
     {
-        $container = $this->buildContainer(new Config([
-            'view' => ['base_path' => ['invalid']],
-            'app' => ['base_url' => 'https://example.test'],
-        ]));
+        $container = $this->buildContainer(null, 'https://example.test');
         $provider = new ViewServiceProvider();
         $provider->register($container);
 
@@ -108,17 +103,27 @@ final class ViewServiceProviderTest extends TestCase
         self::assertSame('FALLBACK', $output);
     }
 
-    private function buildContainer(Config $config): Container
+    private function buildContainer(?string $viewBasePath, string $baseUrl): Container
     {
         $container = new Container();
-        $container->singleton(Config::class, $config);
         $container->singleton(ComponentRegistry::class, new ComponentRegistry($container));
-        $container->singleton(BaseUrlResolver::class, static fn(): BaseUrlResolver => new BaseUrlResolver($config));
+        $registry = new ConfigDefinitionRegistry();
+        if ($viewBasePath !== null) {
+            $registry->addDefinition(ViewConfigDefinition::create()->basePath($viewBasePath));
+        }
+        $container->singleton(ConfigDefinitionRegistry::class, $registry);
+        $container->singleton(
+            BaseUrlResolver::class,
+            static fn(): BaseUrlResolver => new BaseUrlResolver(
+                new AppConfig(null, $baseUrl, '', 'testing', false, '', '', ''),
+            ),
+        );
         $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
         $session = new InMemorySession();
         $container->singleton(CsrfTokenManager::class, new CsrfTokenManager($session));
         $container->singleton(CsrfViewHelper::class, new CsrfViewHelper($container->get(CsrfTokenManager::class)));
         $container->singleton(TranslatorInterface::class, new ViewServiceProviderTranslatorStub());
+        $container->singleton(LocalizationConfig::class, new LocalizationConfig('en', 'en', ['en'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false)));
 
         return $container;
     }

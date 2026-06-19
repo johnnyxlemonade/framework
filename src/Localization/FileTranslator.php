@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Localization;
 
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
 
 final class FileTranslator implements TranslatorInterface
 {
@@ -17,7 +17,7 @@ final class FileTranslator implements TranslatorInterface
 
     public function __construct(
         private readonly ApplicationContext $context,
-        private readonly Config $config,
+        private readonly LocalizationConfig $config,
     ) {}
 
     public function setLocale(?string $locale): self
@@ -227,20 +227,18 @@ final class FileTranslator implements TranslatorInterface
 
     private function defaultLocale(): string
     {
-        $localeConfig = $this->config->get('localization.default_locale', 'cs');
-        $locale = is_scalar($localeConfig) ? (string) $localeConfig : 'cs';
+        $locale = $this->config->defaultLocale;
         $locale = trim($locale);
 
-        return $locale !== '' ? $locale : 'cs';
+        return $locale !== '' ? $locale : 'en';
     }
 
     private function fallbackLocale(): string
     {
-        $localeConfig = $this->config->get('localization.fallback_locale', 'cs');
-        $locale = is_scalar($localeConfig) ? (string) $localeConfig : 'cs';
+        $locale = $this->config->fallbackLocale;
         $locale = trim($locale);
 
-        return $locale !== '' ? $locale : 'cs';
+        return $locale !== '' ? $locale : 'en';
     }
 
     private function frameworkLanguageDirectory(string $locale): string

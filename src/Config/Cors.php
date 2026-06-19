@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-return [
-    'enabled' => false,
-    'allowed_origins' => [],
-    'allowed_methods' => [],
-    'allowed_headers' => [],
-    'exposed_headers' => [],
-    'allow_credentials' => false,
-    'max_age' => null,
-];
+use Lemonade\Framework\Http\Config\CorsConfigDefinition;
+
+return CorsConfigDefinition::create()
+    ->disabled()
+    ->allowedOrigins([])
+    ->allowedMethods([])
+    ->allowedHeaders([])
+    ->exposedHeaders([])
+    ->allowCredentials(false)
+    ->maxAge(null);

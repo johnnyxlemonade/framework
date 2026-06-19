@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Core;
 
+use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Cli\CommandInterface;
 use Lemonade\Framework\Core\CliKernel;
 use Lemonade\Framework\Core\CliKernelFactory;
@@ -29,9 +30,12 @@ final class CliKernelTest extends TestCase
         CliKernelApiConfigProbeCommand::$lastPrefix = null;
         $this->writeConfigFile(
             'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null], 'http' => [], 'cli' => ['Commands.php' => 'commands']];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
         );
-        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
+        );
     }
 
     protected function tearDown(): void
@@ -103,19 +107,22 @@ final class CliKernelTest extends TestCase
         self::assertSame(1, CliKernelRecorderCommand::$runCount);
     }
 
-    public function testCommandsConfigFileMustReturnArray(): void
+    public function testCommandsConfigFileMustReturnDefinition(): void
     {
         $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn 'invalid';\n");
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
         self::assertStringContainsString('CLI error: Config file', $this->stderrContents());
-        self::assertStringContainsString('must return array', $this->stderrContents());
+        self::assertStringContainsString('must return an instance', $this->stderrContents());
     }
 
     public function testConfiguredCommandMustBeString(): void
     {
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn [123];\n");
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands([123]);\n",
+        );
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
@@ -124,12 +131,18 @@ final class CliKernelTest extends TestCase
 
     public function testConfiguredCommandMustExistAndImplementInterface(): void
     {
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['Missing\\\\Command'];\n");
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands(['Missing\\\\Command']);\n",
+        );
         $kernelMissing = $this->kernel();
         self::assertSame(1, $kernelMissing->handle(['bin/lemonade', 'list']));
         self::assertStringContainsString('CLI error: Configured command "Missing\Command" must implement', $this->stderrContents());
 
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['" . CliKernelNotACommand::class . "'];\n");
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands(['" . CliKernelNotACommand::class . "']);\n",
+        );
         $kernelInvalid = $this->kernel();
         self::assertSame(1, $kernelInvalid->handle(['bin/lemonade', 'list']));
         self::assertStringContainsString(
@@ -140,8 +153,11 @@ final class CliKernelTest extends TestCase
 
     public function testManifestFilesAreUsedWhenManifestExists(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [], 'http' => [], 'cli' => ['AltCommands.php' => 'commands']];\n");
-        $this->writeConfigFile('AltCommands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['" . CliKernelRecorderCommand::class . "'];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [], 'http' => [], 'cli' => ['AltCommands.php']];\n");
+        $this->writeConfigFile(
+            'AltCommands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands(['" . CliKernelRecorderCommand::class . "']);\n",
+        );
 
         $kernel = $this->kernel();
         $exit = $kernel->handle(['bin/lemonade', 'recorder']);
@@ -149,15 +165,15 @@ final class CliKernelTest extends TestCase
         self::assertSame(12, $exit);
     }
 
-    public function testCliKernelLoadsApiConfigUnderApiRootKeyViaManifestMapping(): void
+    public function testCliKernelLoadsApiConfigDefinition(): void
     {
         $this->writeConfigFile(
             'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php' => 'api'], 'http' => [], 'cli' => ['Commands.php' => 'commands']];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
         );
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['prefix' => '/api-cli'];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('/api-cli');\n",
         );
         $this->writeCommandsConfig([CliKernelApiConfigProbeCommand::class]);
 
@@ -170,9 +186,15 @@ final class CliKernelTest extends TestCase
 
     public function testManifestIsAuthoritativeAndDoesNotAutoAddCommandsPhp(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null], 'http' => [], 'cli' => []];\n");
-        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['app' => ['name' => 'Demo']];\n");
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['" . CliKernelRecorderCommand::class . "'];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => [], 'cli' => []];\n");
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://demo.test');\n",
+        );
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands(['" . CliKernelRecorderCommand::class . "']);\n",
+        );
 
         $kernel = $this->kernel();
         $exit = $kernel->handle(['bin/lemonade', 'recorder']);
@@ -199,7 +221,7 @@ final class CliKernelTest extends TestCase
 
     public function testInvalidManifestFileNameReturnsOne(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['' => null], 'http' => [], 'cli' => []];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [''], 'http' => [], 'cli' => []];\n");
         $kernel = $this->kernel();
 
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
@@ -233,32 +255,35 @@ final class CliKernelTest extends TestCase
 
 declare(strict_types=1);
 
-return [
-    'app' => [
-        'base_url' => 'https://example.test',
-    ],
-        'discovery' => [
-            'sitemap' => [
-                'enabled' => true,
-                'route' => '/sitemap.xml',
-                'mode' => 'cache',
-                'cli_output' => false,
-                'base_url' => 'https://example.test',
-                'routes' => [
-                    'home.index',
-                ],
-            'providers' => [],
-            'cache_path' => 'storage/cache/discovery',
-            'filename' => 'sitemap.xml',
-            'index_filename' => 'sitemap.xml',
-            'gzip' => false,
-            'max_urls_per_file' => 50000,
-            'max_uncompressed_bytes' => 52428800,
-            'deduplicate' => false,
-            'on_invalid_url' => 'fail',
-        ],
-    ],
-];
+use Lemonade\Framework\Core\Config\AppConfigDefinition;
+
+return AppConfigDefinition::create()
+    ->baseUrl('https://example.test');
+PHP);
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php', 'Discovery.php'], 'http' => [], 'cli' => ['Commands.php']];\n");
+        $this->writeConfigFile('Discovery.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Lemonade\Framework\Discovery\Config\DiscoveryConfigDefinition;
+
+return DiscoveryConfigDefinition::create()
+    ->sitemapEnabled()
+    ->sitemapRoute('/sitemap.xml')
+    ->sitemapMode('cache')
+    ->sitemapCliOutput(false)
+    ->sitemapBaseUrl('https://example.test')
+    ->sitemapRouteItem('home.index')
+    ->sitemapProviders([])
+    ->sitemapCachePath('storage/cache/discovery')
+    ->sitemapFilename('sitemap.xml')
+    ->sitemapIndexFilename('sitemap.xml')
+    ->sitemapGzip(false)
+    ->sitemapMaxUrlsPerFile(50000)
+    ->sitemapMaxUncompressedBytes(52428800)
+    ->sitemapDeduplicate(false)
+    ->sitemapOnInvalidUrl('fail');
 PHP);
 
         $this->writeConfigFile('Routing.php', <<<'PHP'
@@ -348,7 +373,10 @@ PHP);
     private function writeCommandsConfig(array $commands): void
     {
         $commandsCode = var_export($commands, true);
-        $this->writeConfigFile('Commands.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn {$commandsCode};\n");
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands({$commandsCode});\n",
+        );
     }
 
     private function writeConfigFile(string $file, string $contents): void
@@ -452,7 +480,7 @@ final class CliKernelApiConfigProbeCommand implements CommandInterface
     public static ?string $lastPrefix = null;
 
     public function __construct(
-        private readonly \Lemonade\Framework\Core\Config $config,
+        private readonly ApiConfig $config,
     ) {}
 
     public function name(): string
@@ -468,7 +496,7 @@ final class CliKernelApiConfigProbeCommand implements CommandInterface
     public function run(array $args): int
     {
         unset($args);
-        self::$lastPrefix = $this->config->string('api.prefix');
+        self::$lastPrefix = $this->config->prefix;
 
         return 0;
     }

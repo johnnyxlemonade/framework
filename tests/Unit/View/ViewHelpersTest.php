@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\View;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
+use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
@@ -59,10 +61,9 @@ final class ViewHelpersTest extends TestCase
 
     public function testCurrentLocaleFallsBackToConfig(): void
     {
-        $helpers = $this->helpers(config: new Config([
-            'app' => ['base_url' => 'https://example.test'],
-            'localization' => ['default_locale' => 'sk'],
-        ]));
+        $helpers = $this->helpers(
+            config: new LocalizationConfig('sk', 'sk', ['sk'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false)),
+        );
 
         self::assertSame('sk', $helpers->currentLocale());
     }
@@ -70,12 +71,9 @@ final class ViewHelpersTest extends TestCase
     private function helpers(
         ?Router $router = null,
         ?TranslatorInterface $translator = null,
-        ?Config $config = null,
+        ?LocalizationConfig $config = null,
     ): ViewHelpers {
-        $config ??= new Config([
-            'app' => ['base_url' => 'https://example.test'],
-            'localization' => ['default_locale' => 'en'],
-        ]);
+        $config ??= new LocalizationConfig('en', 'en', ['en'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false));
         $router ??= new Router();
         $router->getNamed('home', '/', 'HomeController@index');
 
@@ -83,7 +81,16 @@ final class ViewHelpersTest extends TestCase
         $csrf = new CsrfViewHelper(new CsrfTokenManager($session));
 
         return new ViewHelpers(
-            baseUrl: new BaseUrlResolver($config),
+            baseUrl: new BaseUrlResolver(new AppConfig(
+                timezone: null,
+                baseUrl: 'https://example.test',
+                basePath: '',
+                env: 'testing',
+                debug: false,
+                appPath: '',
+                configPath: '',
+                storagePath: '',
+            )),
             urlGenerator: new UrlGenerator($router, null, new ViewHelpersLocaleUrlStrategyStub()),
             csrf: $csrf,
             translator: $translator ?? new ViewHelpersTranslatorStub(),

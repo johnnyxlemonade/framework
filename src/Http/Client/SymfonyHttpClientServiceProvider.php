@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Http\Client;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Config\HttpClientConfig;
+use Lemonade\Framework\Http\Config\HttpClientConfigDefinition;
+use Lemonade\Framework\Http\Config\HttpClientConfigResolver;
 use Psr\Http\Client\ClientInterface;
 
 final class SymfonyHttpClientServiceProvider implements ServiceProviderInterface
@@ -17,6 +20,16 @@ final class SymfonyHttpClientServiceProvider implements ServiceProviderInterface
 
     public function register(ContainerInterface $container): void
     {
+        $container->singleton(HttpClientConfigResolver::class, HttpClientConfigResolver::class);
+        $container->singleton(HttpClientConfig::class, static function (ContainerInterface $container): HttpClientConfig {
+            return $container
+                ->get(HttpClientConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    HttpClientConfigDefinition::moduleKey(),
+                    HttpClientConfigDefinition::class,
+                ));
+        });
+
         $container->singleton(ClientInterface::class, static function (ContainerInterface $container): ClientInterface {
             if (!class_exists(self::SYMFONY_PSR18_CLIENT_CLASS)) {
                 throw new \RuntimeException(
@@ -30,16 +43,14 @@ final class SymfonyHttpClientServiceProvider implements ServiceProviderInterface
                 );
             }
 
-            $config = $container->get(Config::class);
-            $timeout = $config->get('http.client.timeout', 10.0);
-            $verifySsl = $config->bool('http.client.verify_ssl', true);
+            $config = $container->get(HttpClientConfig::class);
 
             $httpClientClass = self::SYMFONY_HTTP_CLIENT_CLASS;
             $psr18ClientClass = self::SYMFONY_PSR18_CLIENT_CLASS;
             $httpClient = $httpClientClass::create([
-                'timeout' => is_numeric($timeout) ? (float) $timeout : 10.0,
-                'verify_peer' => $verifySsl,
-                'verify_host' => $verifySsl,
+                'timeout' => $config->timeout,
+                'verify_peer' => $config->verifySsl,
+                'verify_host' => $config->verifySsl,
             ]);
             $client = new $psr18ClientClass($httpClient);
             if (!$client instanceof ClientInterface) {
@@ -53,15 +64,13 @@ final class SymfonyHttpClientServiceProvider implements ServiceProviderInterface
 
         if (interface_exists(self::SYMFONY_HTTP_CLIENT_INTERFACE)) {
             $container->singleton(self::SYMFONY_HTTP_CLIENT_INTERFACE, static function (ContainerInterface $container): object {
-                $config = $container->get(Config::class);
+                $config = $container->get(HttpClientConfig::class);
                 $httpClientClass = self::SYMFONY_HTTP_CLIENT_CLASS;
-                $timeout = $config->get('http.client.timeout', 10.0);
-                $verifySsl = $config->bool('http.client.verify_ssl', true);
 
                 $httpClient = $httpClientClass::create([
-                    'timeout' => is_numeric($timeout) ? (float) $timeout : 10.0,
-                    'verify_peer' => $verifySsl,
-                    'verify_host' => $verifySsl,
+                    'timeout' => $config->timeout,
+                    'verify_peer' => $config->verifySsl,
+                    'verify_host' => $config->verifySsl,
                 ]);
 
                 if (!is_object($httpClient)) {

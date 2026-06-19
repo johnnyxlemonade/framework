@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Api\Framework;
 
 use Lemonade\Framework\Api\ApiServiceProvider;
+use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
@@ -78,7 +79,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'security' => [\n        'static_bearer' => [\n            'enabled' => true,\n            'token' => 'secret-token',\n            'scopes' => ['api:admin'],\n        ],\n    ],\n];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->staticBearer('secret-token', ['api:admin']);\n",
         );
 
         $request = (new ServerRequest('GET', '/api/framework/openapi.json'))
@@ -94,7 +95,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'framework' => [\n        'enabled' => false,\n    ],\n];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->frameworkDisabled();\n",
         );
 
         $health = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
@@ -117,7 +118,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'framework' => [\n        'docs' => [\n            'enabled' => true,\n        ],\n    ],\n];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->docsEnabled();\n",
         );
 
         $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/docs'));
@@ -129,7 +130,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'enabled' => false,\n];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->disabled();\n",
         );
 
         $health = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
@@ -143,7 +144,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'endpoint_providers' => [\n        '" . addslashes(TestAppApiEndpointProvider::class) . "',\n    ],\n    'security' => [\n        'static_bearer' => [\n            'enabled' => true,\n            'token' => 'secret-token',\n            'scopes' => ['api:admin'],\n        ],\n    ],\n];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->endpointProvider('" . addslashes(TestAppApiEndpointProvider::class) . "')->staticBearer('secret-token', ['api:admin']);\n",
         );
 
         $request = (new ServerRequest('GET', '/api/framework/openapi.json'))
@@ -167,13 +168,12 @@ final class FrameworkApiEndpointsTest extends TestCase
         );
         $container = new Container();
         $framework = new Framework($container, $context);
-        $framework->config([
-            'api' => [
-                'endpoint_providers' => [
-                    TestInvalidApiEndpointProvider::class,
-                ],
-            ],
-        ]);
+        $file = $this->root . DIRECTORY_SEPARATOR . 'invalid-api-config.php';
+        file_put_contents(
+            $file,
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->endpointProviders(['" . addslashes(TestInvalidApiEndpointProvider::class) . "']);\n",
+        );
+        $framework->configFromFile($file);
 
         $this->expectException(\LogicException::class);
         $framework->register(new ApiServiceProvider());
@@ -192,6 +192,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $framework->register(new ApiServiceProvider());
 
         self::assertTrue($container->isBound(FrameworkApiEndpointProvider::class));
+        self::assertTrue($container->isBound(ApiConfig::class));
     }
 
     public function testFrameworkRunsWithDefaultsWhenAppApiConfigFileIsMissing(): void
@@ -208,7 +209,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'security' => [\n        'static_bearer' => [\n            'token' => 'secret-token',\n        ],\n    ],\n];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->staticBearerScopes(['api:admin'])->staticBearerDisabled();\n",
         );
 
         $kernel = $this->kernel();
@@ -219,14 +220,14 @@ final class FrameworkApiEndpointsTest extends TestCase
         self::assertSame('/api', $config->string('api.prefix'));
         self::assertTrue($config->bool('api.framework.openapi.enabled'));
         self::assertFalse($config->bool('api.security.static_bearer.enabled'));
-        self::assertSame('secret-token', $config->string('api.security.static_bearer.token'));
+        self::assertNull($config->string('api.security.static_bearer.token'));
     }
 
     public function testStaticBearerEnabledWithNullTokenDoesNotCrashAndAuthFails(): void
     {
         $this->writeConfigFile(
             'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'security' => [\n        'static_bearer' => [\n            'enabled' => true,\n            'token' => null,\n        ],\n    ],\n];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->staticBearer(token: null, scopes: ['api:admin']);\n",
         );
 
         $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/openapi.json'));
@@ -239,12 +240,27 @@ final class FrameworkApiEndpointsTest extends TestCase
         foreach (['/api', 'api', '/api/'] as $prefix) {
             $this->writeConfigFile(
                 'Api.php',
-                "<?php\n\ndeclare(strict_types=1);\n\nreturn [\n    'prefix' => '" . addslashes($prefix) . "',\n];\n",
+                "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('" . addslashes($prefix) . "');\n",
             );
 
             $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
             self::assertSame(200, $response->getStatusCode(), 'Failed for prefix: ' . $prefix);
         }
+    }
+
+    public function testTypedApplicationApiDefinitionOverridesDefaults(): void
+    {
+        $this->writeConfigFile(
+            'Api.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('/typed')->docsEnabled();\n",
+        );
+
+        $kernel = $this->kernel();
+        $kernel->bootstrap();
+        $config = $kernel->framework()->container()->get(ApiConfig::class);
+
+        self::assertSame('/typed', $config->prefix);
+        self::assertTrue($config->framework->docs->enabled);
     }
 
     private function kernel(): Kernel
@@ -270,25 +286,24 @@ final class FrameworkApiEndpointsTest extends TestCase
         foreach ([
             'Config.php',
             'App.php',
-            'Localization.php',
-            'Cache.php',
-            'Logging.php',
-            'Session.php',
-            'Database.php',
-            'Breadcrumbs.php',
-            'Upload.php',
+            'Framework.php',
             'Api.php',
-            'Providers.php',
+            'Commands.php',
         ] as $file) {
             if ($file === 'Config.php') {
                 $this->writeConfigFile(
                     'Config.php',
-                    "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null, 'Localization.php' => null, 'Cache.php' => null, 'Logging.php' => null, 'Session.php' => null, 'Database.php' => null, 'Breadcrumbs.php' => null, 'Upload.php' => null, 'Api.php' => 'api', 'Providers.php' => null], 'http' => [], 'cli' => ['Commands.php' => 'commands']];\n",
+                    "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php', 'Framework.php', 'Api.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
                 );
                 continue;
             }
 
-            $this->writeConfigFile($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn [];\n");
+            $this->writeConfigFile($file, match ($file) {
+                'App.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
+                'Framework.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\FrameworkConfigDefinition;\n\nreturn FrameworkConfigDefinition::create();\n",
+                'Api.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create();\n",
+                'Commands.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+            });
         }
 
         $this->writeConfigFile(

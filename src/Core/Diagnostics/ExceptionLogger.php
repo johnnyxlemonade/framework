@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core\Diagnostics;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Core\Logging\RotatingFileLogger;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
@@ -40,21 +40,21 @@ final class ExceptionLogger
     private function logFallback(Throwable $exception, string $source): void
     {
         try {
-            $config = $this->container->has(Config::class)
-                ? $this->container->get(Config::class)
+            $config = $this->container->has(LoggingConfig::class)
+                ? $this->container->get(LoggingConfig::class)
                 : null;
 
-            if ($config instanceof Config) {
-                $enabled = $config->bool('error.log.enabled', true);
+            if ($config instanceof LoggingConfig) {
+                $enabled = $config->error->enabled;
 
                 if (!$enabled) {
                     return;
                 }
 
-                $file = $config->string('error.log.file', 'writable/logs/error.log') ?? 'writable/logs/error.log';
-                $days = $config->int('error.log.days', 7);
+                $file = $config->error->path;
+                $days = $config->error->days;
             } else {
-                $file = 'writable/logs/error.log';
+                $file = 'error.log';
                 $days = 7;
             }
 

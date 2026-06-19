@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Api\Http\Middleware;
 
+use Lemonade\Framework\Api\Config\ApiConfig;
+use Lemonade\Framework\Api\Config\ApiEndpointConfig;
+use Lemonade\Framework\Api\Config\ApiSecurityConfig;
+use Lemonade\Framework\Api\Config\FrameworkApiConfig;
+use Lemonade\Framework\Api\Config\StaticBearerConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
@@ -13,7 +18,7 @@ use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Api\Security\ApiIdentity;
 use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
@@ -144,7 +149,19 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
             $auth,
             new ScopeVoter(),
             new ProblemDetailsFactory(new Psr17Factory()),
-            new Config(['app' => ['debug' => false]]),
+            new ApiConfig(
+                enabled: true,
+                prefix: '/api',
+                endpointProviders: [],
+                security: new ApiSecurityConfig(new StaticBearerConfig('token', ['api:admin'])),
+                framework: new FrameworkApiConfig(
+                    enabled: true,
+                    health: new ApiEndpointConfig(true, '/framework/health', ApiAccess::Public),
+                    openapi: new ApiEndpointConfig(true, '/framework/openapi.json', ApiAccess::Protected, ['openapi:read']),
+                    docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
+                ),
+            ),
+            new AppConfig(null, null, '', 'testing', false, '', '', ''),
         );
     }
 }

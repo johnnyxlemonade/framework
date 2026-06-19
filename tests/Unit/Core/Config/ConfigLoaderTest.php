@@ -14,6 +14,7 @@ use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use LogicException;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class ConfigLoaderTest extends TestCase
 {
@@ -29,11 +30,24 @@ final class ConfigLoaderTest extends TestCase
         $this->deleteRecursive($this->root);
     }
 
-    public function testLoadWithStrictManifestLoadsConfiguredFiles(): void
+    public function testLoadWithDefinitionManifestLoadsConfiguredFiles(): void
     {
-        $this->writeConfigFile('App.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['app' => ['name' => 'Demo']];\n");
-        $this->writeConfigFile('Logging.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['logging' => ['default' => 'stderr']];\n");
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php' => null, 'Logging.php' => null], 'http' => [], 'cli' => []];\n");
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php', 'Api.php'], 'http' => ['HtmlMinify.php'], 'cli' => []];\n",
+        );
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://example.test');\n",
+        );
+        $this->writeConfigFile(
+            'Api.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('/typed-api')->docsEnabled();\n",
+        );
+        $this->writeConfigFile(
+            'HtmlMinify.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Http\\Config\\HtmlMinifyConfigDefinition;\n\nreturn HtmlMinifyConfigDefinition::create()->enabled();\n",
+        );
 
         $loader = new ConfigLoader();
         $context = $this->context();
@@ -42,20 +56,30 @@ final class ConfigLoaderTest extends TestCase
         $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
 
         $config = $framework->container()->get(Config::class);
-
-        self::assertSame('Demo', $config->get('app.name'));
-        self::assertSame('stderr', $config->get('logging.default'));
+        self::assertSame('https://example.test', $config->string('app.base_url'));
+        self::assertSame('/typed-api', $config->string('api.prefix'));
+        self::assertTrue($config->bool('api.framework.docs.enabled'));
+        self::assertTrue($config->bool('html_minify.enabled'));
     }
 
     public function testLoadWithEntrypointAwareManifestLoadsSharedAndHttpForHttpEntrypoint(): void
     {
         $this->writeConfigFile(
             'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Shared.php' => null], 'http' => ['Http.php' => null], 'cli' => ['Cli.php' => null]];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => ['HtmlMinify.php'], 'cli' => ['Commands.php']];\n",
         );
-        $this->writeConfigFile('Shared.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['enabled' => true]];\n");
-        $this->writeConfigFile('Http.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['http' => ['enabled' => true]];\n");
-        $this->writeConfigFile('Cli.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['cli' => ['enabled' => true]];\n");
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://shared.test');\n",
+        );
+        $this->writeConfigFile(
+            'HtmlMinify.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Http\\Config\\HtmlMinifyConfigDefinition;\n\nreturn HtmlMinifyConfigDefinition::create()->enabled();\n",
+        );
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+        );
 
         $loader = new ConfigLoader();
         $context = $this->context();
@@ -64,20 +88,29 @@ final class ConfigLoaderTest extends TestCase
         $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
 
         $config = $framework->container()->get(Config::class);
-        self::assertTrue((bool) $config->get('shared.enabled'));
-        self::assertTrue((bool) $config->get('http.enabled'));
-        self::assertNull($config->get('cli.enabled'));
+        self::assertSame('https://shared.test', $config->string('app.base_url'));
+        self::assertTrue($config->bool('html_minify.enabled'));
+        self::assertSame([], $config->get('commands', []));
     }
 
     public function testLoadWithEntrypointAwareManifestLoadsSharedAndCliForCliEntrypoint(): void
     {
         $this->writeConfigFile(
             'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Shared.php' => null], 'http' => ['Http.php' => null], 'cli' => ['Cli.php' => null]];\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => ['HtmlMinify.php'], 'cli' => ['Commands.php']];\n",
         );
-        $this->writeConfigFile('Shared.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['enabled' => true]];\n");
-        $this->writeConfigFile('Http.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['http' => ['enabled' => true]];\n");
-        $this->writeConfigFile('Cli.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['cli' => ['enabled' => true]];\n");
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://shared.test');\n",
+        );
+        $this->writeConfigFile(
+            'HtmlMinify.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Http\\Config\\HtmlMinifyConfigDefinition;\n\nreturn HtmlMinifyConfigDefinition::create()->enabled();\n",
+        );
+        $this->writeConfigFile(
+            'Commands.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands([]);\n",
+        );
 
         $loader = new ConfigLoader();
         $context = $this->context();
@@ -86,9 +119,37 @@ final class ConfigLoaderTest extends TestCase
         $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_CLI);
 
         $config = $framework->container()->get(Config::class);
-        self::assertTrue((bool) $config->get('shared.enabled'));
-        self::assertTrue((bool) $config->get('cli.enabled'));
-        self::assertNull($config->get('http.enabled'));
+        self::assertSame('https://shared.test', $config->string('app.base_url'));
+        self::assertNull($config->get('html_minify.enabled'));
+        self::assertSame([], $config->get('commands', []));
+    }
+
+    public function testConfigFileReturningArrayThrowsExplicitRuntimeException(): void
+    {
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php'], 'http' => [], 'cli' => []];\n",
+        );
+        $this->writeConfigFile('Api.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['enabled' => true];\n");
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Raw array config is not supported');
+
+        (new ConfigLoader())->loadApplication($this->framework($this->context()), $this->context(), ConfigLoader::ENTRYPOINT_HTTP);
+    }
+
+    public function testConfigFileReturningInvalidValueThrowsExplicitRuntimeException(): void
+    {
+        $this->writeConfigFile(
+            'Config.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php'], 'http' => [], 'cli' => []];\n",
+        );
+        $this->writeConfigFile('Api.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn 'invalid';\n");
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('must return an instance');
+
+        (new ConfigLoader())->loadApplication($this->framework($this->context()), $this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     public function testInvalidManifestNotReturningArrayThrowsLogicException(): void
@@ -120,7 +181,7 @@ final class ConfigLoaderTest extends TestCase
 
     public function testInvalidManifestFileItemNotStringThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [123 => null], 'http' => [], 'cli' => []];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [123], 'http' => [], 'cli' => []];\n");
 
         $this->expectException(LogicException::class);
 
@@ -129,61 +190,11 @@ final class ConfigLoaderTest extends TestCase
 
     public function testInvalidManifestFileItemEmptyStringThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['' => null], 'http' => [], 'cli' => []];\n");
+        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [''], 'http' => [], 'cli' => []];\n");
 
         $this->expectException(LogicException::class);
 
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
-    }
-
-    public function testInvalidManifestRootKeyThrowsLogicException(): void
-    {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php' => ''], 'http' => [], 'cli' => []];\n");
-
-        $this->expectException(LogicException::class);
-
-        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
-    }
-
-    public function testRootKeyMappingWrapsSectionWithoutDoubleNesting(): void
-    {
-        $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Cache.php' => 'cache'], 'http' => [], 'cli' => []];\n",
-        );
-        $this->writeConfigFile(
-            'Cache.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['default' => 'file'];\n",
-        );
-
-        $loader = new ConfigLoader();
-        $context = $this->context();
-        $framework = $this->framework($context);
-
-        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
-
-        $config = $framework->container()->get(Config::class);
-        self::assertSame('file', $config->string('cache.default'));
-        self::assertNull($config->get('cache.cache.default'));
-    }
-
-    public function testRootKeyMappingThrowsWhenFileAlreadyContainsSameRootKey(): void
-    {
-        $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Cache.php' => 'cache'], 'http' => [], 'cli' => []];\n",
-        );
-        $this->writeConfigFile(
-            'Cache.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['cache' => ['default' => 'file']];\n",
-        );
-
-        $loader = new ConfigLoader();
-        $context = $this->context();
-        $framework = $this->framework($context);
-
-        $this->expectException(LogicException::class);
-        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     private function context(): ApplicationContext

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Http\Config\HtmlMinifyConfig;
 use Lemonade\Framework\Http\Response\HtmlMinifier;
 use Nyholm\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
@@ -16,7 +16,7 @@ final class HtmlMinifyMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private readonly HtmlMinifier $minifier,
-        private readonly Config $config,
+        private readonly HtmlMinifyConfig $config,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -51,7 +51,7 @@ final class HtmlMinifyMiddleware implements MiddlewareInterface
 
     private function enabled(): bool
     {
-        return (bool) $this->config->get('html_minify.enabled', false);
+        return $this->config->enabled;
     }
 
     private function isHtmlResponse(ResponseInterface $response): bool

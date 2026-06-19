@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Discovery;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Discovery\Config\SitemapConfig;
+use Lemonade\Framework\Discovery\Config\SitemapRouteConfig;
 use Lemonade\Framework\Discovery\Console\GenerateSitemapCommand;
 use Lemonade\Framework\Discovery\Sitemap\RouteSitemapProvider;
 use Lemonade\Framework\Discovery\Sitemap\SitemapFileGenerator;
@@ -41,25 +43,17 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
     {
         $router = new Router();
         $router->getNamed('home', '/', 'HomeController@index');
-        $config = new Config([
-            'app' => ['base_url' => 'https://example.com'],
-            'discovery' => [
-                'sitemap' => [
-                    'routes' => ['home'],
-                    'providers' => [],
-                    'cache_path' => 'storage/cache/discovery',
-                    'filename' => 'sitemap.xml',
-                    'index_filename' => 'sitemap.xml',
-                    'max_urls_per_file' => 50000,
-                    'gzip' => false,
-                ],
-            ],
-        ]);
+        $baseUrl = 'https://example.com';
+        $config = $this->sitemapConfig(routes: [new SitemapRouteConfig('home', [], null, null, null)]);
         $context = new ApplicationContext(Environment::Testing, new Path($this->root), DebugMode::disabled());
 
         $routeProvider = new RouteSitemapProvider($config, new UrlGenerator($router));
         $registry = new SitemapProviderRegistry(new \Lemonade\Framework\Container\Container(), $config, $routeProvider);
-        $generator = new SitemapGenerator($registry, new BaseUrlResolver($config), $config);
+        $generator = new SitemapGenerator(
+            $registry,
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            $config,
+        );
         $fileGenerator = new SitemapFileGenerator(
             $generator,
             new SitemapIndexGenerator(),
@@ -85,25 +79,22 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
     {
         $router = new Router();
         $router->getNamed('home', '/', 'HomeController@index');
-        $config = new Config([
-            'app' => ['base_url' => 'https://example.com'],
-            'discovery' => [
-                'sitemap' => [
-                    'routes' => ['home'],
-                    'providers' => [FailingSitemapProvider::class],
-                    'cache_path' => 'storage/cache/discovery',
-                    'filename' => 'sitemap.xml',
-                    'index_filename' => 'sitemap.xml',
-                ],
-            ],
-        ]);
+        $baseUrl = 'https://example.com';
+        $config = $this->sitemapConfig(
+            routes: [new SitemapRouteConfig('home', [], null, null, null)],
+            providers: [FailingSitemapProvider::class],
+        );
         $container = new \Lemonade\Framework\Container\Container();
         $container->singleton(FailingSitemapProvider::class, FailingSitemapProvider::class);
         $context = new ApplicationContext(Environment::Testing, new Path($this->root), DebugMode::disabled());
 
         $routeProvider = new RouteSitemapProvider($config, new UrlGenerator($router));
         $registry = new SitemapProviderRegistry($container, $config, $routeProvider);
-        $generator = new SitemapGenerator($registry, new BaseUrlResolver($config), $config);
+        $generator = new SitemapGenerator(
+            $registry,
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            $config,
+        );
         $fileGenerator = new SitemapFileGenerator(
             $generator,
             new SitemapIndexGenerator(),
@@ -127,24 +118,23 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
         $router = new Router();
         $router->getNamed('home', '/', 'HomeController@index');
         $router->getNamed('examples.index', '/examples', 'ExamplesController@index');
-        $config = new Config([
-            'app' => ['base_url' => 'https://example.com'],
-            'discovery' => [
-                'sitemap' => [
-                    'routes' => ['home', 'examples.index'],
-                    'providers' => [],
-                    'cache_path' => 'storage/cache/discovery',
-                    'filename' => 'sitemap.xml',
-                    'index_filename' => 'sitemap.xml',
-                    'max_urls_per_file' => 1,
-                    'gzip' => true,
-                ],
+        $baseUrl = 'https://example.com';
+        $config = $this->sitemapConfig(
+            routes: [
+                new SitemapRouteConfig('home', [], null, null, null),
+                new SitemapRouteConfig('examples.index', [], null, null, null),
             ],
-        ]);
+            maxUrlsPerFile: 1,
+            gzip: true,
+        );
         $context = new ApplicationContext(Environment::Testing, new Path($this->root), DebugMode::disabled());
         $routeProvider = new RouteSitemapProvider($config, new UrlGenerator($router));
         $registry = new SitemapProviderRegistry(new \Lemonade\Framework\Container\Container(), $config, $routeProvider);
-        $generator = new SitemapGenerator($registry, new BaseUrlResolver($config), $config);
+        $generator = new SitemapGenerator(
+            $registry,
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            $config,
+        );
         $fileGenerator = new SitemapFileGenerator(
             $generator,
             new SitemapIndexGenerator(),
@@ -166,25 +156,22 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
         $router = new Router();
         $router->getNamed('home', '/', 'HomeController@index');
         $router->getNamed('examples.index', '/examples', 'ExamplesController@index');
-        $config = new Config([
-            'app' => ['base_url' => 'https://example.com'],
-            'discovery' => [
-                'sitemap' => [
-                    'routes' => ['home', 'examples.index'],
-                    'providers' => [],
-                    'cache_path' => 'storage/cache/discovery',
-                    'filename' => 'sitemap.xml',
-                    'index_filename' => 'sitemap.xml',
-                    'max_urls_per_file' => 50000,
-                    'max_uncompressed_bytes' => 80,
-                    'gzip' => false,
-                ],
+        $baseUrl = 'https://example.com';
+        $config = $this->sitemapConfig(
+            routes: [
+                new SitemapRouteConfig('home', [], null, null, null),
+                new SitemapRouteConfig('examples.index', [], null, null, null),
             ],
-        ]);
+            maxUncompressedBytes: 80,
+        );
         $context = new ApplicationContext(Environment::Testing, new Path($this->root), DebugMode::disabled());
         $routeProvider = new RouteSitemapProvider($config, new UrlGenerator($router));
         $registry = new SitemapProviderRegistry(new \Lemonade\Framework\Container\Container(), $config, $routeProvider);
-        $generator = new SitemapGenerator($registry, new BaseUrlResolver($config), $config);
+        $generator = new SitemapGenerator(
+            $registry,
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            $config,
+        );
         $fileGenerator = new SitemapFileGenerator(
             $generator,
             new SitemapIndexGenerator(),
@@ -195,6 +182,36 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
 
         $result = $fileGenerator->generate();
         self::assertGreaterThan(1, count($result->files()));
+    }
+
+    /**
+     * @param list<SitemapRouteConfig> $routes
+     * @param list<class-string<SitemapProviderInterface>> $providers
+     */
+    private function sitemapConfig(
+        array $routes = [],
+        array $providers = [],
+        int $maxUrlsPerFile = 50000,
+        int $maxUncompressedBytes = 52428800,
+        bool $gzip = false,
+    ): SitemapConfig {
+        return new SitemapConfig(
+            enabled: false,
+            route: '/sitemap.xml',
+            cliOutput: true,
+            mode: 'stream',
+            baseUrl: null,
+            routes: $routes,
+            providers: $providers,
+            cachePath: 'storage/cache/discovery',
+            filename: 'sitemap.xml',
+            indexFilename: 'sitemap.xml',
+            gzip: $gzip,
+            maxUrlsPerFile: $maxUrlsPerFile,
+            maxUncompressedBytes: $maxUncompressedBytes,
+            deduplicate: false,
+            onInvalidUrl: 'fail',
+        );
     }
 
     private function deleteRecursive(string $path): void

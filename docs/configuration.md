@@ -1,6 +1,6 @@
 # Configuration
 
-Configuration files are plain PHP files returning arrays.
+Configuration files are plain PHP files returning typed config definition objects.
 
 The framework resolves application configuration from the application context. By convention, configuration files are stored in:
 
@@ -38,6 +38,32 @@ The CLI kernel conventionally loads the same application configuration files as 
 app/Config/Commands.php
 ```
 
+## Config manifest
+
+The application config manifest still returns arrays, but only as a file list:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+return [
+    'shared' => [
+        'App.php',
+        'Api.php',
+        'Providers.php',
+    ],
+    'http' => [
+        'HtmlMinify.php',
+    ],
+    'cli' => [
+        'Commands.php',
+    ],
+];
+```
+
+Every listed config file must return an implementation of `ConfigDefinitionInterface`. Raw array config files are rejected.
+
 ## Runtime application values
 
 Runtime application values are injected from the current application context:
@@ -51,48 +77,42 @@ app.config_path
 app.storage_path
 ```
 
-## Provider and command keys
-
-Framework-level providers are read from the framework default configuration key:
-
-```text
-framework.providers
-```
-
-Application-level providers are read from:
-
-```text
-providers
-```
-
-CLI commands are read from:
-
-```text
-commands
-```
-
 ## Environment helper
 
 Environment values can be read through `Lemonade\Framework\Support\Env`. The helper resolves values from `$_ENV`, then `$_SERVER`, then `getenv()`.
 
-Example configuration file:
+Example typed configuration files:
 
 ```php
 <?php
 
+declare(strict_types=1);
+
+use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Support\Env;
 
-return [
-    'app' => [
-        'name' => Env::string('APP_NAME', 'My Application'),
-    ],
+return AppConfigDefinition::create()
+    ->baseUrl(Env::string('APP_URL'));
+```
 
-    'localization' => [
-        'default_locale' => Env::string('APP_LOCALE', 'cs'),
-        'fallback_locale' => Env::string('APP_FALLBACK_LOCALE', 'cs'),
-        'supported_locales' => Env::list('APP_SUPPORTED_LOCALES', ['cs', 'en']),
-    ],
-];
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Api\AppApiEndpointProvider;
+use Lemonade\Framework\Api\Config\ApiConfigDefinition;
+use Lemonade\Framework\Support\Env;
+
+return ApiConfigDefinition::create()
+    ->enabled()
+    ->prefix('/api')
+    ->endpointProvider(AppApiEndpointProvider::class)
+    ->staticBearer(
+        token: Env::string('API_TOKEN'),
+        scopes: ['api:admin', 'openapi:read'],
+    )
+    ->docsEnabled();
 ```
 
 `Env::list()` expects a comma-separated string and returns a normalized list of unique, non-empty values.

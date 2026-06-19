@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
-use Lemonade\Framework\Cli\CommandInterface;
 use Lemonade\Framework\Cli\CommandRegistry;
+use Lemonade\Framework\Cli\Config\CommandsConfig;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\ConfigLoader;
@@ -113,28 +113,9 @@ final class CliKernel
 
     private function buildCommandRegistry(): CommandRegistry
     {
-        $config = $this->container->get(Config::class);
-        $configured = $config->get('commands', []);
-
-        if (!is_array($configured)) {
-            throw new \LogicException('Config key "commands" must be an array.');
-        }
-
         $registry = $this->container->get(CommandRegistry::class);
 
-        foreach ($configured as $commandClass) {
-            if (!is_string($commandClass)) {
-                throw new \LogicException('Configured command must be a class-string.');
-            }
-            if (!class_exists($commandClass) || !is_subclass_of($commandClass, CommandInterface::class)) {
-                throw new \LogicException(sprintf(
-                    'Configured command "%s" must implement %s.',
-                    $commandClass,
-                    CommandInterface::class,
-                ));
-            }
-            /** @var class-string<CommandInterface> $commandClass */
-
+        foreach ($this->container->get(CommandsConfig::class)->commands as $commandClass) {
             $registry->register($commandClass);
         }
 

@@ -5,25 +5,23 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Discovery\Sitemap;
 
 use Lemonade\Framework\Core\AbstractController;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Discovery\Config\SitemapConfig;
 use Psr\Http\Message\ResponseInterface;
 
 final class SitemapController extends AbstractController
 {
     public function __construct(
-        private readonly Config $config,
+        private readonly SitemapConfig $config,
         private readonly SitemapGenerator $generator,
         private readonly ApplicationContext $context,
     ) {}
 
     public function index(): ResponseInterface
     {
-        $mode = $this->config->string('discovery.sitemap.mode', 'stream') ?? 'stream';
-
-        if ($mode === 'cache') {
-            $relativePath = $this->config->string('discovery.sitemap.cache_path', 'storage/cache/discovery') ?? 'storage/cache/discovery';
-            $indexFilename = $this->config->string('discovery.sitemap.index_filename', 'sitemap.xml') ?? 'sitemap.xml';
+        if ($this->config->mode === 'cache') {
+            $relativePath = $this->config->cachePath;
+            $indexFilename = $this->config->indexFilename;
             $path = $this->context->basePath() . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath) . DIRECTORY_SEPARATOR . $indexFilename;
 
             if (!is_file($path)) {

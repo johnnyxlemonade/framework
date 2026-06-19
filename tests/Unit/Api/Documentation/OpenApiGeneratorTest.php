@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Api\Documentation;
 
+use Lemonade\Framework\Api\Config\ApiConfig;
+use Lemonade\Framework\Api\Config\ApiEndpointConfig;
+use Lemonade\Framework\Api\Config\ApiSecurityConfig;
+use Lemonade\Framework\Api\Config\FrameworkApiConfig;
+use Lemonade\Framework\Api\Config\StaticBearerConfig;
 use Lemonade\Framework\Api\Documentation\OpenApiGenerator;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\FrameworkInfo;
 use PHPUnit\Framework\TestCase;
 
@@ -63,12 +68,23 @@ final class OpenApiGeneratorTest extends TestCase
             ),
         );
 
-        $config = new Config([
-            'api' => ['prefix' => '/api'],
-            'app' => ['base_url' => 'https://example.test'],
-        ]);
-
-        $document = (new OpenApiGenerator($registry, $config, new FrameworkInfo()))->generate();
+        $document = (new OpenApiGenerator(
+            $registry,
+            new ApiConfig(
+                enabled: true,
+                prefix: '/api',
+                endpointProviders: [],
+                security: new ApiSecurityConfig(new StaticBearerConfig('token', ['api:admin'])),
+                framework: new FrameworkApiConfig(
+                    enabled: true,
+                    health: new ApiEndpointConfig(true, '/framework/health', ApiAccess::Public),
+                    openapi: new ApiEndpointConfig(true, '/framework/openapi.json', ApiAccess::Protected, ['openapi:read']),
+                    docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
+                ),
+            ),
+            new AppConfig(null, 'https://example.test', '', 'testing', false, '', '', ''),
+            new FrameworkInfo(),
+        ))->generate();
 
         self::assertSame('3.1.0', $document['openapi']);
         $info = $document['info'] ?? null;

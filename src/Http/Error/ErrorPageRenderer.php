@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Error;
 
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Http\Config\ErrorConfig;
 use Lemonade\Framework\View\View;
 use Throwable;
 
@@ -13,13 +13,13 @@ final class ErrorPageRenderer
 {
     public function __construct(
         private readonly ApplicationContext $context,
-        private readonly Config $config,
+        private readonly ErrorConfig $config,
         private readonly View $view,
     ) {}
 
     public function notFound(Throwable $exception): string
     {
-        $template = $this->config->string('error.views.not_found', 'errors/404') ?? 'errors/404';
+        $template = $this->config->notFoundView;
 
         return $this->renderSafely(
             template: $template,
@@ -38,7 +38,7 @@ final class ErrorPageRenderer
 
     public function internalServerError(Throwable $exception): string
     {
-        $template = $this->config->string('error.views.internal_server_error', 'errors/500') ?? 'errors/500';
+        $template = $this->config->internalServerErrorView;
 
         return $this->renderSafely(
             template: $template,

@@ -6,7 +6,7 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Clock\ClockInterface;
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\CoreServiceProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -16,9 +16,7 @@ final class CoreServiceProviderClockTest extends TestCase
     public function testRegistersClockAliasAndInterface(): void
     {
         $container = new Container();
-        $container->singleton(Config::class, new Config([
-            'app' => ['timezone' => 'UTC'],
-        ]));
+        $container->singleton(AppConfig::class, new AppConfig('UTC', null, '', 'testing', false, '', '', ''));
 
         (new CoreServiceProvider())->register($container);
 
@@ -33,9 +31,7 @@ final class CoreServiceProviderClockTest extends TestCase
     public function testInvalidTimezoneThrowsDuringProviderRegistration(): void
     {
         $container = new Container();
-        $container->singleton(Config::class, new Config([
-            'app' => ['timezone' => 'Invalid/Timezone'],
-        ]));
+        $container->singleton(AppConfig::class, new AppConfig('Invalid/Timezone', null, '', 'testing', false, '', '', ''));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Invalid configured timezone in app.timezone');

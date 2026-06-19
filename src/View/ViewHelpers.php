@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\View;
 
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
@@ -17,7 +17,7 @@ final class ViewHelpers
         private readonly UrlGenerator $urlGenerator,
         private readonly CsrfViewHelper $csrf,
         private readonly TranslatorInterface $translator,
-        private readonly Config $config,
+        private readonly LocalizationConfig $config,
     ) {}
 
     public function asset(string $path): string
@@ -66,8 +66,7 @@ final class ViewHelpers
             return trim($runtime);
         }
 
-        $configuredValue = $this->config->get('localization.default_locale', $default);
-        $configured = is_scalar($configuredValue) ? trim((string) $configuredValue) : $default;
+        $configured = trim($this->config->defaultLocale);
 
         return $configured !== '' ? $configured : $default;
     }

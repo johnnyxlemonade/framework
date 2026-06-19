@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Api\ApiServiceProvider;
+use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Component\ComponentServiceProvider;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\FrameworkConfig;
+use Lemonade\Framework\Core\Config\FrameworkConfigDefinition;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\CoreServiceProvider;
 use Lemonade\Framework\Core\Framework;
+use Lemonade\Framework\Core\Logging\LoggingServiceProvider;
 use Lemonade\Framework\Database\DatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcDatabaseServiceProvider;
@@ -22,6 +26,8 @@ use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
 use Lemonade\Framework\Debug\DebugServiceProvider;
 use Lemonade\Framework\Discovery\DiscoveryServiceProvider;
 use Lemonade\Framework\Event\EventServiceProvider;
+use Lemonade\Framework\Http\Config\CorsConfigDefinition;
+use Lemonade\Framework\Http\Config\HtmlMinifyConfig;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
@@ -33,7 +39,6 @@ use Lemonade\Framework\Session\SessionServiceProvider;
 use Lemonade\Framework\Upload\UploadServiceProvider;
 use Lemonade\Framework\Validation\ValidationServiceProvider;
 use Lemonade\Framework\View\ViewServiceProvider;
-use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -46,10 +51,8 @@ final class FrameworkTest extends TestCase
     public function testFrameworkLoadsDefaultFrameworkProvidersConfig(): void
     {
         $framework = $this->framework();
-        $config = $framework->container()->get(Config::class);
-        $providers = $config->get('framework.providers');
+        $config = $framework->container()->get(FrameworkConfig::class);
 
-        self::assertIsArray($providers);
         self::assertSame([
             LocalizationServiceProvider::class,
             ApiServiceProvider::class,
@@ -69,25 +72,22 @@ final class FrameworkTest extends TestCase
             ViewServiceProvider::class,
             EventServiceProvider::class,
             QueueServiceProvider::class,
-        ], $providers);
+        ], $config->providers);
     }
 
     public function testAppConfigCanReplaceFrameworkProvidersList(): void
     {
         $framework = $this->framework();
-        $config = $framework->container()->get(Config::class);
 
-        $framework->config([
-            'framework' => [
-                'providers' => [
-                    RoutingServiceProvider::class,
-                ],
-            ],
-        ]);
+        $framework->config(
+            FrameworkConfigDefinition::create()->providers([
+                RoutingServiceProvider::class,
+            ]),
+        );
 
         self::assertSame(
             [RoutingServiceProvider::class],
-            $config->get('framework.providers'),
+            $framework->container()->get(FrameworkConfig::class)->providers,
         );
     }
 
@@ -109,32 +109,19 @@ final class FrameworkTest extends TestCase
         self::assertSame(['api:admin'], $config->array('api.security.static_bearer.scopes'));
     }
 
-    public function testFrameworkDefaultsExposeDiscoveryConfig(): void
+    public function testFrameworkExposesTypedApiConfigRuntimeDto(): void
     {
         $framework = $this->framework();
-        $config = $framework->container()->get(Config::class);
+        $framework->register(new ApiServiceProvider());
 
-        self::assertFalse($config->bool('discovery.robots.enabled'));
-        self::assertSame('/robots.txt', $config->string('discovery.robots.route'));
+        $config = $framework->container()->get(ApiConfig::class);
+
+        self::assertTrue($config->enabled);
+        self::assertSame('/api', $config->prefix);
+        self::assertFalse($config->framework->docs->enabled);
     }
 
-    public function testFrameworkDefaultsExposeModuleConfigStructures(): void
-    {
-        $framework = $this->framework();
-        $config = $framework->container()->get(Config::class);
-
-        self::assertIsArray($config->array('cache'));
-        self::assertIsArray($config->array('database'));
-        self::assertIsArray($config->array('events'));
-        self::assertIsArray($config->array('localization'));
-        self::assertIsArray($config->array('pagination'));
-        self::assertIsArray($config->array('queue'));
-        self::assertIsArray($config->array('session'));
-        self::assertIsArray($config->array('upload'));
-        self::assertIsArray($config->array('breadcrumbs'));
-    }
-
-    public function testConfigFromFileWrapsByRootKeyWhenConfigured(): void
+    public function testConfigFromFileLoadsTypedDefinition(): void
     {
         $framework = $this->framework();
         $config = $framework->container()->get(Config::class);
@@ -142,8 +129,8 @@ final class FrameworkTest extends TestCase
         self::assertIsString($file);
 
         try {
-            file_put_contents($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn ['prefix' => '/x'];\n");
-            $framework->configFromFile($file, 'api');
+            file_put_contents($file, "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('/x');\n");
+            $framework->configFromFile($file);
 
             self::assertSame('/x', $config->string('api.prefix'));
         } finally {
@@ -151,16 +138,16 @@ final class FrameworkTest extends TestCase
         }
     }
 
-    public function testConfigFromFileThrowsWhenRootKeyAlreadyPresentInFile(): void
+    public function testConfigFromFileThrowsWhenConfigReturnsArray(): void
     {
         $framework = $this->framework();
         $file = tempnam(sys_get_temp_dir(), 'lemonade-framework-config-');
         self::assertIsString($file);
 
         try {
-            file_put_contents($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn ['api' => ['prefix' => '/wrapped']];\n");
-            $this->expectException(LogicException::class);
-            $framework->configFromFile($file, 'api');
+            file_put_contents($file, "<?php\n\ndeclare(strict_types=1);\n\nreturn ['prefix' => '/wrapped'];\n");
+            $this->expectException(\RuntimeException::class);
+            $framework->configFromFile($file);
         } finally {
             @unlink($file);
         }
@@ -173,29 +160,26 @@ final class FrameworkTest extends TestCase
 
         self::assertFalse($config->bool('cors.enabled'));
 
-        $framework->config([
-            'cors' => [
-                'enabled' => true,
-                'allowed_origins' => ['http://localhost:3000'],
-                'allowed_methods' => ['GET', 'POST', 'OPTIONS'],
-            ],
-        ]);
+        $framework->config(
+            CorsConfigDefinition::create()
+                ->enabled()
+                ->allowedOrigins(['http://localhost:3000'])
+                ->allowedMethods(['GET', 'POST', 'OPTIONS']),
+        );
 
         self::assertTrue($config->bool('cors.enabled'));
         self::assertSame(['http://localhost:3000'], $config->array('cors.allowed_origins'));
         self::assertSame(['GET', 'POST', 'OPTIONS'], $config->array('cors.allowed_methods'));
     }
 
-    public function testAppConfigCanPartiallyOverrideCorsBecauseMergeIsRecursive(): void
+    public function testDefinitionProjectionPreservesUnspecifiedLegacyCorsKeys(): void
     {
         $framework = $this->framework();
         $config = $framework->container()->get(Config::class);
 
-        $framework->config([
-            'cors' => [
-                'enabled' => true,
-            ],
-        ]);
+        $framework->config(
+            CorsConfigDefinition::create()->enabled(),
+        );
 
         self::assertTrue($config->bool('cors.enabled'));
         self::assertSame([], $config->array('cors.allowed_origins'));
@@ -219,6 +203,16 @@ final class FrameworkTest extends TestCase
             \Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class,
             \Lemonade\Framework\Http\Middleware\OptionsMiddleware::class,
         ], $stack->all());
+    }
+
+    public function testFrameworkExposesTypedHtmlMinifyConfigRuntimeDto(): void
+    {
+        $framework = $this->framework();
+        $framework->register(new HttpServiceProvider());
+
+        $config = $framework->container()->get(HtmlMinifyConfig::class);
+
+        self::assertFalse($config->enabled);
     }
 
     public function testRunBuildsPipelineFromConfiguredMiddlewareStack(): void
@@ -375,19 +369,19 @@ final class FrameworkTest extends TestCase
     {
         $framework = $this->framework();
         $framework->register(new CoreServiceProvider());
+        $framework->register(new LoggingServiceProvider());
         $framework->register(new HttpServiceProvider());
         $factory = new Psr17Factory();
         $container = $framework->container();
         $container->singleton(FrameworkCorsTerminalMiddleware::class, FrameworkCorsTerminalMiddleware::class);
 
-        $framework->config([
-            'cors' => [
-                'enabled' => true,
-                'allowed_origins' => ['http://localhost:3000'],
-                'allowed_methods' => ['GET', 'OPTIONS'],
-                'allowed_headers' => ['Content-Type'],
-            ],
-        ]);
+        $framework->config(
+            CorsConfigDefinition::create()
+                ->enabled()
+                ->allowedOrigins(['http://localhost:3000'])
+                ->allowedMethods(['GET', 'OPTIONS'])
+                ->allowedHeaders(['Content-Type']),
+        );
 
         $framework->middleware(static function (MiddlewareStack $stack): void {
             $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)

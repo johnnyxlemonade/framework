@@ -2,37 +2,28 @@
 
 declare(strict_types=1);
 
-return [
-    'robots' => [
-        'enabled' => false,
-        'route' => '/robots.txt',
-        'header' => [
-            'enabled' => true,
-            'generator' => 'Lemonade Framework',
-            'date_format' => 'Y-m-d H:i:s',
-        ],
-        'rules' => [
-            '*' => [
-                'allow' => ['/'],
-                'disallow' => [],
-            ],
-        ],
-        'sitemaps' => ['/sitemap.xml'],
-    ],
-    'sitemap' => [
-        'enabled' => false,
-        'route' => '/sitemap.xml',
-        'mode' => 'stream',
-        'base_url' => null,
-        'routes' => [],
-        'providers' => [],
-        'cache_path' => 'storage/cache/discovery',
-        'filename' => 'sitemap.xml',
-        'index_filename' => 'sitemap.xml',
-        'gzip' => false,
-        'max_urls_per_file' => 50000,
-        'max_uncompressed_bytes' => 52428800,
-        'deduplicate' => false,
-        'on_invalid_url' => 'fail',
-    ],
-];
+use Lemonade\Framework\Discovery\Config\DiscoveryConfigDefinition;
+
+return DiscoveryConfigDefinition::create()
+    ->robotsDisabled()
+    ->robotsRoute('/robots.txt')
+    ->robotsHeaderEnabled()
+    ->robotsHeaderGenerator('Lemonade Framework')
+    ->robotsHeaderDateFormat('Y-m-d H:i:s')
+    ->robotsRule('*', ['/'], [])
+    ->robotsSitemap('/sitemap.xml')
+    ->sitemapDisabled()
+    ->sitemapRoute('/sitemap.xml')
+    ->sitemapCliOutput()
+    ->sitemapMode('stream')
+    ->sitemapBaseUrl(null)
+    ->sitemapRoutes([])
+    ->sitemapProviders([])
+    ->sitemapCachePath('storage/cache/discovery')
+    ->sitemapFilename('sitemap.xml')
+    ->sitemapIndexFilename('sitemap.xml')
+    ->sitemapGzip(false)
+    ->sitemapMaxUrlsPerFile(50000)
+    ->sitemapMaxUncompressedBytes(52428800)
+    ->sitemapDeduplicate(false)
+    ->sitemapOnInvalidUrl('fail');

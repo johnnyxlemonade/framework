@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Database;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Database\Config\DatabaseConfigDefinition;
+use Lemonade\Framework\Database\Config\DatabaseConfigResolver;
+use Lemonade\Framework\Database\Config\DatabaseRuntimeConfig;
 use Lemonade\Framework\Database\Connection\ConnectionFactory;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
@@ -22,21 +25,28 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
         $container->singleton(ConnectionFactory::class, ConnectionFactory::class);
         $container->singleton(DatabaseFactory::class, DatabaseFactory::class);
         $container->singleton(DatabaseDriverRegistry::class, DatabaseDriverRegistry::class);
+        $container->singleton(DatabaseConfigResolver::class, DatabaseConfigResolver::class);
+        $container->singleton(DatabaseRuntimeConfig::class, static function (ContainerInterface $container): DatabaseRuntimeConfig {
+            return $container
+                ->get(DatabaseConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    DatabaseConfigDefinition::moduleKey(),
+                    DatabaseConfigDefinition::class,
+                ));
+        });
 
         $container->singleton(DatabaseConfig::class, static function (ContainerInterface $container): DatabaseConfig {
-            /** @var Config $config */
-            $config = $container->get(Config::class);
-
+            $config = $container->get(DatabaseRuntimeConfig::class);
             $connectionName = self::resolveConnectionName($config);
-            $database = self::resolveConnectionConfig($config, $connectionName);
+            $database = $config->connections[$connectionName] ?? null;
 
-            if ($database === []) {
+            if (!$database instanceof DatabaseConfig) {
                 throw DatabaseException::invalidConfiguration(
                     sprintf('Database connection [%s] is not configured.', $connectionName),
                 );
             }
 
-            return DatabaseConfig::fromArray($database);
+            return $database;
         });
 
         $container->singleton(ConnectionInterface::class, static function (ContainerInterface $container): ConnectionInterface {
@@ -114,41 +124,14 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
         });
     }
 
-    private static function resolveConnectionName(Config $config): string
+    private static function resolveConnectionName(DatabaseRuntimeConfig $config): string
     {
-        $connectionName = $config->string('database.default');
+        $connectionName = $config->defaultConnection;
 
         if ($connectionName === null || $connectionName === '') {
             return 'default';
         }
 
         return $connectionName;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private static function resolveConnectionConfig(Config $config, string $connectionName): array
-    {
-        $database = $config->array("database.connections.{$connectionName}");
-
-        return self::normalizeAssoc($database);
-    }
-
-    /**
-     * @param array<mixed> $values
-     * @return array<string, mixed>
-     */
-    private static function normalizeAssoc(array $values): array
-    {
-        $normalized = [];
-
-        foreach ($values as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
-            }
-        }
-
-        return $normalized;
     }
 }

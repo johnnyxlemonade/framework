@@ -9,13 +9,15 @@ A command receives CLI arguments and returns an integer exit code.
 ```php
 <?php
 
-use App\Console\ImportProductsCommand;
+declare(strict_types=1);
 
-return [
-    'commands' => [
+use App\Console\ImportProductsCommand;
+use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
+
+return CommandsConfigDefinition::create()
+    ->commands([
         ImportProductsCommand::class,
-    ],
-];
+    ]);
 ```
 
 ## Command class

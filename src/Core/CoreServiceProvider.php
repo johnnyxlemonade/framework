@@ -9,6 +9,7 @@ use Lemonade\Framework\Adapter\LoaderAdapter;
 use Lemonade\Framework\Clock\ClockInterface;
 use Lemonade\Framework\Clock\SystemClock;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Support\BaseUrlResolver;
@@ -68,7 +69,7 @@ final class CoreServiceProvider implements ServiceProviderInterface
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);
         $timezone = $this->resolveClockTimezone(
-            $container->get(Config::class),
+            $container->get(AppConfig::class),
         );
         $container->singleton(ClockInterface::class, new SystemClock($timezone));
         $container->singleton('clock', static function (ContainerInterface $container): ClockInterface {
@@ -77,9 +78,9 @@ final class CoreServiceProvider implements ServiceProviderInterface
 
     }
 
-    private function resolveClockTimezone(Config $config): ?DateTimeZone
+    private function resolveClockTimezone(AppConfig $config): ?DateTimeZone
     {
-        $value = $config->string('app.timezone');
+        $value = $config->timezone;
         if ($value === null || trim($value) === '') {
             return null;
         }

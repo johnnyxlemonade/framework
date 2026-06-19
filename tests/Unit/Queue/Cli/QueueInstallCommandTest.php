@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Queue\Cli;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
 use Lemonade\Framework\Database\DatabaseResultInterface;
@@ -21,6 +20,8 @@ use Lemonade\Framework\Database\Schema\Schema;
 use Lemonade\Framework\Database\Schema\SchemaCompiler;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
 use Lemonade\Framework\Queue\Cli\QueueInstallCommand;
+use Lemonade\Framework\Queue\Config\QueueConfig;
+use Lemonade\Framework\Queue\Config\QueueDatabaseConfig;
 use PHPUnit\Framework\TestCase;
 
 final class QueueInstallCommandTest extends TestCase
@@ -41,7 +42,7 @@ final class QueueInstallCommandTest extends TestCase
     {
         $container = new Container();
         $container->singleton(Schema::class, $this->mysqlSchema(new QueueInstallCommandDatabaseDriverSpy()));
-        $container->singleton(Config::class, new Config());
+        $container->singleton(QueueConfig::class, $this->queueConfig());
 
         self::assertInstanceOf(QueueInstallCommand::class, $container->get(QueueInstallCommand::class));
     }
@@ -49,7 +50,7 @@ final class QueueInstallCommandTest extends TestCase
     public function testRunUsesSchemaLayerAndKeepsMysqlIndexesInline(): void
     {
         $db = new QueueInstallCommandDatabaseDriverSpy();
-        $command = $this->command($this->mysqlSchema($db), new Config());
+        $command = $this->command($this->mysqlSchema($db), $this->queueConfig());
 
         self::assertSame(0, $command->run([]));
         self::assertSame("Queue tables ready: system_queue_job, system_queue_failed_job\n", $this->stdoutContents());
@@ -68,7 +69,7 @@ final class QueueInstallCommandTest extends TestCase
     public function testRunUsesSchemaLayerAndSplitsSqliteIndexesIntoIdempotentStatements(): void
     {
         $db = new QueueInstallCommandDatabaseDriverSpy();
-        $command = $this->command($this->sqliteSchema($db), new Config());
+        $command = $this->command($this->sqliteSchema($db), $this->queueConfig());
 
         self::assertSame(0, $command->run([]));
         self::assertSame("Queue tables ready: system_queue_job, system_queue_failed_job\n", $this->stdoutContents());
@@ -95,14 +96,7 @@ final class QueueInstallCommandTest extends TestCase
         $db = new QueueInstallCommandDatabaseDriverSpy();
         $command = $this->command(
             $this->mysqlSchema($db),
-            new Config([
-                'queue' => [
-                    'database' => [
-                        'table' => 'custom_queue_job',
-                        'failed_table' => 'custom_queue_failed_job',
-                    ],
-                ],
-            ]),
+            $this->queueConfig('custom_queue_job', 'custom_queue_failed_job'),
         );
 
         self::assertSame(0, $command->run([]));
@@ -121,7 +115,7 @@ final class QueueInstallCommandTest extends TestCase
         ]);
         $connection = new PdoConnection($config);
         $schema = $this->pdoSqliteSchema($config, $connection);
-        $command = $this->command($schema, new Config());
+        $command = $this->command($schema, $this->queueConfig());
 
         self::assertSame(0, $command->run([]));
         self::assertSame(0, $command->run([]));
@@ -147,9 +141,14 @@ final class QueueInstallCommandTest extends TestCase
         self::assertContains('idx_failed_queue', $indexes);
     }
 
-    private function command(Schema $schema, Config $config): QueueInstallCommand
+    private function command(Schema $schema, QueueConfig $config): QueueInstallCommand
     {
         return new QueueInstallCommand($schema, $config, $this->stdout());
+    }
+
+    private function queueConfig(string $table = 'system_queue_job', string $failedTable = 'system_queue_failed_job'): QueueConfig
+    {
+        return new QueueConfig('sync', ['sync'], [], new QueueDatabaseConfig($table, $failedTable));
     }
 
     /**

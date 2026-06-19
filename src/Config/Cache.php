@@ -2,14 +2,8 @@
 
 declare(strict_types=1);
 
-return [
-    'default' => 'file',
-    'stores' => [
-        'file' => [
-            'driver' => 'file',
-            'path' => 'storage/cache/framework',
-            'prefix' => 'lemonade',
-            'ttl' => 300,
-        ],
-    ],
-];
+use Lemonade\Framework\Cache\Config\CacheConfigDefinition;
+
+return CacheConfigDefinition::create()
+    ->defaultStore('file')
+    ->fileStore('cache/framework', 'lemonade', 300);
