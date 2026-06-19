@@ -40,7 +40,7 @@ app/Config/Commands.php
 
 ## Config manifest
 
-The application config manifest still returns arrays, but only as a file list:
+The application config manifest returns only file lists:
 
 ```php
 <?php

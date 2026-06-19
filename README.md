@@ -199,6 +199,47 @@ return ProvidersConfigDefinition::create()
     ]);
 ```
 
+### Configuration
+
+Application config uses a manifest plus typed config definitions.
+
+`app/Config/Config.php` returns only file lists:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+return [
+    'shared' => [
+        'App.php',
+        'Providers.php',
+        'Api.php',
+    ],
+    'http' => [
+        'HtmlMinify.php',
+    ],
+    'cli' => [
+        'Commands.php',
+    ],
+];
+```
+
+Each listed config file returns a typed definition object, not a raw array:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Lemonade\Framework\Api\Config\ApiConfigDefinition;
+
+return ApiConfigDefinition::create()
+    ->enabled()
+    ->prefix('/api')
+    ->docsEnabled();
+```
+
 ### CLI Command
 
 CLI commands implement `CommandInterface` and are configured in `app/Config/Commands.php`.
@@ -251,33 +292,14 @@ return CommandsConfigDefinition::create()
 Run commands through:
 
 ```bash
-php bin/lemonade
-php bin/lemonade list
-php bin/lemonade products:import
+vendor/bin/lemonade
+vendor/bin/lemonade list
+vendor/bin/lemonade products:import
 ```
 
 ## Documentation
 
-Detailed documentation lives outside the main README:
-
-- [HTTP request flow](docs/http-flow.md)
-- [CLI flow](docs/cli-flow.md)
-- [API flow](docs/api-flow.md)
-- [Application context](docs/application-context.md)
-- [Configuration](docs/configuration.md)
-- [Service providers](docs/service-providers.md)
-- [Service container](docs/service-container.md)
-- [PSR compatibility](docs/psr-compatibility.md)
-- [Routing](docs/routing.md)
-- [Controllers](docs/controllers.md)
-- [Middleware](docs/middleware.md)
-- [Views](docs/views.md)
-- [Components](docs/components.md)
-- [Validation](docs/validation.md)
-- [Database](docs/database.md)
-- [CLI commands](docs/cli-commands.md)
-- [Observability](docs/observability.md)
-- [Discovery](docs/discovery.md)
+Detailed documentation lives in [docs/index.md](docs/index.md).
 
 ## Code Quality
 

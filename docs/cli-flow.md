@@ -85,7 +85,7 @@ return CommandsConfigDefinition::create()
 ## Running commands
 
 ```bash
-php bin/lemonade
-php bin/lemonade list
-php bin/lemonade products:import
+vendor/bin/lemonade
+vendor/bin/lemonade list
+vendor/bin/lemonade products:import
 ```

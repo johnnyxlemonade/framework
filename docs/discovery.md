@@ -11,49 +11,38 @@ Discovery is **opt-in**. Applications should explicitly enable and configure it.
 
 ## Minimal app config
 
-Add `discovery` to your application config (for example `app/Config/App.php`):
+Add a dedicated discovery config file, for example `app/Config/Discovery.php`:
 
 ```php
 <?php
 
+declare(strict_types=1);
+
+use Lemonade\Framework\Discovery\Config\DiscoveryConfigDefinition;
 use Lemonade\Framework\Support\Env;
 
-return [
-    'discovery' => [
-        'robots' => [
-            'enabled' => true,
-            'route' => '/robots.txt',
-            'header' => [
-                'enabled' => true,
-                'generator' => 'Lemonade Framework',
-                'date_format' => 'Y-m-d H:i:s',
-            ],
-            'rules' => [
-                '*' => [
-                    'allow' => ['/'],
-                    'disallow' => ['/admin'],
-                ],
-            ],
-            'sitemaps' => ['/sitemap.xml'],
-        ],
-        'sitemap' => [
-            'enabled' => true,
-            'route' => '/sitemap.xml',
-            'mode' => 'stream',
-            'base_url' => Env::string('APP_BASE_URL', 'http://localhost'),
-            'routes' => ['home.index'],
-            'providers' => [],
-            'cache_path' => 'storage/cache/discovery',
-            'filename' => 'sitemap.xml',
-            'index_filename' => 'sitemap.xml',
-            'gzip' => false,
-            'max_urls_per_file' => 50000,
-            'max_uncompressed_bytes' => 52428800,
-            'deduplicate' => false,
-            'on_invalid_url' => 'fail',
-        ],
-    ],
-];
+return DiscoveryConfigDefinition::create()
+    ->robotsEnabled()
+    ->robotsRoute('/robots.txt')
+    ->robotsHeaderEnabled()
+    ->robotsHeaderGenerator('Lemonade Framework')
+    ->robotsHeaderDateFormat('Y-m-d H:i:s')
+    ->robotsRule('*', allow: ['/'], disallow: ['/admin'])
+    ->robotsSitemap('/sitemap.xml')
+    ->sitemapEnabled()
+    ->sitemapRoute('/sitemap.xml')
+    ->sitemapMode('stream')
+    ->sitemapBaseUrl(Env::string('APP_BASE_URL', 'http://localhost'))
+    ->sitemapRoutes(['home.index'])
+    ->sitemapProviders([])
+    ->sitemapCachePath('storage/cache/discovery')
+    ->sitemapFilename('sitemap.xml')
+    ->sitemapIndexFilename('sitemap.xml')
+    ->sitemapGzip(false)
+    ->sitemapMaxUrlsPerFile(50000)
+    ->sitemapMaxUncompressedBytes(52428800)
+    ->sitemapDeduplicate(false)
+    ->sitemapOnInvalidUrl('fail');
 ```
 
 ## Robots.txt
@@ -81,14 +70,14 @@ Sitemap: https://example.com/sitemap.xml
 
 ### Stream mode
 
-Set `discovery.sitemap.mode = stream`.
+Use `DiscoveryConfigDefinition::sitemapMode('stream')`.
 
 - Sitemap is generated during the HTTP request.
 - Good for small and medium sites.
 
 ### Cache mode
 
-Set `discovery.sitemap.mode = cache`.
+Use `DiscoveryConfigDefinition::sitemapMode('cache')`.
 
 - Generate files with CLI command: `discovery:sitemap:generate`.
 - HTTP route serves the pre-generated file (`index_filename`).
@@ -101,18 +90,19 @@ Set `discovery.sitemap.mode = cache`.
 Use explicit named routes only:
 
 ```php
-'routes' => [
-    'home.index',
-    'documentation.index',
-    [
-        'name' => 'documentation.show',
-        'params' => [
-            'path' => 'getting-started',
+DiscoveryConfigDefinition::create()
+    ->sitemapRoutes([
+        'home.index',
+        'documentation.index',
+        [
+            'name' => 'documentation.show',
+            'params' => [
+                'path' => 'getting-started',
+            ],
+            'changefreq' => 'weekly',
+            'priority' => 0.7,
         ],
-        'changefreq' => 'weekly',
-        'priority' => 0.7,
-    ],
-],
+    ]);
 ```
 
 ## Provider-based sitemap
@@ -141,14 +131,14 @@ final class ArticleSitemapProvider implements SitemapProviderInterface
 }
 ```
 
-Register providers in `discovery.sitemap.providers`.
+Register providers through `DiscoveryConfigDefinition::sitemapProvider()` or `sitemapProviders()`.
 
 ## CLI command
 
 Generate cached sitemap files:
 
 ```bash
-php bin/lemonade discovery:sitemap:generate
+vendor/bin/lemonade discovery:sitemap:generate
 ```
 
 ## What this module does not do
@@ -157,4 +147,3 @@ php bin/lemonade discovery:sitemap:generate
 - CMS-specific product/article/category logic
 - Web crawling
 - SEO metadata beyond `robots.txt` and sitemap XML
-
