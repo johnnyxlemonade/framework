@@ -30,6 +30,9 @@ final class Psr17Factory implements
         private readonly NyholmPsr17Factory $delegate = new NyholmPsr17Factory(),
     ) {}
 
+    /**
+     * @param UriInterface|string $uri
+     */
     public function createRequest(string $method, $uri): RequestInterface
     {
         return $this->delegate->createRequest($method, $uri);
@@ -41,7 +44,8 @@ final class Psr17Factory implements
     }
 
     /**
-     * @param array<mixed> $serverParams
+     * @param UriInterface|string $uri
+     * @param array<array-key, mixed> $serverParams
      */
     public function createServerRequest(string $method, $uri, array $serverParams = []): ServerRequestInterface
     {
@@ -58,6 +62,9 @@ final class Psr17Factory implements
         return $this->delegate->createStreamFromFile($filename, $mode);
     }
 
+    /**
+     * @param resource $resource
+     */
     public function createStreamFromResource($resource): StreamInterface
     {
         return $this->delegate->createStreamFromResource($resource);
