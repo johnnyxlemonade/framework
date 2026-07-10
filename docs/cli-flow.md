@@ -13,7 +13,7 @@ bin/lemonade
 -> CliKernel::handle($argv)
    -> start benchmark run with entrypoint=cli
 -> CliKernel::bootstrap()
-   -> load conventional config files, including Commands.php
+   -> load conventional YAML config files, including Commands.yaml
    -> apply runtime app config
    -> register core providers
    -> register common framework providers
@@ -66,21 +66,16 @@ final class ImportProductsCommand implements CommandInterface
 
 ## Configuration
 
-Commands are configured in `app/Config/Commands.php`.
+Commands are configured in `app/Config/Commands.yaml`.
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Console\ImportProductsCommand;
-use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
-
-return CommandsConfigDefinition::create()
-    ->commands([
-        ImportProductsCommand::class,
-    ]);
+```yaml
+module: commands
+config:
+  commands:
+    - App\Console\ImportProductsCommand
 ```
+
+Internally this YAML payload is still mapped to `CommandsConfigDefinition` and resolved into runtime `CommandsConfig`.
 
 ## Running commands
 

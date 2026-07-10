@@ -13,49 +13,48 @@ The selected `driver` defines how the framework connects and executes queries. T
 
 ## Native MySQL configuration
 
-```php
-use Lemonade\Framework\Database\Config\DatabaseConfigDefinition;
-
-return DatabaseConfigDefinition::create()
-    ->defaultConnection('default')
-    ->connection('default', [
-        'driver' => 'mysql',
-        'host' => '127.0.0.1',
-        'port' => 3306,
-        'database' => 'app',
-        'username' => 'root',
-        'password' => '',
-    ]);
+```yaml
+module: database
+config:
+  default: default
+  connections:
+    default:
+      driver: mysql
+      host: 127.0.0.1
+      port: 3306
+      database: app
+      username: root
+      password: ''
 ```
 
 ## PDO with MySQL dialect
 
-```php
-use Lemonade\Framework\Database\Config\DatabaseConfigDefinition;
-
-return DatabaseConfigDefinition::create()
-    ->defaultConnection('default')
-    ->connection('default', [
-        'driver' => 'pdo',
-        'dialect' => 'mysql',
-        'dsn' => 'mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4',
-        'username' => 'root',
-        'password' => '',
-    ]);
+```yaml
+module: database
+config:
+  default: default
+  connections:
+    default:
+      driver: pdo
+      dialect: mysql
+      dsn: mysql:host=127.0.0.1;port=3306;dbname=app;charset=utf8mb4
+      username: root
+      password: ''
 ```
 
 ## PDO with SQLite dialect
 
-```php
-use Lemonade\Framework\Database\Config\DatabaseConfigDefinition;
-
-return DatabaseConfigDefinition::create()
-    ->defaultConnection('default')
-    ->connection('default', [
-        'driver' => 'pdo',
-        'dialect' => 'sqlite',
-        'dsn' => 'sqlite:/absolute/path/database.sqlite',
-    ]);
+```yaml
+module: database
+config:
+  default: default
+  connections:
+    default:
+      driver: pdo
+      dialect: sqlite
+      dsn: sqlite:/absolute/path/database.sqlite
 ```
 
 SQLite schema support is intentionally conservative. Some `ALTER TABLE` operations are not supported and should be implemented through a dedicated rebuild-table strategy.
+
+App-level YAML is still mapped into `DatabaseConfigDefinition` before `DatabaseConfigResolver` produces runtime config objects.

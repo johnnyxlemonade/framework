@@ -12,24 +12,18 @@ Applications may register additional components through configuration. This is u
 
 ## Registering Custom Components
 
-Custom components are configured through `ComponentConfigDefinition`.
+Custom components are configured through app-level YAML which maps into `ComponentConfigDefinition`.
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Component\NavigationComponent;
-use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
-
-return ComponentConfigDefinition::create()
-    ->component('navigation', NavigationComponent::class);
-```
-
-This can be placed in a dedicated config file, for example:
+This typically lives in:
 
 ```text
-app/Config/Components.php
+app/Config/Components.yaml
+```
+
+```yaml
+module: components
+config:
+  navigation: App\Component\NavigationComponent
 ```
 
 ## Component Class Example
@@ -112,16 +106,10 @@ Custom components intentionally use `get('name')` or `get('name', ExpectedClass:
 
 Application configuration is registered after framework defaults. This means an application may override a default component by using the same component name.
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Component\CustomBreadcrumbComponent;
-use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
-
-return ComponentConfigDefinition::create()
-    ->component('breadcrumb', CustomBreadcrumbComponent::class);
+```yaml
+module: components
+config:
+  breadcrumb: App\Component\CustomBreadcrumbComponent
 ```
 
 Only do this when the replacement component is compatible with the expected framework usage.
@@ -132,14 +120,16 @@ Each component name must be a non-empty string. Each component class must be a n
 
 Invalid examples:
 
-```php
-ComponentConfigDefinition::create()
-    ->component('', NavigationComponent::class);
+```yaml
+module: components
+config:
+  "": App\Component\NavigationComponent
 ```
 
-```php
-ComponentConfigDefinition::create()
-    ->component('navigation', 'MissingNavigationComponent');
+```yaml
+module: components
+config:
+  navigation: MissingNavigationComponent
 ```
 
 Invalid configuration should fail during component registry creation with a clear exception.

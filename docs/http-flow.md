@@ -12,7 +12,7 @@ public/index.php
    -> create ServerRequest from globals when no request is provided
 -> Kernel::run()
 -> Kernel::bootstrap()
-   -> load conventional config files
+   -> load conventional YAML application config files
    -> apply runtime app config
    -> register core providers
    -> register HTTP provider

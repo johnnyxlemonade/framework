@@ -1,24 +1,19 @@
 # CLI Commands
 
-Commands implement `CommandInterface` and are registered through `app/Config/Commands.php`.
+Commands implement `CommandInterface` and are registered through `app/Config/Commands.yaml`.
 
 A command receives CLI arguments and returns an integer exit code.
 
 ## Command configuration
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Console\ImportProductsCommand;
-use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
-
-return CommandsConfigDefinition::create()
-    ->commands([
-        ImportProductsCommand::class,
-    ]);
+```yaml
+module: commands
+config:
+  commands:
+    - App\Console\ImportProductsCommand
 ```
+
+The YAML file is mapped to `CommandsConfigDefinition`, then resolved through the existing typed config pipeline into runtime `CommandsConfig`.
 
 ## Command class
 

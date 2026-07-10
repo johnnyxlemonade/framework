@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config;
 
+use Lemonade\Framework\Core\Config\Yaml\YamlConfigParser;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Framework;
 use LogicException;
@@ -12,7 +13,7 @@ final class ConfigLoader
 {
     public const ENTRYPOINT_HTTP = 'http';
     public const ENTRYPOINT_CLI = 'cli';
-    private const CONFIG_MANIFEST = 'Config.php';
+    private const CONFIG_MANIFEST_CANDIDATES = ['Config.yaml', 'Config.yml', 'Config.php'];
 
     public function loadApplication(
         Framework $framework,
@@ -23,9 +24,8 @@ final class ConfigLoader
         $specs = $this->resolveConfigFileSpecs($context, $entrypoint);
 
         foreach ($specs as $file) {
-            $path = $context->configPath($file);
-
-            if (!is_file($path)) {
+            $path = $this->resolveConfigFilePath($context, $file);
+            if ($path === null) {
                 continue;
             }
 
@@ -44,20 +44,8 @@ final class ConfigLoader
             throw new LogicException(sprintf('Unsupported config entrypoint "%s".', $entrypoint));
         }
 
-        $manifestPath = $context->configPath(self::CONFIG_MANIFEST);
-        if (!is_file($manifestPath)) {
-            throw new LogicException(sprintf('Config manifest "%s" not found.', self::CONFIG_MANIFEST));
-        }
-
-        /** @var mixed $manifest */
-        $manifest = require $manifestPath;
-
-        if (!is_array($manifest)) {
-            throw new LogicException(sprintf(
-                'Config manifest "%s" must return an array.',
-                self::CONFIG_MANIFEST,
-            ));
-        }
+        $manifestPath = $this->resolveManifestPath($context);
+        $manifest = $this->loadManifest($manifestPath);
 
         $shared = $manifest['shared'] ?? null;
         $http = $manifest['http'] ?? null;
@@ -65,7 +53,7 @@ final class ConfigLoader
         if (!is_array($shared) || !is_array($http) || !is_array($cli)) {
             throw new LogicException(sprintf(
                 'Config manifest "%s" must contain array keys "shared", "http", and "cli".',
-                self::CONFIG_MANIFEST,
+                basename($manifestPath),
             ));
         }
 
@@ -96,8 +84,7 @@ final class ConfigLoader
         foreach ($files as $value) {
             if (!is_string($value) || trim($value) === '') {
                 throw new LogicException(sprintf(
-                    'Config manifest "%s" contains invalid file name.',
-                    self::CONFIG_MANIFEST,
+                    'Config manifest contains invalid file name.',
                 ));
             }
 
@@ -105,5 +92,65 @@ final class ConfigLoader
         }
 
         return $normalized;
+    }
+
+    private function resolveManifestPath(ApplicationContext $context): string
+    {
+        foreach (self::CONFIG_MANIFEST_CANDIDATES as $candidate) {
+            $path = $context->configPath($candidate);
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        throw new LogicException(sprintf(
+            'Config manifest not found. Expected one of: %s.',
+            implode(', ', self::CONFIG_MANIFEST_CANDIDATES),
+        ));
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    private function loadManifest(string $manifestPath): array
+    {
+        $extension = strtolower((string) pathinfo($manifestPath, PATHINFO_EXTENSION));
+
+        /** @var mixed $manifest */
+        $manifest = match ($extension) {
+            'yaml', 'yml' => (new YamlConfigParser())->parseFile($manifestPath),
+            default => require $manifestPath,
+        };
+
+        if (!is_array($manifest)) {
+            throw new LogicException(sprintf(
+                'Config manifest "%s" must return an array or contain a YAML mapping.',
+                basename($manifestPath),
+            ));
+        }
+
+        return $manifest;
+    }
+
+    private function resolveConfigFilePath(ApplicationContext $context, string $spec): ?string
+    {
+        $trimmed = trim($spec);
+        $exact = $context->configPath($trimmed);
+        if (is_file($exact)) {
+            return $exact;
+        }
+
+        if (pathinfo($trimmed, PATHINFO_EXTENSION) !== '') {
+            return null;
+        }
+
+        foreach (['yaml', 'yml', 'php'] as $extension) {
+            $candidate = $context->configPath($trimmed . '.' . $extension);
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 }

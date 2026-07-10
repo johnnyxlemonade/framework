@@ -138,6 +138,25 @@ final class FrameworkTest extends TestCase
         }
     }
 
+    public function testConfigFromYamlFileLoadsTypedDefinition(): void
+    {
+        $framework = $this->framework();
+        $config = $framework->container()->get(Config::class);
+        $directory = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-framework-yaml-' . uniqid('', true);
+        mkdir($directory, 0775, true);
+        $yamlFile = $directory . DIRECTORY_SEPARATOR . 'Api.yaml';
+
+        try {
+            file_put_contents($yamlFile, "module: api\nconfig:\n  prefix: /yaml\n");
+            $framework->configFromFile($yamlFile);
+
+            self::assertSame('/yaml', $config->string('api.prefix'));
+        } finally {
+            @unlink($yamlFile);
+            @rmdir($directory);
+        }
+    }
+
     public function testConfigFromFileThrowsWhenConfigReturnsArray(): void
     {
         $framework = $this->framework();

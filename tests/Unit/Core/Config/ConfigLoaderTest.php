@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Tests\Unit\Core\Config;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\ConfigLoader;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
@@ -60,6 +61,96 @@ final class ConfigLoaderTest extends TestCase
         self::assertSame('/typed-api', $config->string('api.prefix'));
         self::assertTrue($config->bool('api.framework.docs.enabled'));
         self::assertTrue($config->bool('html_minify.enabled'));
+    }
+
+    public function testLoadWithYamlManifestLoadsYamlConfigsAndResolvesRuntimeDto(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+  - Api
+http:
+  - HtmlMinify
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://example.test
+YAML,
+        );
+        $this->writeConfigFile(
+            'Api.yaml',
+            <<<'YAML'
+module: api
+config:
+  prefix: /yaml-api
+  framework:
+    docs:
+      enabled: true
+YAML,
+        );
+        $this->writeConfigFile(
+            'HtmlMinify.yaml',
+            <<<'YAML'
+module: html_minify
+config:
+  enabled: true
+YAML,
+        );
+
+        $loader = new ConfigLoader();
+        $context = $this->context();
+        $framework = $this->framework($context);
+
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        $config = $framework->container()->get(Config::class);
+        self::assertSame('https://example.test', $config->string('app.base_url'));
+        self::assertSame('/yaml-api', $config->string('api.prefix'));
+        self::assertTrue($config->bool('api.framework.docs.enabled'));
+        self::assertTrue($config->bool('html_minify.enabled'));
+        $registry = $framework->container()->get(ConfigDefinitionRegistry::class);
+        $apiConfig = (new \Lemonade\Framework\Api\Config\ApiConfigResolver())->resolve(
+            ...$registry->typedEntriesFor(
+                \Lemonade\Framework\Api\Config\ApiConfigDefinition::moduleKey(),
+                \Lemonade\Framework\Api\Config\ApiConfigDefinition::class,
+            ),
+        );
+        self::assertSame('/yaml-api', $apiConfig->prefix);
+    }
+
+    public function testLoadWithYamlManifestFallsBackToPhpConfigFileWhenYamlVariantIsMissing(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http: []
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://php-fallback.test');\n",
+        );
+
+        $loader = new ConfigLoader();
+        $context = $this->context();
+        $framework = $this->framework($context);
+
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        self::assertSame(
+            'https://php-fallback.test',
+            $framework->container()->get(Config::class)->string('app.base_url'),
+        );
     }
 
     public function testLoadWithEntrypointAwareManifestLoadsSharedAndHttpForHttpEntrypoint(): void
@@ -157,6 +248,16 @@ final class ConfigLoaderTest extends TestCase
         $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn 'invalid';\n");
 
         $this->expectException(LogicException::class);
+
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
+    }
+
+    public function testInvalidYamlManifestNotReturningMappingThrowsLogicException(): void
+    {
+        $this->writeConfigFile('Config.yaml', "invalid\n");
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('must return an array or contain a YAML mapping');
 
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }

@@ -52,24 +52,24 @@ OpenAPI output is generated from `ApiEndpointRegistry`, so it includes framework
 
 Framework API defaults are defined in `framework/src/Config/Api.php`.
 
-Applications can override them in `app/Config/Api.php`.
+Applications should override them in `app/Config/Api.yaml`.
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Api\AppApiEndpointProvider;
-use Lemonade\Framework\Api\Config\ApiConfigDefinition;
-
-return ApiConfigDefinition::create()
-    ->enabled()
-    ->prefix('/api')
-    ->endpointProvider(AppApiEndpointProvider::class)
-    ->openApiAccess('public')
-    ->docsEnabled()
-    ->docsAccess('public');
+```yaml
+module: api
+config:
+  enabled: true
+  prefix: /api
+  endpoint_providers:
+    - App\Api\AppApiEndpointProvider
+  framework:
+    openapi:
+      access: public
+    docs:
+      enabled: true
+      access: public
 ```
+
+Application YAML is still mapped to the typed `ApiConfigDefinition`, then resolved through `ApiConfigResolver` into runtime `ApiConfig`.
 
 Framework defaults are conservative:
 
@@ -114,11 +114,13 @@ final class AppApiEndpointProvider implements ApiEndpointProviderInterface
 }
 ```
 
-Register the provider in `app/Config/Api.php`:
+Register the provider in `app/Config/Api.yaml`:
 
-```php
-return ApiConfigDefinition::create()
-    ->endpointProvider(App\Api\AppApiEndpointProvider::class);
+```yaml
+module: api
+config:
+  endpoint_providers:
+    - App\Api\AppApiEndpointProvider
 ```
 
 The endpoint will be available under `GET /api/app/ping` and will also appear in generated OpenAPI output.

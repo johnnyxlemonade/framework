@@ -183,66 +183,60 @@ final class AppServiceProvider implements ServiceProviderInterface
 }
 ```
 
-Application providers are configured in `app/Config/Providers.php`.
+Application providers are configured in `app/Config/Providers.yaml`.
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Providers\AppServiceProvider;
-use Lemonade\Framework\Core\Config\ProvidersConfigDefinition;
-
-return ProvidersConfigDefinition::create()
-    ->providers([
-        AppServiceProvider::class,
-    ]);
+```yaml
+module: providers
+config:
+  providers:
+    - App\Providers\AppServiceProvider
 ```
 
 ### Configuration
 
-Application config uses a manifest plus typed config definitions.
+Application config uses YAML as the primary app-level format, but the framework still loads typed config definitions internally.
 
-`app/Config/Config.php` returns only file lists:
+`app/Config/Config.yaml` declares the shared and entrypoint-specific config files:
 
-```php
-<?php
-
-declare(strict_types=1);
-
-return [
-    'shared' => [
-        'App.php',
-        'Providers.php',
-        'Api.php',
-    ],
-    'http' => [
-        'HtmlMinify.php',
-    ],
-    'cli' => [
-        'Commands.php',
-    ],
-];
+```yaml
+shared:
+  - App
+  - Providers
+  - Api
+http:
+  - HtmlMinify
+cli:
+  - Commands
 ```
 
-Each listed config file returns a typed definition object, not a raw array:
+Each YAML file is only an input adapter. It is mapped to a concrete `*ConfigDefinition` class, then resolved through the existing typed resolvers and runtime DTOs. YAML is not the internal core config model.
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use Lemonade\Framework\Api\Config\ApiConfigDefinition;
-
-return ApiConfigDefinition::create()
-    ->enabled()
-    ->prefix('/api')
-    ->docsEnabled();
+```yaml
+module: api
+config:
+  enabled: true
+  prefix: /api
+  framework:
+    docs:
+      enabled: true
 ```
+
+Environment-backed values use explicit YAML directives:
+
+```yaml
+module: app
+config:
+  base_url:
+    $env: APP_BASE_URL
+    type: string
+    default: http://localhost
+```
+
+If an application needs a custom config definition that is not covered by the built-in registry, `app/Config/ConfigMap.php` can be used as an advanced extension point to map YAML file aliases to `ConfigDefinitionInterface` classes. This is not part of the primary happy-path application setup.
 
 ### CLI Command
 
-CLI commands implement `CommandInterface` and are configured in `app/Config/Commands.php`.
+CLI commands implement `CommandInterface` and are configured in `app/Config/Commands.yaml`.
 
 ```php
 <?php
@@ -275,18 +269,11 @@ final class ImportProductsCommand implements CommandInterface
 }
 ```
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Console\ImportProductsCommand;
-use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
-
-return CommandsConfigDefinition::create()
-    ->commands([
-        ImportProductsCommand::class,
-    ]);
+```yaml
+module: commands
+config:
+  commands:
+    - App\Console\ImportProductsCommand
 ```
 
 Run commands through:

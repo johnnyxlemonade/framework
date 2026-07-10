@@ -29,22 +29,17 @@ final class AppServiceProvider implements ServiceProviderInterface
 Application providers are configured through:
 
 ```text
-app/Config/Providers.php
+app/Config/Providers.yaml
 ```
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use App\Providers\AppServiceProvider;
-use Lemonade\Framework\Core\Config\ProvidersConfigDefinition;
-
-return ProvidersConfigDefinition::create()
-    ->providers([
-        AppServiceProvider::class,
-    ]);
+```yaml
+module: providers
+config:
+  providers:
+    - App\Providers\AppServiceProvider
 ```
+
+This YAML payload is mapped into `ProvidersConfigDefinition`, and the existing typed resolver pipeline still produces the runtime `ProvidersConfig` object used during bootstrap.
 
 ## Bootstrap order
 
