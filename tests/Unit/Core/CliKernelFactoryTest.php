@@ -28,12 +28,12 @@ final class CliKernelFactoryTest extends TestCase
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-cli-factory-' . uniqid('', true);
         CliKernelFactoryProbeCommand::$lastValue = null;
         $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
+            'Config.yaml',
+            "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
         );
         $this->writeConfigFile(
-            'App.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
+            'App.yaml',
+            "module: app\nconfig: {}\n",
         );
     }
 
@@ -149,10 +149,10 @@ final class CliKernelFactoryTest extends TestCase
      */
     private function writeCommandsConfig(array $commands): void
     {
-        $commandsCode = var_export($commands, true);
+        $lines = array_map(static fn(string $command): string => '    - ' . $command, $commands);
         $this->writeConfigFile(
-            'Commands.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands({$commandsCode});\n",
+            'Commands.yaml',
+            "module: commands\nconfig:\n" . ($lines !== [] ? "  commands:\n" . implode("\n", $lines) . "\n" : "  commands: []\n"),
         );
     }
 

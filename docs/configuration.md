@@ -4,7 +4,7 @@ Application configuration is YAML-first. YAML is the recommended app-level input
 
 Each application YAML file is loaded as an input document, mapped to a concrete typed `ConfigDefinitionInterface` implementation, and then resolved through the existing typed resolvers into runtime DTO/config objects.
 
-Framework defaults may still remain in PHP internally. PHP application config loading remains available only as backward-compatible fallback, not as the primary recommended path.
+Framework defaults may still remain in PHP internally. Application config loading itself is YAML-only.
 
 The framework resolves application configuration from the application context. By convention, configuration files are stored in:
 
@@ -58,7 +58,7 @@ cli:
   - Commands
 ```
 
-Each listed file is resolved by convention, preferring `.yaml` / `.yml` and only falling back to PHP where backward compatibility is needed.
+Each listed file is resolved by convention to `.yaml` / `.yml`.
 
 Every loaded application config file must still end up as an implementation of `ConfigDefinitionInterface`. Raw array config files are rejected as an internal runtime contract.
 
@@ -123,6 +123,4 @@ Result:
 ['cs', 'en', 'de']
 ```
 
-## Legacy note
-
-PHP config files returning `*ConfigDefinition::create()` are now a legacy/backward-compatible application input format. They are still understood by the loader, but new application documentation and examples should use YAML.
+Routing is the intentional exception: application routes still live in `app/Config/Routing.php`.

@@ -78,8 +78,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testGetOpenApiWithAdminTokenReturns200Json(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->staticBearer('secret-token', ['api:admin']);\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  security:\n    static_bearer:\n      enabled: true\n      token: secret-token\n      scopes:\n        - api:admin\n",
         );
 
         $request = (new ServerRequest('GET', '/api/framework/openapi.json'))
@@ -94,8 +94,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testHealthIsAvailableWhenFrameworkEndpointsAreDisabled(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->frameworkDisabled();\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  framework:\n    enabled: false\n",
         );
 
         $health = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
@@ -117,8 +117,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testDocsEndpointCanBeEnabled(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->docsEnabled();\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  framework:\n    docs:\n      enabled: true\n",
         );
 
         $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/docs'));
@@ -129,8 +129,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testApiEnabledFalseDisablesWholeApi(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->disabled();\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  enabled: false\n",
         );
 
         $health = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
@@ -143,8 +143,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testOpenApiContainsAppEndpointFromConfiguredProvider(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->endpointProvider('" . addslashes(TestAppApiEndpointProvider::class) . "')->staticBearer('secret-token', ['api:admin']);\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  endpoint_providers:\n    - " . TestAppApiEndpointProvider::class . "\n  security:\n    static_bearer:\n      enabled: true\n      token: secret-token\n      scopes:\n        - api:admin\n",
         );
 
         $request = (new ServerRequest('GET', '/api/framework/openapi.json'))
@@ -197,7 +197,7 @@ final class FrameworkApiEndpointsTest extends TestCase
 
     public function testFrameworkRunsWithDefaultsWhenAppApiConfigFileIsMissing(): void
     {
-        $path = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Api.php';
+        $path = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Api.yaml';
         @unlink($path);
 
         $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
@@ -208,8 +208,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testAppApiConfigWithOnlyStaticBearerTokenKeepsOtherDefaults(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->staticBearerScopes(['api:admin'])->staticBearerDisabled();\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  security:\n    static_bearer:\n      enabled: false\n      scopes:\n        - api:admin\n",
         );
 
         $kernel = $this->kernel();
@@ -226,8 +226,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testStaticBearerEnabledWithNullTokenDoesNotCrashAndAuthFails(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->staticBearer(token: null, scopes: ['api:admin']);\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  security:\n    static_bearer:\n      enabled: true\n      token: null\n      scopes:\n        - api:admin\n",
         );
 
         $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/openapi.json'));
@@ -239,8 +239,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         foreach (['/api', 'api', '/api/'] as $prefix) {
             $this->writeConfigFile(
-                'Api.php',
-                "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('" . addslashes($prefix) . "');\n",
+                'Api.yaml',
+                "module: api\nconfig:\n  prefix: " . $prefix . "\n",
             );
 
             $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
@@ -251,8 +251,8 @@ final class FrameworkApiEndpointsTest extends TestCase
     public function testTypedApplicationApiDefinitionOverridesDefaults(): void
     {
         $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('/typed')->docsEnabled();\n",
+            'Api.yaml',
+            "module: api\nconfig:\n  prefix: /typed\n  framework:\n    docs:\n      enabled: true\n",
         );
 
         $kernel = $this->kernel();
@@ -284,25 +284,23 @@ final class FrameworkApiEndpointsTest extends TestCase
         }
 
         foreach ([
-            'Config.php',
-            'App.php',
-            'Framework.php',
-            'Api.php',
-            'Commands.php',
+            'Config.yaml',
+            'App.yaml',
+            'Api.yaml',
+            'Commands.yaml',
         ] as $file) {
-            if ($file === 'Config.php') {
+            if ($file === 'Config.yaml') {
                 $this->writeConfigFile(
-                    'Config.php',
-                    "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php', 'Framework.php', 'Api.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
+                    'Config.yaml',
+                    "shared:\n  - App\n  - Api\nhttp: []\ncli:\n  - Commands\n",
                 );
                 continue;
             }
 
             $this->writeConfigFile($file, match ($file) {
-                'App.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
-                'Framework.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\FrameworkConfigDefinition;\n\nreturn FrameworkConfigDefinition::create();\n",
-                'Api.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create();\n",
-                'Commands.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+                'App.yaml' => "module: app\nconfig: {}\n",
+                'Api.yaml' => "module: api\nconfig: {}\n",
+                'Commands.yaml' => "module: commands\nconfig:\n  commands: []\n",
             });
         }
 

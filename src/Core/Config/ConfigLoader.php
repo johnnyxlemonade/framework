@@ -13,7 +13,7 @@ final class ConfigLoader
 {
     public const ENTRYPOINT_HTTP = 'http';
     public const ENTRYPOINT_CLI = 'cli';
-    private const CONFIG_MANIFEST_CANDIDATES = ['Config.yaml', 'Config.yml', 'Config.php'];
+    private const CONFIG_MANIFEST_CANDIDATES = ['Config.yaml', 'Config.yml'];
 
     public function loadApplication(
         Framework $framework,
@@ -114,17 +114,12 @@ final class ConfigLoader
      */
     private function loadManifest(string $manifestPath): array
     {
-        $extension = strtolower((string) pathinfo($manifestPath, PATHINFO_EXTENSION));
-
         /** @var mixed $manifest */
-        $manifest = match ($extension) {
-            'yaml', 'yml' => (new YamlConfigParser())->parseFile($manifestPath),
-            default => require $manifestPath,
-        };
+        $manifest = (new YamlConfigParser())->parseFile($manifestPath);
 
         if (!is_array($manifest)) {
             throw new LogicException(sprintf(
-                'Config manifest "%s" must return an array or contain a YAML mapping.',
+                'Config manifest "%s" must contain a YAML mapping.',
                 basename($manifestPath),
             ));
         }
@@ -144,7 +139,7 @@ final class ConfigLoader
             return null;
         }
 
-        foreach (['yaml', 'yml', 'php'] as $extension) {
+        foreach (['yaml', 'yml'] as $extension) {
             $candidate = $context->configPath($trimmed . '.' . $extension);
             if (is_file($candidate)) {
                 return $candidate;

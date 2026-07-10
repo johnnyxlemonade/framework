@@ -15,7 +15,6 @@ use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use LogicException;
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 
 final class ConfigLoaderTest extends TestCase
 {
@@ -29,38 +28,6 @@ final class ConfigLoaderTest extends TestCase
     protected function tearDown(): void
     {
         $this->deleteRecursive($this->root);
-    }
-
-    public function testLoadWithDefinitionManifestLoadsConfiguredFiles(): void
-    {
-        $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php', 'Api.php'], 'http' => ['HtmlMinify.php'], 'cli' => []];\n",
-        );
-        $this->writeConfigFile(
-            'App.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://example.test');\n",
-        );
-        $this->writeConfigFile(
-            'Api.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->prefix('/typed-api')->docsEnabled();\n",
-        );
-        $this->writeConfigFile(
-            'HtmlMinify.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Http\\Config\\HtmlMinifyConfigDefinition;\n\nreturn HtmlMinifyConfigDefinition::create()->enabled();\n",
-        );
-
-        $loader = new ConfigLoader();
-        $context = $this->context();
-        $framework = $this->framework($context);
-
-        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
-
-        $config = $framework->container()->get(Config::class);
-        self::assertSame('https://example.test', $config->string('app.base_url'));
-        self::assertSame('/typed-api', $config->string('api.prefix'));
-        self::assertTrue($config->bool('api.framework.docs.enabled'));
-        self::assertTrue($config->bool('html_minify.enabled'));
     }
 
     public function testLoadWithYamlManifestLoadsYamlConfigsAndResolvesRuntimeDto(): void
@@ -125,51 +92,42 @@ YAML,
         self::assertSame('/yaml-api', $apiConfig->prefix);
     }
 
-    public function testLoadWithYamlManifestFallsBackToPhpConfigFileWhenYamlVariantIsMissing(): void
+    public function testLoadWithEntrypointAwareManifestLoadsSharedAndHttpForHttpEntrypoint(): void
     {
         $this->writeConfigFile(
             'Config.yaml',
             <<<'YAML'
 shared:
   - App
-http: []
-cli: []
+http:
+  - HtmlMinify
+cli:
+  - Commands
 YAML,
         );
         $this->writeConfigFile(
-            'App.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://php-fallback.test');\n",
-        );
-
-        $loader = new ConfigLoader();
-        $context = $this->context();
-        $framework = $this->framework($context);
-
-        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
-
-        self::assertSame(
-            'https://php-fallback.test',
-            $framework->container()->get(Config::class)->string('app.base_url'),
-        );
-    }
-
-    public function testLoadWithEntrypointAwareManifestLoadsSharedAndHttpForHttpEntrypoint(): void
-    {
-        $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => ['HtmlMinify.php'], 'cli' => ['Commands.php']];\n",
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://shared.test
+YAML,
         );
         $this->writeConfigFile(
-            'App.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://shared.test');\n",
+            'HtmlMinify.yaml',
+            <<<'YAML'
+module: html_minify
+config:
+  enabled: true
+YAML,
         );
         $this->writeConfigFile(
-            'HtmlMinify.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Http\\Config\\HtmlMinifyConfigDefinition;\n\nreturn HtmlMinifyConfigDefinition::create()->enabled();\n",
-        );
-        $this->writeConfigFile(
-            'Commands.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+            'Commands.yaml',
+            <<<'YAML'
+module: commands
+config:
+  commands: []
+YAML,
         );
 
         $loader = new ConfigLoader();
@@ -187,20 +145,39 @@ YAML,
     public function testLoadWithEntrypointAwareManifestLoadsSharedAndCliForCliEntrypoint(): void
     {
         $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => ['HtmlMinify.php'], 'cli' => ['Commands.php']];\n",
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http:
+  - HtmlMinify
+cli:
+  - Commands
+YAML,
         );
         $this->writeConfigFile(
-            'App.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create()->baseUrl('https://shared.test');\n",
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://shared.test
+YAML,
         );
         $this->writeConfigFile(
-            'HtmlMinify.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Http\\Config\\HtmlMinifyConfigDefinition;\n\nreturn HtmlMinifyConfigDefinition::create()->enabled();\n",
+            'HtmlMinify.yaml',
+            <<<'YAML'
+module: html_minify
+config:
+  enabled: true
+YAML,
         );
         $this->writeConfigFile(
-            'Commands.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create()->commands([]);\n",
+            'Commands.yaml',
+            <<<'YAML'
+module: commands
+config:
+  commands: []
+YAML,
         );
 
         $loader = new ConfigLoader();
@@ -215,39 +192,30 @@ YAML,
         self::assertSame([], $config->get('commands', []));
     }
 
-    public function testConfigFileReturningArrayThrowsExplicitRuntimeException(): void
+    public function testMissingYamlConfigFileIsSkipped(): void
     {
         $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php'], 'http' => [], 'cli' => []];\n",
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - Api
+http: []
+cli: []
+YAML,
         );
-        $this->writeConfigFile('Api.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['enabled' => true];\n");
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Raw array config is not supported');
+        $framework = $this->framework($this->context());
+        (new ConfigLoader())->loadApplication($framework, $this->context(), ConfigLoader::ENTRYPOINT_HTTP);
 
-        (new ConfigLoader())->loadApplication($this->framework($this->context()), $this->context(), ConfigLoader::ENTRYPOINT_HTTP);
-    }
-
-    public function testConfigFileReturningInvalidValueThrowsExplicitRuntimeException(): void
-    {
-        $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['Api.php'], 'http' => [], 'cli' => []];\n",
-        );
-        $this->writeConfigFile('Api.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn 'invalid';\n");
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('must return an instance');
-
-        (new ConfigLoader())->loadApplication($this->framework($this->context()), $this->context(), ConfigLoader::ENTRYPOINT_HTTP);
+        self::assertSame('/api', $framework->container()->get(Config::class)->string('api.prefix'));
     }
 
     public function testInvalidManifestNotReturningArrayThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn 'invalid';\n");
+        $this->writeConfigFile('Config.yaml', "invalid\n");
 
         $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('must contain a YAML mapping');
 
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
@@ -257,14 +225,14 @@ YAML,
         $this->writeConfigFile('Config.yaml', "invalid\n");
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('must return an array or contain a YAML mapping');
+        $this->expectExceptionMessage('must contain a YAML mapping');
 
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     public function testInvalidManifestWithoutEntrypointKeysThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['invalid' => []];\n");
+        $this->writeConfigFile('Config.yaml', "invalid: []\n");
 
         $this->expectException(LogicException::class);
 
@@ -273,7 +241,7 @@ YAML,
 
     public function testInvalidManifestSectionNotArrayThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [], 'http' => 'invalid', 'cli' => []];\n");
+        $this->writeConfigFile('Config.yaml', "shared: []\nhttp: invalid\ncli: []\n");
 
         $this->expectException(LogicException::class);
 
@@ -282,7 +250,7 @@ YAML,
 
     public function testInvalidManifestFileItemNotStringThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [123], 'http' => [], 'cli' => []];\n");
+        $this->writeConfigFile('Config.yaml', "shared:\n  - 123\nhttp: []\ncli: []\n");
 
         $this->expectException(LogicException::class);
 
@@ -291,7 +259,7 @@ YAML,
 
     public function testInvalidManifestFileItemEmptyStringThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.php', "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => [''], 'http' => [], 'cli' => []];\n");
+        $this->writeConfigFile('Config.yaml', "shared:\n  - ''\nhttp: []\ncli: []\n");
 
         $this->expectException(LogicException::class);
 

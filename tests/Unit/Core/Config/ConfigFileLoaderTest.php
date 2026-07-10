@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Core\Config;
 
+use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigFileLoader;
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
@@ -149,6 +150,25 @@ YAML);
         ], $definition->toArray());
     }
 
+    public function testLoadCommandsYamlReturnsFlatCommandList(): void
+    {
+        $file = $this->writeFile('Commands.yaml', <<<'YAML'
+module: commands
+config:
+  commands:
+    - Lemonade\Framework\Tests\Unit\Core\Config\TestCommandA
+    - Lemonade\Framework\Tests\Unit\Core\Config\TestCommandB
+YAML);
+
+        $definition = (new ConfigFileLoader())->load($file);
+
+        self::assertInstanceOf(CommandsConfigDefinition::class, $definition);
+        self::assertSame([
+            TestCommandA::class,
+            TestCommandB::class,
+        ], $definition->toArray());
+    }
+
     private function writeFile(string $file, string $contents): string
     {
         if (!is_dir($this->root)) {
@@ -215,5 +235,45 @@ final class TestProviderB implements \Lemonade\Framework\Core\ServiceProviderInt
     public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
     {
         unset($container);
+    }
+}
+
+final class TestCommandA implements \Lemonade\Framework\Cli\CommandInterface
+{
+    public function name(): string
+    {
+        return 'test:a';
+    }
+
+    public function description(): string
+    {
+        return 'Test command A.';
+    }
+
+    public function run(array $args): int
+    {
+        unset($args);
+
+        return 0;
+    }
+}
+
+final class TestCommandB implements \Lemonade\Framework\Cli\CommandInterface
+{
+    public function name(): string
+    {
+        return 'test:b';
+    }
+
+    public function description(): string
+    {
+        return 'Test command B.';
+    }
+
+    public function run(array $args): int
+    {
+        unset($args);
+
+        return 0;
     }
 }

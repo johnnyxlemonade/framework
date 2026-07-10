@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config\Yaml;
 
+use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
 use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
@@ -82,6 +83,10 @@ final class YamlDefinitionLoader
             if (is_subclass_of($definitionClass, AbstractConfigDefinition::class)) {
                 if ($definitionClass === ProvidersConfigDefinition::class) {
                     return $this->hydrateProvidersDefinition($payload);
+                }
+
+                if ($definitionClass === CommandsConfigDefinition::class) {
+                    return $this->hydrateCommandsDefinition($payload);
                 }
 
                 /** @var class-string<AbstractConfigDefinition&ConfigDefinitionInterface> $definitionClass */
@@ -181,5 +186,32 @@ final class YamlDefinitionLoader
         }
 
         return ProvidersConfigDefinition::create()->providers($normalized);
+    }
+
+    /**
+     * @param array<mixed> $payload
+     */
+    private function hydrateCommandsDefinition(array $payload): CommandsConfigDefinition
+    {
+        $commands = $payload['commands'] ?? $payload;
+        if (!is_array($commands)) {
+            throw new \InvalidArgumentException(
+                'Commands config payload must be a list of command class names or contain a "commands" list.',
+            );
+        }
+
+        $normalized = [];
+
+        foreach ($commands as $commandClass) {
+            if (!is_string($commandClass) || trim($commandClass) === '') {
+                throw new \InvalidArgumentException(
+                    'Commands config payload must contain only non-empty command class strings.',
+                );
+            }
+
+            $normalized[] = $commandClass;
+        }
+
+        return CommandsConfigDefinition::create()->commands($normalized);
     }
 }

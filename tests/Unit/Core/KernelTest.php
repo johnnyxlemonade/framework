@@ -157,8 +157,7 @@ final class KernelTest extends TestCase
     public function testBootstrapSkipsMissingConventionalConfigFiles(): void
     {
         $configDir = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Api.php');
-        @unlink($configDir . DIRECTORY_SEPARATOR . 'Framework.php');
+        @unlink($configDir . DIRECTORY_SEPARATOR . 'Api.yaml');
 
         $kernel = $this->kernel(false);
         $response = $kernel->run(new ServerRequest('GET', '/missing'));
@@ -166,11 +165,11 @@ final class KernelTest extends TestCase
         self::assertSame(404, $response->getStatusCode());
     }
 
-    public function testKernelConventionalConfigDoesNotIncludeCommandsPhp(): void
+    public function testKernelConventionalConfigDoesNotIncludeCommandsYaml(): void
     {
         $this->writeConfigFile(
-            'Commands.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nthrow new \\RuntimeException('Commands config should not be loaded by HTTP kernel');\n",
+            'Commands.yaml',
+            "module: commands\nconfig:\n  commands:\n    - invalid\n",
         );
 
         $kernel = $this->kernel(false);
@@ -278,27 +277,25 @@ final class KernelTest extends TestCase
         }
 
         $defaults = [
-            'Config.php',
-            'App.php',
-            'Framework.php',
-            'Api.php',
-            'Commands.php',
+            'Config.yaml',
+            'App.yaml',
+            'Api.yaml',
+            'Commands.yaml',
         ];
 
         foreach ($defaults as $file) {
-            if ($file === 'Config.php') {
+            if ($file === 'Config.yaml') {
                 $this->writeConfigFile(
-                    'Config.php',
-                    "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php', 'Framework.php', 'Api.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
+                    'Config.yaml',
+                    "shared:\n  - App\n  - Api\nhttp: []\ncli:\n  - Commands\n",
                 );
                 continue;
             }
 
             $this->writeConfigFile($file, match ($file) {
-                'App.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
-                'Framework.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\FrameworkConfigDefinition;\n\nreturn FrameworkConfigDefinition::create();\n",
-                'Api.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create();\n",
-                'Commands.php' => "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+                'App.yaml' => "module: app\nconfig: {}\n",
+                'Api.yaml' => "module: api\nconfig: {}\n",
+                'Commands.yaml' => "module: commands\nconfig:\n  commands: []\n",
             });
         }
 
@@ -340,8 +337,8 @@ final class KernelTest extends TestCase
     private function writeThrowingConfig(string $exceptionClass, string $message): void
     {
         $this->writeConfigFile(
-            'App.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nthrow new {$exceptionClass}('" . addslashes($message) . "');\n",
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    unset(\$router);\n    throw new {$exceptionClass}('" . addslashes($message) . "');\n};\n",
         );
     }
 

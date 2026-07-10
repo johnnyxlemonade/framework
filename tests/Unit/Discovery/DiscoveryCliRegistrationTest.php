@@ -24,16 +24,16 @@ final class DiscoveryCliRegistrationTest extends TestCase
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-discovery-cli-' . uniqid('', true);
         $this->writeConfigFile(
-            'Config.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['shared' => ['App.php'], 'http' => [], 'cli' => ['Commands.php']];\n",
+            'Config.yaml',
+            "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
         );
         $this->writeConfigFile(
-            'App.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Core\\Config\\AppConfigDefinition;\n\nreturn AppConfigDefinition::create();\n",
+            'App.yaml',
+            "module: app\nconfig: {}\n",
         );
         $this->writeConfigFile(
-            'Commands.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Cli\\Config\\CommandsConfigDefinition;\n\nreturn CommandsConfigDefinition::create();\n",
+            'Commands.yaml',
+            "module: commands\nconfig:\n  commands: []\n",
         );
     }
 
