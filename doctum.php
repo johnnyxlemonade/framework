@@ -13,10 +13,34 @@ $iterator = Finder::create()
     ->name('*.php')
     ->in($root . '/src');
 
+$remoteRepository = new class(
+    'johnnyxlemonade/framework',
+    $root,
+) extends GitHubRemoteRepository {
+    public function getFileUrl($projectVersion, $relativePath, $line)
+    {
+        return parent::getFileUrl('master', $relativePath, $line);
+    }
+};
+
 return new Doctum($iterator, [
     'title' => 'Lemonade Framework API',
+    'language' => 'en',
+
     'build_dir' => $root . '/build/docs',
     'cache_dir' => $root . '/build/doctum-cache',
+
     'source_dir' => $root,
+    'remote_repository' => $remoteRepository,
+
     'default_opened_level' => 2,
+
+    'footer_link' => [
+        'href' => 'https://github.com/johnnyxlemonade/framework',
+        'rel' => 'noreferrer noopener',
+        'target' => '_blank',
+        'before_text' => 'Source code available',
+        'link_text' => 'on GitHub',
+        'after_text' => '',
+    ],
 ]);
