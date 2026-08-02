@@ -10,24 +10,18 @@ use Psr\Http\Message\StreamFactoryInterface;
 
 trait JsonFetchTrait
 {
-    public function __construct(
-        private readonly ClientInterface $client,
-        private readonly RequestFactoryInterface $requestFactory,
-        private readonly StreamFactoryInterface $streamFactory,
-    ) {}
-
     /**
      * @return array<string, mixed>|null
      */
     protected function fetchJson(string $url): ?array
     {
         try {
-            $request = $this->requestFactory
+            $request = $this->jsonFetchRequestFactory()
                 ->createRequest('GET', $url)
                 ->withHeader('User-Agent', 'Lemonade/Validation')
                 ->withHeader('Accept', 'application/json');
 
-            $response = $this->client->sendRequest($request);
+            $response = $this->jsonFetchClient()->sendRequest($request);
 
             if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
                 return null;
@@ -48,14 +42,14 @@ trait JsonFetchTrait
         try {
             $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
-            $request = $this->requestFactory
+            $request = $this->jsonFetchRequestFactory()
                 ->createRequest('POST', $url)
                 ->withHeader('User-Agent', 'Lemonade/Validation')
                 ->withHeader('Accept', 'application/json')
                 ->withHeader('Content-Type', 'application/json')
-                ->withBody($this->streamFactory->createStream($body));
+                ->withBody($this->jsonFetchStreamFactory()->createStream($body));
 
-            $response = $this->client->sendRequest($request);
+            $response = $this->jsonFetchClient()->sendRequest($request);
 
             if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
                 return null;
@@ -74,14 +68,14 @@ trait JsonFetchTrait
     protected function postForm(string $url, array $payload): ?array
     {
         try {
-            $request = $this->requestFactory
+            $request = $this->jsonFetchRequestFactory()
                 ->createRequest('POST', $url)
                 ->withHeader('User-Agent', 'Lemonade/Validation')
                 ->withHeader('Accept', 'application/json')
                 ->withHeader('Content-Type', 'application/x-www-form-urlencoded')
-                ->withBody($this->streamFactory->createStream(http_build_query($payload)));
+                ->withBody($this->jsonFetchStreamFactory()->createStream(http_build_query($payload)));
 
-            $response = $this->client->sendRequest($request);
+            $response = $this->jsonFetchClient()->sendRequest($request);
 
             if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
                 return null;
@@ -119,4 +113,10 @@ trait JsonFetchTrait
 
         return $normalized;
     }
+
+    abstract protected function jsonFetchClient(): ClientInterface;
+
+    abstract protected function jsonFetchRequestFactory(): RequestFactoryInterface;
+
+    abstract protected function jsonFetchStreamFactory(): StreamFactoryInterface;
 }

@@ -4,11 +4,23 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation\Rule;
 
+use Lemonade\Framework\Validation\Endpoint\RecaptchaEndpointProviderInterface;
+use Lemonade\Framework\Validation\Endpoint\ValidationEndpointNotConfiguredException;
 use Lemonade\Framework\Validation\Rule\Traits\JsonFetchTrait;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 
 final class RecaptchaRule implements ValidationRuleInterface
 {
     use JsonFetchTrait;
+
+    public function __construct(
+        private readonly ClientInterface $client,
+        private readonly RequestFactoryInterface $requestFactory,
+        private readonly StreamFactoryInterface $streamFactory,
+        private readonly RecaptchaEndpointProviderInterface $endpointProvider,
+    ) {}
 
     public function validate(mixed $value, ?string $param, array $data): bool
     {
@@ -32,15 +44,33 @@ final class RecaptchaRule implements ValidationRuleInterface
             $payload['remoteip'] = $remoteIp;
         }
 
-        $json = $this->postForm(
-            'https://www.google.com/recaptcha/api/siteverify',
-            $payload,
-        );
+        try {
+            $url = $this->endpointProvider->verificationUrl();
+        } catch (ValidationEndpointNotConfiguredException) {
+            return false;
+        }
+
+        $json = $this->postForm($url, $payload);
 
         if ($json === null) {
             return false;
         }
 
         return ($json['success'] ?? false) === true;
+    }
+
+    protected function jsonFetchClient(): ClientInterface
+    {
+        return $this->client;
+    }
+
+    protected function jsonFetchRequestFactory(): RequestFactoryInterface
+    {
+        return $this->requestFactory;
+    }
+
+    protected function jsonFetchStreamFactory(): StreamFactoryInterface
+    {
+        return $this->streamFactory;
     }
 }

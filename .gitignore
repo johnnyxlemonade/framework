@@ -2,33 +2,19 @@
 /vendor/
 composer.lock
 
-# PHPUnit
-/build/phpunit/
-/.phpunit.cache/
-/.phpunit.result.cache
+# Generated files
+/build/
+/coverage/
 
-# Coverage
-/build/coverage/
-coverage/
-
-# PHPStan
-/build/phpstan/
-.phpstan.cache
-
-# PHP CS Fixer
-/build/php-cs-fixer/
-
-# IDE / editor
-.idea/
-.vscode/
+# IDE and editors
+/.idea/
+/.vscode/
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs and temporary files
 *.log
-
-# Temporary files
 *.tmp
 *.temp

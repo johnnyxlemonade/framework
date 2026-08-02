@@ -10,6 +10,7 @@ use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Database;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
 use Lemonade\Framework\Database\DatabaseResultInterface;
+use Lemonade\Framework\Validation\Endpoint\ValidationEndpointProviderInterface;
 use Lemonade\Framework\Validation\Rule\RuleRegistry;
 use Lemonade\Framework\Validation\Rule\ValidationRuleInterface;
 use Lemonade\Framework\Validation\Rule\ValidEmailHeavyRule;
@@ -75,18 +76,18 @@ final class ValidationRuleResolverTest extends TestCase
     {
         $client = new ResolverHttpClient(new Response(200, [], '{"valid":true}'));
         $factory = new Psr17Factory();
-        $rule = new ValidIcoActiveRule($client, $factory, $factory);
+        $rule = new ValidIcoActiveRule($client, $factory, $factory, new ResolverValidationEndpointProvider());
 
         self::assertTrue($rule->validate('12345678', null, []));
         self::assertInstanceOf(RequestInterface::class, $client->lastRequest);
-        self::assertSame('https://api.core1.agency/validator/company?value=12345678', (string) $client->lastRequest->getUri());
+        self::assertSame('https://validator.example.test/company/12345678', (string) $client->lastRequest->getUri());
     }
 
     public function testFailureDetailsAreConsumedOnCachedRuleInstance(): void
     {
         $client = new ResolverHttpClient(new Response(200, [], '{"valid":false,"translate":"blacklist"}'));
         $factory = new Psr17Factory();
-        $rule = new ValidEmailHeavyRule($client, $factory, $factory);
+        $rule = new ValidEmailHeavyRule($client, $factory, $factory, new ResolverValidationEndpointProvider());
 
         self::assertFalse($rule->validate('blocked@example.test', null, []));
         self::assertSame('blacklist', $rule->pullFailureTranslationKey());
@@ -314,5 +315,18 @@ final class ResolverHttpClient implements ClientInterface
         $this->lastRequest = $request;
 
         return $this->response;
+    }
+}
+
+final class ResolverValidationEndpointProvider implements ValidationEndpointProviderInterface
+{
+    public function emailValidationUrl(string $email): string
+    {
+        return 'https://validator.example.test/email?email=' . rawurlencode($email);
+    }
+
+    public function activeCompanyValidationUrl(string $ico): string
+    {
+        return 'https://validator.example.test/company/' . rawurlencode($ico);
     }
 }

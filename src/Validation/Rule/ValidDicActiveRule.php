@@ -4,11 +4,23 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation\Rule;
 
+use Lemonade\Framework\Validation\Endpoint\ValidationEndpointNotConfiguredException;
+use Lemonade\Framework\Validation\Endpoint\VatValidationEndpointProviderInterface;
 use Lemonade\Framework\Validation\Rule\Traits\JsonFetchTrait;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 
 final class ValidDicActiveRule implements ValidationRuleInterface
 {
     use JsonFetchTrait;
+
+    public function __construct(
+        private readonly ClientInterface $client,
+        private readonly RequestFactoryInterface $requestFactory,
+        private readonly StreamFactoryInterface $streamFactory,
+        private readonly VatValidationEndpointProviderInterface $endpointProvider,
+    ) {}
 
     public function validate(mixed $value, ?string $param, array $data): bool
     {
@@ -31,11 +43,11 @@ final class ValidDicActiveRule implements ValidationRuleInterface
             return false;
         }
 
-        $url = sprintf(
-            'https://ec.europa.eu/taxation_customs/vies/rest-api/ms/%s/vat/%s',
-            rawurlencode($country),
-            rawurlencode($number),
-        );
+        try {
+            $url = $this->endpointProvider->validationUrl($country, $number);
+        } catch (ValidationEndpointNotConfiguredException) {
+            return false;
+        }
 
         $json = $this->fetchJson($url);
 
@@ -44,5 +56,20 @@ final class ValidDicActiveRule implements ValidationRuleInterface
         }
 
         return ($json['isValid'] ?? false) === true;
+    }
+
+    protected function jsonFetchClient(): ClientInterface
+    {
+        return $this->client;
+    }
+
+    protected function jsonFetchRequestFactory(): RequestFactoryInterface
+    {
+        return $this->requestFactory;
+    }
+
+    protected function jsonFetchStreamFactory(): StreamFactoryInterface
+    {
+        return $this->streamFactory;
     }
 }

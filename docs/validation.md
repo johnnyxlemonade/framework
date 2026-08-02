@@ -180,6 +180,45 @@ final class UniqueSlugRule implements ValidationRuleInterface
 $registry->addRule('unique_slug', UniqueSlugRule::class);
 ```
 
+Built-in remote validation rules follow the same pattern. `valid_email_heavy` and `valid_ico_active` depend on `ValidationEndpointProviderInterface`, which is bound by default to `DefaultValidationEndpointProvider`. The framework therefore fails closed until the application registers its own implementation, and the rule classes remain unchanged.
+
+```php
+use App\Validation\ApplicationValidationEndpointProvider;
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Validation\Endpoint\ValidationEndpointProviderInterface;
+
+final class AppServiceProvider implements ServiceProviderInterface
+{
+    public function register(ContainerInterface $container): void
+    {
+        $container->singleton(
+            ValidationEndpointProviderInterface::class,
+            ApplicationValidationEndpointProvider::class,
+        );
+    }
+}
+```
+
+```php
+use Lemonade\Framework\Validation\Endpoint\ValidationEndpointProviderInterface;
+
+final class ApplicationValidationEndpointProvider implements ValidationEndpointProviderInterface
+{
+    public function emailValidationUrl(string $email): string
+    {
+        return 'https://validator.example.test/email?email=' . rawurlencode($email);
+    }
+
+    public function activeCompanyValidationUrl(string $ico): string
+    {
+        return 'https://validator.example.test/company/' . rawurlencode($ico);
+    }
+}
+```
+
+The framework default contains no real endpoint and throws a configuration exception. The application must bind its own provider before using remote validation.
+
 ## Conditional Validation
 
 Conditional rules let one field depend on another field's value or presence.
@@ -292,6 +331,29 @@ final class RegisterUserHandler
 ```
 
 `FormValidation` is stateful while building a schema. It must not be shared as a singleton for concurrent validation contexts. The framework registers it through the container as a factory-style service, and `validate()` clears the current schema after validation.
+
+Remote validation rules do not ship with configured external endpoints. The framework binds fail-closed defaults for `ValidationEndpointProviderInterface`, `RecaptchaEndpointProviderInterface`, and `VatValidationEndpointProviderInterface`; applications that use remote e-mail, company, VAT, or reCAPTCHA verification must register their own provider implementations in the container.
+
+```php
+use Lemonade\Framework\Validation\Endpoint\RecaptchaEndpointProviderInterface;
+use Lemonade\Framework\Validation\Endpoint\VatValidationEndpointProviderInterface;
+use Lemonade\Framework\Validation\Endpoint\ValidationEndpointProviderInterface;
+
+$container->singleton(
+    ValidationEndpointProviderInterface::class,
+    ApplicationValidationEndpointProvider::class,
+);
+
+$container->singleton(
+    RecaptchaEndpointProviderInterface::class,
+    ApplicationRecaptchaEndpointProvider::class,
+);
+
+$container->singleton(
+    VatValidationEndpointProviderInterface::class,
+    ApplicationVatValidationEndpointProvider::class,
+);
+```
 
 ## Full Contact Form Example
 
