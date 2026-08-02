@@ -119,7 +119,7 @@
       "@php vendor/bin/phpstan analyse --memory-limit=32G"
     ],
     "stan:ci": [
-      "@php vendor/bin/phpstan analyse --no-progress --error-format=github --memory-limit=1G"
+      "@php vendor/bin/phpstan analyse --no-progress --error-format=github --memory-limit=4G"
     ],
     "cs:check": [
       "@php vendor/bin/php-cs-fixer fix --dry-run --diff --allow-risky=yes"
@@ -152,7 +152,7 @@
     "test": "Run the PHPUnit test suite.",
     "test:ci": "Run the PHPUnit test suite with CI-friendly output.",
     "stan": "Run PHPStan static analysis.",
-    "stan:ci": "Run PHPStan static analysis with GitHub Actions output format.",
+    "stan:ci": "Run PHPStan static analysis for GitHub Actions with an increased memory limit.",
     "cs:check": "Check coding standards using PHP CS Fixer without modifying files.",
     "cs:fix": "Fix coding standards using PHP CS Fixer.",
     "qa": "Run coding standards check, static analysis and tests.",
