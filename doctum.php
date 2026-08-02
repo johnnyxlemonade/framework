@@ -32,7 +32,7 @@ return new Doctum($iterator, [
 
     'source_dir' => $root,
     'remote_repository' => $remoteRepository,
-
+    'theme' => 'lemonade-modern',
     'default_opened_level' => 2,
 
     'footer_link' => [
