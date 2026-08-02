@@ -100,19 +100,23 @@ final class SitemapGenerator
         $xml->startElement('url');
         $xml->writeElement('loc', $url->loc());
 
-        if ($url->lastmod() !== null) {
-            $xml->writeElement('lastmod', $this->formatLastmod($url->lastmod()));
+        $lastmod = $url->lastmod();
+        if ($lastmod !== null) {
+            $xml->writeElement('lastmod', $this->formatLastmod($lastmod));
         }
 
-        if ($url->changefreq() !== null) {
-            $xml->writeElement(
-                'changefreq',
-                $url->changefreq() instanceof SitemapChangeFrequency ? $url->changefreq()->value : $url->changefreq(),
-            );
+        $changeFrequency = $url->changefreq();
+        if ($changeFrequency !== null) {
+            $changeFrequencyValue = $changeFrequency instanceof SitemapChangeFrequency
+                ? $changeFrequency->value
+                : $changeFrequency;
+
+            $xml->writeElement('changefreq', $changeFrequencyValue);
         }
 
-        if ($url->priority() !== null) {
-            $xml->writeElement('priority', number_format($url->priority(), 1, '.', ''));
+        $priority = $url->priority();
+        if ($priority !== null) {
+            $xml->writeElement('priority', number_format($priority, 1, '.', ''));
         }
 
         $xml->endElement();

@@ -23,13 +23,32 @@ final class EventsConfigResolver
                 $listeners[$eventClass] = [];
 
                 foreach ($handlerList as $handler) {
-                    if (is_string($handler) || is_callable($handler)) {
-                        $listeners[$eventClass][] = $handler;
+                    $normalized = $this->normalizeListener($handler);
+                    if ($normalized !== null) {
+                        $listeners[$eventClass][] = $normalized;
                     }
                 }
             }
         }
 
         return new EventsConfig($listeners);
+    }
+
+    /**
+     * @return ((callable(object): void)|string)|null
+     */
+    private function normalizeListener(mixed $listener): callable|string|null
+    {
+        if (is_string($listener)) {
+            return $listener;
+        }
+
+        if (is_callable($listener)) {
+            return static function (object $event) use ($listener): void {
+                $listener($event);
+            };
+        }
+
+        return null;
     }
 }

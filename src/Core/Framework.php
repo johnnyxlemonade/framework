@@ -203,6 +203,9 @@ final class Framework
         return $this;
     }
 
+    /**
+     * @param callable(\Lemonade\Framework\Routing\Router): void $builder
+     */
     public function routes(callable $builder): self
     {
         $this->configureRouterLocalizedRoutes();

@@ -108,6 +108,11 @@ final class Filesystem
         return $this->fileManager->permissions($file);
     }
 
+    /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
     public function lock(string $file, callable $callback): mixed
     {
         return $this->lockManager->lock($file, $callback);

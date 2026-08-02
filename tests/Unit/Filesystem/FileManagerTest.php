@@ -11,9 +11,11 @@ use PHPUnit\Framework\TestCase;
 
 final class FileManagerTest extends TestCase
 {
-    private string $root;
-    private FileManager $manager;
-    private DirectoryManager $dir;
+    private string $root = '';
+    /** @var FileManager */
+    private $manager;
+    /** @var DirectoryManager */
+    private $dir;
 
     protected function setUp(): void
     {

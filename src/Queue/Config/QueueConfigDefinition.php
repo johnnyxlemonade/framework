@@ -41,6 +41,9 @@ final class QueueConfigDefinition extends AbstractConfigDefinition
         return $this->set('database.failed_table', $table);
     }
 
+    /**
+     * @param (callable(object): void)|string $handler
+     */
     public function handler(string $messageClass, callable|string $handler): self
     {
         return $this->set("handlers.{$messageClass}", $handler);

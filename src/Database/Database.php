@@ -44,6 +44,11 @@ final class Database
         return $this->connection->cursor($sql, $bindings);
     }
 
+    /**
+     * @template T
+     * @param callable(ConnectionInterface): T $callback
+     * @return T
+     */
     public function transaction(callable $callback): mixed
     {
         return $this->connection->transaction($callback);

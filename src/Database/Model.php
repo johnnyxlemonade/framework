@@ -6,7 +6,7 @@ namespace Lemonade\Framework\Database;
 
 abstract class Model
 {
-    protected string $table;
+    protected string $table = '';
 
     protected string $primaryKey = 'id';
 
@@ -708,7 +708,7 @@ abstract class Model
 
     public function builder(): QueryBuilder
     {
-        $builder = QueryBuilder::make($this->db)->table($this->table);
+        $builder = QueryBuilder::make($this->db)->table($this->requireTableName());
         $builder = $this->applySoftDeleteScope($builder);
         $this->resetSoftDeleteScope();
 
@@ -749,6 +749,9 @@ abstract class Model
         yield from $this->builder()->cursor();
     }
 
+    /**
+     * @param callable(list<array<string, mixed>>, int): (bool|void) $callback
+     */
     public function chunk(int $size, callable $callback): void
     {
         $size = max(1, $size);
@@ -778,7 +781,19 @@ abstract class Model
 
     protected function tableName(): string
     {
-        return $this->db->protect_identifiers($this->table, true, null, false);
+        return $this->db->protect_identifiers($this->requireTableName(), true, null, false);
+    }
+
+    protected function requireTableName(): string
+    {
+        if ($this->table === '') {
+            throw new \LogicException(sprintf(
+                'Model "%s" must define a non-empty $table property.',
+                static::class,
+            ));
+        }
+
+        return $this->table;
     }
 
     protected function columnName(string $column): string

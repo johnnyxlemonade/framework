@@ -21,8 +21,9 @@ final class SitemapIndexGenerator
         foreach ($files as $file) {
             $xml->startElement('sitemap');
             $xml->writeElement('loc', $file->publicUrl());
-            if ($file->lastmod() !== null) {
-                $xml->writeElement('lastmod', $this->formatLastmod($file->lastmod()));
+            $lastmod = $file->lastmod();
+            if ($lastmod !== null) {
+                $xml->writeElement('lastmod', $this->formatLastmod($lastmod));
             }
             $xml->endElement();
         }

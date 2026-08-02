@@ -9,7 +9,7 @@ use Lemonade\Framework\Container\ContainerInterface;
 final class InMemoryEventDispatcher implements EventDispatcherInterface
 {
     /**
-     * @var array<string, list<array{priority:int,listener:callable|class-string}>>
+     * @var array<string, list<array{priority:int,listener:(callable(object): void)|string}>>
      */
     private array $listeners = [];
 
@@ -27,6 +27,9 @@ final class InMemoryEventDispatcher implements EventDispatcherInterface
         return $event;
     }
 
+    /**
+     * @param (callable(object): void)|string $listener
+     */
     public function addListener(string $eventClass, callable|string $listener, int $priority = 0): void
     {
         $this->listeners[$eventClass][] = [
@@ -36,7 +39,7 @@ final class InMemoryEventDispatcher implements EventDispatcherInterface
     }
 
     /**
-     * @return list<callable|class-string>
+     * @return list<(callable(object): void)|string>
      */
     private function resolveListeners(object $event): array
     {
@@ -65,7 +68,7 @@ final class InMemoryEventDispatcher implements EventDispatcherInterface
     }
 
     /**
-     * @param callable|class-string $listener
+     * @param (callable(object): void)|string $listener
      * @return callable(object):void
      */
     private function resolveListener(callable|string $listener): callable

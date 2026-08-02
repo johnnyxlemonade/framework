@@ -11,8 +11,9 @@ use SplFileInfo;
 
 final class DirectoryManagerTest extends TestCase
 {
-    private string $root;
-    private DirectoryManager $manager;
+    private string $root = '';
+    /** @var DirectoryManager */
+    private $manager;
 
     protected function setUp(): void
     {

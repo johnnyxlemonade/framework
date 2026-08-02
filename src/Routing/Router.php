@@ -153,6 +153,9 @@ final class Router
         return $route;
     }
 
+    /**
+     * @param callable(self): void $builder
+     */
     public function group(string $prefix, callable $builder): RouteGroup
     {
         $before = count($this->routeList);
@@ -170,6 +173,9 @@ final class Router
         );
     }
 
+    /**
+     * @param callable(self): void $builder
+     */
     public function localizedGroup(callable $builder): RouteGroup
     {
         $before = count($this->routeList);

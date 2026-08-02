@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 
 final class CliKernelFactoryTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
 
     /** @var resource|null */
     private $stdout = null;

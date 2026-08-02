@@ -321,12 +321,14 @@ final class OdbcSchemaGrammar implements SchemaGrammarInterface
             $this->columnList($foreignKey->referencedColumns()),
         );
 
-        if ($foreignKey->updateAction() !== null) {
-            $sql .= ' ON UPDATE ' . $this->foreignKeyAction($foreignKey->updateAction());
+        $updateAction = $foreignKey->updateAction();
+        if ($updateAction !== null) {
+            $sql .= ' ON UPDATE ' . $this->foreignKeyAction($updateAction);
         }
 
-        if ($foreignKey->deleteAction() !== null) {
-            $sql .= ' ON DELETE ' . $this->foreignKeyAction($foreignKey->deleteAction());
+        $deleteAction = $foreignKey->deleteAction();
+        if ($deleteAction !== null) {
+            $sql .= ' ON DELETE ' . $this->foreignKeyAction($deleteAction);
         }
 
         return $sql;

@@ -14,9 +14,10 @@ use Psr\Cache\CacheItemInterface;
 
 final class FileCacheItemPoolTest extends TestCase
 {
-    private string $root;
-    private string $cacheDir;
-    private FileCacheItemPool $pool;
+    private string $root = '';
+    private string $cacheDir = '';
+    /** @var FileCacheItemPool */
+    private $pool;
 
     protected function setUp(): void
     {

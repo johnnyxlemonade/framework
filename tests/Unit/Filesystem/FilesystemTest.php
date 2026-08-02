@@ -167,6 +167,11 @@ final class LockManagerSpy implements LockManagerInterface
     /** @var list<string> */
     public array $calls = [];
 
+    /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
     public function lock(string $file, callable $callback): mixed
     {
         $this->calls[] = sprintf('lock:%s', $file);

@@ -441,6 +441,10 @@ final class QueryBuilder
         return $this->addWhereBetween('OR', $column, $from, $to, true);
     }
 
+    /**
+     * @param callable(self): (self|void) $then
+     * @param (callable(self): (self|void))|null $else
+     */
     public function when(bool $condition, callable $then, ?callable $else = null): self
     {
         if ($condition) {

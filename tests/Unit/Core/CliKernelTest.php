@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
 
 final class CliKernelTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
     /** @var resource|null */
     private $stdout = null;
     /** @var resource|null */

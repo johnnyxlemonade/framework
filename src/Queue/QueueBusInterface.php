@@ -9,7 +9,7 @@ interface QueueBusInterface
     public function dispatch(object $message, ?string $transport = null, string $queue = 'default', int $delaySeconds = 0): void;
 
     /**
-     * @param callable(object):void|class-string $handler
+     * @param callable(object):void|string $handler
      */
     public function addHandler(string $messageClass, callable|string $handler): void;
 

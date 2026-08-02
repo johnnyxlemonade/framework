@@ -11,10 +11,16 @@ final class CallbackStream implements StreamInterface
 {
     private bool $consumed = false;
 
+    /**
+     * @param \Closure(): void $producer
+     */
     public function __construct(
         private readonly \Closure $producer,
     ) {}
 
+    /**
+     * @param callable(): void $producer
+     */
     public static function from(callable $producer): self
     {
         return new self($producer(...));

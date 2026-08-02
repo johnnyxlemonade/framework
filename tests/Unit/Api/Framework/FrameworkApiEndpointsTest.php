@@ -25,7 +25,7 @@ use PHPUnit\Framework\TestCase;
 
 final class FrameworkApiEndpointsTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
 
     protected function setUp(): void
     {

@@ -20,7 +20,7 @@ use PHPUnit\Framework\TestCase;
 
 final class KernelTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
 
     protected function setUp(): void
     {

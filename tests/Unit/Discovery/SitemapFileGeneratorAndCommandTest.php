@@ -27,7 +27,7 @@ use PHPUnit\Framework\TestCase;
 
 final class SitemapFileGeneratorAndCommandTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
 
     protected function setUp(): void
     {

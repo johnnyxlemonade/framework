@@ -17,7 +17,7 @@ use RuntimeException;
 
 final class ConfigFileLoaderTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
 
     protected function setUp(): void
     {

@@ -304,8 +304,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
 
     private function compilePosition(ColumnDefinition $column): string
     {
-        if ($column->afterColumn() !== null) {
-            return ' AFTER ' . $this->identifier($column->afterColumn());
+        $afterColumn = $column->afterColumn();
+        if ($afterColumn !== null) {
+            return ' AFTER ' . $this->identifier($afterColumn);
         }
 
         return $column->firstPosition() ? ' FIRST' : '';
@@ -351,12 +352,14 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
             $this->columnList($foreignKey->referencedColumns()),
         );
 
-        if ($foreignKey->updateAction() !== null) {
-            $sql .= ' ON UPDATE ' . $this->foreignKeyAction($foreignKey->updateAction());
+        $updateAction = $foreignKey->updateAction();
+        if ($updateAction !== null) {
+            $sql .= ' ON UPDATE ' . $this->foreignKeyAction($updateAction);
         }
 
-        if ($foreignKey->deleteAction() !== null) {
-            $sql .= ' ON DELETE ' . $this->foreignKeyAction($foreignKey->deleteAction());
+        $deleteAction = $foreignKey->deleteAction();
+        if ($deleteAction !== null) {
+            $sql .= ' ON DELETE ' . $this->foreignKeyAction($deleteAction);
         }
 
         return $sql;

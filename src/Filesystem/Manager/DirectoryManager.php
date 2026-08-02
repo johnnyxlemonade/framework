@@ -217,7 +217,12 @@ final class DirectoryManager implements DirectoryManagerInterface
 
             foreach ($iterator as $item) {
                 if ($item instanceof SplFileInfo) {
-                    yield $item->getFilename() => $item->getRealPath();
+                    $realPath = $item->getRealPath();
+                    if ($realPath === false) {
+                        continue;
+                    }
+
+                    yield $item->getFilename() => $realPath;
                 }
             }
         } catch (Throwable $e) {

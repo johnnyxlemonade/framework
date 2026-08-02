@@ -116,13 +116,16 @@ HTML;
     private function renderNode(DumpNode $node, int $level): string
     {
         $indent = str_repeat('  ', $level);
+        $label = $node->label();
+        $type = $node->type();
         $line = $indent
-            . '<span class="dump-label">' . $this->escape($node->label()) . '</span>'
+            . '<span class="dump-label">' . $this->escape($label) . '</span>'
             . ' '
-            . '<span class="dump-type">&lt;' . $this->escape($node->type()) . '&gt;</span>';
+            . '<span class="dump-type">&lt;' . $this->escape($type) . '&gt;</span>';
 
-        if ($node->value() !== null) {
-            $line .= ': <span class="dump-value">' . $this->escape($node->value()) . '</span>';
+        $value = $node->value();
+        if ($value !== null) {
+            $line .= ': <span class="dump-value">' . $this->escape($value) . '</span>';
         }
 
         if ($node->isCircular()) {

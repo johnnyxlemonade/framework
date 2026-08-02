@@ -26,6 +26,9 @@ final class LockManager implements LockManagerInterface
     ) {}
 
     /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
      * {@inheritdoc}
      */
     public function lock(string $file, callable $callback): mixed

@@ -9,6 +9,9 @@ use Lemonade\Framework\Filesystem\Exception\FilesystemException;
 interface LockManagerInterface
 {
     /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
      * Executes the given callback while holding an exclusive file lock.
      *
      * The lock file directory is created automatically if it does not exist.

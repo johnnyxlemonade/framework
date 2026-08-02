@@ -9,8 +9,8 @@ use PHPUnit\Framework\TestCase;
 
 final class ViewTest extends TestCase
 {
-    private string $root;
-    private string $viewsPath;
+    private string $root = '';
+    private string $viewsPath = '';
 
     protected function setUp(): void
     {

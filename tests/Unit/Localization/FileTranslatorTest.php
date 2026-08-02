@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 
 final class FileTranslatorTest extends TestCase
 {
-    private string $root;
+    private string $root = '';
 
     protected function setUp(): void
     {

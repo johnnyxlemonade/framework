@@ -36,7 +36,8 @@ use RuntimeException;
 
 final class ControllerTest extends TestCase
 {
-    private Psr17Factory $psr17;
+    /** @var Psr17Factory */
+    private $psr17;
 
     protected function setUp(): void
     {

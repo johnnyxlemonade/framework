@@ -22,6 +22,9 @@ final class CacheManager
     }
 
     /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
      * @throws InvalidArgumentException
      */
     public function remember(string $key, ?int $ttlSeconds, callable $callback): mixed
@@ -43,6 +46,9 @@ final class CacheManager
     }
 
     /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
      * @throws InvalidArgumentException
      */
     public function rememberForever(string $key, callable $callback): mixed

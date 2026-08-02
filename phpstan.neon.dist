@@ -1,15 +1,50 @@
 includes:
+    # Enables rules planned for future PHPStan releases.
+    # This catches upcoming compatibility issues before they become defaults.
     - vendor/phpstan/phpstan/conf/bleedingEdge.neon
+
+    # Adds stricter analysis rules beyond the standard rule levels.
     - vendor/phpstan/phpstan-strict-rules/rules.neon
 
 parameters:
+    # Use the highest available PHPStan rule level.
     level: 10
 
+    # Analyse production code, tests, and public usage examples.
+    # An example that fails static analysis is not a valid example.
     paths:
         - src
         - tests
+        - examples
 
+    # Keep PHPStan cache and temporary files outside the source tree.
     tmpDir: build/phpstan
 
+    # PHPDoc is not enforced at runtime, so native PHP types remain
+    # the authoritative source of truth.
     treatPhpDocTypesAsCertain: false
+
+    # Report obsolete or invalid ignore rules instead of silently
+    # accumulating stale exceptions in the configuration.
     reportUnmatchedIgnoredErrors: true
+
+    # Require every callable to declare its parameter and return types.
+    # A bare "callable" is not a sufficient contract.
+    checkMissingCallableSignature: true
+
+    # Report public and protected return types that are broader
+    # than the implementation actually requires.
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+
+    # Require typed properties to be provably initialized before use.
+    # Relying on implicit initialization is not a valid object invariant.
+    checkUninitializedProperties: true
+
+    # Apply strict checks to benevolent union types such as array-key.
+    # Every possible type must support the performed operation.
+    checkBenevolentUnionTypes: true
+
+    # Do not assume repeated calls to potentially impure functions
+    # return the same value. Time, randomness, global state, and I/O
+    # may change between calls.
+    rememberPossiblyImpureFunctionValues: false

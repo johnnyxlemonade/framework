@@ -11,8 +11,9 @@ use PHPUnit\Framework\TestCase;
 
 final class LockManagerTest extends TestCase
 {
-    private string $root;
-    private LockManager $manager;
+    private string $root = '';
+    /** @var LockManager */
+    private $manager;
 
     protected function setUp(): void
     {
@@ -39,16 +40,18 @@ final class LockManagerTest extends TestCase
     public function testLockWrapsCallbackExceptionIntoFilesystemExceptionWithPrevious(): void
     {
         $lockFile = $this->path('locks/fail.lock');
+        $exception = null;
 
         try {
-            $this->manager->lock($lockFile, static function (): never {
+            $this->manager->lock($lockFile, static function (): void {
                 throw new \RuntimeException('boom');
             });
-            self::fail('Expected FilesystemException was not thrown.');
         } catch (FilesystemException $exception) {
-            self::assertInstanceOf(\RuntimeException::class, $exception->getPrevious());
-            self::assertSame('boom', $exception->getPrevious()->getMessage());
         }
+
+        self::assertInstanceOf(FilesystemException::class, $exception);
+        self::assertInstanceOf(\RuntimeException::class, $exception->getPrevious());
+        self::assertSame('boom', $exception->getPrevious()->getMessage());
     }
 
     private function path(string $relative): string

@@ -9,7 +9,7 @@ use Lemonade\Framework\Container\ContainerInterface;
 final class QueueBus implements QueueBusInterface
 {
     /**
-     * @var array<string, callable|class-string>
+     * @var array<string, (callable(object): void)|string>
      */
     private array $handlers = [];
 
@@ -36,6 +36,9 @@ final class QueueBus implements QueueBusInterface
         $resolved->enqueue(new QueuedMessage($message, $queue), $delaySeconds);
     }
 
+    /**
+     * @param (callable(object): void)|string $handler
+     */
     public function addHandler(string $messageClass, callable|string $handler): void
     {
         $this->handlers[$messageClass] = $handler;
@@ -71,7 +74,7 @@ final class QueueBus implements QueueBusInterface
     }
 
     /**
-     * @return callable|class-string
+     * @return (callable(object): void)|string
      */
     private function resolveHandler(object $message): callable|string
     {
@@ -97,7 +100,7 @@ final class QueueBus implements QueueBusInterface
     }
 
     /**
-     * @param callable|class-string $handler
+     * @param (callable(object): void)|string $handler
      * @return callable(object):void
      */
     private function resolveCallable(callable|string $handler): callable
