@@ -15,7 +15,6 @@ parameters:
     paths:
         - src
         - tests
-        - examples
 
     # Keep PHPStan cache and temporary files outside the source tree.
     tmpDir: build/phpstan
