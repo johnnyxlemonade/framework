@@ -31,8 +31,11 @@ return new Doctum($iterator, [
     'cache_dir' => $root . '/build/doctum-cache',
 
     'source_dir' => $root,
+    'template_dirs' => [
+        $root . '/doctum-theme',
+    ],
     'remote_repository' => $remoteRepository,
-    'theme' => 'lemonade-modern',
+    'theme' => 'lemonade-modern-local',
     'default_opened_level' => 2,
 
     'footer_link' => [
