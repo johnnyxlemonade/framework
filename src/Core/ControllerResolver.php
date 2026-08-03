@@ -16,12 +16,49 @@ use ReflectionNamedType;
 use ReflectionType;
 use RuntimeException;
 
+/**
+ * Route-to-controller dispatcher for HTTP requests.
+ *
+ * The resolver obtains controller instances through the dependency injection
+ * container, binds the current PSR-7 server request for the dispatch cycle,
+ * resolves action parameters from the request and route parameters, performs
+ * scalar conversion for builtin parameter types, invokes the controller
+ * action, and normalizes the result to a PSR-7 response.
+ */
 final class ControllerResolver
 {
+    /**
+     * Accepts the container used for controller resolution, request binding,
+     * response factories, stream factories, and optional benchmark access.
+     */
     public function __construct(
         private readonly ContainerInterface $container,
     ) {}
 
+    /**
+     * Dispatches the matched controller action and normalizes its result to a PSR-7 response.
+     *
+     * The current request is first bound into the container for this dispatch
+     * cycle. The resolver then reads the controller class, action, and route
+     * parameters from the route match, resolves the controller through the
+     * container, initializes {@see AbstractController} context when applicable,
+     * injects `ServerRequestInterface` action parameters directly, maps named
+     * route parameters to action arguments, converts builtin `int`, `float`,
+     * `bool`, and `string` parameters, applies declared default values when
+     * route parameters are absent, invokes the action, and normalizes the
+     * result.
+     *
+     * Existing PSR responses are returned unchanged. Scalar, stringable, and
+     * `null` results are converted to a `200 text/html; charset=UTF-8`
+     * response.
+     *
+     * @param RouteMatch $match Matched route carrying the controller class, action, and named route parameters.
+     * @param ServerRequestInterface $request Current request used for dispatch and optional action injection.
+     *
+     * @throws RuntimeException If the controller class is empty, the resolved controller is not an object,
+     *     the action is missing, a required action parameter cannot be resolved, scalar parameter conversion fails,
+     *     or the controller action result cannot be normalized to a supported response type.
+     */
     public function handle(RouteMatch $match, ServerRequestInterface $request): PsrResponseInterface
     {
         // Bind the current request for this dispatch cycle so constructor DI

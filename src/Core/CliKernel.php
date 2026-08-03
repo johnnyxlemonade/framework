@@ -13,6 +13,15 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Throwable;
 
+/**
+ * CLI application kernel for Lemonade Framework applications.
+ *
+ * The kernel loads CLI configuration, registers CLI and shared framework
+ * service providers, builds the command registry, dispatches commands, and
+ * returns the resulting process exit code. It writes output to configurable
+ * stdout and stderr streams and converts uncaught exceptions into error output
+ * with exit code `1`.
+ */
 final class CliKernel
 {
     use KernelBootstrapTrait;
@@ -23,6 +32,15 @@ final class CliKernel
     /** @var resource */
     private $stderr;
 
+    /**
+     * Creates a CLI kernel with its runtime dependencies and output streams.
+     *
+     * The kernel receives the application context, DI container, and framework
+     * runtime used during bootstrap and command dispatch. When stdout or stderr
+     * is not provided, the kernel falls back to `STDOUT` and `STDERR`.
+     *
+     * @throws \InvalidArgumentException If stdout or stderr is not a valid resource.
+     */
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly ContainerInterface $container,
@@ -42,6 +60,16 @@ final class CliKernel
     }
 
     /**
+     * Dispatches a CLI command and returns its process exit code.
+     *
+     * The first argument is treated as the script name, the second as the
+     * command name, and the remaining arguments are forwarded to the resolved
+     * command. Empty command names, `list`, `--help`, and `-h` print the
+     * command list and return `0`. Unknown commands print an error and return
+     * `1`. Known commands return their own exit code. Uncaught exceptions are
+     * logged, written to stderr, and converted to exit code `1`, with a stack
+     * trace included in debug mode.
+     *
      * @param list<string> $argv
      */
     public function handle(array $argv): int
@@ -86,6 +114,15 @@ final class CliKernel
         }
     }
 
+    /**
+     * Bootstraps the CLI application once for the current kernel instance.
+     *
+     * The bootstrap is idempotent. It loads CLI configuration files, applies
+     * runtime application configuration, registers core diagnostics, registers
+     * the console service provider together with common and configured
+     * providers, registers the routing file when present, and marks the kernel
+     * as booted.
+     */
     public function bootstrap(): void
     {
         if ($this->booted) {

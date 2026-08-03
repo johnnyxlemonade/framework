@@ -6,9 +6,19 @@ namespace Lemonade\Framework\Core;
 
 use RuntimeException;
 
+/**
+ * Mutable runtime configuration store for framework and application settings.
+ *
+ * The store supports dot-notation keys, provides both generic and typed access
+ * helpers, and allows direct setting and recursive merging of configuration
+ * values. The `framework.providers` branch uses replace-only merge semantics
+ * and is not merged by numeric indexes.
+ */
 final class Config
 {
     /**
+     * Creates a configuration store with optional initial items.
+     *
      * @param array<string, mixed> $items
      */
     public function __construct(
@@ -16,6 +26,8 @@ final class Config
     ) {}
 
     /**
+     * Returns the complete current configuration state.
+     *
      * @return array<string, mixed>
      */
     public function all(): array
@@ -23,6 +35,15 @@ final class Config
         return $this->items;
     }
 
+    /**
+     * Returns a configuration value resolved through dot notation.
+     *
+     * When any path segment is missing, the provided default value is returned.
+     * If the key exists and its value is explicitly `null`, `null` is returned.
+     *
+     * @param string $key Dot-notation configuration key to resolve.
+     * @param mixed $default Fallback value returned when the key path does not exist.
+     */
     public function get(string $key, mixed $default = null): mixed
     {
         $segments = explode('.', $key);
@@ -39,6 +60,14 @@ final class Config
         return $value;
     }
 
+    /**
+     * Returns a required configuration value.
+     *
+     * Values such as `false`, `0`, an empty string, and an empty array are
+     * accepted. Only missing or explicit `null` values are treated as absent.
+     *
+     * @throws RuntimeException If the required configuration value is missing or null.
+     */
     public function require(string $key): mixed
     {
         $value = $this->get($key);
@@ -50,6 +79,13 @@ final class Config
         return $value;
     }
 
+    /**
+     * Returns the resolved configuration value converted to a string when possible.
+     *
+     * Scalar values are cast to string. When the resolved value is `null` or is
+     * not scalar, the method returns `null`. The default value is used when the
+     * key path does not exist.
+     */
     public function string(string $key, ?string $default = null): ?string
     {
         $value = $this->get($key, $default);
@@ -61,6 +97,11 @@ final class Config
         return (string) $value;
     }
 
+    /**
+     * Returns a required non-empty string configuration value.
+     *
+     * @throws RuntimeException If the value is missing, null or an empty string.
+     */
     public function requiredString(string $key): string
     {
         $value = $this->string($key);
@@ -72,6 +113,12 @@ final class Config
         return $value;
     }
 
+    /**
+     * Returns the resolved configuration value as an integer.
+     *
+     * Native integers are returned unchanged. Floats and numeric strings are
+     * cast to integers. Any other value falls back to the provided default.
+     */
     public function int(string $key, int $default = 0): int
     {
         $value = $this->get($key, $default);
@@ -87,6 +134,14 @@ final class Config
         return $default;
     }
 
+    /**
+     * Returns the resolved configuration value as a boolean.
+     *
+     * The method uses PHP boolean validation semantics for scalar values and
+     * falls back to the provided default for invalid or non-scalar input.
+     * Common textual boolean representations such as `"true"` and `"false"`
+     * are supported.
+     */
     public function bool(string $key, bool $default = false): bool
     {
         $value = $this->get($key, $default);
@@ -105,6 +160,8 @@ final class Config
     }
 
     /**
+     * Returns the resolved configuration value when it is an array.
+     *
      * @param array<mixed> $default
      * @return array<mixed>
      */
@@ -115,6 +172,12 @@ final class Config
         return is_array($value) ? $value : $default;
     }
 
+    /**
+     * Sets a configuration value through dot notation.
+     *
+     * Missing intermediate segments are created as arrays. Existing
+     * intermediate non-array values are replaced with arrays before traversal.
+     */
     public function set(string $key, mixed $value): void
     {
         $segments = explode('.', $key);
@@ -132,6 +195,12 @@ final class Config
     }
 
     /**
+     * Recursively merges configuration values into the current state.
+     *
+     * Incoming values override existing ones through `array_replace_recursive`.
+     * The `framework.providers` branch is replaced as a whole instead of being
+     * merged by indexes.
+     *
      * @param array<string, mixed> $items
      */
     public function merge(array $items): void

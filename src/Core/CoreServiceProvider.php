@@ -23,8 +23,29 @@ use Psr\Http\Message\UriFactoryInterface;
 use RuntimeException;
 use Throwable;
 
+/**
+ * Registers the foundational framework services required by the core runtime.
+ *
+ * The provider wires PSR-17 factories, framework HTTP factory aliases, the
+ * server request factory, controller resolution helpers, base URL resolution,
+ * loader integration, framework metadata, exception logging, and system clock
+ * services.
+ */
 final class CoreServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers core framework services as singletons in the container.
+     *
+     * Nyholm's PSR-17 factory is exposed through all PSR-17 interfaces used by
+     * the framework and through the framework's string aliases. The provider
+     * also registers the framework server request factory, controller and URL
+     * helpers, loader adapter, framework metadata, exception logger, and a
+     * system clock resolved from the application timezone. When the timezone is
+     * missing or empty, the system clock falls back to its default timezone
+     * behaviour.
+     *
+     * @throws RuntimeException If the configured application timezone is invalid.
+     */
     public function register(ContainerInterface $container): void
     {
         /*

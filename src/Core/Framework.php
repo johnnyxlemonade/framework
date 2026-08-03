@@ -41,6 +41,14 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 
+/**
+ * Main bootstrap and runtime facade for the Lemonade Framework HTTP application layer.
+ *
+ * The facade coordinates service provider registration, configuration definitions,
+ * localized route setup, middleware configuration, and execution of the PSR-15
+ * request pipeline. It operates on top of the supplied dependency injection
+ * container and application context.
+ */
 final class Framework
 {
     private readonly Router $router;
@@ -49,6 +57,12 @@ final class Framework
      */
     private array $middlewareConfigurators = [];
 
+    /**
+     * Creates a framework runtime bound to the provided container and application context.
+     *
+     * The constructor initializes the framework router and registers the core
+     * framework services required for configuration loading and request handling.
+     */
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
@@ -189,11 +203,19 @@ final class Framework
         return $normalized;
     }
 
+    /**
+     * Returns the application context used during framework bootstrap.
+     */
     public function context(): ApplicationContext
     {
         return $this->context;
     }
 
+    /**
+     * Registers one or more service providers in the order they are supplied.
+     *
+     * @return $this Returns the same framework instance for fluent chaining.
+     */
     public function register(ServiceProviderInterface ...$providers): self
     {
         foreach ($providers as $provider) {
@@ -204,7 +226,12 @@ final class Framework
     }
 
     /**
+     * Configures application routes through the framework router.
+     *
+     * Localized route settings are applied before the callback is invoked.
+     *
      * @param callable(\Lemonade\Framework\Routing\Router): void $builder
+     * @return $this Returns the same framework instance for fluent chaining.
      */
     public function routes(callable $builder): self
     {
@@ -214,6 +241,16 @@ final class Framework
         return $this;
     }
 
+    /**
+     * Loads route definitions from a PHP file returning a router configurator callback.
+     *
+     * Localized route settings are applied before the loaded callback is invoked.
+     *
+     * @return $this Returns the same framework instance for fluent chaining.
+     *
+     * @throws RuntimeException When the routing file does not exist.
+     * @throws RuntimeException When the routing file does not return a callable accepting the router.
+     */
     public function routesFromFile(string $file): self
     {
         if (!is_file($file)) {
@@ -234,6 +271,13 @@ final class Framework
         return $this;
     }
 
+    /**
+     * Registers configuration definitions and merges their serialized data into runtime config state.
+     *
+     * Definitions are processed in the order they are supplied.
+     *
+     * @return $this Returns the same framework instance for fluent chaining.
+     */
     public function config(ConfigDefinitionInterface ...$definitions): self
     {
         $registry = $this->container->get(ConfigDefinitionRegistry::class);
@@ -249,6 +293,13 @@ final class Framework
         return $this;
     }
 
+    /**
+     * Loads a configuration definition from file through the config file loader.
+     *
+     * When provided, the root key selects the root section to load from the file.
+     *
+     * @return $this Returns the same framework instance for fluent chaining.
+     */
     public function configFromFile(string $file, ?string $rootKey = null): self
     {
         return $this->config(
@@ -257,7 +308,14 @@ final class Framework
     }
 
     /**
+     * Configures the framework middleware stack.
+     *
+     * If the middleware stack is already available in the container, the callback
+     * is applied immediately. Otherwise, it is deferred until just before the
+     * request pipeline is executed.
+     *
      * @param callable(MiddlewareStack):void $configure
+     * @return $this Returns the same framework instance for fluent chaining.
      */
     public function middleware(callable $configure): self
     {
@@ -271,6 +329,14 @@ final class Framework
         return $this;
     }
 
+    /**
+     * Runs an HTTP request through the configured middleware pipeline.
+     *
+     * When no request is supplied, a server request is created from global PHP
+     * state through the server request factory. Any deferred middleware
+     * configuration is applied before middleware is resolved, and the pipeline
+     * terminates in the dispatch request handler.
+     */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
         $request ??= $this->container
@@ -300,6 +366,9 @@ final class Framework
         return $response;
     }
 
+    /**
+     * Returns the framework dependency injection container.
+     */
     public function container(): ContainerInterface
     {
         return $this->container;

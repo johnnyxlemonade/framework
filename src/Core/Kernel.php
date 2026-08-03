@@ -17,12 +17,27 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
 
+/**
+ * HTTP application kernel for Lemonade Framework applications.
+ *
+ * The kernel bootstraps the application, loads configuration, registers core
+ * and application service providers, registers routes, and runs the framework
+ * request pipeline. Unhandled exceptions are converted to PSR-7 error
+ * responses, while {@see handle()} also emits the resulting response to the
+ * output.
+ */
 final class Kernel
 {
     use KernelBootstrapTrait;
 
     private bool $booted = false;
 
+    /**
+     * Accepts the runtime services used by the HTTP kernel.
+     *
+     * Bootstrap is performed lazily through {@see bootstrap()} when the kernel
+     * first handles or runs a request.
+     */
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly ContainerInterface $container,
@@ -30,6 +45,18 @@ final class Kernel
         private readonly ResponseEmitter $emitter,
     ) {}
 
+    /**
+     * Bootstraps the HTTP kernel once for the current instance.
+     *
+     * When the kernel has already been booted, the method returns without doing
+     * any further work. Otherwise it loads application configuration files,
+     * applies runtime app configuration, prepares core diagnostics and logging,
+     * registers shared and HTTP framework providers, registers configured
+     * application providers, loads routes from the Routing.php file, and marks
+     * the kernel as booted.
+     *
+     * The method is idempotent for a single kernel instance.
+     */
     public function bootstrap(): void
     {
         if ($this->booted) {
@@ -58,6 +85,18 @@ final class Kernel
         $this->booted = true;
     }
 
+    /**
+     * Boots the kernel and runs the request through the framework runtime.
+     *
+     * When no request is provided, request creation is delegated to
+     * {@see Framework::run()}. Route-not-found failures are converted to a 404
+     * text response and all other throwables are converted to a 500 text
+     * response. Captured exceptions are recorded in the benchmark and logged,
+     * and debug mode may include exception details in the response body.
+     *
+     * The method does not propagate exceptions because it converts them to
+     * responses.
+     */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
         try {
@@ -81,6 +120,16 @@ final class Kernel
         }
     }
 
+    /**
+     * Handles an incoming HTTP request and emits the resulting response.
+     *
+     * The method starts the HTTP benchmark, creates a request from PHP globals
+     * through the server request factory when none is supplied, runs the kernel,
+     * and emits the final response through the configured response emitter.
+     *
+     * This is the HTTP entrypoint and has the side effect of writing the
+     * response to the output.
+     */
     public function handle(?ServerRequestInterface $request = null): void
     {
         $this->benchmark()?->currentOrStart([
@@ -98,16 +147,25 @@ final class Kernel
         );
     }
 
+    /**
+     * Returns the framework runtime managed by the kernel.
+     */
     public function framework(): Framework
     {
         return $this->framework;
     }
 
+    /**
+     * Returns the dependency injection container used by the kernel.
+     */
     public function container(): ContainerInterface
     {
         return $this->container;
     }
 
+    /**
+     * Returns the application context used during kernel bootstrap.
+     */
     public function context(): ApplicationContext
     {
         return $this->context;
