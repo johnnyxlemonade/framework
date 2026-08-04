@@ -1,2 +1,38 @@
-# Auto detect text files and perform LF normalization
+# ---------------------------------------------------------------
+# Default text-file handling
+# ---------------------------------------------------------------
+# Automatically detect text files and normalize their line endings
+# in the Git repository.
+#
+# File-specific rules below define the required line endings in the
+# working tree, so the repository behaves consistently across Windows,
+# Linux and macOS.
 * text=auto
+
+# ---------------------------------------------------------------
+# Cross-platform source and configuration files
+# ---------------------------------------------------------------
+# Use LF for files that are executed, parsed or commonly edited on
+# Linux-based development, CI and production environments.
+*.php  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.xml  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.neon text eol=lf
+*.sh   text eol=lf
+
+# ---------------------------------------------------------------
+# Executable framework scripts
+# ---------------------------------------------------------------
+# CLI entrypoints must use LF so Unix shebangs work correctly.
+bin/* text eol=lf
+
+# ---------------------------------------------------------------
+# Windows-specific scripts
+# ---------------------------------------------------------------
+# Keep native Windows command and PowerShell scripts in CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

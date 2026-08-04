@@ -7,11 +7,14 @@ namespace Lemonade\Framework\Api;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Config\ApiConfigDefinition;
 use Lemonade\Framework\Api\Config\ApiConfigResolver;
+use Lemonade\Framework\Api\Documentation\DocsController;
+use Lemonade\Framework\Api\Documentation\OpenApiController;
 use Lemonade\Framework\Api\Documentation\OpenApiGenerator;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistrar;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
+use Lemonade\Framework\Api\Framework\Health\HealthController;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
 use Lemonade\Framework\Api\Http\Response\ApiResponseFactory;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
@@ -58,6 +61,9 @@ final class ApiServiceProvider implements ServiceProviderInterface
         $container->singleton(ScopeVoter::class, ScopeVoter::class);
         $container->singleton(OpenApiGenerator::class, OpenApiGenerator::class);
         $container->singleton(FrameworkApiEndpointProvider::class, FrameworkApiEndpointProvider::class);
+        $container->singleton(HealthController::class, HealthController::class);
+        $container->singleton(OpenApiController::class, OpenApiController::class);
+        $container->singleton(DocsController::class, DocsController::class);
         $container->singleton(ApiAuthorizationMiddleware::class, ApiAuthorizationMiddleware::class);
 
         $config = $container->get(ApiConfig::class);

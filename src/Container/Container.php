@@ -13,7 +13,6 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use ReflectionClass;
 use ReflectionNamedType;
-use ReflectionType;
 
 final class Container implements ContainerInterface
 {
@@ -34,7 +33,45 @@ final class Container implements ContainerInterface
      * @var array<string, true>
      */
     private array $reportedAutowireFallbacks = [];
+
+    /**
+     * @var array<string, bool>
+     */
+    private array $autowireFallbackReportable = [];
+
+    /**
+     * @var array<string, bool>
+     */
+    private array $classExistenceCache = [];
+
+    /**
+     * @var array<string, bool>
+     */
+    private array $interfaceExistenceCache = [];
+
+    /**
+     * @var array<string, array{
+     *     reflection: ReflectionClass<object>,
+     *     hasConstructor: bool,
+     *     parameters: list<array{
+     *         name: string,
+     *         kind: 'class'|'interface'|'unresolvable',
+     *         dependency: string|null,
+     *         hasDefaultValue: bool,
+     *         defaultValue: mixed
+     *     }>
+     * }>
+     */
+    private array $buildPlans = [];
+
+    /**
+     * @var list<string>
+     */
+    private array $resolutionStack = [];
+
     private ?LoggerInterface $diagnosticLogger = null;
+    private ?LoggerInterface $autowireFallbackLogger = null;
+    private ?bool $autowireFallbackWarningEnabled = null;
 
     /**
      * @param class-string|non-empty-string $id
@@ -48,6 +85,7 @@ final class Container implements ContainerInterface
         ];
 
         unset($this->instances[$id]);
+        $this->invalidateDiagnosticCacheFor($id);
     }
 
     /**
@@ -62,11 +100,13 @@ final class Container implements ContainerInterface
         ];
 
         unset($this->instances[$id]);
+        $this->invalidateDiagnosticCacheFor($id);
     }
 
     public function setDiagnosticLogger(?LoggerInterface $logger): void
     {
         $this->diagnosticLogger = $logger;
+        $this->autowireFallbackLogger = null;
     }
 
     /**
@@ -74,7 +114,7 @@ final class Container implements ContainerInterface
      */
     public function has(string $id): bool
     {
-        return $this->isBound($id) || class_exists($id);
+        return $this->isBound($id) || $this->classExists($id);
     }
 
     /**
@@ -97,21 +137,20 @@ final class Container implements ContainerInterface
             return $this->instances[$id];
         }
 
-        if (!isset($this->bindings[$id]) && !class_exists($id)) {
-            throw new ServiceNotFoundException(sprintf(
-                'Service "%s" was not found.',
-                $id,
-            ));
-        }
+        $binding = $this->bindings[$id] ?? null;
 
-        if (!isset($this->bindings[$id]) && class_exists($id)) {
+        if ($binding === null) {
+            if (!$this->classExists($id)) {
+                throw new ServiceNotFoundException(sprintf(
+                    'Service "%s" was not found.',
+                    $id,
+                ));
+            }
+
             $this->reportAutowireFallback($id);
-        }
 
-        $binding = $this->bindings[$id] ?? [
-            'concrete' => $id,
-            'singleton' => false,
-        ];
+            return $this->build($id);
+        }
 
         $resolved = $this->resolve($binding['concrete']);
 
@@ -124,15 +163,15 @@ final class Container implements ContainerInterface
 
     private function reportAutowireFallback(string $id): void
     {
+        if (!$this->isAutowireFallbackWarningEnabled()) {
+            return;
+        }
+
         if (!$this->shouldReportAutowireFallback($id)) {
             return;
         }
 
         if (isset($this->reportedAutowireFallbacks[$id])) {
-            return;
-        }
-
-        if (!$this->isAutowireFallbackWarningEnabled()) {
             return;
         }
 
@@ -155,30 +194,36 @@ final class Container implements ContainerInterface
             );
         }
 
-        $logger = $this->diagnosticLogger ?? $this->peekLogger();
+        $logger = $this->autowireFallbackLogger();
         if ($logger !== null && !$logger instanceof NullLogger) {
             $logger->warning($message, [
                 'service' => $id,
                 'source' => 'container.autowire_fallback',
             ]);
+
             return;
         }
 
-        // Dev fallback when logger is not available yet.
         error_log('[Lemonade][Container] ' . $message);
     }
 
     private function shouldReportAutowireFallback(string $id): bool
     {
+        if (array_key_exists($id, $this->autowireFallbackReportable)) {
+            return $this->autowireFallbackReportable[$id];
+        }
+
+        $shouldReport = false;
+
         if (str_starts_with($id, 'App\\')) {
-            return $this->shouldReportApplicationAutowireFallback($id);
+            $shouldReport = $this->shouldReportApplicationAutowireFallback($id);
+        } elseif (str_starts_with($id, 'Lemonade\\Framework\\')) {
+            $shouldReport = $this->shouldReportFrameworkAutowireFallback($id);
         }
 
-        if (str_starts_with($id, 'Lemonade\\Framework\\')) {
-            return $this->shouldReportFrameworkAutowireFallback($id);
-        }
+        $this->autowireFallbackReportable[$id] = $shouldReport;
 
-        return false;
+        return $shouldReport;
     }
 
     private function shouldReportApplicationAutowireFallback(string $id): bool
@@ -205,28 +250,42 @@ final class Container implements ContainerInterface
 
     private function isAutowireFallbackWarningEnabled(): bool
     {
+        if ($this->autowireFallbackWarningEnabled !== null) {
+            return $this->autowireFallbackWarningEnabled;
+        }
+
         $config = $this->peekContainerConfig();
 
         if ($config instanceof ContainerConfig) {
-            return $config->autowireFallbackWarning;
+            $this->autowireFallbackWarningEnabled = $config->autowireFallbackWarning;
+
+            return $this->autowireFallbackWarningEnabled;
         }
 
         $context = $this->peekContext();
 
         if ($context instanceof ApplicationContext) {
-            return $context->isDevelopment();
+            $this->autowireFallbackWarningEnabled = $context->isDevelopment();
+
+            return $this->autowireFallbackWarningEnabled;
         }
+
+        $this->autowireFallbackWarningEnabled = false;
 
         return false;
     }
 
     private function peekContext(): ?ApplicationContext
     {
-        if (isset($this->instances[ApplicationContext::class]) && $this->instances[ApplicationContext::class] instanceof ApplicationContext) {
+        if (
+            isset($this->instances[ApplicationContext::class])
+            && $this->instances[ApplicationContext::class] instanceof ApplicationContext
+        ) {
             return $this->instances[ApplicationContext::class];
         }
 
         $binding = $this->bindings[ApplicationContext::class]['concrete'] ?? null;
+
         return $binding instanceof ApplicationContext ? $binding : null;
     }
 
@@ -258,6 +317,17 @@ final class Container implements ContainerInterface
         return $binding instanceof LoggerInterface ? $binding : null;
     }
 
+    private function autowireFallbackLogger(): ?LoggerInterface
+    {
+        if ($this->autowireFallbackLogger instanceof LoggerInterface) {
+            return $this->autowireFallbackLogger;
+        }
+
+        $this->autowireFallbackLogger = $this->diagnosticLogger ?? $this->peekLogger();
+
+        return $this->autowireFallbackLogger;
+    }
+
     /**
      * @param callable(ContainerInterface):mixed|object|string $concrete
      */
@@ -275,7 +345,7 @@ final class Container implements ContainerInterface
             return $concrete;
         }
 
-        if (!class_exists($concrete)) {
+        if (!$this->classExists($concrete)) {
             throw new ServiceNotFoundException(sprintf(
                 'Service "%s" was not found.',
                 $concrete,
@@ -285,14 +355,71 @@ final class Container implements ContainerInterface
         return $this->build($concrete);
     }
 
-    /**
-     * @template T of object
-     *
-     * @param class-string<T> $className
-     * @return T
-     */
     private function build(string $className): object
     {
+        if (in_array($className, $this->resolutionStack, true)) {
+            $chain = [...$this->resolutionStack, $className];
+
+            throw new ContainerException(sprintf(
+                'Circular dependency detected: %s',
+                implode(' -> ', $chain),
+            ));
+        }
+
+        $this->resolutionStack[] = $className;
+
+        try {
+            $plan = $this->buildPlan($className);
+
+            if (!$plan['hasConstructor']) {
+                return $plan['reflection']->newInstance();
+            }
+
+            $arguments = [];
+
+            foreach ($plan['parameters'] as $parameter) {
+                $arguments[] = $this->resolveConstructorParameter(
+                    className: $className,
+                    parameterName: $parameter['name'],
+                    kind: $parameter['kind'],
+                    dependency: $parameter['dependency'],
+                    hasDefaultValue: $parameter['hasDefaultValue'],
+                    defaultValue: $parameter['defaultValue'],
+                );
+            }
+
+            return $plan['reflection']->newInstanceArgs($arguments);
+        } finally {
+            array_pop($this->resolutionStack);
+        }
+    }
+
+    /**
+     * @return array{
+     *     reflection: ReflectionClass<object>,
+     *     hasConstructor: bool,
+     *     parameters: list<array{
+     *         name: string,
+     *         kind: 'class'|'interface'|'unresolvable',
+     *         dependency: string|null,
+     *         hasDefaultValue: bool,
+     *         defaultValue: mixed
+     *     }>
+     * }
+     */
+    private function buildPlan(string $className): array
+    {
+        if (isset($this->buildPlans[$className])) {
+            return $this->buildPlans[$className];
+        }
+
+        if (!class_exists($className)) {
+            throw new ServiceNotFoundException(sprintf(
+                'Service "%s" was not found.',
+                $className,
+            ));
+        }
+
         $reflection = new ReflectionClass($className);
 
         if (!$reflection->isInstantiable()) {
@@ -305,34 +432,67 @@ final class Container implements ContainerInterface
         $constructor = $reflection->getConstructor();
 
         if ($constructor === null || $constructor->getNumberOfParameters() === 0) {
-            return $reflection->newInstance();
+            $plan = [
+                'reflection' => $reflection,
+                'hasConstructor' => false,
+                'parameters' => [],
+            ];
+
+            $this->buildPlans[$className] = $plan;
+
+            return $plan;
         }
 
-        $arguments = [];
+        $parameters = [];
 
         foreach ($constructor->getParameters() as $parameter) {
-            $arguments[] = $this->resolveConstructorParameter(
-                className: $className,
-                parameterName: $parameter->getName(),
-                type: $parameter->getType(),
-                hasDefaultValue: $parameter->isDefaultValueAvailable(),
-                defaultValue: $parameter->isDefaultValueAvailable()
+            $type = $parameter->getType();
+            $kind = 'unresolvable';
+            $dependency = null;
+
+            if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
+                $dependencyName = $type->getName();
+
+                if ($this->interfaceExists($dependencyName)) {
+                    $kind = 'interface';
+                    $dependency = $dependencyName;
+                } elseif ($this->classExists($dependencyName)) {
+                    $kind = 'class';
+                    $dependency = $dependencyName;
+                }
+            }
+
+            $parameters[] = [
+                'name' => $parameter->getName(),
+                'kind' => $kind,
+                'dependency' => $dependency,
+                'hasDefaultValue' => $parameter->isDefaultValueAvailable(),
+                'defaultValue' => $parameter->isDefaultValueAvailable()
                     ? $parameter->getDefaultValue()
                     : null,
-            );
+            ];
         }
 
-        return $reflection->newInstanceArgs($arguments);
+        $plan = [
+            'reflection' => $reflection,
+            'hasConstructor' => true,
+            'parameters' => $parameters,
+        ];
+
+        $this->buildPlans[$className] = $plan;
+
+        return $plan;
     }
 
     private function resolveConstructorParameter(
         string $className,
         string $parameterName,
-        ?ReflectionType $type,
+        string $kind,
+        ?string $dependency,
         bool $hasDefaultValue,
         mixed $defaultValue,
     ): mixed {
-        if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
+        if ($kind === 'unresolvable' || $dependency === null) {
             if ($hasDefaultValue) {
                 return $defaultValue;
             }
@@ -344,22 +504,7 @@ final class Container implements ContainerInterface
             ));
         }
 
-        $dependency = $type->getName();
-
-        if (!class_exists($dependency) && !interface_exists($dependency)) {
-            if ($hasDefaultValue) {
-                return $defaultValue;
-            }
-
-            throw new ContainerException(sprintf(
-                'Cannot autowire "%s::$%s". Dependency "%s" does not exist.',
-                $className,
-                $parameterName,
-                $dependency,
-            ));
-        }
-
-        if (interface_exists($dependency) && !$this->isBound($dependency)) {
+        if ($kind === 'interface' && !$this->isBound($dependency)) {
             if ($hasDefaultValue) {
                 return $defaultValue;
             }
@@ -373,5 +518,38 @@ final class Container implements ContainerInterface
         }
 
         return $this->get($dependency);
+    }
+
+    private function classExists(string $className): bool
+    {
+        if (array_key_exists($className, $this->classExistenceCache)) {
+            return $this->classExistenceCache[$className];
+        }
+
+        $this->classExistenceCache[$className] = class_exists($className);
+
+        return $this->classExistenceCache[$className];
+    }
+
+    private function interfaceExists(string $interfaceName): bool
+    {
+        if (array_key_exists($interfaceName, $this->interfaceExistenceCache)) {
+            return $this->interfaceExistenceCache[$interfaceName];
+        }
+
+        $this->interfaceExistenceCache[$interfaceName] = interface_exists($interfaceName);
+
+        return $this->interfaceExistenceCache[$interfaceName];
+    }
+
+    private function invalidateDiagnosticCacheFor(string $id): void
+    {
+        if ($id === ContainerConfig::class || $id === ApplicationContext::class) {
+            $this->autowireFallbackWarningEnabled = null;
+        }
+
+        if ($id === LoggerInterface::class) {
+            $this->autowireFallbackLogger = null;
+        }
     }
 }
