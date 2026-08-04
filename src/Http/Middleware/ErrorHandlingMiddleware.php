@@ -63,6 +63,17 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
         }
 
         try {
+            if ($exception instanceof RouteNotFoundException || $exception instanceof NotFoundHttpException) {
+                $this->logs->error()->notice($exception->getMessage(), [
+                    'exception' => $exception::class,
+                    'message' => $exception->getMessage(),
+                    'status' => 404,
+                    'request' => $this->httpLogContext->request($request),
+                ]);
+
+                return;
+            }
+
             $this->logs->error()->error($exception->getMessage(), [
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),

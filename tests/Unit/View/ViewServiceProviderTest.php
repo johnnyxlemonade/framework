@@ -6,8 +6,16 @@ namespace Lemonade\Framework\Tests\Unit\View;
 
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Context\DebugMode;
+use Lemonade\Framework\Core\Context\Environment;
+use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Core\Framework;
+use Lemonade\Framework\Core\Kernel;
+use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
@@ -18,10 +26,13 @@ use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\Config\ViewConfigDefinition;
+use Lemonade\Framework\View\Config\ViewConfigResolver;
 use Lemonade\Framework\View\View;
 use Lemonade\Framework\View\ViewHelpers;
 use Lemonade\Framework\View\ViewServiceProvider;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class ViewServiceProviderTest extends TestCase
 {
@@ -103,6 +114,75 @@ final class ViewServiceProviderTest extends TestCase
         self::assertSame('FALLBACK', $output);
     }
 
+    public function testRegisterDoesNotInstantiateViewServices(): void
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+
+        (new ViewServiceProvider())->register($container);
+
+        self::assertFalse($this->hasContainerInstance($container, ViewConfigResolver::class));
+        self::assertFalse($this->hasContainerInstance($container, \Lemonade\Framework\View\Config\ViewConfig::class));
+        self::assertFalse($this->hasContainerInstance($container, ViewHelpers::class));
+        self::assertFalse($this->hasContainerInstance($container, View::class));
+    }
+
+    public function testFirstViewResolutionBuildsViewGraphLazily(): void
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+        (new ViewServiceProvider())->register($container);
+
+        self::assertFalse($this->hasContainerInstance($container, View::class));
+
+        $view = $container->get(View::class);
+
+        self::assertInstanceOf(View::class, $view);
+        self::assertTrue($this->hasContainerInstance($container, ViewConfigResolver::class));
+        self::assertTrue($this->hasContainerInstance($container, \Lemonade\Framework\View\Config\ViewConfig::class));
+        self::assertTrue($this->hasContainerInstance($container, ViewHelpers::class));
+        self::assertTrue($this->hasContainerInstance($container, View::class));
+    }
+
+    public function testRepeatedViewResolutionRespectsSingletonLifecycle(): void
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+        (new ViewServiceProvider())->register($container);
+
+        $viewA = $container->get(View::class);
+        $viewB = $container->get(View::class);
+        $helpersA = $container->get(ViewHelpers::class);
+        $helpersB = $container->get(ViewHelpers::class);
+
+        self::assertSame($viewA, $viewB);
+        self::assertSame($helpersA, $helpersB);
+    }
+
+    public function testInvalidConfiguredBasePathFailsConsistentlyOnFirstRender(): void
+    {
+        $container = $this->buildContainer(
+            $this->root . DIRECTORY_SEPARATOR . 'missing-views',
+            'https://example.test',
+        );
+        (new ViewServiceProvider())->register($container);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('View not found:');
+
+        $container->get(View::class)->render('missing');
+    }
+
+    public function testHealthFlowDoesNotInitializeViewLayer(): void
+    {
+        $kernel = $this->kernelWithDefaultConfig();
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+        $container = $kernel->container();
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertFalse($this->hasContainerInstance($container, ViewConfigResolver::class));
+        self::assertFalse($this->hasContainerInstance($container, \Lemonade\Framework\View\Config\ViewConfig::class));
+        self::assertFalse($this->hasContainerInstance($container, ViewHelpers::class));
+        self::assertFalse($this->hasContainerInstance($container, View::class));
+    }
+
     private function buildContainer(?string $viewBasePath, string $baseUrl): Container
     {
         $container = new Container();
@@ -126,6 +206,57 @@ final class ViewServiceProviderTest extends TestCase
         $container->singleton(LocalizationConfig::class, new LocalizationConfig('en', 'en', ['en'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false)));
 
         return $container;
+    }
+
+    private function kernelWithDefaultConfig(): Kernel
+    {
+        $this->writeKernelDefaultConfigFiles();
+
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+
+        return new Kernel($context, $container, $framework, new ResponseEmitter());
+    }
+
+    private function writeKernelDefaultConfigFiles(): void
+    {
+        $configDir = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
+        if (!is_dir($configDir)) {
+            mkdir($configDir, 0775, true);
+        }
+
+        $this->writeKernelConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeKernelConfigFile('App.yaml', "module: app\nconfig: {}\n");
+        $this->writeKernelConfigFile('Api.yaml', "module: api\nconfig: {}\n");
+        $this->writeKernelConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands: []\n");
+        $this->writeKernelConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n};\n",
+        );
+    }
+
+    private function writeKernelConfigFile(string $file, string $contents): void
+    {
+        $path = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . $file;
+        file_put_contents($path, $contents);
+    }
+
+    private function hasContainerInstance(ContainerInterface $container, string $id): bool
+    {
+        $reflection = new \ReflectionObject($container);
+        $property = $reflection->getProperty('instances');
+        /** @var array<string, mixed> $instances */
+        $instances = $property->getValue($container);
+
+        return array_key_exists($id, $instances);
     }
 
     private function writeView(string $name, string $contents): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Error;
 
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Http\Config\ErrorConfig;
 use Lemonade\Framework\View\View;
@@ -14,7 +15,7 @@ final class ErrorPageRenderer
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly ErrorConfig $config,
-        private readonly View $view,
+        private readonly ContainerInterface $container,
     ) {}
 
     public function notFound(Throwable $exception): string
@@ -78,13 +79,14 @@ final class ErrorPageRenderer
     private function renderSafely(string $template, array $data, string $fallback): string
     {
         try {
-            $content = $this->view->render($template, $data);
+            $view = $this->container->get(View::class);
+            $content = $view->render($template, $data);
 
             if (trim($content) === '') {
                 return $fallback;
             }
 
-            return $this->view->render('layouts/error', [
+            return $view->render('layouts/error', [
                 ...$data,
                 'content' => $content,
             ]);
