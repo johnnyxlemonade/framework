@@ -163,11 +163,13 @@ final class RouterTest extends TestCase
     public function testLocalizedGroupRegistersBaseAndLocalizedNamedRoutes(): void
     {
         $router = new Router();
-        $router->localizedGroup(static function (Router $router): void {
+        $group = $router->localizedGroup(static function (Router $router): void {
             $router->getNamed('home.index', '', 'HomeController@index');
             $router->getNamed('documentation.show', '/documentation/{slug}', 'DocumentationController@show');
         });
 
+        self::assertCount(2, $group->plain()->routes());
+        self::assertCount(2, $group->localized()->routes());
         self::assertSame('/', $router->url('home.index'));
         self::assertSame('/cs', $router->url('localized.home.index', ['locale' => 'cs']));
         self::assertSame('/documentation/abc', $router->url('documentation.show', ['slug' => 'abc']));
@@ -205,6 +207,137 @@ final class RouterTest extends TestCase
             [\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class],
             $group->routes()[1]->middlewareStack(),
         );
+    }
+
+    public function testLocalizedGroupPlainSubsetContainsOnlyPlainRoutes(): void
+    {
+        $router = new Router();
+        $group = $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+        });
+
+        $paths = array_map(
+            static fn(\Lemonade\Framework\Routing\Route $route): string => $route->path(),
+            $group->plain()->routes(),
+        );
+
+        self::assertSame(['/', '/contact'], $paths);
+    }
+
+    public function testLocalizedGroupLocalizedSubsetContainsOnlyLocalizedRoutes(): void
+    {
+        $router = new Router();
+        $group = $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+        });
+
+        $paths = array_map(
+            static fn(\Lemonade\Framework\Routing\Route $route): string => $route->path(),
+            $group->localized()->routes(),
+        );
+
+        self::assertSame(['/{locale}', '/{locale}/contact'], $paths);
+    }
+
+    public function testMiddlewareAppliedToLocalizedSubsetDoesNotAffectPlainRoutes(): void
+    {
+        $router = new Router();
+        $group = $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+        });
+
+        $group->localized()->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
+
+        self::assertSame([], $group->plain()->routes()[0]->middlewareStack());
+        self::assertSame(
+            [\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class],
+            $group->localized()->routes()[0]->middlewareStack(),
+        );
+    }
+
+    public function testMiddlewareAppliedToWholeLocalizedGroupAffectsBothSubsets(): void
+    {
+        $router = new Router();
+        $group = $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+        });
+
+        $group->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
+
+        self::assertSame(
+            [\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class],
+            $group->plain()->routes()[0]->middlewareStack(),
+        );
+        self::assertSame(
+            [\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class],
+            $group->localized()->routes()[0]->middlewareStack(),
+        );
+    }
+
+    public function testLocalizedGroupKeepsPlainAndLocalizedRouteNamesUnchanged(): void
+    {
+        $router = new Router();
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+        });
+
+        self::assertSame('/', $router->url('home.index'));
+        self::assertSame('/cs', $router->url('localized.home.index', ['locale' => 'cs']));
+    }
+
+    public function testLocalizedGroupWithSupportedLocalesDoesNotMatchUnsupportedLocale(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en', 'de']);
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+        });
+
+        $this->expectException(RouteNotFoundException::class);
+        $router->match(new ServerRequest('GET', '/dsadsa'));
+    }
+
+    public function testLocalizedGroupWithSupportedLocalesDoesNotMatchUnsupportedNestedLocaleRoute(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en', 'de']);
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+        });
+
+        $this->expectException(RouteNotFoundException::class);
+        $router->match(new ServerRequest('GET', '/dsadsa/contact'));
+    }
+
+    public function testLocalizedGroupWithSupportedLocalesStillMatchesSupportedLocaleRoutes(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en', 'de']);
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+        });
+
+        $home = $router->match(new ServerRequest('GET', '/en'));
+        $contact = $router->match(new ServerRequest('GET', '/en/contact'));
+
+        self::assertSame(['locale' => 'en'], $home->params());
+        self::assertSame(['locale' => 'en'], $contact->params());
+    }
+
+    public function testAllowedMethodsForPathIgnoresUnsupportedLocalizedPrefix(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en']);
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+        });
+
+        self::assertSame([], $router->allowedMethodsForPath('/dsadsa/contact'));
+        self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/en/contact'));
     }
 
     public function testLocalizedGroupRespectsCustomLocalizedRouteNamePrefix(): void

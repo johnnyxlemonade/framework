@@ -6,7 +6,7 @@ namespace Lemonade\Framework\Routing;
 
 use Psr\Http\Server\MiddlewareInterface;
 
-final class RouteGroup
+class RouteGroup
 {
     /**
      * @param array<int, Route> $routes

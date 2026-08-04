@@ -395,6 +395,7 @@ final class Framework
             $config->url->localizedRouteNamePrefix,
             $config->url->routePrefix,
             $config->url->localeParameter,
+            $config->supportedLocales,
         );
     }
 

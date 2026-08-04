@@ -34,6 +34,10 @@ final class Router
     private string $localizedRouteNamePrefix = 'localized.';
     private string $localizedRoutePrefix = '/{locale}';
     private string $localizedLocaleParameter = 'locale';
+    /**
+     * @var list<string>
+     */
+    private array $localizedSupportedLocales = [];
 
     private readonly RouteCollection $collection;
 
@@ -126,6 +130,8 @@ final class Router
             action: $action,
         );
 
+        $this->applyLocalizedRouteConstraints($route);
+
         $this->collection->add($route);
         $this->routeList[] = $route;
 
@@ -176,13 +182,14 @@ final class Router
     /**
      * @param callable(self): void $builder
      */
-    public function localizedGroup(callable $builder): RouteGroup
+    public function localizedGroup(callable $builder): LocalizedRouteGroup
     {
-        $before = count($this->routeList);
+        $beforePlain = count($this->routeList);
 
         $builder($this);
+        $plainRoutes = array_slice($this->routeList, $beforePlain);
 
-        $this->group($this->localizedRoutePrefix, function (Router $router) use ($builder): void {
+        $localizedGroup = $this->group($this->localizedRoutePrefix, function (Router $router) use ($builder): void {
             $this->namePrefixes[] = $this->localizedRouteNamePrefix;
 
             try {
@@ -192,19 +199,25 @@ final class Router
             }
         });
 
-        return new RouteGroup(
-            array_slice($this->routeList, $before),
+        return new LocalizedRouteGroup(
+            plainRoutes: $plainRoutes,
+            localizedRoutes: $localizedGroup->routes(),
         );
     }
 
+    /**
+     * @param list<string> $supportedLocales
+     */
     public function configureLocalizedRoutes(
         string $routeNamePrefix = 'localized.',
         ?string $routePrefix = null,
         string $localeParameter = 'locale',
+        array $supportedLocales = [],
     ): void {
         $localeParameter = trim($localeParameter);
         $this->localizedLocaleParameter = $localeParameter !== '' ? $localeParameter : 'locale';
         $this->localizedRouteNamePrefix = $routeNamePrefix;
+        $this->localizedSupportedLocales = $this->normalizeSupportedLocales($supportedLocales);
 
         if ($routePrefix !== null && trim($routePrefix) !== '') {
             $placeholder = '{' . $this->localizedLocaleParameter . '}';
@@ -490,5 +503,52 @@ final class Router
     private function formatUrl(string $path): string
     {
         return '/' . ltrim($this->normalizePath($path), '/');
+    }
+
+    private function applyLocalizedRouteConstraints(Route $route): void
+    {
+        if ($this->localizedSupportedLocales === []) {
+            return;
+        }
+
+        $segments = array_values(array_filter(
+            explode('/', trim($route->path(), '/')),
+            static fn(string $segment): bool => $segment !== '',
+        ));
+
+        foreach ($segments as $segment) {
+            if ($segment === '{' . $this->localizedLocaleParameter . '}') {
+                $route->constrainParameter(
+                    $this->localizedLocaleParameter,
+                    $this->localizedSupportedLocales,
+                );
+                return;
+            }
+        }
+    }
+
+    /**
+     * @param array<mixed> $supportedLocales
+     * @return list<string>
+     */
+    private function normalizeSupportedLocales(array $supportedLocales): array
+    {
+        $normalized = [];
+
+        foreach ($supportedLocales as $locale) {
+            if (!is_scalar($locale)) {
+                continue;
+            }
+
+            $value = trim((string) $locale);
+
+            if ($value === '' || in_array($value, $normalized, true)) {
+                continue;
+            }
+
+            $normalized[] = $value;
+        }
+
+        return $normalized;
     }
 }
