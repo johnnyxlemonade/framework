@@ -86,22 +86,49 @@ final class ViewServiceProviderTest extends TestCase
         );
     }
 
+    public function testRegisterResolvesRelativeConfiguredBasePathAgainstApplicationBasePath(): void
+    {
+        $relativeViewsPath = 'app/Views';
+        $container = $this->buildContainer($relativeViewsPath, 'https://example.test');
+        $provider = new ViewServiceProvider();
+        $provider->register($container);
+
+        $this->writeProjectView('app/Views', 'frontend.home.index', 'RELATIVE');
+
+        $cwd = getcwd();
+        $publicDir = $this->root . DIRECTORY_SEPARATOR . 'public';
+        if (!is_dir($publicDir)) {
+            mkdir($publicDir, 0775, true);
+        }
+        if (is_string($cwd)) {
+            chdir($publicDir);
+        }
+        try {
+            $output = $container->get(View::class)->render('frontend.home.index');
+        } finally {
+            if (is_string($cwd)) {
+                chdir($cwd);
+            }
+        }
+
+        self::assertSame('RELATIVE', $output);
+    }
+
     public function testRegisterUsesDefaultBasePathWhenViewConfigIsNotBound(): void
     {
         $container = $this->buildContainer(null, 'https://example.test');
         $provider = new ViewServiceProvider();
         $provider->register($container);
 
-        $fallbackRoot = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Views';
-        $fallbackView = $fallbackRoot . DIRECTORY_SEPARATOR . 'fallback.php';
-        if (!is_dir($fallbackRoot)) {
-            mkdir($fallbackRoot, 0775, true);
-        }
-        file_put_contents($fallbackView, 'FALLBACK');
+        $this->writeProjectView('app/Views', 'fallback', 'FALLBACK');
 
         $cwd = getcwd();
+        $publicDir = $this->root . DIRECTORY_SEPARATOR . 'public';
+        if (!is_dir($publicDir)) {
+            mkdir($publicDir, 0775, true);
+        }
         if (is_string($cwd)) {
-            chdir($this->root);
+            chdir($publicDir);
         }
         try {
             $output = $container->get(View::class)->render('fallback');
@@ -112,6 +139,33 @@ final class ViewServiceProviderTest extends TestCase
         }
 
         self::assertSame('FALLBACK', $output);
+    }
+
+    public function testRegisterKeepsAbsoluteConfiguredBasePath(): void
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+        $provider = new ViewServiceProvider();
+        $provider->register($container);
+
+        $this->writeView('absolute', 'ABSOLUTE');
+
+        $cwd = getcwd();
+        $publicDir = $this->root . DIRECTORY_SEPARATOR . 'public';
+        if (!is_dir($publicDir)) {
+            mkdir($publicDir, 0775, true);
+        }
+        if (is_string($cwd)) {
+            chdir($publicDir);
+        }
+        try {
+            $output = $container->get(View::class)->render('absolute');
+        } finally {
+            if (is_string($cwd)) {
+                chdir($cwd);
+            }
+        }
+
+        self::assertSame('ABSOLUTE', $output);
     }
 
     public function testRegisterDoesNotInstantiateViewServices(): void
@@ -186,6 +240,14 @@ final class ViewServiceProviderTest extends TestCase
     private function buildContainer(?string $viewBasePath, string $baseUrl): Container
     {
         $container = new Container();
+        $container->singleton(
+            ApplicationContext::class,
+            new ApplicationContext(
+                Environment::Testing,
+                new Path($this->root),
+                DebugMode::disabled(),
+            ),
+        );
         $container->singleton(ComponentRegistry::class, new ComponentRegistry($container));
         $registry = new ConfigDefinitionRegistry();
         if ($viewBasePath !== null) {
@@ -246,6 +308,22 @@ final class ViewServiceProviderTest extends TestCase
     private function writeKernelConfigFile(string $file, string $contents): void
     {
         $path = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . $file;
+        file_put_contents($path, $contents);
+    }
+
+    private function writeProjectView(string $relativeBasePath, string $name, string $contents): void
+    {
+        $path = $this->root
+            . DIRECTORY_SEPARATOR
+            . trim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativeBasePath), '/\\')
+            . DIRECTORY_SEPARATOR
+            . str_replace('.', DIRECTORY_SEPARATOR, $name)
+            . '.php';
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
         file_put_contents($path, $contents);
     }
 

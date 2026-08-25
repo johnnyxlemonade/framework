@@ -6,6 +6,8 @@ namespace Lemonade\Framework\View;
 
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
@@ -24,7 +26,7 @@ final class ViewServiceProvider implements ServiceProviderInterface
         $container->singleton(ViewConfig::class, static function (ContainerInterface $container): ViewConfig {
             return $container
                 ->get(ViewConfigResolver::class)
-                ->resolve(...$container->get(\Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry::class)->typedEntriesFor(
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
                     ViewConfigDefinition::moduleKey(),
                     ViewConfigDefinition::class,
                 ));
@@ -39,7 +41,16 @@ final class ViewServiceProvider implements ServiceProviderInterface
         ));
 
         $container->singleton(View::class, static function (ContainerInterface $container): View {
-            $view = new View($container->get(ViewConfig::class)->basePath);
+            $configuredBasePath = $container->get(ViewConfig::class)->basePath;
+            $resolvedBasePath = $configuredBasePath;
+
+            if ($container->isBound(ApplicationContext::class)) {
+                $resolvedBasePath = $container
+                    ->get(ApplicationContext::class)
+                    ->path($configuredBasePath);
+            }
+
+            $view = new View($resolvedBasePath);
 
             $view->share('helpers', $container->get(ViewHelpers::class));
             $view->share('component', $container->get(ComponentRegistry::class));
