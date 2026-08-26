@@ -21,6 +21,7 @@ $_ENV
 APP_ENV=development
 APP_DEBUG=true
 APP_BASE_PATH=/path/to/application
+APP_PUBLIC_PATH=/path/to/public-root
 ```
 
 `APP_ENV` defines the current runtime environment. When it is not provided, the framework defaults to `production`.
@@ -29,6 +30,8 @@ APP_BASE_PATH=/path/to/application
 
 `APP_BASE_PATH` can override the base path passed to the context factory. This is useful when the entrypoint path and application root path are not the same.
 
+`APP_PUBLIC_PATH` can explicitly override the public web root used for assets and uploads. Relative values are resolved against the application base path.
+
 ## Resolved paths
 
 The context exposes:
@@ -36,6 +39,7 @@ The context exposes:
 - current environment
 - debug mode
 - base path
+- public path
 - application path
 - configuration path
 - storage path
@@ -49,16 +53,20 @@ By convention, paths are resolved from the base path as follows:
 
 ```text
 base path      -> /
+public path    -> APP_PUBLIC_PATH
+               -> dirname(SCRIPT_FILENAME) when HTTP entrypoint is index.php inside base path
+               -> public/ when that directory exists
+               -> / (backward-compatible fallback)
 application    -> app/
 configuration  -> app/Config/
 storage        -> storage/
 logs           -> storage/writable/logs/
 sessions       -> storage/writable/sessions/
-uploads        -> storage/uploads/
+uploads        -> <public path>/uploads/
 cache          -> storage/cache/
 ```
 
-Absolute paths are preserved and normalized. Relative paths are resolved against the appropriate base, application or storage directory.
+Absolute paths are preserved and normalized. Relative paths are resolved against the appropriate base, public, application or storage directory.
 
 ## Usage
 

@@ -29,7 +29,7 @@ final class SitemapGeneratorsTest extends TestCase
         $registry = new SitemapProviderRegistry(new Container(), $config, new RouteSitemapProvider($config, new UrlGenerator($router)));
         $generator = new SitemapGenerator(
             $registry,
-            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', '')),
             $config,
         );
 

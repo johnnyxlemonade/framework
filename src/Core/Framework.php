@@ -143,6 +143,7 @@ final class Framework
                 ->autowireFallbackWarning($this->context->isDevelopment()),
             AppConfigDefinition::create()
                 ->basePath($this->context->basePath())
+                ->publicPath($this->context->publicPath())
                 ->env($this->context->environment()->value)
                 ->debug($this->context->debug()),
         );

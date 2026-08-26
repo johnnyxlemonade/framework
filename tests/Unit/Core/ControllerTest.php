@@ -414,7 +414,7 @@ final class ControllerTest extends TestCase
     private function registerViewHelpers(Container $container): void
     {
         $config = new Config(['app' => ['base_url' => 'https://example.test']]);
-        $appConfig = new AppConfig(null, 'https://example.test', '', 'testing', false, '', '', '');
+        $appConfig = new AppConfig(null, 'https://example.test', '', '', 'testing', false, '', '', '');
         $session = new ControllerTestSession();
         $csrf = new CsrfViewHelper(new CsrfTokenManager($session));
 

@@ -10,6 +10,7 @@ final class AppConfig
         public readonly ?string $timezone,
         public readonly ?string $baseUrl,
         public readonly string $basePath,
+        public readonly string $publicPath,
         public readonly string $env,
         public readonly bool $debug,
         public readonly string $appPath,

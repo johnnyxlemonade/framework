@@ -78,7 +78,7 @@ final class UploadFactory
         }
 
         return new FileUploadOptions(
-            targetDirectory: $this->context->resolveUploadPath($profileData->targetDirectory),
+            targetDirectory: $this->context->uploadPath($profileData->targetDirectory),
             targetRelativeDirectory: $this->context->uploadRelativePath($profileData->targetDirectory),
             maxBytes: $profileData->maxBytes,
             allowedMimeTypes: $profileData->allowedMimeTypes,
@@ -98,7 +98,7 @@ final class UploadFactory
         }
 
         return new ImageUploadOptions(
-            targetDirectory: $this->context->resolveUploadPath($profileData->targetDirectory),
+            targetDirectory: $this->context->uploadPath($profileData->targetDirectory),
             targetRelativeDirectory: $this->context->uploadRelativePath($profileData->targetDirectory),
             maxBytes: $profileData->maxBytes,
             allowedMimeTypes: $profileData->allowedMimeTypes,

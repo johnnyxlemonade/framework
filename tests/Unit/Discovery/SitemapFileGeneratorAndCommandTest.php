@@ -51,7 +51,7 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
         $registry = new SitemapProviderRegistry(new \Lemonade\Framework\Container\Container(), $config, $routeProvider);
         $generator = new SitemapGenerator(
             $registry,
-            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', '')),
             $config,
         );
         $fileGenerator = new SitemapFileGenerator(
@@ -92,7 +92,7 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
         $registry = new SitemapProviderRegistry($container, $config, $routeProvider);
         $generator = new SitemapGenerator(
             $registry,
-            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', '')),
             $config,
         );
         $fileGenerator = new SitemapFileGenerator(
@@ -132,7 +132,7 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
         $registry = new SitemapProviderRegistry(new \Lemonade\Framework\Container\Container(), $config, $routeProvider);
         $generator = new SitemapGenerator(
             $registry,
-            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', '')),
             $config,
         );
         $fileGenerator = new SitemapFileGenerator(
@@ -169,7 +169,7 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
         $registry = new SitemapProviderRegistry(new \Lemonade\Framework\Container\Container(), $config, $routeProvider);
         $generator = new SitemapGenerator(
             $registry,
-            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', '')),
             $config,
         );
         $fileGenerator = new SitemapFileGenerator(

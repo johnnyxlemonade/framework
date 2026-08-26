@@ -161,7 +161,7 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
                     docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
                 ),
             ),
-            new AppConfig(null, null, '', 'testing', false, '', '', ''),
+            new AppConfig(null, null, '', '', 'testing', false, '', '', ''),
         );
     }
 }

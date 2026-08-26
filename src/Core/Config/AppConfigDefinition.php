@@ -53,6 +53,11 @@ final class AppConfigDefinition extends AbstractConfigDefinition
         return $this->set('config_path', $configPath);
     }
 
+    public function publicPath(string $publicPath): self
+    {
+        return $this->set('public_path', $publicPath);
+    }
+
     public function storagePath(string $storagePath): self
     {
         return $this->set('storage_path', $storagePath);

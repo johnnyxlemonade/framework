@@ -77,7 +77,7 @@ final class ExceptionLogger
             return $file;
         }
 
-        return $this->context->storagePath($file);
+        return $this->context->resolveLogPath($file);
     }
 
     private function isAbsolutePath(string $path): bool

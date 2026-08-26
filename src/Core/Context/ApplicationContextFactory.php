@@ -33,10 +33,13 @@ final class ApplicationContextFactory
 
         $basePathValue = $this->value('APP_BASE_PATH', $env, $server);
         $resolvedBasePath = is_scalar($basePathValue) ? (string) $basePathValue : $basePath;
+        $resolvedBasePath = $this->normalizePath($resolvedBasePath);
+
+        $publicPath = $this->resolvePublicPath($resolvedBasePath, $env, $server);
 
         return new ApplicationContext(
             environment: $environment,
-            paths: new Path($this->normalizePath($resolvedBasePath)),
+            paths: new Path($resolvedBasePath, $publicPath),
             debug: new DebugMode($debug),
         );
     }
@@ -117,6 +120,107 @@ final class ApplicationContextFactory
 
     private function normalizePath(string $path): string
     {
-        return rtrim($path, '/\\');
+        $separator = $this->separatorFor($path);
+
+        return rtrim(str_replace(['/', '\\'], $separator, $path), '/\\');
+    }
+
+    /**
+     * @param array<string, mixed> $env
+     * @param array<string, mixed> $server
+     */
+    private function resolvePublicPath(string $basePath, array $env, array $server): string
+    {
+        $publicPathValue = $this->value('APP_PUBLIC_PATH', $env, $server);
+        if (is_scalar($publicPathValue)) {
+            $normalizedOverride = trim((string) $publicPathValue);
+            if ($normalizedOverride !== '') {
+                return $this->resolveAgainstBase($basePath, $normalizedOverride);
+            }
+        }
+
+        $scriptFilename = $this->value('SCRIPT_FILENAME', $env, $server);
+        $scriptPath = is_scalar($scriptFilename) ? trim((string) $scriptFilename) : '';
+        if ($scriptPath !== '') {
+            $resolvedFromScript = $this->resolvePublicPathFromScript($basePath, $scriptPath);
+            if ($resolvedFromScript !== null) {
+                return $resolvedFromScript;
+            }
+        }
+
+        $conventionalPublicPath = $basePath . $this->separatorFor($basePath) . 'public';
+        if (is_dir($conventionalPublicPath)) {
+            return $conventionalPublicPath;
+        }
+
+        return $basePath;
+    }
+
+    private function resolveAgainstBase(string $basePath, string $path): string
+    {
+        if ($this->isAbsolutePath($path)) {
+            return $this->normalizePath($path);
+        }
+
+        return $basePath . $this->separatorFor($basePath) . ltrim($this->normalizePath($path), '/\\');
+    }
+
+    private function resolvePublicPathFromScript(string $basePath, string $scriptFilename): ?string
+    {
+        $scriptFilename = $this->resolveAgainstBase($basePath, $scriptFilename);
+        $normalizedScript = $this->normalizePath($scriptFilename);
+
+        if (strtolower(basename($normalizedScript)) !== 'index.php') {
+            return null;
+        }
+
+        $scriptDirectory = dirname($normalizedScript);
+        if ($scriptDirectory === '' || $scriptDirectory === '.') {
+            return null;
+        }
+
+        $scriptDirectory = $this->normalizePath($scriptDirectory);
+
+        if (!$this->isSameOrDescendantPath($basePath, $scriptDirectory)) {
+            return null;
+        }
+
+        return $scriptDirectory;
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/')
+            || str_starts_with($path, '\\\\')
+            || preg_match('/^[A-Za-z]:[\/\\\\]/', $path) === 1;
+    }
+
+    private function isSameOrDescendantPath(string $basePath, string $path): bool
+    {
+        $normalizedBase = $this->normalizeComparablePath($basePath);
+        $normalizedPath = $this->normalizeComparablePath($path);
+
+        return $normalizedPath === $normalizedBase
+            || str_starts_with($normalizedPath, $normalizedBase . $this->separatorFor($normalizedBase));
+    }
+
+    private function normalizeComparablePath(string $path): string
+    {
+        $normalized = $this->normalizePath($path);
+
+        if (preg_match('/^[A-Za-z]:/', $normalized) === 1) {
+            return strtolower($normalized);
+        }
+
+        return $normalized;
+    }
+
+    private function separatorFor(string $path): string
+    {
+        if (str_contains($path, '\\') || str_starts_with($path, '\\\\') || preg_match('/^[A-Za-z]:/', $path) === 1) {
+            return '\\';
+        }
+
+        return '/';
     }
 }

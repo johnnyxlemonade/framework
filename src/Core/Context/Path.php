@@ -8,11 +8,12 @@ final class Path
 {
     public function __construct(
         private readonly string $basePath,
+        private readonly ?string $publicPath = null,
     ) {}
 
     public function base(): string
     {
-        return rtrim($this->basePath, '/\\');
+        return rtrim($this->normalize($this->basePath, $this->baseSeparator()), '/\\');
     }
 
     public function resolve(string $path = ''): string
@@ -22,10 +23,20 @@ final class Path
         }
 
         if ($this->isAbsolute($path)) {
-            return $this->normalize($path);
+            return $this->normalize($path, $this->separatorFor($path));
         }
 
-        return $this->base() . DIRECTORY_SEPARATOR . ltrim($this->normalize($path), '/\\');
+        $separator = $this->baseSeparator();
+
+        return $this->base() . $separator . ltrim($this->normalize($path, $separator), '/\\');
+    }
+
+    public function publicPath(string $path = ''): string
+    {
+        return $this->resolveFromBase(
+            $this->publicBase(),
+            $path,
+        );
     }
 
     public function app(string $path = ''): string
@@ -57,7 +68,7 @@ final class Path
         $path = array_shift($segments);
 
         foreach ($segments as $segment) {
-            $path .= DIRECTORY_SEPARATOR . trim($this->normalize($segment), '/\\');
+            $path .= $this->baseSeparator() . trim($this->normalize($segment, $this->baseSeparator()), '/\\');
         }
 
         return $this->resolve($path);
@@ -70,17 +81,63 @@ final class Path
             || preg_match('/^[A-Za-z]:[\/\\\\]/', $path) === 1;
     }
 
+    private function publicBase(): string
+    {
+        if ($this->publicPath !== null && trim($this->publicPath) !== '') {
+            return rtrim($this->normalize($this->publicPath, $this->separatorFor($this->publicPath)), '/\\');
+        }
+
+        $conventional = $this->base() . $this->baseSeparator() . 'public';
+        if (is_dir($conventional)) {
+            return $conventional;
+        }
+
+        return $this->base();
+    }
+
+    private function resolveFromBase(string $base, string $path = ''): string
+    {
+        $separator = $this->separatorFor($base);
+        $base = rtrim($this->normalize($base, $separator), '/\\');
+
+        if ($path === '') {
+            return $base;
+        }
+
+        if ($this->isAbsolute($path)) {
+            return $this->normalize($path, $this->separatorFor($path));
+        }
+
+        return $base . $separator . ltrim($this->normalize($path, $separator), '/\\');
+    }
+
     private function joinRelative(string $base, string $path): string
     {
         if ($path === '') {
             return $base;
         }
 
-        return $base . DIRECTORY_SEPARATOR . ltrim($this->normalize($path), '/\\');
+        return $base . $this->baseSeparator() . ltrim($this->normalize($path, $this->baseSeparator()), '/\\');
     }
 
-    private function normalize(string $path): string
+    private function normalize(string $path, ?string $separator = null): string
     {
-        return str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+        $separator ??= $this->separatorFor($path);
+
+        return str_replace(['/', '\\'], $separator, $path);
+    }
+
+    private function baseSeparator(): string
+    {
+        return $this->separatorFor($this->basePath);
+    }
+
+    private function separatorFor(string $path): string
+    {
+        if (str_contains($path, '\\') || str_starts_with($path, '\\\\') || preg_match('/^[A-Za-z]:/', $path) === 1) {
+            return '\\';
+        }
+
+        return '/';
     }
 }

@@ -11,6 +11,7 @@ final class AppConfigResolver
         $timezone = null;
         $baseUrl = null;
         $basePath = '';
+        $publicPath = '';
         $env = 'production';
         $debug = false;
         $appPath = '';
@@ -30,6 +31,10 @@ final class AppConfigResolver
 
             if (array_key_exists('base_path', $data)) {
                 $basePath = $this->normalizeString($data['base_path'], $basePath);
+            }
+
+            if (array_key_exists('public_path', $data)) {
+                $publicPath = $this->normalizeString($data['public_path'], $publicPath);
             }
 
             if (array_key_exists('env', $data)) {
@@ -57,6 +62,7 @@ final class AppConfigResolver
             timezone: $timezone,
             baseUrl: $baseUrl,
             basePath: $basePath,
+            publicPath: $publicPath,
             env: $env,
             debug: $debug,
             appPath: $appPath,

@@ -53,14 +53,41 @@ final class ApplicationContextTest extends TestCase
         );
     }
 
-    public function testPublicPathEquivalentBuildsPathRelativeToBasePath(): void
+    public function testPublicPathBuildsPathRelativeToResolvedPublicRoot(): void
     {
         $base = $this->basePath();
-        $context = $this->context(Environment::Development, DebugMode::enabled(), $base);
+        $context = $this->context(Environment::Development, DebugMode::enabled(), $base, $base . DIRECTORY_SEPARATOR . 'public');
 
         self::assertSame(
             $base . DIRECTORY_SEPARATOR . 'public',
-            $context->path('public'),
+            $context->publicPath(),
+        );
+    }
+
+    public function testUploadLogSessionAndCachePathsUseExpectedRoots(): void
+    {
+        $base = $this->basePath();
+        $context = $this->context(Environment::Development, DebugMode::enabled(), $base, $base . DIRECTORY_SEPARATOR . 'public');
+
+        self::assertSame(
+            $base . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'images',
+            $context->uploadPath('images'),
+        );
+        self::assertSame(
+            'uploads/images',
+            $context->uploadRelativePath('images'),
+        );
+        self::assertSame(
+            $base . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'writable' . DIRECTORY_SEPARATOR . 'logs',
+            $context->resolveLogPath(),
+        );
+        self::assertSame(
+            $base . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'writable' . DIRECTORY_SEPARATOR . 'sessions',
+            $context->resolveSessionPath(),
+        );
+        self::assertSame(
+            $base . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache',
+            $context->resolveCachePath(),
         );
     }
 
@@ -100,11 +127,38 @@ final class ApplicationContextTest extends TestCase
         self::assertFalse($nonDebugContext->debug());
     }
 
-    private function context(Environment $environment, DebugMode $debugMode, string $basePath): ApplicationContext
+    public function testResolvedPathsAreIndependentFromCurrentWorkingDirectory(): void
+    {
+        $base = $this->basePath();
+        $context = $this->context(Environment::Development, DebugMode::enabled(), $base, $base . DIRECTORY_SEPARATOR . 'public');
+        $cwd = getcwd();
+
+        if (!is_string($cwd)) {
+            self::fail('Unable to determine current working directory.');
+        }
+
+        $otherDir = sys_get_temp_dir();
+        chdir($otherDir);
+
+        try {
+            self::assertSame(
+                $base . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'files',
+                $context->uploadPath('files'),
+            );
+            self::assertSame(
+                $base . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'writable' . DIRECTORY_SEPARATOR . 'logs',
+                $context->resolveLogPath(),
+            );
+        } finally {
+            chdir($cwd);
+        }
+    }
+
+    private function context(Environment $environment, DebugMode $debugMode, string $basePath, ?string $publicPath = null): ApplicationContext
     {
         return new ApplicationContext(
             $environment,
-            new Path($basePath),
+            new Path($basePath, $publicPath),
             $debugMode,
         );
     }

@@ -102,6 +102,7 @@ final class BaseUrlResolverTest extends TestCase
             timezone: null,
             baseUrl: $baseUrl,
             basePath: '',
+            publicPath: '',
             env: 'testing',
             debug: false,
             appPath: '',

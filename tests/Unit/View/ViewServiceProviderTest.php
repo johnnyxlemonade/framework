@@ -257,7 +257,7 @@ final class ViewServiceProviderTest extends TestCase
         $container->singleton(
             BaseUrlResolver::class,
             static fn(): BaseUrlResolver => new BaseUrlResolver(
-                new AppConfig(null, $baseUrl, '', 'testing', false, '', '', ''),
+                new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', ''),
             ),
         );
         $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));

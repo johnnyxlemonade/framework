@@ -62,6 +62,11 @@ final class ApplicationContext
         return $this->paths->storage($path);
     }
 
+    public function publicPath(string $path = ''): string
+    {
+        return $this->paths->publicPath($path);
+    }
+
     public function resolveStoragePath(string $path = ''): string
     {
         if ($this->paths->isAbsolute($path)) {
@@ -88,7 +93,12 @@ final class ApplicationContext
 
     public function resolveUploadPath(string $path = ''): string
     {
-        return $this->resolveStorageSubPath('uploads', $path);
+        return $this->uploadPath($path);
+    }
+
+    public function uploadPath(string $path = ''): string
+    {
+        return $this->resolvePublicSubPath('uploads', $path);
     }
 
     public function resolveCachePath(string $path = ''): string
@@ -118,14 +128,30 @@ final class ApplicationContext
 
     private function joinRelativePath(string $base, string $path = ''): string
     {
-        $base = $this->trimRelativePath($base);
-        $path = $this->trimRelativePath($path);
+        $base = $this->trimRelativePath($base, '/');
+        $path = $this->trimRelativePath($path, '/');
 
         if ($path === '') {
             return $base;
         }
 
         return $base . '/' . $path;
+    }
+
+    private function resolvePublicSubPath(string $base, string $path = ''): string
+    {
+        if ($this->paths->isAbsolute($path)) {
+            return $this->paths->resolve($path);
+        }
+
+        $base = $this->trimRelativePath($base);
+        $path = $this->trimRelativePath($path);
+
+        if ($path === '') {
+            return $this->publicPath($base);
+        }
+
+        return $this->publicPath($base . $this->pathSeparator() . $path);
     }
 
     private function resolveStorageSubPath(string $base, string $path = ''): string
@@ -141,11 +167,18 @@ final class ApplicationContext
             return $this->storagePath($base);
         }
 
-        return $this->storagePath($base . DIRECTORY_SEPARATOR . $path);
+        return $this->storagePath($base . $this->pathSeparator() . $path);
     }
 
-    private function trimRelativePath(string $path): string
+    private function trimRelativePath(string $path, ?string $separator = null): string
     {
-        return trim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path), '/\\');
+        $separator ??= $this->pathSeparator();
+
+        return trim(str_replace(['/', '\\'], $separator, $path), '/\\');
+    }
+
+    private function pathSeparator(): string
+    {
+        return str_contains($this->basePath(), '\\') ? '\\' : '/';
     }
 }

@@ -32,7 +32,7 @@ final class RobotsTxtGeneratorTest extends TestCase
 
         $txt = (new RobotsTxtGenerator(
             $config,
-            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', '')),
             new FixedClock(new DateTimeImmutable('2026-05-29 14:16:39')),
         ))->generate();
 
@@ -58,7 +58,7 @@ final class RobotsTxtGeneratorTest extends TestCase
 
         $txt = (new RobotsTxtGenerator(
             $config,
-            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', 'testing', false, '', '', '')),
+            new BaseUrlResolver(new AppConfig(null, $baseUrl, '', '', 'testing', false, '', '', '')),
             new FixedClock(new DateTimeImmutable('2026-05-29 14:16:39')),
         ))->generate();
 

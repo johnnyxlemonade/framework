@@ -20,6 +20,7 @@ trait KernelBootstrapTrait
         $this->framework->config(
             AppConfigDefinition::create()
                 ->basePath($this->context->basePath())
+                ->publicPath($this->context->publicPath())
                 ->env($this->context->environment()->value)
                 ->debug($this->context->debug())
                 ->appPath($this->context->appPath())
@@ -68,7 +69,7 @@ trait KernelBootstrapTrait
             return $file;
         }
 
-        return $this->context->storagePath($file);
+        return $this->context->resolveLogPath($file);
     }
 
     private function isAbsolutePath(string $path): bool

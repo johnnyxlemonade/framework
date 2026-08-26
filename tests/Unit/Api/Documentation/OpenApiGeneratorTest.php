@@ -82,7 +82,7 @@ final class OpenApiGeneratorTest extends TestCase
                     docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
                 ),
             ),
-            new AppConfig(null, 'https://example.test', '', 'testing', false, '', '', ''),
+            new AppConfig(null, 'https://example.test', '', '', 'testing', false, '', '', ''),
             new FrameworkInfo(),
         ))->generate();
 

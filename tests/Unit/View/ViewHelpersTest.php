@@ -85,6 +85,7 @@ final class ViewHelpersTest extends TestCase
                 timezone: null,
                 baseUrl: 'https://example.test',
                 basePath: '',
+                publicPath: '',
                 env: 'testing',
                 debug: false,
                 appPath: '',

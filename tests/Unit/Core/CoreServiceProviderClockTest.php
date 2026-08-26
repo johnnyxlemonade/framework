@@ -16,7 +16,7 @@ final class CoreServiceProviderClockTest extends TestCase
     public function testRegistersClockAliasAndInterface(): void
     {
         $container = new Container();
-        $container->singleton(AppConfig::class, new AppConfig('UTC', null, '', 'testing', false, '', '', ''));
+        $container->singleton(AppConfig::class, new AppConfig('UTC', null, '', '', 'testing', false, '', '', ''));
 
         (new CoreServiceProvider())->register($container);
 
@@ -31,7 +31,7 @@ final class CoreServiceProviderClockTest extends TestCase
     public function testInvalidTimezoneThrowsDuringProviderRegistration(): void
     {
         $container = new Container();
-        $container->singleton(AppConfig::class, new AppConfig('Invalid/Timezone', null, '', 'testing', false, '', '', ''));
+        $container->singleton(AppConfig::class, new AppConfig('Invalid/Timezone', null, '', '', 'testing', false, '', '', ''));
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Invalid configured timezone in app.timezone');
