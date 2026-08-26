@@ -170,11 +170,11 @@ final class ApplicationContextFactory
         $scriptFilename = $this->resolveAgainstBase($basePath, $scriptFilename);
         $normalizedScript = $this->normalizePath($scriptFilename);
 
-        if (strtolower(basename($normalizedScript)) !== 'index.php') {
+        if (strtolower($this->portableBasename($normalizedScript)) !== 'index.php') {
             return null;
         }
 
-        $scriptDirectory = dirname($normalizedScript);
+        $scriptDirectory = $this->portableDirname($normalizedScript);
         if ($scriptDirectory === '' || $scriptDirectory === '.') {
             return null;
         }
@@ -222,5 +222,27 @@ final class ApplicationContextFactory
         }
 
         return '/';
+    }
+
+    private function portableBasename(string $path): string
+    {
+        $portablePath = str_replace('\\', '/', $path);
+
+        return basename($portablePath);
+    }
+
+    private function portableDirname(string $path): string
+    {
+        $separator = $this->separatorFor($path);
+        $portablePath = str_replace('\\', '/', $path);
+        $directory = dirname($portablePath);
+
+        if ($directory === '.' || $directory === '') {
+            return $directory;
+        }
+
+        return $separator === '\\'
+            ? str_replace('/', '\\', $directory)
+            : $directory;
     }
 }
