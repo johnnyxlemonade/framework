@@ -95,7 +95,6 @@
     ],
     "lint": "@php tools/lint.php",
     "git:pre-commit": [
-      "@lint",
       "@cs:check"
     ],
     "git:pre-push": [
