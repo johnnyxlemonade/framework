@@ -94,6 +94,16 @@
       "@php tools/autoload-notice.php"
     ],
     "lint": "@php tools/lint.php",
+    "git:pre-commit": [
+      "@lint",
+      "@cs:check"
+    ],
+    "git:pre-push": [
+      "@qa"
+    ],
+    "hooks:install": [
+      "@php tools/install-git-hooks.php"
+    ],
     "autoload:dev": [
       "@composer dump-autoload"
     ],
@@ -144,6 +154,9 @@
   },
   "scripts-descriptions": {
     "lint": "Check PHP syntax for source and tests.",
+    "git:pre-commit": "Run the fast pre-commit checks: lint and coding standards.",
+    "git:pre-push": "Run the full pre-push quality suite.",
+    "hooks:install": "Install versioned Git hooks into .git/hooks.",
     "autoload:dev": "Regenerate Composer autoload files for development.",
     "autoload:optimize": "Regenerate optimized Composer autoload files.",
     "autoload:prod": "Regenerate optimized authoritative classmap for production.",
