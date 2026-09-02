@@ -9,6 +9,27 @@ use LogicException;
 
 final class YamlEnvValueResolver
 {
+    /**
+     * @var array<string, true>
+     */
+    private array $usedEnvKeys = [];
+
+    public function reset(): void
+    {
+        $this->usedEnvKeys = [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function usedKeys(): array
+    {
+        $keys = array_keys($this->usedEnvKeys);
+        sort($keys);
+
+        return $keys;
+    }
+
     public function resolve(mixed $value, string $path = 'config'): mixed
     {
         if (!is_array($value)) {
@@ -48,6 +69,8 @@ final class YamlEnvValueResolver
                 $path,
             ));
         }
+
+        $this->usedEnvKeys[trim($envKey)] = true;
 
         $type = $directive['type'] ?? 'string';
         if (!is_string($type) || trim($type) === '') {

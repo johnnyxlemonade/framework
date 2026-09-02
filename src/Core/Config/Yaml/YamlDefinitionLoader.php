@@ -24,6 +24,7 @@ final class YamlDefinitionLoader
         ?string $rootKey,
         YamlDefinitionClassMap $classMap,
     ): ConfigDefinitionInterface {
+        $this->envValueResolver->reset();
         $document = $this->parser->parseFile($file);
 
         if (!is_array($document) || array_is_list($document)) {
@@ -109,6 +110,14 @@ final class YamlDefinitionLoader
                 $exception->getMessage(),
             ), previous: $exception);
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function usedEnvKeys(): array
+    {
+        return $this->envValueResolver->usedKeys();
     }
 
     /**

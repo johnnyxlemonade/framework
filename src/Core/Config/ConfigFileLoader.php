@@ -21,16 +21,31 @@ final class ConfigFileLoader
 
     public function load(string $file, ?string $rootKey = null): ConfigDefinitionInterface
     {
+        return $this->loadWithMetadata($file, $rootKey)->definition();
+    }
+
+    public function loadWithMetadata(string $file, ?string $rootKey = null): LoadedConfigFile
+    {
         if (!is_file($file)) {
             throw new RuntimeException(sprintf('Config file not found: %s', $file));
         }
 
         $extension = strtolower((string) pathinfo($file, PATHINFO_EXTENSION));
         if ($extension === 'yaml' || $extension === 'yml') {
-            return (new YamlDefinitionLoader())->load(
+            $loader = new YamlDefinitionLoader();
+            $definition = $loader->load(
                 $file,
                 $rootKey,
                 $this->yamlClassMapForDirectory(dirname($file)),
+            );
+
+            return new LoadedConfigFile(
+                definition: $definition,
+                envKeys: $loader->usedEnvKeys(),
+                sourceFiles: [
+                    $file,
+                    dirname($file) . DIRECTORY_SEPARATOR . self::CONFIG_MAP_FILE,
+                ],
             );
         }
 
@@ -48,7 +63,10 @@ final class ConfigFileLoader
                 ));
             }
 
-            return $data;
+            return new LoadedConfigFile(
+                definition: $data,
+                sourceFiles: [$file],
+            );
         }
 
         if ($rootKey !== null && $rootKey !== '') {

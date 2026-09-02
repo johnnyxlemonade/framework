@@ -11,6 +11,7 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
+use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -20,6 +21,7 @@ use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Kernel;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
+use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 
@@ -193,6 +195,45 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         self::assertTrue($container->isBound(FrameworkApiEndpointProvider::class));
         self::assertTrue($container->isBound(ApiConfig::class));
+    }
+
+    public function testApiServiceProviderSkipsHttpRouteRegistrationInCliRuntime(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+
+        $framework->register(new ConsoleServiceProvider());
+        $framework->register(new ApiServiceProvider());
+
+        self::assertTrue($container->isBound(FrameworkApiEndpointProvider::class));
+        self::assertTrue($container->isBound(ApiConfig::class));
+        self::assertFalse($framework->container()->get(Router::class)->hasExplicitRouteForPath('GET', '/api/framework/health'));
+    }
+
+    public function testConfiguredApiEndpointProviderMustImplementInterfaceInCliRuntime(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+        $file = $this->root . DIRECTORY_SEPARATOR . 'invalid-api-config-cli.php';
+        file_put_contents(
+            $file,
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Api\\Config\\ApiConfigDefinition;\n\nreturn ApiConfigDefinition::create()->endpointProviders(['" . addslashes(TestInvalidApiEndpointProvider::class) . "']);\n",
+        );
+        $framework->configFromFile($file);
+        $framework->register(new ConsoleServiceProvider());
+
+        $this->expectException(\LogicException::class);
+        $framework->register(new ApiServiceProvider());
     }
 
     public function testFrameworkRunsWithDefaultsWhenAppApiConfigFileIsMissing(): void

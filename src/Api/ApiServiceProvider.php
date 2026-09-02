@@ -22,9 +22,11 @@ use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
 use Lemonade\Framework\Api\Security\NullApiAuthenticator;
 use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
+use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use LogicException;
 
 final class ApiServiceProvider implements ServiceProviderInterface
 {
@@ -67,6 +69,13 @@ final class ApiServiceProvider implements ServiceProviderInterface
         $container->singleton(ApiAuthorizationMiddleware::class, ApiAuthorizationMiddleware::class);
 
         $config = $container->get(ApiConfig::class);
+
+        if ($this->isCliRuntime($container)) {
+            $this->assertConfiguredProvidersImplementInterface($config->endpointProviders);
+
+            return;
+        }
+
         if (!$config->enabled) {
             return;
         }
@@ -94,6 +103,27 @@ final class ApiServiceProvider implements ServiceProviderInterface
         $container->get(ApiEndpointRegistrar::class)->registerRoutes(
             $config->prefix,
         );
+    }
+
+    private function isCliRuntime(ContainerInterface $container): bool
+    {
+        return $container->isBound(CommandRegistry::class);
+    }
+
+    /**
+     * @param list<class-string>|list<string> $providerClasses
+     */
+    private function assertConfiguredProvidersImplementInterface(array $providerClasses): void
+    {
+        foreach ($providerClasses as $providerClass) {
+            if (!is_string($providerClass) || !is_subclass_of($providerClass, ApiEndpointProviderInterface::class)) {
+                throw new LogicException(sprintf(
+                    'Configured API endpoint provider "%s" must implement %s.',
+                    is_string($providerClass) ? $providerClass : get_debug_type($providerClass),
+                    ApiEndpointProviderInterface::class,
+                ));
+            }
+        }
     }
 
     private function registerProvider(ApiEndpointProviderInterface $provider, ApiEndpointRegistry $registry): void

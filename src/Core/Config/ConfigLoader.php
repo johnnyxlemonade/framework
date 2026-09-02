@@ -20,17 +20,25 @@ final class ConfigLoader
         ApplicationContext $context,
         string $entrypoint,
     ): void {
-        /** @var list<string> $specs */
-        $specs = $this->resolveConfigFileSpecs($context, $entrypoint);
+        if (!$context->isProduction()) {
+            $framework->config(...$this->loadDefinitions($context, $entrypoint));
 
-        foreach ($specs as $file) {
-            $path = $this->resolveConfigFilePath($context, $file);
-            if ($path === null) {
-                continue;
-            }
-
-            $framework->configFromFile($path);
+            return;
         }
+
+        $cache = new ApplicationConfigCache();
+        $cachedDefinitions = $cache->loadIfFresh($context, $entrypoint);
+
+        if ($cachedDefinitions !== null) {
+            $framework->config(...$cachedDefinitions);
+
+            return;
+        }
+
+        [$definitions, $sourceFiles, $envKeys] = $this->loadDefinitionsWithMetadata($context, $entrypoint);
+
+        $framework->config(...$definitions);
+        $cache->write($context, $entrypoint, $definitions, $sourceFiles, $envKeys);
     }
 
     /**
@@ -40,11 +48,20 @@ final class ConfigLoader
         ApplicationContext $context,
         string $entrypoint,
     ): array {
+        $manifestPath = $this->resolveManifestPath($context);
+
+        return $this->resolveConfigFileSpecsFromManifest($manifestPath, $entrypoint);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveConfigFileSpecsFromManifest(string $manifestPath, string $entrypoint): array
+    {
         if ($entrypoint !== self::ENTRYPOINT_HTTP && $entrypoint !== self::ENTRYPOINT_CLI) {
             throw new LogicException(sprintf('Unsupported config entrypoint "%s".', $entrypoint));
         }
 
-        $manifestPath = $this->resolveManifestPath($context);
         $manifest = $this->loadManifest($manifestPath);
 
         $shared = $manifest['shared'] ?? null;
@@ -127,20 +144,78 @@ final class ConfigLoader
         return $manifest;
     }
 
-    private function resolveConfigFilePath(ApplicationContext $context, string $spec): ?string
+    /**
+     * @return list<Definition\ConfigDefinitionInterface>
+     */
+    private function loadDefinitions(ApplicationContext $context, string $entrypoint): array
+    {
+        [$definitions] = $this->loadDefinitionsWithMetadata($context, $entrypoint);
+
+        return $definitions;
+    }
+
+    /**
+     * @return array{
+     *     0:list<Definition\ConfigDefinitionInterface>,
+     *     1:list<string>,
+     *     2:list<string>
+     * }
+     */
+    private function loadDefinitionsWithMetadata(ApplicationContext $context, string $entrypoint): array
+    {
+        $manifestPath = $this->resolveManifestPath($context);
+        $specs = $this->resolveConfigFileSpecsFromManifest($manifestPath, $entrypoint);
+        $fileLoader = new ConfigFileLoader();
+        $definitions = [];
+        $sourceFiles = [$manifestPath];
+        $envKeys = [];
+
+        foreach ($specs as $file) {
+            $candidates = $this->resolveConfigFileCandidates($context, $file);
+
+            foreach ($candidates as $candidate) {
+                $sourceFiles[] = $candidate;
+            }
+
+            $path = $this->resolveConfigFilePathFromCandidates($candidates);
+            if ($path === null) {
+                continue;
+            }
+
+            $loaded = $fileLoader->loadWithMetadata($path);
+            $definitions[] = $loaded->definition();
+            array_push($envKeys, ...$loaded->envKeys());
+            array_push($sourceFiles, ...$loaded->sourceFiles());
+        }
+
+        return [$definitions, $sourceFiles, $envKeys];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveConfigFileCandidates(ApplicationContext $context, string $spec): array
     {
         $trimmed = trim($spec);
         $exact = $context->configPath($trimmed);
-        if (is_file($exact)) {
-            return $exact;
-        }
 
         if (pathinfo($trimmed, PATHINFO_EXTENSION) !== '') {
-            return null;
+            return [$exact];
         }
 
-        foreach (['yaml', 'yml'] as $extension) {
-            $candidate = $context->configPath($trimmed . '.' . $extension);
+        return [
+            $exact,
+            $context->configPath($trimmed . '.yaml'),
+            $context->configPath($trimmed . '.yml'),
+        ];
+    }
+
+    /**
+     * @param list<string> $candidates
+     */
+    private function resolveConfigFilePathFromCandidates(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
             if (is_file($candidate)) {
                 return $candidate;
             }

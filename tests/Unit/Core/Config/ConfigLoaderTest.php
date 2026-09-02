@@ -15,19 +15,31 @@ use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use LogicException;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 final class ConfigLoaderTest extends TestCase
 {
     private string $root = '';
+    private mixed $originalEnvAppBaseUrl = null;
+    private bool $hadEnvAppBaseUrl = false;
+    private mixed $originalServerAppBaseUrl = null;
+    private bool $hadServerAppBaseUrl = false;
+    private string|false $originalProcessAppBaseUrl = false;
 
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-config-loader-' . uniqid('', true);
+        $this->hadEnvAppBaseUrl = array_key_exists('APP_BASE_URL', $_ENV);
+        $this->originalEnvAppBaseUrl = $_ENV['APP_BASE_URL'] ?? null;
+        $this->hadServerAppBaseUrl = array_key_exists('APP_BASE_URL', $_SERVER);
+        $this->originalServerAppBaseUrl = $_SERVER['APP_BASE_URL'] ?? null;
+        $this->originalProcessAppBaseUrl = getenv('APP_BASE_URL');
     }
 
     protected function tearDown(): void
     {
         $this->deleteRecursive($this->root);
+        $this->restoreAppBaseUrlEnvState();
     }
 
     public function testLoadWithYamlManifestLoadsYamlConfigsAndResolvesRuntimeDto(): void
@@ -266,10 +278,203 @@ YAML,
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
-    private function context(): ApplicationContext
+    public function testProductionLoadCreatesCompiledConfigCache(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http: []
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url:
+    $env: APP_BASE_URL
+    type: string
+    default: http://localhost
+YAML,
+        );
+
+        $_ENV['APP_BASE_URL'] = 'https://cached.example.test';
+
+        $context = $this->context(Environment::Production);
+        $framework = $this->framework($context);
+
+        (new ConfigLoader())->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        self::assertSame('https://cached.example.test', $framework->container()->get(Config::class)->string('app.base_url'));
+        self::assertFileExists($this->cacheFile($context, ConfigLoader::ENTRYPOINT_HTTP));
+    }
+
+    public function testDevelopmentLoadDoesNotCreateCompiledConfigCache(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http: []
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://dev.example.test
+YAML,
+        );
+
+        $context = $this->context(Environment::Development);
+        $framework = $this->framework($context);
+
+        (new ConfigLoader())->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        self::assertSame('https://dev.example.test', $framework->container()->get(Config::class)->string('app.base_url'));
+        self::assertFileDoesNotExist($this->cacheFile($context, ConfigLoader::ENTRYPOINT_HTTP));
+    }
+
+    #[RunInSeparateProcess]
+    public function testDevelopmentLoadIgnoresExistingCompiledConfigCacheFile(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http: []
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://dev.example.test
+YAML,
+        );
+
+        $context = $this->context(Environment::Development);
+        $cacheFile = $this->cacheFile($context, ConfigLoader::ENTRYPOINT_HTTP);
+        $cacheDir = dirname($cacheFile);
+
+        if (!is_dir($cacheDir)) {
+            mkdir($cacheDir, 0775, true);
+        }
+
+        file_put_contents($cacheFile, <<<'PHP'
+<?php
+
+throw new RuntimeException('Development config load must not touch compiled config cache.');
+PHP);
+
+        self::assertFalse(class_exists('Lemonade\\Framework\\Core\\Config\\ApplicationConfigCache', false));
+        self::assertFalse(class_exists('Lemonade\\Framework\\Core\\Config\\CachedConfigDefinitionHydrator', false));
+
+        $framework = $this->framework($context);
+
+        (new ConfigLoader())->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        self::assertSame('https://dev.example.test', $framework->container()->get(Config::class)->string('app.base_url'));
+        self::assertFalse(class_exists('Lemonade\\Framework\\Core\\Config\\ApplicationConfigCache', false));
+        self::assertFalse(class_exists('Lemonade\\Framework\\Core\\Config\\CachedConfigDefinitionHydrator', false));
+    }
+
+    public function testProductionCacheInvalidatesWhenConfigFileChanges(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http: []
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://first.example.test
+YAML,
+        );
+
+        $context = $this->context(Environment::Production);
+
+        $frameworkA = $this->framework($context);
+        (new ConfigLoader())->loadApplication($frameworkA, $context, ConfigLoader::ENTRYPOINT_HTTP);
+        self::assertSame('https://first.example.test', $frameworkA->container()->get(Config::class)->string('app.base_url'));
+
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://second.example.test
+YAML,
+        );
+
+        $frameworkB = $this->framework($context);
+        (new ConfigLoader())->loadApplication($frameworkB, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        self::assertSame('https://second.example.test', $frameworkB->container()->get(Config::class)->string('app.base_url'));
+    }
+
+    public function testProductionCacheInvalidatesWhenEnvValueChanges(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http: []
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url:
+    $env: APP_BASE_URL
+    type: string
+    default: http://localhost
+YAML,
+        );
+
+        $context = $this->context(Environment::Production);
+
+        $_ENV['APP_BASE_URL'] = 'https://one.example.test';
+        $_SERVER['APP_BASE_URL'] = 'https://one.example.test';
+        putenv('APP_BASE_URL=https://one.example.test');
+
+        $frameworkA = $this->framework($context);
+        (new ConfigLoader())->loadApplication($frameworkA, $context, ConfigLoader::ENTRYPOINT_HTTP);
+        self::assertSame('https://one.example.test', $frameworkA->container()->get(Config::class)->string('app.base_url'));
+
+        $_ENV['APP_BASE_URL'] = 'https://two.example.test';
+        $_SERVER['APP_BASE_URL'] = 'https://two.example.test';
+        putenv('APP_BASE_URL=https://two.example.test');
+
+        $frameworkB = $this->framework($context);
+        (new ConfigLoader())->loadApplication($frameworkB, $context, ConfigLoader::ENTRYPOINT_HTTP);
+        self::assertSame('https://two.example.test', $frameworkB->container()->get(Config::class)->string('app.base_url'));
+    }
+
+    private function context(Environment $environment = Environment::Testing): ApplicationContext
     {
         return new ApplicationContext(
-            Environment::Testing,
+            $environment,
             new Path($this->root),
             DebugMode::disabled(),
         );
@@ -283,6 +488,13 @@ YAML,
     private function configDir(): string
     {
         return $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
+    }
+
+    private function cacheFile(ApplicationContext $context, string $entrypoint): string
+    {
+        return $context->resolveCachePath(
+            'framework/config/application-' . $entrypoint . '.php',
+        );
     }
 
     private function writeConfigFile(string $file, string $contents): void
@@ -322,5 +534,28 @@ YAML,
         }
 
         @rmdir($path);
+    }
+
+    private function restoreAppBaseUrlEnvState(): void
+    {
+        if ($this->hadEnvAppBaseUrl) {
+            $_ENV['APP_BASE_URL'] = $this->originalEnvAppBaseUrl;
+        } else {
+            unset($_ENV['APP_BASE_URL']);
+        }
+
+        if ($this->hadServerAppBaseUrl) {
+            $_SERVER['APP_BASE_URL'] = $this->originalServerAppBaseUrl;
+        } else {
+            unset($_SERVER['APP_BASE_URL']);
+        }
+
+        if ($this->originalProcessAppBaseUrl === false) {
+            putenv('APP_BASE_URL');
+
+            return;
+        }
+
+        putenv('APP_BASE_URL=' . $this->originalProcessAppBaseUrl);
     }
 }
