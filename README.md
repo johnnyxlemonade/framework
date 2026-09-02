@@ -234,6 +234,8 @@ config:
 
 If an application needs a custom config definition that is not covered by the built-in registry, `app/Config/ConfigMap.php` can be used as an advanced extension point to map YAML file aliases to `ConfigDefinitionInterface` classes. This is not part of the primary happy-path application setup.
 
+In production, application config definitions are compiled automatically into entrypoint-specific generated PHP cache files under `storage/cache/framework/config/`. Development and testing continue to load config directly from source YAML. See [docs/configuration.md](docs/configuration.md) for cache lifecycle, invalidation, and deployment workflow details.
+
 ### CLI Command
 
 CLI commands implement `CommandInterface` and are configured in `app/Config/Commands.yaml`.

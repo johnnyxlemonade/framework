@@ -8,6 +8,7 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
+use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
@@ -43,6 +44,7 @@ final class Kernel
         private readonly ContainerInterface $container,
         private readonly Framework $framework,
         private readonly ResponseEmitter $emitter,
+        private readonly FrameworkHealthFastPath $healthFastPath,
     ) {}
 
     /**
@@ -63,17 +65,19 @@ final class Kernel
             return;
         }
 
+        $this->markBenchmark('bootstrap_start');
+
         $this->loadApplicationConfigFiles();
         $this->markBenchmark('config_loaded');
 
         $this->applyRuntimeAppConfig();
         $this->registerCoreProvidersWithDiagnostics();
-        $this->markBenchmark('core_logger_ready');
+        $this->markBenchmark('core_providers_registered');
 
         $this->framework
             ->register(new HttpServiceProvider());
+        $this->markBenchmark('http_provider_registered');
         $this->registerCommonFrameworkProviders();
-        $this->markBenchmark('framework_providers_registered');
 
         $this->registerConfiguredProviders();
         $this->markBenchmark('app_providers_registered');
@@ -100,6 +104,17 @@ final class Kernel
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
         try {
+            if ($request !== null) {
+                $response = $this->healthFastPath->tryHandle(
+                    $request,
+                    $this->benchmark(),
+                );
+
+                if ($response instanceof ResponseInterface) {
+                    return $response;
+                }
+            }
+
             $this->bootstrap();
 
             return $this->framework->run($request);
@@ -233,5 +248,4 @@ final class Kernel
             ->get(ExceptionLogger::class)
             ->log($exception, 'kernel');
     }
-
 }

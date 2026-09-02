@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Core;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 
 /**
@@ -56,6 +57,7 @@ final class KernelFactory
             container: $container,
             framework: $framework,
             emitter: $this->emitter ?? new ResponseEmitter(),
+            healthFastPath: new FrameworkHealthFastPath($context),
         );
     }
 }

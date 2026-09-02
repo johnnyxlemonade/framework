@@ -14,15 +14,20 @@ use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
+use Lemonade\Framework\Core\Config\ApplicationConfigCache;
+use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
+use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
+use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\ServerRequest;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 
 final class FrameworkApiEndpointsTest extends TestCase
@@ -46,6 +51,7 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('application/json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+        self::assertSame('Lemonade Framework / 1.0.0', $response->getHeaderLine('X-Powered-Framework'));
         $decoded = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
         self::assertIsArray($decoded);
         $data = $decoded['data'] ?? null;
@@ -304,6 +310,178 @@ final class FrameworkApiEndpointsTest extends TestCase
         self::assertTrue($config->framework->docs->enabled);
     }
 
+    public function testProductionHealthFastPathReturnsSameContractWithoutHttpBootstrap(): void
+    {
+        $this->warmHttpConfigCache();
+        $kernel = $this->kernelProduction();
+
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('application/json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+        self::assertSame('Lemonade Framework / 1.0.0', $response->getHeaderLine('X-Powered-Framework'));
+        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->isBound(ApiConfig::class));
+    }
+
+    #[RunInSeparateProcess]
+    public function testTestingHealthFastPathDoesNotUseCompiledConfigCache(): void
+    {
+        self::assertFalse(class_exists(ApplicationConfigCache::class, false));
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->isBound(ApiConfig::class));
+        self::assertFalse(class_exists(ApplicationConfigCache::class, false));
+    }
+
+    public function testProductionProtectedHealthDoesNotBypassHttpSecurityFlow(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  security:\n    static_bearer:\n      enabled: true\n      token: secret-token\n      scopes:\n        - api:admin\n  framework:\n    health:\n      access: protected\n",
+        );
+        $this->warmHttpConfigCache();
+        $kernel = $this->kernelProduction();
+
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testTestingHealthFastPathRespectsCustomApiPrefix(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  prefix: /internal\n",
+        );
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/internal/framework/health'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testTestingHealthFastPathRespectsCustomHealthRoute(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  framework:\n    health:\n      route: /status\n",
+        );
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/api/status'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testTestingHealthFastPathRespectsCustomPrefixAndHealthRoute(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  prefix: /internal\n  framework:\n    health:\n      route: /status\n",
+        );
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/internal/status'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testTestingHealthDisabledFallsBackToStandardLifecycle(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  framework:\n    health:\n      enabled: false\n",
+        );
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testTestingApiDisabledFallsBackToStandardLifecycle(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  enabled: false\n",
+        );
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testTestingProtectedHealthFallsBackToStandardLifecycle(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  security:\n    static_bearer:\n      enabled: true\n      token: secret-token\n      scopes:\n        - api:admin\n  framework:\n    health:\n      access: protected\n",
+        );
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testTestingOldDefaultHealthUrlDoesNotHitFastPathAfterCustomConfiguration(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  prefix: /internal\n  framework:\n    health:\n      route: /status\n",
+        );
+
+        $kernel = $this->kernel();
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    public function testProductionHealthFastPathRespectsCustomPrefixAndRouteWithWarmCache(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  prefix: /internal\n  framework:\n    health:\n      route: /status\n",
+        );
+        $this->warmHttpConfigCache();
+        $kernel = $this->kernelProduction();
+
+        $response = $kernel->run(new ServerRequest('GET', '/internal/status'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->isBound(ApiConfig::class));
+    }
+
+    public function testProductionOldDefaultHealthUrlDoesNotHitFastPathAfterCustomConfiguration(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  prefix: /internal\n  framework:\n    health:\n      route: /status\n",
+        );
+        $this->warmHttpConfigCache();
+        $kernel = $this->kernelProduction();
+
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
     private function kernel(): Kernel
     {
         $context = new ApplicationContext(
@@ -314,7 +492,20 @@ final class FrameworkApiEndpointsTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new Kernel($context, $container, $framework, new ResponseEmitter());
+        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
+    }
+
+    private function kernelProduction(): Kernel
+    {
+        $context = new ApplicationContext(
+            Environment::Production,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+
+        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
     }
 
     private function writeDefaultConfigFiles(): void
@@ -355,6 +546,18 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $path = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . $file;
         file_put_contents($path, $contents);
+    }
+
+    private function warmHttpConfigCache(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Production,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $framework = new Framework(new Container(), $context);
+
+        (new ConfigLoader())->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     private function deleteRecursive(string $path): void

@@ -14,6 +14,7 @@ use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
+use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
@@ -282,7 +283,7 @@ final class ViewServiceProviderTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new Kernel($context, $container, $framework, new ResponseEmitter());
+        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
     }
 
     private function writeKernelDefaultConfigFiles(): void

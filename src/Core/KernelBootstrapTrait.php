@@ -42,9 +42,14 @@ trait KernelBootstrapTrait
 
     private function registerCommonFrameworkProviders(): void
     {
-        foreach ($this->commonFrameworkProviderClasses() as $providerClass) {
+        $providerClasses = $this->commonFrameworkProviderClasses();
+        $this->markBenchmark('framework_config_runtime_resolved');
+
+        foreach ($providerClasses as $providerClass) {
             $this->framework->register(new $providerClass());
         }
+
+        $this->markBenchmark('common_provider_registration_finished');
     }
 
     /**
@@ -57,7 +62,10 @@ trait KernelBootstrapTrait
 
     private function registerConfiguredProviders(): void
     {
-        foreach ($this->container->get(ProvidersConfig::class)->providers as $providerClass) {
+        $providerClasses = $this->container->get(ProvidersConfig::class)->providers;
+        $this->markBenchmark('app_provider_config_resolved');
+
+        foreach ($providerClasses as $providerClass) {
             $provider = new $providerClass();
             $this->framework->register($provider);
         }

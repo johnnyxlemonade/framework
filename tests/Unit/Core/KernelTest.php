@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
+use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
+use Lemonade\Framework\Core\KernelFactory;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
@@ -189,6 +192,27 @@ final class KernelTest extends TestCase
         self::assertSame(404, $headResponse->getStatusCode());
     }
 
+    public function testProductionWarmCacheMissingRouteStillReturns404(): void
+    {
+        $this->warmHttpConfigCache();
+        $kernel = $this->kernel(false, Environment::Production);
+
+        $response = $kernel->run(new ServerRequest('GET', '/missing'));
+
+        self::assertSame(404, $response->getStatusCode());
+    }
+
+    public function testProductionWarmCacheNonHealthFailureStillReturns500(): void
+    {
+        $this->writeThrowingConfig(\RuntimeException::class, 'Boom from bootstrap');
+        $this->warmHttpConfigCache();
+        $kernel = $this->kernel(false, Environment::Production);
+
+        $response = $kernel->run(new ServerRequest('GET', '/anything'));
+
+        self::assertSame(500, $response->getStatusCode());
+    }
+
     public function testHandleCreatesRequestFromGlobalsWhenNullProvided(): void
     {
         $this->writeRoutingHeadFallbackTarget();
@@ -256,17 +280,32 @@ final class KernelTest extends TestCase
         self::assertSame(209, http_response_code());
     }
 
-    private function kernel(bool $debug): Kernel
+    public function testKernelFactoryWiresHealthFastPathForDefaultHealthRequest(): void
     {
         $context = new ApplicationContext(
             Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+
+        $kernel = (new KernelFactory())->create($context);
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+    }
+
+    private function kernel(bool $debug, Environment $environment = Environment::Testing): Kernel
+    {
+        $context = new ApplicationContext(
+            $environment,
             new Path($this->root),
             $debug ? DebugMode::enabled() : DebugMode::disabled(),
         );
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new Kernel($context, $container, $framework, new ResponseEmitter());
+        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
     }
 
     private function writeDefaultConfigFiles(): void
@@ -346,6 +385,18 @@ final class KernelTest extends TestCase
     {
         $path = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . $file;
         file_put_contents($path, $contents);
+    }
+
+    private function warmHttpConfigCache(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Production,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $framework = new Framework(new Container(), $context);
+
+        (new ConfigLoader())->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
     }
 
     private function deleteRecursive(string $path): void

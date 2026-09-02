@@ -11,23 +11,15 @@ final class ApiEndpointRegistrar
     public function __construct(
         private readonly Router $router,
         private readonly ApiEndpointRegistry $registry,
+        private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
     ) {}
 
     public function registerRoutes(string $prefix): void
     {
-        $prefix = $this->normalizePrefix($prefix);
-
         foreach ($this->registry->all() as $endpoint) {
             $this->router
-                ->map($endpoint->method(), $prefix . $endpoint->path(), $endpoint->handler())
+                ->map($endpoint->method(), $this->pathResolver->compose($prefix, $endpoint->path()), $endpoint->handler())
                 ->name($endpoint->name());
         }
-    }
-
-    private function normalizePrefix(string $prefix): string
-    {
-        $prefix = '/' . trim($prefix, '/');
-
-        return $prefix === '/' ? '' : rtrim($prefix, '/');
     }
 }

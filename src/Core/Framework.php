@@ -360,6 +360,7 @@ final class Framework
             $this->container->get(DispatchRequestHandler::class),
         );
 
+        $run->mark('middleware_resolved');
         $run->mark('middleware_enter');
         $response = $pipeline->handle($request);
         $run->mark('response_ready');
