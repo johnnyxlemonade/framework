@@ -1,6 +1,6 @@
 # Controllers
 
-Controllers extend `Lemonade\Framework\Core\Controller`.
+Controllers extend `Lemonade\Framework\Core\AbstractController`.
 
 A controller action may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
 
@@ -11,10 +11,10 @@ A controller action may return a PSR response directly. Scalar, stringable and `
 
 namespace App\Controllers;
 
-use Lemonade\Framework\Core\Controller;
+use Lemonade\Framework\Core\AbstractController;
 use Psr\Http\Message\ResponseInterface;
 
-final class HomeController extends Controller
+final class HomeController extends AbstractController
 {
     public function index(): ResponseInterface
     {
@@ -92,21 +92,27 @@ $this->breadcrumb();
 
 These helpers are convenience methods around configured framework services. They do not replace constructor injection for application services.
 
-`controllerService()` is intentionally narrower than constructor DI. Use it in base controllers for infrastructure or request context services only, for example a frontend view context. Concrete action controllers should receive their business dependencies through the constructor.
+`controllerService()` is intentionally narrower than constructor DI. Use it in application base controllers for infrastructure or request context services only. Concrete action controllers should receive their business dependencies through the constructor.
 
 ```php
-abstract class FrontendController extends Controller
-{
-    protected function frontendContext(): FrontendViewContext
-    {
-        /** @var FrontendViewContext $context */
-        $context = $this->controllerService(FrontendViewContext::class);
+use Lemonade\Framework\Core\AbstractController;
+use Psr\Http\Message\ResponseInterface;
 
-        return $context;
+abstract class AppController extends AbstractController
+{
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function page(string $view, array $data = [], int $status = 200): ResponseInterface
+    {
+        return $this->html(
+            $this->view()->template('layouts.app', $view, $data),
+            $status,
+        );
     }
 }
 
-final class DocumentationController extends FrontendController
+final class DocumentationController extends AppController
 {
     public function __construct(
         private readonly DocumentationCatalogInterface $documentation,

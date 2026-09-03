@@ -140,17 +140,17 @@ return static function (Router $router): void {
 
 ### Controller
 
-Controllers extend `Lemonade\Framework\Core\Controller`.
+Controllers extend `Lemonade\Framework\Core\AbstractController`.
 
 ```php
 <?php
 
 namespace App\Controllers;
 
-use Lemonade\Framework\Core\Controller;
+use Lemonade\Framework\Core\AbstractController;
 use Psr\Http\Message\ResponseInterface;
 
-final class HomeController extends Controller
+final class HomeController extends AbstractController
 {
     public function index(): ResponseInterface
     {
