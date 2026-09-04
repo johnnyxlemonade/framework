@@ -9,6 +9,7 @@ on:
       - 'bin/**'
       - 'composer.json'
       - 'phpunit.xml.dist'
+      - 'phpunit.property.xml.dist'
       - '.github/workflows/**'
 
   pull_request:
@@ -18,6 +19,7 @@ on:
       - 'bin/**'
       - 'composer.json'
       - 'phpunit.xml.dist'
+      - 'phpunit.property.xml.dist'
       - '.github/workflows/**'
 
   workflow_dispatch:
@@ -71,3 +73,6 @@ jobs:
 
       - name: Run PHPUnit
         run: composer test:ci
+
+      - name: Run property tests
+        run: composer test:property
