@@ -1,0 +1,20 @@
+{
+    "$schema": "./vendor/infection/infection/resources/schema.json",
+    "source": {
+        "directories": [
+            "src"
+        ]
+    },
+    "phpUnit": {
+        "configDir": ".infection"
+    },
+    "timeout": 10,
+    "tmpDir": "build/infection/tmp",
+    "logs": {
+        "summary": "build/infection/routing-summary.log",
+        "json": "build/infection/routing-report.json"
+    },
+    "mutators": {
+        "@default": true
+    }
+}

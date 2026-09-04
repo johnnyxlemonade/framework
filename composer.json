@@ -49,6 +49,7 @@
     "friendsofphp/php-cs-fixer": "^v3.94",
     "giorgiosironi/eris": "^1.1.0",
     "guzzlehttp/guzzle": "^7.10 || ^8.0",
+    "infection/infection": "0.28.1",
     "phpstan/phpstan": "^2.1",
     "phpstan/phpstan-strict-rules": "^2.0",
     "phpunit/phpunit": "^10.5 || ^11.0"
@@ -88,6 +89,9 @@
     "process-timeout": 0,
     "platform": {
       "php": "8.1.28"
+    },
+    "allow-plugins": {
+      "infection/extension-installer": false
     }
   },
   "scripts": {
@@ -124,6 +128,10 @@
     ],
     "test:property": [
       "@php vendor/bin/phpunit --configuration phpunit.property.xml.dist"
+    ],
+    "test:mutation:routing": [
+      "@php -d xdebug.mode=coverage vendor/bin/phpunit --configuration .infection/phpunit.xml.dist --coverage-xml build/infection/coverage/coverage-xml --log-junit build/infection/coverage/junit.xml",
+      "@php vendor/bin/infection --configuration=infection.routing.json5 --threads=max --show-mutations --filter=src/Routing/Router.php,src/Routing/RouteCollection.php --skip-initial-tests --coverage=build/infection/coverage"
     ],
     "test:ci": [
       "@php vendor/bin/phpunit --colors=always"
@@ -168,6 +176,7 @@
     "composer:validate": "Validate composer.json in strict mode.",
     "test": "Run the PHPUnit test suite.",
     "test:property": "Run the property-based test suite.",
+    "test:mutation:routing": "Run Infection mutation testing for Router and RouteCollection using the routing unit and property suites.",
     "test:ci": "Run the PHPUnit test suite with CI-friendly output.",
     "stan": "Run PHPStan static analysis.",
     "stan:ci": "Run PHPStan static analysis for GitHub Actions with an increased memory limit.",

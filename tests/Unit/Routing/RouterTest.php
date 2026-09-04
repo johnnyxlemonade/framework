@@ -160,6 +160,34 @@ final class RouterTest extends TestCase
         self::assertSame('POST', $group->routes()[1]->method());
     }
 
+    public function testGroupPropagatesExceptionAndCleansUpPrefixForSubsequentRoutes(): void
+    {
+        $router = new Router();
+
+        try {
+            $router->group('/admin', static function (Router $router): void {
+                $router->get('/users', 'UserController@index');
+
+                throw new \RuntimeException('group failed');
+            });
+
+            self::fail('Expected group builder exception to be propagated.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('group failed', $exception->getMessage());
+        }
+
+        $route = $router->getNamed('status.check', '/status', 'StatusController@show');
+
+        self::assertSame('/status', $route->path());
+        self::assertSame('status.check', $route->name());
+        self::assertSame('/status', $router->url('status.check'));
+
+        $match = $router->match(new ServerRequest('GET', '/status'));
+
+        self::assertSame('App\\Controllers\\StatusController', $match->controller());
+        self::assertSame('show', $match->action());
+    }
+
     public function testLocalizedGroupRegistersBaseAndLocalizedNamedRoutes(): void
     {
         $router = new Router();
@@ -174,6 +202,77 @@ final class RouterTest extends TestCase
         self::assertSame('/cs', $router->url('localized.home.index', ['locale' => 'cs']));
         self::assertSame('/documentation/abc', $router->url('documentation.show', ['slug' => 'abc']));
         self::assertSame('/cs/documentation/abc', $router->url('localized.documentation.show', ['locale' => 'cs', 'slug' => 'abc']));
+    }
+
+    public function testLocalizedGroupPropagatesExceptionAndCleansUpPrefixesForSubsequentNamedRoutes(): void
+    {
+        $router = new Router();
+        $invocations = 0;
+
+        try {
+            $router->localizedGroup(static function (Router $router) use (&$invocations): void {
+                $invocations++;
+                $router->getNamed(
+                    $invocations === 1 ? 'home.index' : 'localized.home.index',
+                    '',
+                    'HomeController@index',
+                );
+
+                if ($invocations === 2) {
+                    throw new \RuntimeException('localized group failed');
+                }
+            });
+
+            self::fail('Expected localizedGroup builder exception to be propagated.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('localized group failed', $exception->getMessage());
+        }
+
+        self::assertSame(2, $invocations);
+
+        $route = $router->getNamed('status.check', '/status', 'StatusController@show');
+
+        self::assertSame('status.check', $route->name());
+        self::assertSame('/status', $route->path());
+        self::assertSame('/status', $router->url('status.check'));
+
+        $this->expectException(RouteNotFoundException::class);
+        $router->url('localized.status.check', ['locale' => 'cs']);
+    }
+
+    public function testLocalizedGroupPlainAndLocalizedSubsetsExcludePreviouslyRegisteredRoutes(): void
+    {
+        $router = new Router();
+        $router->getNamed('status.check', '/status', 'StatusController@show');
+
+        $group = $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+        });
+
+        $plainNames = array_map(
+            static function (\Lemonade\Framework\Routing\Route $route): string {
+                $name = $route->name();
+
+                self::assertIsString($name);
+
+                return $name;
+            },
+            $group->plain()->routes(),
+        );
+        $localizedNames = array_map(
+            static function (\Lemonade\Framework\Routing\Route $route): string {
+                $name = $route->name();
+
+                self::assertIsString($name);
+
+                return $name;
+            },
+            $group->localized()->routes(),
+        );
+
+        self::assertSame(['home.index', 'contact.index'], $plainNames);
+        self::assertSame(['localized.home.index', 'localized.contact.index'], $localizedNames);
     }
 
     public function testLocalizedGroupRespectsGroupPrefix(): void
@@ -362,6 +461,79 @@ final class RouterTest extends TestCase
         self::assertSame('/cs', $router->url('localized.home.index', ['lang' => 'cs']));
     }
 
+    public function testLocalizedGroupSupportsCustomLocalizedPrefixHappyPath(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(
+            routeNamePrefix: 'i18n.',
+            routePrefix: '/content/{lang}',
+            localeParameter: 'lang',
+            supportedLocales: ['cs', 'en'],
+        );
+
+        $group = $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('docs.show', '/docs/{slug}', 'DocsController@show');
+        });
+
+        self::assertSame(['/docs/{slug}'], array_map(
+            static fn(\Lemonade\Framework\Routing\Route $route): string => $route->path(),
+            $group->plain()->routes(),
+        ));
+        self::assertSame(['/content/{lang}/docs/{slug}'], array_map(
+            static fn(\Lemonade\Framework\Routing\Route $route): string => $route->path(),
+            $group->localized()->routes(),
+        ));
+
+        self::assertSame('/docs/intro', $router->url('docs.show', ['slug' => 'intro']));
+        self::assertSame('/content/cs/docs/intro', $router->url('i18n.docs.show', ['lang' => 'cs', 'slug' => 'intro']));
+
+        $match = $router->match(new ServerRequest('GET', '/content/cs/docs/intro'));
+
+        self::assertSame('App\\Controllers\\DocsController', $match->controller());
+        self::assertSame('show', $match->action());
+        self::assertSame(['lang' => 'cs', 'slug' => 'intro'], $match->params());
+    }
+
+    public function testConfigureLocalizedRoutesAcceptsExactCustomLocalePlaceholder(): void
+    {
+        $router = new Router();
+        $router->configureLocalizedRoutes(
+            routePrefix: '/content/{lang}',
+            localeParameter: 'lang',
+        );
+
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed('docs.show', '/docs/{slug}', 'DocsController@show');
+        });
+
+        self::assertSame(
+            '/content/cs/docs/intro',
+            $router->url('localized.docs.show', ['lang' => 'cs', 'slug' => 'intro']),
+        );
+    }
+
+    public function testConfigureLocalizedRoutesRejectsCustomPrefixMissingOpeningBraceInLocalePlaceholder(): void
+    {
+        $router = new Router();
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->configureLocalizedRoutes(
+            routePrefix: '/content/lang}',
+            localeParameter: 'lang',
+        );
+    }
+
+    public function testConfigureLocalizedRoutesRejectsCustomPrefixMissingClosingBraceInLocalePlaceholder(): void
+    {
+        $router = new Router();
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->configureLocalizedRoutes(
+            routePrefix: '/content/{lang',
+            localeParameter: 'lang',
+        );
+    }
+
     public function testLocalizedGroupThrowsWhenRoutePrefixDoesNotContainConfiguredLocaleParameter(): void
     {
         $router = new Router();
@@ -380,6 +552,16 @@ final class RouterTest extends TestCase
         self::assertSame('/admin', $router->url('admin.dashboard'));
         $this->expectException(RouteNotFoundException::class);
         $router->url('localized.admin.dashboard', ['locale' => 'cs']);
+    }
+
+    public function testMapNamedIsPublicReturnsNamedRouteAndSupportsUrlGeneration(): void
+    {
+        $router = new Router();
+        $route = $router->mapNamed('users.show', HttpMethod::GET, '/users/{id}', 'UserController@show');
+
+        self::assertSame('GET', $route->method());
+        self::assertSame('users.show', $route->name());
+        self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
     }
 
     public function testMatchFindsExactRoute(): void
@@ -663,6 +845,51 @@ final class RouterTest extends TestCase
         self::assertSame($get->params(), $head->params());
     }
 
+    public function testConventionRoutingResolvesTwoSegmentControllerActionPath(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
+
+        $match = $router->match(new ServerRequest('GET', '/users/show'));
+
+        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\UsersController', $match->controller());
+        self::assertSame('show', $match->action());
+        self::assertSame([], $match->params());
+    }
+
+    public function testConventionRoutingResolvesHyphenatedControllerSegment(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
+
+        $match = $router->match(new ServerRequest('GET', '/admin-users/show'));
+
+        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\AdminUsersController', $match->controller());
+        self::assertSame('show', $match->action());
+    }
+
+    public function testConventionRoutingResolvesUnderscoreControllerSegment(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
+
+        $match = $router->match(new ServerRequest('GET', '/admin_users/show'));
+
+        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\AdminUsersController', $match->controller());
+        self::assertSame('show', $match->action());
+    }
+
+    public function testConventionRoutingResolvesNestedControllerPath(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
+
+        $match = $router->match(new ServerRequest('GET', '/backoffice/users/show'));
+
+        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\Backoffice\\UsersController', $match->controller());
+        self::assertSame('show', $match->action());
+    }
+
     public function testAllowedMethodsForPathIncludesHeadAndOptionsForGetRoute(): void
     {
         $router = new Router();
@@ -702,6 +929,25 @@ final class RouterTest extends TestCase
         $router->post('/users', 'UserController@store');
 
         self::assertSame(['GET', 'HEAD', 'POST', 'OPTIONS'], $router->allowedMethodsForPath('/users'));
+    }
+
+    public function testAllowedMethodsForPathDoesNotReturnDuplicateMethodsWhenMultipleRoutesMatchSamePath(): void
+    {
+        $router = new Router();
+        $router->get('/docs/{slug}', 'DocsController@show');
+        $router->get('/docs/{slug:any}', 'DocsController@showNested');
+        $router->post('/docs/{slug:any}', 'DocsController@storeNested');
+
+        self::assertSame(['GET', 'HEAD', 'POST', 'OPTIONS'], $router->allowedMethodsForPath('/docs/intro'));
+    }
+
+    public function testAllowedMethodsForPathDoesNotReturnDuplicateHeadWhenGetAndHeadRoutesMatchSamePath(): void
+    {
+        $router = new Router();
+        $router->get('/docs/{slug}', 'DocsController@show');
+        $router->head('/docs/{slug:any}', 'DocsController@headNested');
+
+        self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/docs/intro'));
     }
 
     public function testAllowedMethodsForPathReturnsEmptyForMissingPath(): void

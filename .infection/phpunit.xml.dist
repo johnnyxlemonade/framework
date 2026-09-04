@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="../vendor/autoload.php"
+         colors="true"
+         cacheDirectory="../build/phpunit-infection">
+    <source>
+        <include>
+            <file>../src/Routing/Router.php</file>
+            <file>../src/Routing/RouteCollection.php</file>
+        </include>
+    </source>
+    <testsuites>
+        <testsuite name="Lemonade Framework Routing Unit">
+            <directory>../tests/Unit/Routing</directory>
+        </testsuite>
+        <testsuite name="Lemonade Framework Routing Property">
+            <directory>../tests/Property/Routing</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
