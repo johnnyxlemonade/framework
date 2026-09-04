@@ -3,11 +3,10 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true"
-         cacheDirectory="build/phpunit">
+         cacheDirectory="build/phpunit-property">
     <testsuites>
-        <testsuite name="Lemonade Framework">
-            <directory>tests</directory>
-            <exclude>tests/Property</exclude>
+        <testsuite name="Lemonade Framework Property">
+            <directory>tests/Property</directory>
         </testsuite>
     </testsuites>
 </phpunit>

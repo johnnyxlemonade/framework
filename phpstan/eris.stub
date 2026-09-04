@@ -1,0 +1,166 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Eris;
+
+use Eris\Generator\GeneratedValue;
+use Eris\Generator\GeneratedValueSingle;
+
+/**
+ * @template T
+ */
+interface Generator
+{
+    /**
+     * @param int $size
+     * @param mixed $rand
+     * @return GeneratedValueSingle<T>
+     */
+    public function __invoke($size, $rand);
+
+    /**
+     * @param GeneratedValue<T> $element
+     * @return GeneratedValue<T>
+     */
+    public function shrink(GeneratedValue $element);
+}
+
+namespace Eris\Generator;
+
+/**
+ * @template T
+ * @extends \IteratorAggregate<int, GeneratedValueSingle<T>>
+ */
+interface GeneratedValue extends \IteratorAggregate, \Countable
+{
+    /**
+     * @param callable(T):mixed $applyToValue
+     * @param string|null $generatorName
+     * @return GeneratedValue<mixed>
+     */
+    public function map(callable $applyToValue, $generatorName);
+
+    /**
+     * @return mixed
+     */
+    public function input();
+
+    /**
+     * @return T
+     */
+    public function unbox();
+}
+
+/**
+ * @template T
+ * @implements GeneratedValue<T>
+ */
+final class GeneratedValueSingle implements GeneratedValue
+{
+    /**
+     * @template TValue
+     * @param TValue $value
+     * @param mixed $input
+     * @param string|null $generatorName
+     * @return self<TValue>
+     */
+    public static function fromValueAndInput($value, $input, $generatorName = null) {}
+
+    /**
+     * @template TValue
+     * @param TValue $value
+     * @param string|null $generatorName
+     * @return self<TValue>
+     */
+    public static function fromJustValue($value, $generatorName = null) {}
+
+    /**
+     * @return mixed
+     */
+    public function input() {}
+
+    /**
+     * @return T
+     */
+    public function unbox() {}
+
+    /**
+     * @param callable(T):mixed $applyToValue
+     * @param string|null $generatorName
+     * @return self<mixed>
+     */
+    public function map(callable $applyToValue, $generatorName) {}
+
+    /**
+     * @return \Traversable<int, GeneratedValueSingle<T>>
+     */
+    public function getIterator(): \Traversable {}
+
+    public function count(): int {}
+
+    /**
+     * @param self<T> $value
+     * @return GeneratedValueOptions<T>
+     */
+    public function add(GeneratedValueSingle $value) {}
+}
+
+/**
+ * @template T
+ * @implements GeneratedValue<T>
+ */
+class GeneratedValueOptions implements GeneratedValue
+{
+    /**
+     * @param list<GeneratedValueSingle<T>> $generatedValues
+     */
+    public function __construct(array $generatedValues) {}
+
+    /**
+     * @template TValue
+     * @param GeneratedValue<TValue> $value
+     * @return GeneratedValueSingle<TValue>
+     */
+    public static function mostPessimisticChoice(GeneratedValue $value) {}
+
+    /**
+     * @return GeneratedValueSingle<T>
+     */
+    public function first() {}
+
+    /**
+     * @return GeneratedValueSingle<T>
+     */
+    public function last() {}
+
+    /**
+     * @param callable(T):mixed $applyToValue
+     * @param string|null $generatorName
+     * @return self<mixed>
+     */
+    public function map(callable $applyToValue, $generatorName) {}
+
+    /**
+     * @param GeneratedValueSingle<T> $value
+     * @return self<T>
+     */
+    public function add(GeneratedValueSingle $value) {}
+
+    /**
+     * @return T
+     */
+    public function unbox() {}
+
+    /**
+     * @return mixed
+     */
+    public function input() {}
+
+    /**
+     * @return \Traversable<int, GeneratedValueSingle<T>>
+     */
+    public function getIterator(): \Traversable {}
+
+    public function count(): int {}
+}

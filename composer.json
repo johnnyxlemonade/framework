@@ -47,6 +47,7 @@
   "require-dev": {
     "code-lts/doctum": "^5.6",
     "friendsofphp/php-cs-fixer": "^v3.94",
+    "giorgiosironi/eris": "^1.1.0",
     "guzzlehttp/guzzle": "^7.10 || ^8.0",
     "phpstan/phpstan": "^2.1",
     "phpstan/phpstan-strict-rules": "^2.0",
@@ -121,6 +122,9 @@
     "test": [
       "@php vendor/bin/phpunit"
     ],
+    "test:property": [
+      "@php vendor/bin/phpunit --configuration phpunit.property.xml.dist"
+    ],
     "test:ci": [
       "@php vendor/bin/phpunit --colors=always"
     ],
@@ -139,6 +143,7 @@
     "qa": [
       "@cs:check",
       "@stan",
+      "@test:property",
       "@test"
     ],
     "check": [
@@ -162,12 +167,13 @@
     "autoload:apcu": "Regenerate optimized Composer autoload files with APCu support.",
     "composer:validate": "Validate composer.json in strict mode.",
     "test": "Run the PHPUnit test suite.",
+    "test:property": "Run the property-based test suite.",
     "test:ci": "Run the PHPUnit test suite with CI-friendly output.",
     "stan": "Run PHPStan static analysis.",
     "stan:ci": "Run PHPStan static analysis for GitHub Actions with an increased memory limit.",
     "cs:check": "Check coding standards using PHP CS Fixer without modifying files.",
     "cs:fix": "Fix coding standards using PHP CS Fixer.",
-    "qa": "Run coding standards check, static analysis and tests.",
+    "qa": "Run coding standards check, static analysis, property tests, and the PHPUnit test suite.",
     "check:platform": "Check installed platform requirements.",
     "check": "Run full project validation."
   },

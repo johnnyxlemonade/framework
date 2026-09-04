@@ -312,9 +312,10 @@ final class Router
         $used = [];
 
         $url = preg_replace_callback(
-            '/\{([a-zA-Z_][a-zA-Z0-9_]*)(?::any)?\}/',
-            static function (array $matches) use ($params, &$used): string {
+            '/\{([a-zA-Z_][a-zA-Z0-9_]*)(:any)?\}/',
+            function (array $matches) use ($params, &$used): string {
                 $key = $matches[1];
+                $isWildcard = isset($matches[2]);
 
                 if (!array_key_exists($key, $params)) {
                     throw new MissingRouteParameterException($key);
@@ -331,12 +332,10 @@ final class Router
 
                 $used[] = $key;
 
-                return implode(
-                    '/',
-                    array_map(
-                        static fn(string $segment): string => rawurlencode($segment),
-                        explode('/', trim((string) $value, '/')),
-                    ),
+                return $this->encodeRouteParameter(
+                    key: $key,
+                    value: (string) $value,
+                    wildcard: $isWildcard,
                 );
             },
             $path,
@@ -356,6 +355,56 @@ final class Router
         }
 
         return $url . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+    }
+
+    private function encodeRouteParameter(string $key, string $value, bool $wildcard): string
+    {
+        if ($wildcard) {
+            return $this->encodeWildcardRouteParameter($key, $value);
+        }
+
+        return $this->encodeSimpleRouteParameter($key, $value);
+    }
+
+    private function encodeSimpleRouteParameter(string $key, string $value): string
+    {
+        if ($value === '') {
+            throw new \InvalidArgumentException(sprintf(
+                'Route parameter "%s" must resolve to exactly one non-empty logical path segment.',
+                $key,
+            ));
+        }
+
+        return rawurlencode($value);
+    }
+
+    private function encodeWildcardRouteParameter(string $key, string $value): string
+    {
+        if ($value === '') {
+            throw new \InvalidArgumentException(sprintf(
+                'Wildcard route parameter "%s" must resolve to one or more non-empty logical path segments.',
+                $key,
+            ));
+        }
+
+        $segments = explode('/', $value);
+
+        foreach ($segments as $segment) {
+            if ($segment === '') {
+                throw new \InvalidArgumentException(sprintf(
+                    'Wildcard route parameter "%s" must not contain empty logical path segments.',
+                    $key,
+                ));
+            }
+        }
+
+        return implode(
+            '/',
+            array_map(
+                static fn(string $segment): string => rawurlencode($segment),
+                $segments,
+            ),
+        );
     }
 
     private function resolveConventionRoute(string $path): ?RouteMatch

@@ -404,6 +404,76 @@ final class RouterTest extends TestCase
         self::assertSame(['id' => '99'], $match->params());
     }
 
+    public function testMatchDecodesSimplePathParameterRoundTripRegressionCases(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value}', 'ItemController@show');
+
+        $cases = [
+            '@' => '/items/%40',
+            ' ' => '/items/%20',
+            'č' => '/items/%C4%8D',
+            '%' => '/items/%25',
+            '+' => '/items/%2B',
+            '%25' => '/items/%2525',
+        ];
+
+        foreach ($cases as $expected => $url) {
+            self::assertSame($url, $router->url('items.show', ['value' => $expected]));
+
+            $match = $router->match(new ServerRequest('GET', $url));
+
+            self::assertSame(['value' => $expected], $match->params());
+        }
+    }
+
+    public function testSimpleRouteParameterRoundTripRegressionCasesWithContractA(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value}', 'ItemController@show');
+
+        $cases = [
+            'a/b' => '/items/a%2Fb',
+            '/' => '/items/%2F',
+            'a%2Fb' => '/items/a%252Fb',
+            '+' => '/items/%2B',
+            "\u{010D}/a" => '/items/%C4%8D%2Fa',
+        ];
+
+        foreach ($cases as $input => $expectedUrl) {
+            $url = $router->url('items.show', ['value' => $input]);
+            self::assertSame($expectedUrl, $url);
+
+            $request = new ServerRequest('GET', $url);
+            self::assertSame($expectedUrl, $request->getUri()->getPath());
+
+            $match = $router->match($request);
+
+            self::assertSame(['value' => $input], $match->params());
+        }
+    }
+
+    public function testSimpleRouteParameterUrlGenerationRejectsEmptyString(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value}', 'ItemController@show');
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->url('items.show', ['value' => '']);
+    }
+
+    public function testMatchDecodesEncodedSlashWithoutChangingSegmentBoundaries(): void
+    {
+        $router = new Router();
+        $router->get('/items/{value}/meta', 'ItemController@meta');
+
+        $match = $router->match(new ServerRequest('GET', '/items/%2F/meta'));
+
+        self::assertSame('App\\Controllers\\ItemController', $match->controller());
+        self::assertSame('meta', $match->action());
+        self::assertSame(['value' => '/'], $match->params());
+    }
+
     public function testMatchExtractsWildcardParameter(): void
     {
         $router = new Router();
@@ -412,6 +482,117 @@ final class RouterTest extends TestCase
         $match = $router->match(new ServerRequest('GET', '/docs/guides/install/windows'));
 
         self::assertSame(['slug' => 'guides/install/windows'], $match->params());
+    }
+
+    public function testMatchWildcardParameterStillCapturesMultipleDecodedSegments(): void
+    {
+        $router = new Router();
+        $router->get('/docs/{slug:any}/edit', 'DocsController@edit');
+
+        $match = $router->match(new ServerRequest('GET', '/docs/guides/%C4%8Desk%C3%BD/%2F/edit'));
+
+        self::assertSame('App\\Controllers\\DocsController', $match->controller());
+        self::assertSame('edit', $match->action());
+        self::assertSame(['slug' => 'guides/český//'], $match->params());
+    }
+
+    public function testWildcardRouteParameterRoundTripRegressionCasesWithContractA(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+
+        $cases = [
+            'a/b' => '/items/a/b',
+            "a/\u{010D}/b" => '/items/a/%C4%8D/b',
+            'a%2Fb' => '/items/a%252Fb',
+        ];
+
+        foreach ($cases as $input => $expectedUrl) {
+            $url = $router->url('items.show', ['value' => $input]);
+            self::assertSame($expectedUrl, $url);
+
+            $request = new ServerRequest('GET', $url);
+            self::assertSame($expectedUrl, $request->getUri()->getPath());
+
+            $match = $router->match($request);
+
+            self::assertSame(['value' => $input], $match->params());
+        }
+    }
+
+    public function testWildcardRouteParameterUrlGenerationRejectsEmptyString(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->url('items.show', ['value' => '']);
+    }
+
+    public function testWildcardRouteParameterUrlGenerationRejectsSlashOnlyValue(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->url('items.show', ['value' => '/']);
+    }
+
+    public function testWildcardRouteParameterUrlGenerationRejectsLeadingSlash(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->url('items.show', ['value' => '/a']);
+    }
+
+    public function testWildcardRouteParameterUrlGenerationRejectsTrailingSlash(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->url('items.show', ['value' => 'a/']);
+    }
+
+    public function testWildcardRouteParameterUrlGenerationRejectsEmptyIntermediateSegment(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->url('items.show', ['value' => 'a//b']);
+    }
+
+    public function testWildcardRouteParameterUrlGenerationRejectsDoubleSlashOnlyValue(): void
+    {
+        $router = new Router();
+        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+
+        $this->expectException(InvalidArgumentException::class);
+        $router->url('items.show', ['value' => '//']);
+    }
+
+    public function testMatchStaticLiteralRouteMatchesEquivalentEncodedRequestPath(): void
+    {
+        $cases = [
+            '/č' => '/%C4%8D',
+            '/hello world' => '/hello%20world',
+            '/🙂' => '/%F0%9F%99%82',
+            '/@' => '/@',
+        ];
+
+        foreach ($cases as $registeredPath => $requestPath) {
+            $router = new Router();
+            $router->get($registeredPath, 'CatalogController@index');
+
+            $match = $router->match(new ServerRequest('GET', $requestPath));
+
+            self::assertSame('App\\Controllers\\CatalogController', $match->controller());
+            self::assertSame('index', $match->action());
+            self::assertSame([], $match->params());
+        }
     }
 
     public function testMatchThrowsRouteNotFoundExceptionWhenNoRouteMatches(): void

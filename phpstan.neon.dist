@@ -10,6 +10,12 @@ parameters:
     # Use the highest available PHPStan rule level.
     level: 10
 
+    # Vendor Psalm/PHPDoc metadata for Eris does not model the actual
+    # runtime shrink iterator shape used by the property harness.
+    # Keep the override local and narrow to this dependency boundary.
+    stubFiles:
+        - phpstan/eris.stub
+
     # Analyse production code, tests, and public usage examples.
     # An example that fails static analysis is not a valid example.
     paths:

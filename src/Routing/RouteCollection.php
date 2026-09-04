@@ -44,8 +44,8 @@ final class RouteCollection
             return $this->toMatch($this->routes[$methodName][$normalizedPath]);
         }
 
-        foreach ($this->routes[$methodName] as $routePath => $route) {
-            $params = $this->extractPathParams($route, $normalizedPath);
+        foreach ($this->routes[$methodName] as $route) {
+            $params = $this->matchRoutePath($route, $normalizedPath);
             if ($params !== null) {
                 return $this->toMatch($route, $params);
             }
@@ -153,35 +153,37 @@ final class RouteCollection
 
     private function pathMatchesRoute(Route $route, string $path): bool
     {
-        $routePath = $route->path();
-
-        if ($routePath === $path) {
-            return true;
-        }
-
-        return $this->extractPathParams($route, $path) !== null;
+        return $this->matchRoutePath($route, $path) !== null;
     }
 
     /**
      * @return array<string, string>|null
      */
-    private function extractPathParams(Route $route, string $actualPath): ?array
+    private function matchRoutePath(Route $route, string $actualPath): ?array
     {
         $routePath = $route->path();
 
-        if (!str_contains($routePath, '{')) {
-            return null;
+        if ($routePath === $actualPath) {
+            return [];
         }
 
-        $routeSegments = array_values(array_filter(
-            explode('/', trim($routePath, '/')),
-            static fn(string $segment): bool => $segment !== '',
-        ));
-        $pathSegments = array_values(array_filter(
-            explode('/', trim($actualPath, '/')),
-            static fn(string $segment): bool => $segment !== '',
-        ));
+        $routeSegments = $this->splitRouteSegments($routePath);
+        $pathSegments = $this->splitDecodedPathSegments($actualPath);
 
+        if (!str_contains($routePath, '{')) {
+            return $routeSegments === $pathSegments ? [] : null;
+        }
+
+        return $this->extractPathParams($route, $routeSegments, $pathSegments);
+    }
+
+    /**
+     * @param list<string> $routeSegments
+     * @param list<string> $pathSegments
+     * @return array<string, string>|null
+     */
+    private function extractPathParams(Route $route, array $routeSegments, array $pathSegments): ?array
+    {
         $params = [];
         $pathIndex = 0;
         $routeCount = count($routeSegments);
@@ -237,6 +239,36 @@ final class RouteCollection
         }
 
         return $params;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitRouteSegments(string $path): array
+    {
+        return $this->splitPathSegments($path);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitDecodedPathSegments(string $path): array
+    {
+        return array_map(
+            static fn(string $segment): string => rawurldecode($segment),
+            $this->splitPathSegments($path),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitPathSegments(string $path): array
+    {
+        return array_values(array_filter(
+            explode('/', trim($path, '/')),
+            static fn(string $segment): bool => $segment !== '',
+        ));
     }
 
     private function parameterValueMatchesConstraint(Route $route, string $name, string $value): bool
