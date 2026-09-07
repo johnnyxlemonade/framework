@@ -24,6 +24,8 @@ final class BenchmarkResponseInjectorTest extends TestCase
 
         self::assertStringContainsString('benchmark:', (string) $response->getBody());
         self::assertTrue($response->hasHeader('X-Benchmark-Time-Ms'));
+        self::assertSame('0.000', $response->getHeaderLine('X-Benchmark-Db-Time-Ms'));
+        self::assertSame('0', $response->getHeaderLine('X-Benchmark-Db-Query-Count'));
     }
 
     public function testInjectSkipsHtmlCommentWhenDisabled(): void
@@ -37,5 +39,19 @@ final class BenchmarkResponseInjectorTest extends TestCase
         );
 
         self::assertSame('<html></html>', (string) $response->getBody());
+    }
+
+    public function testInjectAddsDatabaseSummaryHeaders(): void
+    {
+        $injector = new BenchmarkResponseInjector(new BenchmarkConfig(false));
+        $run = new BenchmarkRun();
+        $run->recordDatabaseConnection(1.25);
+        $run->recordDatabaseQuery('SELECT 1', [], 0.5, false);
+
+        $response = $injector->inject(new Response(), $run);
+
+        self::assertSame('1.250', $response->getHeaderLine('X-Benchmark-Db-Connection-Ms'));
+        self::assertSame('0.500', $response->getHeaderLine('X-Benchmark-Db-Time-Ms'));
+        self::assertSame('1', $response->getHeaderLine('X-Benchmark-Db-Query-Count'));
     }
 }

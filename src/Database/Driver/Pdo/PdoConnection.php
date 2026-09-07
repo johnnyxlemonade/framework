@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Database\Driver\Pdo;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PDO;
 use PDOException;
 use PDOStatement;
@@ -21,6 +22,8 @@ final class PdoConnection implements ConnectionInterface
 
     public function __construct(
         private readonly DatabaseConfig $config,
+        private readonly ?Benchmark $benchmark = null,
+        private readonly bool $captureQueryDetails = false,
     ) {}
 
     public function pdo(): PDO
@@ -28,6 +31,8 @@ final class PdoConnection implements ConnectionInterface
         if ($this->connection instanceof PDO) {
             return $this->connection;
         }
+
+        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
 
         try {
             $this->connection = new PDO(
@@ -38,6 +43,10 @@ final class PdoConnection implements ConnectionInterface
             );
         } catch (Throwable $exception) {
             throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
+        } finally {
+            if ($this->benchmark !== null) {
+                $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
+            }
         }
 
         return $this->connection;
@@ -214,8 +223,13 @@ final class PdoConnection implements ConnectionInterface
      */
     public function execute(string $sql, array $bindings = []): PDOStatement
     {
+        $startedAt = 0.0;
+
         try {
-            $statement = $this->pdo()->prepare($sql);
+            $pdo = $this->pdo();
+            $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+
+            $statement = $pdo->prepare($sql);
 
             if (!$statement instanceof PDOStatement) {
                 throw DatabaseException::queryFailed($sql, 'Unable to prepare PDO statement.');
@@ -230,6 +244,15 @@ final class PdoConnection implements ConnectionInterface
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
         } catch (Throwable $exception) {
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
+        } finally {
+            if ($this->benchmark !== null && $startedAt > 0.0) {
+                $this->benchmark->recordDatabaseQuery(
+                    $sql,
+                    $bindings,
+                    (microtime(true) - $startedAt) * 1000,
+                    $this->captureQueryDetails,
+                );
+            }
         }
     }
 

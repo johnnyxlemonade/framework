@@ -9,6 +9,7 @@ use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Exception\DatabaseException;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -120,6 +121,46 @@ final class PdoConnectionTest extends TestCase
             ],
             $rows,
         );
+    }
+
+    public function testBenchmarkCapturesDirectSelectStatementAndCursorExecutions(): void
+    {
+        $benchmark = new Benchmark();
+        $connection = new PdoConnection(
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dsn' => 'sqlite::memory:',
+            ]),
+            $benchmark,
+            true,
+        );
+        $this->prepareUsers($connection);
+        $run = $benchmark->start();
+
+        $connection->select('SELECT id FROM users WHERE name = ?', ['Alice']);
+        $connection->statement('UPDATE users SET name = ? WHERE id = ?', ['Alice', 1]);
+        iterator_to_array($connection->cursor('SELECT id FROM users'));
+
+        $database = $run->database();
+
+        self::assertSame(3, $database['query_count']);
+        self::assertCount(3, $database['queries']);
+        self::assertSame('SELECT id FROM users WHERE name = ?', $database['queries'][0]['sql']);
+        self::assertSame(['Alice'], $database['queries'][0]['bindings']);
+
+        $lazyBenchmark = new Benchmark();
+        $lazyConnection = new PdoConnection(
+            DatabaseConfig::fromArray([
+                'driver' => 'pdo',
+                'dsn' => 'sqlite::memory:',
+            ]),
+            $lazyBenchmark,
+        );
+        $lazyRun = $lazyBenchmark->start();
+        $lazyConnection->select('SELECT 1');
+
+        self::assertGreaterThan(0.0, $lazyRun->database()['connection_ms']);
+        self::assertSame(1, $lazyRun->database()['query_count']);
     }
 
     public function testPdoOptionsAreNormalizedAndMergedWithDefaults(): void

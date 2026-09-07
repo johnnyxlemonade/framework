@@ -33,6 +33,17 @@ final class BenchmarkRun
      */
     private array $marks = [];
 
+    private float $databaseConnectionMs = 0.0;
+
+    private float $databaseQueryMs = 0.0;
+
+    private int $databaseQueryCount = 0;
+
+    /**
+     * @var list<array{sql:string,bindings:array<int|string, mixed>,elapsed_ms:float}>
+     */
+    private array $databaseQueries = [];
+
     /**
      * @param array<string, scalar|array<int|string, mixed>|null> $context
      */
@@ -84,6 +95,53 @@ final class BenchmarkRun
         if (is_scalar($value) || $value === null || is_array($value)) {
             $this->context[$key] = $value;
         }
+    }
+
+    /**
+     * @param array<int|string, mixed> $bindings
+     */
+    public function recordDatabaseQuery(
+        string $sql,
+        array $bindings,
+        float $elapsedMs,
+        bool $captureDetails,
+    ): void {
+        $elapsedMs = max(0.0, $elapsedMs);
+        $this->databaseQueryCount++;
+        $this->databaseQueryMs += $elapsedMs;
+
+        if (!$captureDetails) {
+            return;
+        }
+
+        $this->databaseQueries[] = [
+            'sql' => $sql,
+            'bindings' => $bindings,
+            'elapsed_ms' => round($elapsedMs, 3),
+        ];
+    }
+
+    public function recordDatabaseConnection(float $elapsedMs): void
+    {
+        $this->databaseConnectionMs += max(0.0, $elapsedMs);
+    }
+
+    /**
+     * @return array{
+     *     connection_ms:float,
+     *     query_ms:float,
+     *     query_count:int,
+     *     queries:list<array{sql:string,bindings:array<int|string, mixed>,elapsed_ms:float}>
+     * }
+     */
+    public function database(): array
+    {
+        return [
+            'connection_ms' => round($this->databaseConnectionMs, 3),
+            'query_ms' => round($this->databaseQueryMs, 3),
+            'query_count' => $this->databaseQueryCount,
+            'queries' => $this->databaseQueries,
+        ];
     }
 
     public function elapsedMs(): float
@@ -145,6 +203,12 @@ final class BenchmarkRun
      *     peak_memory_delta_bytes: int,
      *     peak_allocated_memory_bytes: int,
      *     peak_allocated_memory_delta_bytes: int,
+     *     database: array{
+     *         connection_ms:float,
+     *         query_ms:float,
+     *         query_count:int,
+     *         queries:list<array{sql:string,bindings:array<int|string, mixed>,elapsed_ms:float}>
+     *     },
      *     marks: list<array{
      *         name: string,
      *         since_previous_ms: float,
@@ -178,6 +242,7 @@ final class BenchmarkRun
             'peak_memory_delta_bytes' => $peakMemoryNow - $this->peakMemoryStartBytes,
             'peak_allocated_memory_bytes' => $peakAllocatedMemoryNow,
             'peak_allocated_memory_delta_bytes' => $peakAllocatedMemoryNow - $this->peakAllocatedMemoryStartBytes,
+            'database' => $this->database(),
             'marks' => $this->marks,
         ];
     }

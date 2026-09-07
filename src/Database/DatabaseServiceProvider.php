@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Database;
 
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Config\DatabaseConfigDefinition;
 use Lemonade\Framework\Database\Config\DatabaseConfigResolver;
@@ -17,12 +18,18 @@ use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Database\Schema\Schema;
 use Lemonade\Framework\Database\Schema\SchemaCompiler;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 
 final class DatabaseServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
-        $container->singleton(ConnectionFactory::class, ConnectionFactory::class);
+        $container->singleton(ConnectionFactory::class, static function (ContainerInterface $container): ConnectionFactory {
+            return new ConnectionFactory(
+                benchmark: $container->get(Benchmark::class),
+                captureQueryDetails: $container->get(ApplicationContext::class)->isDebug(),
+            );
+        });
         $container->singleton(DatabaseFactory::class, DatabaseFactory::class);
         $container->singleton(DatabaseDriverRegistry::class, DatabaseDriverRegistry::class);
         $container->singleton(DatabaseConfigResolver::class, DatabaseConfigResolver::class);

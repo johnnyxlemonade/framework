@@ -46,4 +46,21 @@ final class Benchmark
     {
         return $this->start($context);
     }
+
+    /**
+     * @param array<int|string, mixed> $bindings
+     */
+    public function recordDatabaseQuery(
+        string $sql,
+        array $bindings,
+        float $elapsedMs,
+        bool $captureDetails,
+    ): void {
+        $this->current?->recordDatabaseQuery($sql, $bindings, $elapsedMs, $captureDetails);
+    }
+
+    public function recordDatabaseConnection(float $elapsedMs): void
+    {
+        $this->current?->recordDatabaseConnection($elapsedMs);
+    }
 }

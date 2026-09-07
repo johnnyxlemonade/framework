@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Database\Driver\Odbc;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Throwable;
 
 final class OdbcConnection implements ConnectionInterface
@@ -20,6 +21,8 @@ final class OdbcConnection implements ConnectionInterface
 
     public function __construct(
         private readonly DatabaseConfig $config,
+        private readonly ?Benchmark $benchmark = null,
+        private readonly bool $captureQueryDetails = false,
     ) {}
 
     /**
@@ -31,31 +34,39 @@ final class OdbcConnection implements ConnectionInterface
             return $this->connection;
         }
 
-        if (!function_exists('odbc_connect')) {
-            throw DatabaseException::connectionFailed(
-                'ODBC extension is not available in current PHP runtime.',
-            );
+        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+
+        try {
+            if (!function_exists('odbc_connect')) {
+                throw DatabaseException::connectionFailed(
+                    'ODBC extension is not available in current PHP runtime.',
+                );
+            }
+
+            $dsn = $this->resolveDsn();
+            $username = $this->config->username();
+            $password = $this->config->password();
+
+            $resource = $this->config->persistent()
+                ? @odbc_pconnect($dsn, $username, $password)
+                : @odbc_connect($dsn, $username, $password);
+
+            if ($resource === false) {
+                $error = $this->lastError();
+                $details = $this->buildErrorDetails($error['state'], $error['message']);
+                throw DatabaseException::connectionFailed(
+                    sprintf('Unable to connect via ODBC DSN "%s"%s', $dsn, $details),
+                );
+            }
+
+            $this->connection = $resource;
+
+            return $this->connection;
+        } finally {
+            if ($this->benchmark !== null) {
+                $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
+            }
         }
-
-        $dsn = $this->resolveDsn();
-        $username = $this->config->username();
-        $password = $this->config->password();
-
-        $resource = $this->config->persistent()
-            ? @odbc_pconnect($dsn, $username, $password)
-            : @odbc_connect($dsn, $username, $password);
-
-        if ($resource === false) {
-            $error = $this->lastError();
-            $details = $this->buildErrorDetails($error['state'], $error['message']);
-            throw DatabaseException::connectionFailed(
-                sprintf('Unable to connect via ODBC DSN "%s"%s', $dsn, $details),
-            );
-        }
-
-        $this->connection = $resource;
-
-        return $this->connection;
     }
 
     /**
@@ -295,27 +306,42 @@ final class OdbcConnection implements ConnectionInterface
     private function executeStatement(string $sql, array $bindings): mixed
     {
         $resource = $this->resource();
-        [$sql, $bindings] = $this->normalizeBindingsForOdbc($sql, $bindings);
+        $originalSql = $sql;
+        $originalBindings = $bindings;
+        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
 
-        if ($bindings === []) {
-            $statement = @odbc_exec($resource, $sql);
-        } else {
-            $statement = @odbc_prepare($resource, $sql);
-            if ($statement !== false) {
-                $statement = @odbc_execute($statement, $bindings) ? $statement : false;
+        try {
+            [$sql, $bindings] = $this->normalizeBindingsForOdbc($sql, $bindings);
+
+            if ($bindings === []) {
+                $statement = @odbc_exec($resource, $sql);
+            } else {
+                $statement = @odbc_prepare($resource, $sql);
+                if ($statement !== false) {
+                    $statement = @odbc_execute($statement, $bindings) ? $statement : false;
+                }
+            }
+
+            if ($statement === false) {
+                $error = $this->lastError();
+                $details = $this->buildErrorDetails($error['state'], $error['message']);
+                throw DatabaseException::queryFailed(
+                    $sql,
+                    'ODBC execute failed' . $details,
+                );
+            }
+
+            return $statement;
+        } finally {
+            if ($this->benchmark !== null) {
+                $this->benchmark->recordDatabaseQuery(
+                    $originalSql,
+                    $originalBindings,
+                    (microtime(true) - $startedAt) * 1000,
+                    $this->captureQueryDetails,
+                );
             }
         }
-
-        if ($statement === false) {
-            $error = $this->lastError();
-            $details = $this->buildErrorDetails($error['state'], $error['message']);
-            throw DatabaseException::queryFailed(
-                $sql,
-                'ODBC execute failed' . $details,
-            );
-        }
-
-        return $statement;
     }
 
     /**

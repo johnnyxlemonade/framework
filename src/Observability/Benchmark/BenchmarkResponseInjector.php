@@ -20,12 +20,16 @@ final class BenchmarkResponseInjector
         $memoryDeltaBytes = $run->memoryDeltaBytes();
         $peakBytes = $run->peakMemoryBytes();
         $peakAllocatedBytes = $run->peakAllocatedMemoryBytes();
+        $database = $run->database();
 
         $response = $response
             ->withHeader('X-Benchmark-Time-Ms', $elapsedMs)
             ->withHeader('X-Benchmark-Memory-Delta', (string) $memoryDeltaBytes)
             ->withHeader('X-Benchmark-Peak-Memory', (string) $peakBytes)
-            ->withHeader('X-Benchmark-Peak-Allocated-Memory', (string) $peakAllocatedBytes);
+            ->withHeader('X-Benchmark-Peak-Allocated-Memory', (string) $peakAllocatedBytes)
+            ->withHeader('X-Benchmark-Db-Connection-Ms', number_format($database['connection_ms'], 3, '.', ''))
+            ->withHeader('X-Benchmark-Db-Time-Ms', number_format($database['query_ms'], 3, '.', ''))
+            ->withHeader('X-Benchmark-Db-Query-Count', (string) $database['query_count']);
 
         if (!$this->config->injectHtmlComment) {
             return $response;
@@ -38,8 +42,11 @@ final class BenchmarkResponseInjector
 
         $body = (string) $response->getBody();
         $body .= PHP_EOL . sprintf(
-            '<!-- benchmark: %sms, memory %+s, peak %s used / %s allocated -->',
+            '<!-- benchmark: %sms, db %sms + %sms connection / %d queries, memory %+s, peak %s used / %s allocated -->',
             $elapsedMs,
+            number_format($database['query_ms'], 3, '.', ''),
+            number_format($database['connection_ms'], 3, '.', ''),
+            $database['query_count'],
             $this->formatBytesSigned($memoryDeltaBytes),
             $this->formatBytes($peakBytes),
             $this->formatBytes($peakAllocatedBytes),

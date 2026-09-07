@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Database\Driver\Mysql;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use mysqli;
 use mysqli_driver;
 use mysqli_result;
@@ -23,6 +24,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
     public function __construct(
         private readonly DatabaseConfig $config,
+        private readonly ?Benchmark $benchmark = null,
+        private readonly bool $captureQueryDetails = false,
     ) {}
 
     public function mysqli(): mysqli
@@ -32,6 +35,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         }
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
 
         try {
             $driver = new mysqli_driver();
@@ -66,6 +71,10 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
             return $this->connection;
         } catch (Throwable $exception) {
             throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
+        } finally {
+            if ($this->benchmark !== null) {
+                $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
+            }
         }
     }
 
@@ -74,11 +83,16 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
      */
     public function execute(string $sql, array $bindings = []): MysqlExecutionResult
     {
-        try {
-            if ($bindings === []) {
-                $result = $this->mysqli()->query($sql);
+        $startedAt = 0.0;
 
-                $this->affectedRows = (int) $this->mysqli()->affected_rows;
+        try {
+            $connection = $this->mysqli();
+            $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+
+            if ($bindings === []) {
+                $result = $connection->query($sql);
+
+                $this->affectedRows = (int) $connection->affected_rows;
 
                 return new MysqlExecutionResult(
                     result: $result,
@@ -91,7 +105,7 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
             $result = $statement->get_result();
 
             $this->affectedRows = (int) $statement->affected_rows;
-            $insertId = $this->mysqli()->insert_id;
+            $insertId = $connection->insert_id;
 
             $statement->close();
 
@@ -102,6 +116,15 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
             );
         } catch (Throwable $exception) {
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
+        } finally {
+            if ($this->benchmark !== null && $startedAt > 0.0) {
+                $this->benchmark->recordDatabaseQuery(
+                    $sql,
+                    $bindings,
+                    (microtime(true) - $startedAt) * 1000,
+                    $this->captureQueryDetails,
+                );
+            }
         }
     }
 
