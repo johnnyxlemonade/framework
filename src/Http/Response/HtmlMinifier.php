@@ -7,16 +7,23 @@ namespace Lemonade\Framework\Http\Response;
 final class HtmlMinifier
 {
     /**
-     * Tags where whitespace and content must be preserved exactly.
+     * Tags whose raw text content must be preserved exactly.
      *
      * @var list<string>
      */
     private const PRESERVED_TAGS = [
-        'pre',
-        'textarea',
         'script',
         'style',
-        'template',
+    ];
+
+    /**
+     * Tags whose text content can be made single-line with character references.
+     *
+     * @var list<string>
+     */
+    private const TEXT_BLOCK_TAGS = [
+        'pre',
+        'textarea',
     ];
 
     public function minify(?string $html): string
@@ -29,8 +36,6 @@ final class HtmlMinifier
 
         $html = $this->preserveBlocks($html, $preservedBlocks);
         $html = $this->removeSafeComments($html);
-        $html = $this->normalizeMultilineTags($html);
-        $html = $this->trimWhitespaceBeforeTagEnd($html);
         $html = $this->collapseWhitespace($html);
 
         return trim($this->restoreBlocks($html, $preservedBlocks));
@@ -49,72 +54,23 @@ final class HtmlMinifier
     }
 
     /**
-     * Converts multiline tag declarations into a single-line form.
-     *
-     * Example:
-     * <a
-     *     href="/"
-     *     class="btn">
-     *
-     * becomes:
-     * <a href="/" class="btn">
-     */
-    private function normalizeMultilineTags(string $html): string
-    {
-        do {
-            $normalizedHtml = $this->pregReplace(
-                '/<([a-z0-9]+)([^>]*?)\s*[\r\n]+([^>]*)>/iu',
-                '<$1$2 $3>',
-                $html,
-            );
-
-            $changed = $normalizedHtml !== $html;
-            $html = $normalizedHtml;
-        } while ($changed);
-
-        return $html;
-    }
-
-    /**
-     * Removes unnecessary whitespace before the closing bracket of an HTML tag.
-     *
-     * Example:
-     * <a class="btn" >
-     *
-     * becomes:
-     * <a class="btn">
-     */
-    private function trimWhitespaceBeforeTagEnd(string $html): string
-    {
-        return $this->pregReplace(
-            '/<([^<>]*?)\s+>/s',
-            '<$1>',
-            $html,
-        );
-    }
-
-    /**
      * Collapses unnecessary whitespace outside preserved blocks.
      */
     private function collapseWhitespace(string $html): string
     {
         return $this->pregReplace(
             [
-                '/\>[^\S ]+/s',
-                '/[^\S ]+\</s',
-                '/([\t ])+/s',
-                '/^([\t ])+/m',
-                '/([\t ])+$/m',
-                '/[\r\n]+([\t ]?[\r\n]+)+/s',
-                '/\>[\r\n\t ]+\</s',
+                '/<(?![\/!?])([^>]*)>\s*[\r\n]\s*/s',
+                '/\s*[\r\n]\s*<\//s',
+                '/[\t\r\n ]+/s',
+                '/<([^>]*)\s+>/s',
+                '/>\s+</s',
             ],
             [
-                '>',
-                '<',
+                '<$1>',
+                '</',
                 ' ',
-                '',
-                '',
-                "\n",
+                '<$1>',
                 '><',
             ],
             $html,
@@ -128,27 +84,86 @@ final class HtmlMinifier
     {
         foreach (self::PRESERVED_TAGS as $tag) {
             $html = $this->pregReplaceCallback(
-                sprintf('/<%1$s\b[^>]*>.*?<\/%1$s>/is', preg_quote($tag, '/')),
+                sprintf('/<%1$s\b(?:"[^"]*"|\'[^\']*\'|[^\'">])*?>.*?<\/%1$s\s*>/is', preg_quote($tag, '/')),
                 /**
                  * @param array<int|string, string> $matches
                  */
-                static function (array $matches) use (&$blocks): string {
-                    $key = "\x1A"
-                        . 'LEMONADE_HTML_BLOCK_'
-                        . count($blocks)
-                        . '_'
-                        . md5($matches[0])
-                        . "\x1A";
-
-                    $blocks[$key] = $matches[0];
-
-                    return $key;
+                function (array $matches) use (&$blocks): string {
+                    return $this->preserve($matches[0], $blocks);
                 },
                 $html,
             );
         }
 
-        return $html;
+        foreach (self::TEXT_BLOCK_TAGS as $tag) {
+            $html = $this->encodeTextBlockWhitespace($html, $tag);
+        }
+
+        $html = $this->pregReplaceCallback(
+            '/<!--(?:\[if\b|!).*?-->/is',
+            function (array $matches) use (&$blocks): string {
+                return $this->preserve($matches[0], $blocks);
+            },
+            $html,
+        );
+
+        return $this->pregReplaceCallback(
+            '/"[^"]*"|\'[^\']*\'/s',
+            function (array $matches) use (&$blocks): string {
+                return $this->preserve($matches[0], $blocks);
+            },
+            $html,
+        );
+    }
+
+    /**
+     * Replaces whitespace that the general HTML minification would otherwise
+     * collapse with character references. HTML parsers decode these references
+     * back to the original text-node characters.
+     */
+    private function encodeTextBlockWhitespace(string $html, string $tag): string
+    {
+        return $this->pregReplaceCallback(
+            sprintf(
+                '/(<%1$s\b(?:"[^"]*"|\'[^\']*\'|[^\'">])*?>)(.*?)(<\/%1$s\s*>)/is',
+                preg_quote($tag, '/'),
+            ),
+            function (array $matches): string {
+                $content = $this->pregReplace('/\A(?:\r\n|\r|\n)/', '', $matches[2]);
+                $content = str_replace(
+                    ["\r\n", "\r", "\n", "\t"],
+                    ['&#10;', '&#10;', '&#10;', '&#9;'],
+                    $content,
+                );
+                $content = $this->pregReplaceCallback(
+                    '/ {2,}/',
+                    static function (array $spaceRun): string {
+                        return ' ' . str_repeat('&#32;', strlen($spaceRun[0]) - 1);
+                    },
+                    $content,
+                );
+
+                return $matches[1] . $content . $matches[3];
+            },
+            $html,
+        );
+    }
+
+    /**
+     * @param array<string, string> $blocks
+     */
+    private function preserve(string $block, array &$blocks): string
+    {
+        $key = "\x1A"
+            . 'LEMONADE_HTML_BLOCK_'
+            . count($blocks)
+            . '_'
+            . md5($block)
+            . "\x1A";
+
+        $blocks[$key] = $block;
+
+        return $key;
     }
 
     /**
