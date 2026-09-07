@@ -75,12 +75,10 @@ final class Framework
     private function registerCoreServices(): void
     {
         $this->container->singleton(ApplicationContext::class, $this->context);
-        $this->container->singleton('context', $this->context);
         $this->container->singleton(Environment::class, $this->context->environment());
 
         $this->container->singleton(Config::class, new Config());
         $this->container->singleton(ConfigDefinitionRegistry::class, new ConfigDefinitionRegistry());
-        $this->container->singleton('config', Config::class);
         $this->container->singleton(ContainerConfigResolver::class, ContainerConfigResolver::class);
         $this->container->singleton(ContainerConfig::class, static function (ContainerInterface $container): ContainerConfig {
             return $container
