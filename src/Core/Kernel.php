@@ -243,9 +243,7 @@ final class Kernel
 
     private function textResponse(int $statusCode, string $body): ResponseInterface
     {
-        $responseFactory = $this->container->isBound(Psr17Factory::class)
-            ? $this->container->get(Psr17Factory::class)
-            : new Psr17Factory();
+        $responseFactory = $this->container->get(Psr17Factory::class);
 
         return $responseFactory
             ->createResponse($statusCode)

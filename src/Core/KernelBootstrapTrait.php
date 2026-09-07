@@ -70,21 +70,6 @@ trait KernelBootstrapTrait
         }
     }
 
-    private function resolveLogFile(string $file): string
-    {
-        if ($this->isAbsolutePath($file)) {
-            return $file;
-        }
-
-        return $this->context->resolveLogPath($file);
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        return str_starts_with($path, '/')
-            || preg_match('/^[A-Z]:[\/\\\\]/i', $path) === 1;
-    }
-
     private function markBenchmark(string $name): void
     {
         $this->benchmark->currentOrStart()->mark($name);

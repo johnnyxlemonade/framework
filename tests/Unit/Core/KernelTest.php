@@ -19,10 +19,13 @@ use Lemonade\Framework\Core\KernelFactory;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
+use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 
 final class KernelTest extends TestCase
 {
@@ -78,6 +81,18 @@ final class KernelTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/anything'));
 
         self::assertSame(500, $response->getStatusCode());
+    }
+
+    public function testRunReturnsPreBootstrapErrorUsingEarlyPsr17Factory(): void
+    {
+        @unlink($this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Config.yaml');
+        $kernel = $this->kernel(false);
+        $factory = $kernel->container()->get(Psr17Factory::class);
+
+        $response = $kernel->run(new ServerRequest('GET', '/anything'));
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame($factory, $kernel->container()->get(Psr17Factory::class));
     }
 
     public function testRun500InDebugContainsClassAndMessage(): void
@@ -220,6 +235,7 @@ final class KernelTest extends TestCase
     {
         $this->writeRoutingHeadFallbackTarget();
         $kernel = $this->kernel(true);
+        $factory = $kernel->container()->get(Psr17Factory::class);
 
         $originalServer = $_SERVER;
         $_SERVER['REQUEST_METHOD'] = 'HEAD';
@@ -235,6 +251,11 @@ final class KernelTest extends TestCase
 
         self::assertSame('', is_string($output) ? $output : '');
         self::assertSame(207, http_response_code());
+
+        $serverRequestFactory = $kernel->container()->get(ServerRequestFactory::class);
+        $property = new ReflectionProperty(ServerRequestFactory::class, 'psr17Factory');
+
+        self::assertSame($factory, $property->getValue($serverRequestFactory));
     }
 
     public function testHandleOptionsOnPathWithGetRouteReturns204WithoutBody(): void

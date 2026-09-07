@@ -49,12 +49,12 @@ final class CoreServiceProvider implements ServiceProviderInterface
          *
          * Nyholm's Psr17Factory implements all PSR-17 factory interfaces used by the framework.
          */
-        $container->singleton(ResponseFactoryInterface::class, Psr17Factory::class);
-        $container->singleton(RequestFactoryInterface::class, Psr17Factory::class);
-        $container->singleton(ServerRequestFactoryInterface::class, Psr17Factory::class);
-        $container->singleton(StreamFactoryInterface::class, Psr17Factory::class);
-        $container->singleton(UploadedFileFactoryInterface::class, Psr17Factory::class);
-        $container->singleton(UriFactoryInterface::class, Psr17Factory::class);
+        $container->singleton(ResponseFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
+        $container->singleton(RequestFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
+        $container->singleton(ServerRequestFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
+        $container->singleton(StreamFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
+        $container->singleton(UploadedFileFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
+        $container->singleton(UriFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
 
         /*
          * Core framework utilities.
