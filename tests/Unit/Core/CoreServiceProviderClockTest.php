@@ -13,7 +13,7 @@ use RuntimeException;
 
 final class CoreServiceProviderClockTest extends TestCase
 {
-    public function testRegistersClockAliasAndInterface(): void
+    public function testRegistersClockInterfaceWithConfiguredTimezone(): void
     {
         $container = new Container();
         $container->singleton(AppConfig::class, new AppConfig('UTC', null, '', '', 'testing', false, '', '', ''));
@@ -21,11 +21,7 @@ final class CoreServiceProviderClockTest extends TestCase
         (new CoreServiceProvider())->register($container);
 
         self::assertTrue($container->isBound(ClockInterface::class));
-        self::assertTrue($container->isBound('clock'));
-        self::assertSame(
-            $container->get(ClockInterface::class),
-            $container->get('clock'),
-        );
+        self::assertSame('UTC', $container->get(ClockInterface::class)->now()->getTimezone()->getName());
     }
 
     public function testInvalidTimezoneThrowsDuringProviderRegistration(): void

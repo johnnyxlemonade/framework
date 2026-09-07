@@ -25,10 +25,9 @@ use Throwable;
 /**
  * Registers the foundational framework services required by the core runtime.
  *
- * The provider wires PSR-17 factories, framework HTTP factory aliases, the
- * server request factory, controller resolution helpers, base URL resolution,
- * loader integration, framework metadata, exception logging, and system clock
- * services.
+ * The provider wires PSR-17 factories, the server request factory, controller
+ * resolution helpers, base URL resolution, framework metadata, exception
+ * logging, and system clock services.
  */
 final class CoreServiceProvider implements ServiceProviderInterface
 {
@@ -36,12 +35,11 @@ final class CoreServiceProvider implements ServiceProviderInterface
      * Registers core framework services as singletons in the container.
      *
      * Nyholm's PSR-17 factory is exposed through all PSR-17 interfaces used by
-     * the framework and through the framework's string aliases. The provider
-     * also registers the framework server request factory, controller and URL
-     * helpers, loader adapter, framework metadata, exception logger, and a
-     * system clock resolved from the application timezone. When the timezone is
-     * missing or empty, the system clock falls back to its default timezone
-     * behaviour.
+     * the framework through their typed interfaces. The provider also registers
+     * the framework server request factory, controller and URL helpers,
+     * framework metadata, exception logger, and a system clock resolved from
+     * the application timezone. When the timezone is missing or empty, the
+     * system clock falls back to its default timezone behaviour.
      *
      * @throws RuntimeException If the configured application timezone is invalid.
      */
@@ -62,17 +60,6 @@ final class CoreServiceProvider implements ServiceProviderInterface
         $container->singleton(UriFactoryInterface::class, Psr17Factory::class);
 
         /*
-         * Optional framework aliases for PSR factories.
-         */
-        $container->singleton('psr17', Psr17Factory::class);
-        $container->singleton('http.responseFactory', ResponseFactoryInterface::class);
-        $container->singleton('http.requestFactory', RequestFactoryInterface::class);
-        $container->singleton('http.serverRequestFactory', ServerRequestFactoryInterface::class);
-        $container->singleton('http.streamFactory', StreamFactoryInterface::class);
-        $container->singleton('http.uploadedFileFactory', UploadedFileFactoryInterface::class);
-        $container->singleton('http.uriFactory', UriFactoryInterface::class);
-
-        /*
          * Framework server request factory.
          *
          * Creates ServerRequestInterface from PHP globals through Nyholm ServerRequestCreator.
@@ -84,16 +71,12 @@ final class CoreServiceProvider implements ServiceProviderInterface
          */
         $container->singleton(ControllerResolver::class, ControllerResolver::class);
         $container->singleton(BaseUrlResolver::class, BaseUrlResolver::class);
-        $container->singleton('baseUrl', BaseUrlResolver::class);
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);
         $timezone = $this->resolveClockTimezone(
             $container->get(AppConfig::class),
         );
         $container->singleton(ClockInterface::class, new SystemClock($timezone));
-        $container->singleton('clock', static function (ContainerInterface $container): ClockInterface {
-            return $container->get(ClockInterface::class);
-        });
 
     }
 
