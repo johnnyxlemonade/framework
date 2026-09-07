@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use DateTimeZone;
-use Lemonade\Framework\Adapter\LoaderAdapter;
 use Lemonade\Framework\Clock\ClockInterface;
 use Lemonade\Framework\Clock\SystemClock;
 use Lemonade\Framework\Container\ContainerInterface;
@@ -86,7 +85,6 @@ final class CoreServiceProvider implements ServiceProviderInterface
         $container->singleton(ControllerResolver::class, ControllerResolver::class);
         $container->singleton(BaseUrlResolver::class, BaseUrlResolver::class);
         $container->singleton('baseUrl', BaseUrlResolver::class);
-        $container->singleton(LoaderAdapter::class, LoaderAdapter::class);
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);
         $timezone = $this->resolveClockTimezone(
