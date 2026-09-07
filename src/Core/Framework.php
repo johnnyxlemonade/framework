@@ -11,6 +11,7 @@ use Lemonade\Framework\Core\Config\ConfigFileLoader;
 use Lemonade\Framework\Core\Config\CoreConfigurationServiceProvider;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\Config\FrameworkDefaultsLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
@@ -66,7 +67,7 @@ final class Framework
         $this->container->singleton(Environment::class, $this->context->environment());
 
         $this->register(new CoreConfigurationServiceProvider());
-        $this->loadFrameworkDefaults();
+        $this->config(...(new FrameworkDefaultsLoader())->load());
         $this->container->singleton(ContainerInterface::class, $this->container);
         $this->container->singleton(Router::class, $this->router);
 
@@ -87,61 +88,6 @@ final class Framework
                 ->env($this->context->environment()->value)
                 ->debug($this->context->debug()),
         );
-    }
-
-    private function loadFrameworkDefaults(): void
-    {
-        $manifestPath = dirname(__DIR__) . '/Config/Config.php';
-
-        if (!is_file($manifestPath)) {
-            throw new RuntimeException(sprintf('Framework config manifest not found: %s', $manifestPath));
-        }
-
-        $manifest = require $manifestPath;
-        if (!is_array($manifest)) {
-            throw new RuntimeException(sprintf('Framework config manifest "%s" must return array.', $manifestPath));
-        }
-
-        $shared = $manifest['shared'] ?? null;
-        $http = $manifest['http'] ?? null;
-        $cli = $manifest['cli'] ?? null;
-        if (!is_array($shared) || !is_array($http) || !is_array($cli)) {
-            throw new RuntimeException(sprintf(
-                'Framework config manifest "%s" must contain array keys "shared", "http", and "cli".',
-                $manifestPath,
-            ));
-        }
-
-        foreach ($this->normalizeManifestSection($shared, $manifestPath) as $fileName) {
-            $defaultsFile = dirname(__DIR__) . '/Config/' . $fileName;
-            if (!is_file($defaultsFile)) {
-                continue;
-            }
-
-            $this->configFromFile($defaultsFile);
-        }
-    }
-
-    /**
-     * @param array<mixed> $section
-     * @return list<string>
-     */
-    private function normalizeManifestSection(array $section, string $manifestPath): array
-    {
-        $normalized = [];
-
-        foreach ($section as $fileName) {
-            if (!is_string($fileName) || trim($fileName) === '') {
-                throw new RuntimeException(sprintf(
-                    'Framework config manifest "%s" contains invalid file name.',
-                    $manifestPath,
-                ));
-            }
-
-            $normalized[] = trim($fileName);
-        }
-
-        return $normalized;
     }
 
     /**
