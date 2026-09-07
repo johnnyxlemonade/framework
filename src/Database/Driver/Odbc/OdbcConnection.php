@@ -21,7 +21,7 @@ final class OdbcConnection implements ConnectionInterface
 
     public function __construct(
         private readonly DatabaseConfig $config,
-        private readonly ?Benchmark $benchmark = null,
+        private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
     ) {}
 
@@ -34,7 +34,7 @@ final class OdbcConnection implements ConnectionInterface
             return $this->connection;
         }
 
-        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+        $startedAt = microtime(true);
 
         try {
             if (!function_exists('odbc_connect')) {
@@ -63,9 +63,7 @@ final class OdbcConnection implements ConnectionInterface
 
             return $this->connection;
         } finally {
-            if ($this->benchmark !== null) {
-                $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
-            }
+            $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
         }
     }
 
@@ -308,7 +306,7 @@ final class OdbcConnection implements ConnectionInterface
         $resource = $this->resource();
         $originalSql = $sql;
         $originalBindings = $bindings;
-        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+        $startedAt = microtime(true);
 
         try {
             [$sql, $bindings] = $this->normalizeBindingsForOdbc($sql, $bindings);
@@ -333,14 +331,12 @@ final class OdbcConnection implements ConnectionInterface
 
             return $statement;
         } finally {
-            if ($this->benchmark !== null) {
-                $this->benchmark->recordDatabaseQuery(
-                    $originalSql,
-                    $originalBindings,
-                    (microtime(true) - $startedAt) * 1000,
-                    $this->captureQueryDetails,
-                );
-            }
+            $this->benchmark->recordDatabaseQuery(
+                $originalSql,
+                $originalBindings,
+                (microtime(true) - $startedAt) * 1000,
+                $this->captureQueryDetails,
+            );
         }
     }
 

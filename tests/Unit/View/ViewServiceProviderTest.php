@@ -17,6 +17,7 @@ use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
@@ -288,7 +289,11 @@ final class ViewServiceProviderTest extends TestCase
             $container,
             $framework,
             new ResponseEmitter(),
-            new FrameworkHealthFastPath($container->get(ConfigDefinitionRegistry::class)),
+            new FrameworkHealthFastPath(
+                $container->get(ConfigDefinitionRegistry::class),
+                $container->get(Benchmark::class),
+            ),
+            $container->get(Benchmark::class),
         );
     }
 

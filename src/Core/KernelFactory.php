@@ -10,6 +10,7 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 
 /**
  * Factory for assembling the HTTP application kernel.
@@ -60,7 +61,9 @@ final class KernelFactory
             emitter: $this->emitter ?? new ResponseEmitter(),
             healthFastPath: new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
+                $container->get(Benchmark::class),
             ),
+            benchmark: $container->get(Benchmark::class),
         );
     }
 }

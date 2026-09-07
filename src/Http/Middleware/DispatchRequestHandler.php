@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
-use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Router;
@@ -18,7 +17,7 @@ final class DispatchRequestHandler implements RequestHandlerInterface
         private readonly Router $router,
         private readonly ControllerResolver $resolver,
         private readonly MiddlewareResolver $middlewareResolver,
-        private readonly ContainerInterface $container,
+        private readonly Benchmark $benchmark,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -40,12 +39,7 @@ final class DispatchRequestHandler implements RequestHandlerInterface
 
     private function markBenchmark(string $name): void
     {
-        if (!$this->container->isBound(Benchmark::class)) {
-            return;
-        }
-
-        $benchmark = $this->container->get(Benchmark::class);
-        $run = $benchmark->current();
+        $run = $this->benchmark->current();
         if ($run === null) {
             return;
         }

@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Tests\Unit\Database\Driver\Mysql;
 
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlConnection;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use mysqli;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -17,7 +18,7 @@ final class MysqlConnectionTest extends TestCase
         $connection = new MysqlConnection(DatabaseConfig::fromArray([
             'driver' => 'mysql',
             'strict' => true,
-        ]));
+        ]), new Benchmark());
 
         $mysqli = $this->createMock(mysqli::class);
         $mysqli->expects(self::once())
@@ -40,7 +41,7 @@ final class MysqlConnectionTest extends TestCase
         $connection = new MysqlConnection(DatabaseConfig::fromArray([
             'driver' => 'mysql',
             'strict' => false,
-        ]));
+        ]), new Benchmark());
 
         $mysqli = $this->createMock(mysqli::class);
         $mysqli->expects(self::once())
@@ -66,7 +67,7 @@ final class MysqlConnectionTest extends TestCase
             'strict' => false,
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
-        ]));
+        ]), new Benchmark());
 
         $expected = [
             'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci',

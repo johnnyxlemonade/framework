@@ -10,7 +10,6 @@ use Lemonade\Framework\Core\Config\FrameworkConfig;
 use Lemonade\Framework\Core\Config\ProvidersConfig;
 use Lemonade\Framework\Core\Logging\LoggingServiceProvider;
 use Lemonade\Framework\Filesystem\FilesystemServiceProvider;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Psr\Log\LoggerInterface;
 
 trait KernelBootstrapTrait
@@ -86,17 +85,8 @@ trait KernelBootstrapTrait
             || preg_match('/^[A-Z]:[\/\\\\]/i', $path) === 1;
     }
 
-    private function benchmark(): ?Benchmark
-    {
-        if (!$this->container->isBound(Benchmark::class)) {
-            return null;
-        }
-
-        return $this->container->get(Benchmark::class);
-    }
-
     private function markBenchmark(string $name): void
     {
-        $this->benchmark()?->currentOrStart()->mark($name);
+        $this->benchmark->currentOrStart()->mark($name);
     }
 }

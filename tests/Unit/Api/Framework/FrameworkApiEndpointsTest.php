@@ -26,6 +26,7 @@ use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -524,7 +525,11 @@ final class FrameworkApiEndpointsTest extends TestCase
             $container,
             $framework,
             new ResponseEmitter(),
-            new FrameworkHealthFastPath($container->get(ConfigDefinitionRegistry::class)),
+            new FrameworkHealthFastPath(
+                $container->get(ConfigDefinitionRegistry::class),
+                $container->get(Benchmark::class),
+            ),
+            $container->get(Benchmark::class),
         );
     }
 
@@ -543,7 +548,11 @@ final class FrameworkApiEndpointsTest extends TestCase
             $container,
             $framework,
             new ResponseEmitter(),
-            new FrameworkHealthFastPath($container->get(ConfigDefinitionRegistry::class)),
+            new FrameworkHealthFastPath(
+                $container->get(ConfigDefinitionRegistry::class),
+                $container->get(Benchmark::class),
+            ),
+            $container->get(Benchmark::class),
         );
     }
 

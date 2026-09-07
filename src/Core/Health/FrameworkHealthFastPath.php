@@ -29,16 +29,17 @@ final class FrameworkHealthFastPath
 {
     public function __construct(
         private readonly ConfigDefinitionRegistry $definitions,
+        private readonly Benchmark $benchmark,
         private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
     ) {}
 
-    public function tryHandle(ServerRequestInterface $request, ?Benchmark $benchmark = null): ?ResponseInterface
+    public function tryHandle(ServerRequestInterface $request): ?ResponseInterface
     {
         if (!$this->isSupportedMethod($request->getMethod())) {
             return null;
         }
 
-        $benchmark?->currentOrStart()->mark('health_fast_path_start');
+        $this->benchmark->currentOrStart()->mark('health_fast_path_start');
 
         $snapshot = (new FrameworkHealthConfigSnapshotLoader($this->definitions))->load();
         if (!$snapshot instanceof FrameworkHealthConfigSnapshot) {
@@ -87,9 +88,9 @@ final class FrameworkHealthFastPath
             );
         }
 
-        $benchmark?->currentOrStart()->mark('response_created');
-        $benchmark?->currentOrStart()->mark('response_ready');
-        $run = $benchmark?->current();
+        $this->benchmark->currentOrStart()->mark('response_created');
+        $this->benchmark->currentOrStart()->mark('response_ready');
+        $run = $this->benchmark->current();
         $run?->stop();
 
         if ($run instanceof BenchmarkRun) {

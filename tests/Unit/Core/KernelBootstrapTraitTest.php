@@ -14,6 +14,7 @@ use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\KernelBootstrapTrait;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
@@ -61,10 +62,12 @@ final class KernelBootstrapTraitHarness
 
     public readonly Framework $framework;
     public readonly ApplicationContext $context;
+    public readonly Benchmark $benchmark;
 
     public function __construct(
         public readonly ContainerInterface $container,
     ) {
+        $this->benchmark = new Benchmark();
         $this->context = new ApplicationContext(
             Environment::Testing,
             new Path(__DIR__),

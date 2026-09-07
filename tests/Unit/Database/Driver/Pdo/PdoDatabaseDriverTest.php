@@ -10,6 +10,7 @@ use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PHPUnit\Framework\TestCase;
 
 final class PdoDatabaseDriverTest extends TestCase
@@ -23,7 +24,7 @@ final class PdoDatabaseDriverTest extends TestCase
         ]);
 
         $driver = new PdoDatabaseDriver(
-            connection: new PdoConnection($config),
+            connection: new PdoConnection($config, new Benchmark()),
             identifierEscaper: new MysqlIdentifierEscaper($config->prefix()),
             identifierProtector: new IdentifierProtector(new MysqlIdentifierEscaper($config->prefix())),
         );
@@ -43,7 +44,7 @@ final class PdoDatabaseDriverTest extends TestCase
         ]);
 
         $driver = new PdoDatabaseDriver(
-            connection: new PdoConnection($config),
+            connection: new PdoConnection($config, new Benchmark()),
             identifierEscaper: new MysqlIdentifierEscaper($config->prefix()),
             identifierProtector: new IdentifierProtector(new MysqlIdentifierEscaper($config->prefix())),
         );
@@ -62,7 +63,7 @@ final class PdoDatabaseDriverTest extends TestCase
         ]);
 
         $driver = new PdoDatabaseDriver(
-            connection: new PdoConnection($config),
+            connection: new PdoConnection($config, new Benchmark()),
             identifierEscaper: new SqliteIdentifierEscaper($config->prefix()),
             identifierProtector: new IdentifierProtector(new SqliteIdentifierEscaper($config->prefix())),
         );

@@ -30,7 +30,7 @@ final class PdoConnectionTest extends TestCase
             'driver' => 'pdo',
             'database' => '',
             'dsn' => '',
-        ]));
+        ]), new Benchmark());
 
         $this->expectException(DatabaseException::class);
         $this->expectExceptionMessage('PDO requires "dsn" or non-empty "database"');
@@ -174,7 +174,7 @@ final class PdoConnectionTest extends TestCase
                 PDO::ATTR_EMULATE_PREPARES => true,
                 PDO::ATTR_PERSISTENT => false,
             ],
-        ]));
+        ]), new Benchmark());
 
         $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
         $method->setAccessible(true);
@@ -199,7 +199,7 @@ final class PdoConnectionTest extends TestCase
                 'foo' => 'bar',
                 (string) PDO::ATTR_TIMEOUT => 3,
             ],
-        ]));
+        ]), new Benchmark());
 
         $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
         $method->setAccessible(true);
@@ -217,7 +217,7 @@ final class PdoConnectionTest extends TestCase
             'driver' => 'pdo',
             'dsn' => 'sqlite::memory:',
             'options' => [],
-        ]));
+        ]), new Benchmark());
     }
 
     private function prepareUsers(PdoConnection $connection): void

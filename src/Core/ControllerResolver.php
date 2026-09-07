@@ -29,10 +29,11 @@ final class ControllerResolver
 {
     /**
      * Accepts the container used for controller resolution, request binding,
-     * response factories, stream factories, and optional benchmark access.
+     * response factories, stream factories, and benchmark access.
      */
     public function __construct(
         private readonly ContainerInterface $container,
+        private readonly Benchmark $benchmark,
     ) {}
 
     /**
@@ -280,12 +281,7 @@ final class ControllerResolver
 
     private function markBenchmark(string $name): void
     {
-        if (!$this->container->isBound(Benchmark::class)) {
-            return;
-        }
-
-        $benchmark = $this->container->get(Benchmark::class);
-        $run = $benchmark->current();
+        $run = $this->benchmark->current();
         if ($run === null) {
             return;
         }

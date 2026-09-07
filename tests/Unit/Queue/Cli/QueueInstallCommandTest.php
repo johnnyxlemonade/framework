@@ -22,6 +22,7 @@ use Lemonade\Framework\Database\Sql\IdentifierProtector;
 use Lemonade\Framework\Queue\Cli\QueueInstallCommand;
 use Lemonade\Framework\Queue\Config\QueueConfig;
 use Lemonade\Framework\Queue\Config\QueueDatabaseConfig;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PHPUnit\Framework\TestCase;
 
 final class QueueInstallCommandTest extends TestCase
@@ -113,7 +114,7 @@ final class QueueInstallCommandTest extends TestCase
             'dialect' => 'sqlite',
             'dsn' => 'sqlite::memory:',
         ]);
-        $connection = new PdoConnection($config);
+        $connection = new PdoConnection($config, new Benchmark());
         $schema = $this->pdoSqliteSchema($config, $connection);
         $command = $this->command($schema, $this->queueConfig());
 

@@ -12,7 +12,7 @@ use Lemonade\Framework\Observability\Benchmark\Benchmark;
 final class ConnectionFactory
 {
     public function __construct(
-        private readonly ?Benchmark $benchmark = null,
+        private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
     ) {}
 

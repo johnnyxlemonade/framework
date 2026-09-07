@@ -11,6 +11,7 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Throwable;
 
 /**
@@ -45,6 +46,7 @@ final class CliKernel
         private readonly ApplicationContext $context,
         private readonly ContainerInterface $container,
         private readonly Framework $framework,
+        private readonly Benchmark $benchmark,
         mixed $stdout = null,
         mixed $stderr = null,
     ) {
@@ -75,7 +77,7 @@ final class CliKernel
     public function handle(array $argv): int
     {
         try {
-            $this->benchmark()?->currentOrStart([
+            $this->benchmark->currentOrStart([
                 'entrypoint' => 'cli',
                 'started_at' => 'cli-kernel.handle',
             ])->mark('kernel_start');

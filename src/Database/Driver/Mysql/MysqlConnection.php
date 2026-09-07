@@ -24,7 +24,7 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
     public function __construct(
         private readonly DatabaseConfig $config,
-        private readonly ?Benchmark $benchmark = null,
+        private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
     ) {}
 
@@ -36,7 +36,7 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+        $startedAt = microtime(true);
 
         try {
             $driver = new mysqli_driver();
@@ -72,9 +72,7 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         } catch (Throwable $exception) {
             throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
         } finally {
-            if ($this->benchmark !== null) {
-                $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
-            }
+            $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
         }
     }
 
@@ -87,7 +85,7 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
         try {
             $connection = $this->mysqli();
-            $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+            $startedAt = microtime(true);
 
             if ($bindings === []) {
                 $result = $connection->query($sql);
@@ -117,7 +115,7 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         } catch (Throwable $exception) {
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
         } finally {
-            if ($this->benchmark !== null && $startedAt > 0.0) {
+            if ($startedAt > 0.0) {
                 $this->benchmark->recordDatabaseQuery(
                     $sql,
                     $bindings,

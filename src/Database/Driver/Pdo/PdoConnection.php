@@ -22,7 +22,7 @@ final class PdoConnection implements ConnectionInterface
 
     public function __construct(
         private readonly DatabaseConfig $config,
-        private readonly ?Benchmark $benchmark = null,
+        private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
     ) {}
 
@@ -32,7 +32,7 @@ final class PdoConnection implements ConnectionInterface
             return $this->connection;
         }
 
-        $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+        $startedAt = microtime(true);
 
         try {
             $this->connection = new PDO(
@@ -44,9 +44,7 @@ final class PdoConnection implements ConnectionInterface
         } catch (Throwable $exception) {
             throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
         } finally {
-            if ($this->benchmark !== null) {
-                $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
-            }
+            $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
         }
 
         return $this->connection;
@@ -227,7 +225,7 @@ final class PdoConnection implements ConnectionInterface
 
         try {
             $pdo = $this->pdo();
-            $startedAt = $this->benchmark !== null ? microtime(true) : 0.0;
+            $startedAt = microtime(true);
 
             $statement = $pdo->prepare($sql);
 
@@ -245,7 +243,7 @@ final class PdoConnection implements ConnectionInterface
         } catch (Throwable $exception) {
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
         } finally {
-            if ($this->benchmark !== null && $startedAt > 0.0) {
+            if ($startedAt > 0.0) {
                 $this->benchmark->recordDatabaseQuery(
                     $sql,
                     $bindings,

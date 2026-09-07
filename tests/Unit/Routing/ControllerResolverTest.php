@@ -174,7 +174,7 @@ final class ControllerResolverTest extends TestCase
         $container->singleton(ResponseFactoryInterface::class, $psr17);
         $container->singleton(StreamFactoryInterface::class, $psr17);
 
-        $resolver = new ControllerResolver($container);
+        $resolver = new ControllerResolver($container, new Benchmark());
 
         $firstResponse = $resolver->handle(
             new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
@@ -260,7 +260,7 @@ final class ControllerResolverTest extends TestCase
         $container->singleton(StreamFactoryInterface::class, $psr17);
         $container->singleton(Benchmark::class, $benchmark);
 
-        $resolver = new ControllerResolver($container);
+        $resolver = new ControllerResolver($container, $benchmark);
         $resolver->handle(new RouteMatch(PsrStyleController::class, 'show'), $this->request());
 
         $run = $benchmark->current();
@@ -282,7 +282,7 @@ final class ControllerResolverTest extends TestCase
         $container->singleton(ResponseFactoryInterface::class, $psr17);
         $container->singleton(StreamFactoryInterface::class, $psr17);
 
-        return new ControllerResolver($container);
+        return new ControllerResolver($container, new Benchmark());
     }
 
     private function request(): \Psr\Http\Message\ServerRequestInterface

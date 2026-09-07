@@ -12,6 +12,7 @@ use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
@@ -47,6 +48,7 @@ final class Kernel
         private readonly Framework $framework,
         private readonly ResponseEmitter $emitter,
         private readonly FrameworkHealthFastPath $healthFastPath,
+        private readonly Benchmark $benchmark,
     ) {}
 
     /**
@@ -110,7 +112,6 @@ final class Kernel
             if ($request !== null) {
                 $response = $this->healthFastPath->tryHandle(
                     $request,
-                    $this->benchmark(),
                 );
 
                 if ($response instanceof ResponseInterface) {
@@ -122,16 +123,16 @@ final class Kernel
 
             return $this->framework->run($request);
         } catch (RouteNotFoundException $exception) {
-            $this->benchmark()?->currentOrStart()->with('exception', $exception::class);
+            $this->benchmark->currentOrStart()->with('exception', $exception::class);
             $this->markBenchmark('kernel_exception');
-            $this->benchmark()?->currentOrStart()->stop();
+            $this->benchmark->currentOrStart()->stop();
             $this->logException($exception);
 
             return $this->notFoundResponse($exception);
         } catch (Throwable $exception) {
-            $this->benchmark()?->currentOrStart()->with('exception', $exception::class);
+            $this->benchmark->currentOrStart()->with('exception', $exception::class);
             $this->markBenchmark('kernel_exception');
-            $this->benchmark()?->currentOrStart()->stop();
+            $this->benchmark->currentOrStart()->stop();
             $this->logException($exception);
 
             return $this->errorResponse($exception);
@@ -150,7 +151,7 @@ final class Kernel
      */
     public function handle(?ServerRequestInterface $request = null): void
     {
-        $this->benchmark()?->currentOrStart([
+        $this->benchmark->currentOrStart([
             'entrypoint' => 'http',
             'started_at' => 'kernel.handle',
         ])->mark('kernel_start');

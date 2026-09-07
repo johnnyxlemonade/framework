@@ -58,22 +58,9 @@ final class DispatchRequestHandlerTest extends TestCase
         $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
     }
 
-    public function testNoBenchmarkBoundDoesNotCrash(): void
+    public function testBenchmarkWithNullCurrentDoesNotCrash(): void
     {
         $container = $this->buildContainer();
-        $router = new Router();
-        $router->get('/demo', DispatchTestController::class . '@index');
-
-        $handler = $this->buildHandler($router, $container);
-        $response = $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
-
-        self::assertSame('controller', (string) $response->getBody());
-    }
-
-    public function testBenchmarkBoundWithNullCurrentDoesNotCrash(): void
-    {
-        $container = $this->buildContainer();
-        $container->singleton(Benchmark::class, new Benchmark());
         $router = new Router();
         $router->get('/demo', DispatchTestController::class . '@index');
 
@@ -115,6 +102,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $container->singleton(DispatchMiddlewareOne::class, DispatchMiddlewareOne::class);
         $container->singleton(DispatchMiddlewareTwo::class, DispatchMiddlewareTwo::class);
         $container->singleton(DispatchTestController::class, DispatchTestController::class);
+        $container->singleton(Benchmark::class, new Benchmark());
 
         return $container;
     }
@@ -123,9 +111,9 @@ final class DispatchRequestHandlerTest extends TestCase
     {
         return new DispatchRequestHandler(
             router: $router,
-            resolver: new ControllerResolver($container),
+            resolver: new ControllerResolver($container, $container->get(Benchmark::class)),
             middlewareResolver: new MiddlewareResolver($container),
-            container: $container,
+            benchmark: $container->get(Benchmark::class),
         );
     }
 }
