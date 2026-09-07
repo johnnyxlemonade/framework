@@ -4,25 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
-use Lemonade\Framework\Cli\Config\CommandsConfig;
-use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
-use Lemonade\Framework\Cli\Config\CommandsConfigResolver;
-use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
-use Lemonade\Framework\Container\Config\ContainerConfigResolver;
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
-use Lemonade\Framework\Core\Config\AppConfigResolver;
 use Lemonade\Framework\Core\Config\ConfigFileLoader;
+use Lemonade\Framework\Core\Config\CoreConfigurationServiceProvider;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
-use Lemonade\Framework\Core\Config\FrameworkConfig;
-use Lemonade\Framework\Core\Config\FrameworkConfigDefinition;
-use Lemonade\Framework\Core\Config\FrameworkConfigResolver;
-use Lemonade\Framework\Core\Config\ProvidersConfig;
-use Lemonade\Framework\Core\Config\ProvidersConfigDefinition;
-use Lemonade\Framework\Core\Config\ProvidersConfigResolver;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
@@ -77,53 +65,7 @@ final class Framework
         $this->container->singleton(ApplicationContext::class, $this->context);
         $this->container->singleton(Environment::class, $this->context->environment());
 
-        $this->container->singleton(Config::class, new Config());
-        $this->container->singleton(ConfigDefinitionRegistry::class, new ConfigDefinitionRegistry());
-        $this->container->singleton(ContainerConfigResolver::class, ContainerConfigResolver::class);
-        $this->container->singleton(ContainerConfig::class, static function (ContainerInterface $container): ContainerConfig {
-            return $container
-                ->get(ContainerConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    ContainerConfigDefinition::moduleKey(),
-                    ContainerConfigDefinition::class,
-                ));
-        });
-        $this->container->singleton(AppConfigResolver::class, AppConfigResolver::class);
-        $this->container->singleton(AppConfig::class, static function (ContainerInterface $container): AppConfig {
-            return $container
-                ->get(AppConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    AppConfigDefinition::moduleKey(),
-                    AppConfigDefinition::class,
-                ));
-        });
-        $this->container->singleton(FrameworkConfigResolver::class, FrameworkConfigResolver::class);
-        $this->container->singleton(FrameworkConfig::class, static function (ContainerInterface $container): FrameworkConfig {
-            return $container
-                ->get(FrameworkConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    FrameworkConfigDefinition::moduleKey(),
-                    FrameworkConfigDefinition::class,
-                ));
-        });
-        $this->container->singleton(ProvidersConfigResolver::class, ProvidersConfigResolver::class);
-        $this->container->singleton(ProvidersConfig::class, static function (ContainerInterface $container): ProvidersConfig {
-            return $container
-                ->get(ProvidersConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    ProvidersConfigDefinition::moduleKey(),
-                    ProvidersConfigDefinition::class,
-                ));
-        });
-        $this->container->singleton(CommandsConfigResolver::class, CommandsConfigResolver::class);
-        $this->container->singleton(CommandsConfig::class, static function (ContainerInterface $container): CommandsConfig {
-            return $container
-                ->get(CommandsConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    CommandsConfigDefinition::moduleKey(),
-                    CommandsConfigDefinition::class,
-                ));
-        });
+        $this->register(new CoreConfigurationServiceProvider());
         $this->loadFrameworkDefaults();
         $this->container->singleton(ContainerInterface::class, $this->container);
         $this->container->singleton(Router::class, $this->router);

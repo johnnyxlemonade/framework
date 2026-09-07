@@ -10,7 +10,6 @@ use Lemonade\Framework\Clock\SystemClock;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
-use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -25,9 +24,9 @@ use Throwable;
 /**
  * Registers the foundational framework services required by the core runtime.
  *
- * The provider wires PSR-17 factories, the server request factory, controller
- * resolution helpers, base URL resolution, framework metadata, exception
- * logging, and system clock services.
+ * The provider wires PSR-17 interfaces, controller resolution helpers, base
+ * URL resolution, framework metadata, exception logging, and system clock
+ * services.
  */
 final class CoreServiceProvider implements ServiceProviderInterface
 {
@@ -36,10 +35,10 @@ final class CoreServiceProvider implements ServiceProviderInterface
      *
      * Nyholm's PSR-17 factory is exposed through all PSR-17 interfaces used by
      * the framework through their typed interfaces. The provider also registers
-     * the framework server request factory, controller and URL helpers,
-     * framework metadata, exception logger, and a system clock resolved from
-     * the application timezone. When the timezone is missing or empty, the
-     * system clock falls back to its default timezone behaviour.
+     * controller and URL helpers, framework metadata, exception logger, and a
+     * system clock resolved from the application timezone. When the timezone
+     * is missing or empty, the system clock falls back to its default timezone
+     * behaviour.
      *
      * @throws RuntimeException If the configured application timezone is invalid.
      */
@@ -50,21 +49,12 @@ final class CoreServiceProvider implements ServiceProviderInterface
          *
          * Nyholm's Psr17Factory implements all PSR-17 factory interfaces used by the framework.
          */
-        $container->singleton(Psr17Factory::class, Psr17Factory::class);
-
         $container->singleton(ResponseFactoryInterface::class, Psr17Factory::class);
         $container->singleton(RequestFactoryInterface::class, Psr17Factory::class);
         $container->singleton(ServerRequestFactoryInterface::class, Psr17Factory::class);
         $container->singleton(StreamFactoryInterface::class, Psr17Factory::class);
         $container->singleton(UploadedFileFactoryInterface::class, Psr17Factory::class);
         $container->singleton(UriFactoryInterface::class, Psr17Factory::class);
-
-        /*
-         * Framework server request factory.
-         *
-         * Creates ServerRequestInterface from PHP globals through Nyholm ServerRequestCreator.
-         */
-        $container->singleton(ServerRequestFactory::class, ServerRequestFactory::class);
 
         /*
          * Core framework utilities.
