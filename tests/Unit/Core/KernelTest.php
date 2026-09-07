@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Api\Config\ApiConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
@@ -293,6 +295,13 @@ final class KernelTest extends TestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+
+        $definitions = $kernel->container()->get(ConfigDefinitionRegistry::class);
+        self::assertCount(2, $definitions->entriesFor(ApiConfigDefinition::moduleKey()));
+
+        $kernel->bootstrap();
+
+        self::assertCount(2, $definitions->entriesFor(ApiConfigDefinition::moduleKey()));
     }
 
     private function kernel(bool $debug, Environment $environment = Environment::Testing): Kernel
@@ -305,7 +314,13 @@ final class KernelTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
+        return new Kernel(
+            $context,
+            $container,
+            $framework,
+            new ResponseEmitter(),
+            new FrameworkHealthFastPath($container->get(ConfigDefinitionRegistry::class)),
+        );
     }
 
     private function writeDefaultConfigFiles(): void

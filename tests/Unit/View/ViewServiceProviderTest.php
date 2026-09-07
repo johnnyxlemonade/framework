@@ -283,7 +283,13 @@ final class ViewServiceProviderTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
+        return new Kernel(
+            $context,
+            $container,
+            $framework,
+            new ResponseEmitter(),
+            new FrameworkHealthFastPath($container->get(ConfigDefinitionRegistry::class)),
+        );
     }
 
     private function writeKernelDefaultConfigFiles(): void

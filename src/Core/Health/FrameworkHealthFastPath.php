@@ -11,7 +11,7 @@ use Lemonade\Framework\Api\Endpoint\ApiRoutePathResolver;
 use Lemonade\Framework\Api\Http\Response\ApiResponseFactory;
 use Lemonade\Framework\Clock\SystemClock;
 use Lemonade\Framework\Core\Config\AppConfig;
-use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\FrameworkInfo;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
@@ -28,7 +28,7 @@ use Throwable;
 final class FrameworkHealthFastPath
 {
     public function __construct(
-        private readonly ApplicationContext $context,
+        private readonly ConfigDefinitionRegistry $definitions,
         private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
     ) {}
 
@@ -40,12 +40,10 @@ final class FrameworkHealthFastPath
 
         $benchmark?->currentOrStart()->mark('health_fast_path_start');
 
-        $snapshot = (new FrameworkHealthConfigSnapshotLoader($this->context))->load();
+        $snapshot = (new FrameworkHealthConfigSnapshotLoader($this->definitions))->load();
         if (!$snapshot instanceof FrameworkHealthConfigSnapshot) {
             return null;
         }
-
-        $benchmark?->currentOrStart()->mark('config_loaded');
 
         if (!$this->matchesHealthRequest($request, $snapshot->api)) {
             return null;

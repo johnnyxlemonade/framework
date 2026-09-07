@@ -7,16 +7,11 @@ namespace Lemonade\Framework\Core\Health;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Config\ApiConfigDefinition;
 use Lemonade\Framework\Api\Config\ApiConfigResolver;
-use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\AppConfigResolver;
-use Lemonade\Framework\Core\Config\ApplicationConfigCache;
-use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
-use Lemonade\Framework\Core\Context\ApplicationContext;
-use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Config\CorsConfigDefinition;
 use Lemonade\Framework\Http\Config\CorsConfigResolver;
@@ -27,7 +22,7 @@ use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigResolver;
 final class FrameworkHealthConfigSnapshotLoader
 {
     public function __construct(
-        private readonly ApplicationContext $context,
+        private readonly ConfigDefinitionRegistry $definitions,
     ) {}
 
     public function load(): ?FrameworkHealthConfigSnapshot
@@ -56,28 +51,11 @@ final class FrameworkHealthConfigSnapshotLoader
      */
     private function loadDefinitions(): array
     {
-        if ($this->context->isProduction()) {
-            $cached = (new ApplicationConfigCache())->loadIfFresh(
-                $this->context,
-                ConfigLoader::ENTRYPOINT_HTTP,
-            );
-
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-
-        $container = new Container();
-        $framework = new Framework($container, $this->context);
-        (new ConfigLoader())->loadApplication($framework, $this->context, ConfigLoader::ENTRYPOINT_HTTP);
-
-        $registry = $container->get(ConfigDefinitionRegistry::class);
-
         return [
-            ...$registry->entriesFor(ApiConfigDefinition::moduleKey()),
-            ...$registry->entriesFor(AppConfigDefinition::moduleKey()),
-            ...$registry->entriesFor(CorsConfigDefinition::moduleKey()),
-            ...$registry->entriesFor(BenchmarkConfigDefinition::moduleKey()),
+            ...$this->definitions->entriesFor(ApiConfigDefinition::moduleKey()),
+            ...$this->definitions->entriesFor(AppConfigDefinition::moduleKey()),
+            ...$this->definitions->entriesFor(CorsConfigDefinition::moduleKey()),
+            ...$this->definitions->entriesFor(BenchmarkConfigDefinition::moduleKey()),
         ];
     }
 

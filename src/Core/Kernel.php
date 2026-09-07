@@ -33,6 +33,8 @@ final class Kernel
 
     private bool $booted = false;
 
+    private bool $configurationLoaded = false;
+
     /**
      * Accepts the runtime services used by the HTTP kernel.
      *
@@ -67,8 +69,7 @@ final class Kernel
 
         $this->markBenchmark('bootstrap_start');
 
-        $this->loadApplicationConfigFiles();
-        $this->markBenchmark('config_loaded');
+        $this->ensureConfigurationLoaded();
 
         $this->applyRuntimeAppConfig();
         $this->registerCoreProvidersWithDiagnostics();
@@ -104,6 +105,8 @@ final class Kernel
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
         try {
+            $this->ensureConfigurationLoaded();
+
             if ($request !== null) {
                 $response = $this->healthFastPath->tryHandle(
                     $request,
@@ -186,13 +189,20 @@ final class Kernel
         return $this->context;
     }
 
-    private function loadApplicationConfigFiles(): void
+    private function ensureConfigurationLoaded(): void
     {
+        if ($this->configurationLoaded) {
+            return;
+        }
+
         (new ConfigLoader())->loadApplication(
             $this->framework,
             $this->context,
             ConfigLoader::ENTRYPOINT_HTTP,
         );
+
+        $this->configurationLoaded = true;
+        $this->markBenchmark('config_loaded');
     }
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface

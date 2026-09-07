@@ -20,6 +20,7 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
@@ -518,7 +519,13 @@ final class FrameworkApiEndpointsTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
+        return new Kernel(
+            $context,
+            $container,
+            $framework,
+            new ResponseEmitter(),
+            new FrameworkHealthFastPath($container->get(ConfigDefinitionRegistry::class)),
+        );
     }
 
     private function kernelProduction(): Kernel
@@ -531,7 +538,13 @@ final class FrameworkApiEndpointsTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        return new Kernel($context, $container, $framework, new ResponseEmitter(), new FrameworkHealthFastPath($context));
+        return new Kernel(
+            $context,
+            $container,
+            $framework,
+            new ResponseEmitter(),
+            new FrameworkHealthFastPath($container->get(ConfigDefinitionRegistry::class)),
+        );
     }
 
     private function writeDefaultConfigFiles(): void
