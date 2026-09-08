@@ -58,3 +58,56 @@ config:
 SQLite schema support is intentionally conservative. Some `ALTER TABLE` operations are not supported and should be implemented through a dedicated rebuild-table strategy.
 
 App-level YAML is still mapped into `DatabaseConfigDefinition` before `DatabaseConfigResolver` produces runtime config objects.
+
+## Migrations
+
+Lemonade provides a small, one-way migration runner. Concrete migration classes stay in the application and are registered explicitly from an application service provider; the framework does not scan directories.
+
+```php
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Database\Migration\MigrationRegistry;
+use App\Database\Migrations\CreateUsersTable;
+
+public function register(ContainerInterface $container): void
+{
+    $container->get(MigrationRegistry::class)->register(CreateUsersTable::class);
+}
+```
+
+```php
+namespace App\Database\Migrations;
+
+use Lemonade\Framework\Database\Migration\MigrationInterface;
+use Lemonade\Framework\Database\Schema\Schema;
+
+final class CreateUsersTable implements MigrationInterface
+{
+    public static function identifier(): string
+    {
+        return '20260908090000_create_users';
+    }
+
+    public function up(Schema $schema): void
+    {
+        $schema->create('users', static function ($table): void {
+            $table->id();
+            $table->string('email', 191)->unique();
+        });
+    }
+}
+```
+
+Run and inspect migrations through the framework CLI:
+
+```bash
+vendor/bin/lemonade database:migrate
+vendor/bin/lemonade database:migrate:status
+```
+
+The identifier format is `YYYYMMDDHHMMSS_description`. Its timestamp prefix determines migration order, so registrations may be written in any order. Applied historical migrations must not be changed casually.
+
+The runner records successful identifiers in the `migrations` table only after `up()` returns. Migrations are one-way: there is no automatic transaction or rollback. Available migration operations are limited by the selected Schema grammar and database dialect; SQLite and generic ODBC have more limited `ALTER TABLE` support than MySQL.
+
+When database state is unavailable, `database:migrate:status` still lists registered migrations as `UNKNOWN` and exits with an error status; `database:migrate` cannot run without a configured connection.
+
+Migration identifiers are explicit and registration is deliberate. Generating a new identifier may be added later as a developer-experience command, but Lemonade does not provide `make:migration` yet.

@@ -10,6 +10,7 @@ use Lemonade\Framework\Database\Driver\Mysql\MysqlDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Odbc\OdbcDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
+use Lemonade\Framework\Database\Migration\MigrationServiceProvider;
 use Lemonade\Framework\Debug\DebugServiceProvider;
 use Lemonade\Framework\Discovery\DiscoveryServiceProvider;
 use Lemonade\Framework\Event\EventServiceProvider;
@@ -34,6 +35,7 @@ return FrameworkConfigDefinition::create()
         OdbcDatabaseServiceProvider::class,
         PdoDatabaseServiceProvider::class,
         SqliteDatabaseServiceProvider::class,
+        MigrationServiceProvider::class,
         SessionServiceProvider::class,
         ComponentServiceProvider::class,
         ValidationServiceProvider::class,
