@@ -290,6 +290,37 @@ vendor/bin/lemonade products:import
 
 Detailed documentation lives in [docs/index.md](docs/index.md).
 
+## ORM Integration
+
+Lemonade does not include or require an ORM. [The live Doctrine ORM example](https://lemonadeframework.cz/en/examples/orm) is an optional application-level integration registered through an application service provider and the container.
+
+It demonstrates Doctrine ORM with SQLite, `ManyToMany` relations, author and tag filtering with faceted counts, pagination, and `toIterable()` for the main article feed.
+
+## Testing
+
+The framework uses complementary testing techniques:
+
+- **Property-based testing (Eris)** generates varied input datasets and verifies invariants across a broader input space than example-based tests alone.
+- **Mutation testing (Infection)** applies small changes to production code and checks whether the test suite detects the resulting behavioral changes. It currently covers the routing core: `Router` and `RouteCollection`.
+
+Run the standard quality suite with:
+
+```bash
+composer qa
+```
+
+Property-based tests can also run separately:
+
+```bash
+composer test:property
+```
+
+Run routing mutation tests with:
+
+```bash
+composer test:mutation:routing
+```
+
 ## Code Quality
 
 The project is designed to be static-analysis friendly.
