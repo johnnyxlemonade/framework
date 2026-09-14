@@ -32,7 +32,7 @@ final class CsrfMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (!in_array(strtoupper($request->getMethod()), $this->methods, true)) {
-            return $handler->handle($request);
+            return $handler->handle($request)->withHeader('X-CSRF-Token', $this->tokens->token());
         }
 
         $token = $this->tokenFromRequest($request);
@@ -43,12 +43,13 @@ final class CsrfMiddleware implements MiddlewareInterface
             return $this->responseFactory
                 ->createResponse(419)
                 ->withHeader('Content-Type', 'text/plain; charset=utf-8')
+                ->withHeader('X-CSRF-Token', $this->tokens->token())
                 ->withBody($this->responseFactory->createStream($body));
         }
 
-        $this->tokens->regenerate();
+        $freshToken = $this->tokens->regenerate();
 
-        return $handler->handle($request);
+        return $handler->handle($request)->withHeader('X-CSRF-Token', $freshToken);
     }
 
     private function tokenFromRequest(ServerRequestInterface $request): string

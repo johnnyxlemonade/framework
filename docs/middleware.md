@@ -56,3 +56,12 @@ final class AuthMiddleware implements MiddlewareInterface
     }
 }
 ```
+
+## CSRF response token contract
+
+Unsafe CSRF-protected requests (`POST`, `PUT`, `PATCH`, `DELETE`) validate the supplied token and
+rotate it before the route handler runs. Every response carries the current token in
+`X-CSRF-Token`; AJAX clients must use that response token for their next mutation request.
+An invalid or stale token returns `419` without executing the handler and also includes the
+current `X-CSRF-Token` value, so a client can resynchronise without automatically replaying the
+mutation.
