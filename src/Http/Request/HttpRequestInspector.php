@@ -111,6 +111,43 @@ final class HttpRequestInspector
         return $accept !== '' ? $accept : self::UNKNOWN;
     }
 
+    /**
+     * Returns whether JSON is an explicitly preferred acceptable response representation.
+     *
+     * This inspects only the Accept header. It does not infer a response format
+     * from the request Content-Type, an AJAX header, or an Accept wildcard alone.
+     */
+    public function wantsJson(ServerRequestInterface $request): bool
+    {
+        $jsonQuality = null;
+        $otherQuality = null;
+
+        foreach ($request->getHeader('Accept') as $header) {
+            foreach (explode(',', $header) as $value) {
+                $mediaRange = $this->acceptMediaRange($value);
+                if ($mediaRange === null) {
+                    continue;
+                }
+
+                [$mediaType, $quality] = $mediaRange;
+
+                if ($this->isJsonMediaType($mediaType)) {
+                    if ($quality > 0.0) {
+                        $jsonQuality = max($jsonQuality ?? 0.0, $quality);
+                    }
+
+                    continue;
+                }
+
+                if ($quality > 0.0) {
+                    $otherQuality = max($otherQuality ?? 0.0, $quality);
+                }
+            }
+        }
+
+        return $jsonQuality !== null && ($otherQuality === null || $jsonQuality >= $otherQuality);
+    }
+
     public function acceptLanguage(ServerRequestInterface $request): string
     {
         return $request->getHeaderLine('Accept-Language');
@@ -172,6 +209,45 @@ final class HttpRequestInspector
         $remoteAddr = $serverParams['REMOTE_ADDR'] ?? null;
 
         return is_string($remoteAddr) ? $this->validateIp($remoteAddr) : null;
+    }
+
+    /**
+     * @return array{0: string, 1: float}|null
+     */
+    private function acceptMediaRange(string $value): ?array
+    {
+        $parts = explode(';', $value);
+        $mediaType = strtolower(trim((string) array_shift($parts)));
+
+        if (preg_match('#^[^/\s;]+/[^/\s;]+$#', $mediaType) !== 1) {
+            return null;
+        }
+
+        $quality = 1.0;
+
+        foreach ($parts as $parameter) {
+            $pair = explode('=', $parameter, 2);
+            if (count($pair) !== 2 || strtolower(trim($pair[0])) !== 'q') {
+                continue;
+            }
+
+            $qvalue = trim($pair[1]);
+            if (preg_match('/^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/', $qvalue) !== 1) {
+                return null;
+            }
+
+            $quality = (float) $qvalue;
+            break;
+        }
+
+        return [$mediaType, $quality];
+    }
+
+    private function isJsonMediaType(string $mediaType): bool
+    {
+        [, $subtype] = explode('/', $mediaType, 2);
+
+        return $subtype === 'json' || str_ends_with($subtype, '+json');
     }
 
     private function extractFromForwarded(string $value): ?string

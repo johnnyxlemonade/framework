@@ -140,6 +140,7 @@ final class ControllerTest extends TestCase
 
         self::assertTrue($controller->exposedIsJsonRequest());
         self::assertTrue($controller->exposedAcceptsJson());
+        self::assertTrue($controller->exposedWantsJson());
         self::assertTrue($controller->exposedExpectsJson());
         self::assertTrue($controller->exposedIsAjaxRequest());
 
@@ -620,6 +621,11 @@ final class ControllerTestSubject extends AbstractController
     public function exposedAcceptsJson(): bool
     {
         return $this->acceptsJson();
+    }
+
+    public function exposedWantsJson(): bool
+    {
+        return $this->wantsJson();
     }
 
     public function exposedExpectsJson(): bool

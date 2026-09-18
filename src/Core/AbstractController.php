@@ -218,6 +218,14 @@ abstract class AbstractController
     }
 
     /**
+     * Reports whether JSON is an explicitly preferred acceptable response representation.
+     */
+    protected function wantsJson(): bool
+    {
+        return $this->requestData()->wantsJson();
+    }
+
+    /**
      * Reports whether the request should be treated as expecting JSON.
      */
     protected function expectsJson(): bool

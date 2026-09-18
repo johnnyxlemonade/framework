@@ -139,6 +139,40 @@ final class RequestDataTest extends TestCase
         self::assertTrue($any->acceptsJson());
     }
 
+    public function testWantsJsonUsesExplicitAcceptPreferenceInsteadOfRequestContentType(): void
+    {
+        $json = new RequestData($this->request('POST')->withHeader('Accept', 'application/json'));
+        $html = new RequestData($this->request('GET')->withHeader('Accept', 'text/html,application/xhtml+xml'));
+        $jsonAndText = new RequestData($this->request('GET')->withHeader('Accept', 'application/json, text/plain'));
+        $jsonPreferred = new RequestData($this->request('GET')->withHeader('Accept', 'application/json;q=0.9, text/html;q=0.8'));
+        $htmlPreferred = new RequestData($this->request('GET')->withHeader('Accept', 'text/html, application/json;q=0.5'));
+        $wildcard = new RequestData($this->request('GET')->withHeader('Accept', '*/*'));
+        $missing = new RequestData($this->request('GET'));
+        $problem = new RequestData($this->request('GET')->withHeader('Accept', 'application/problem+json'));
+        $vendor = new RequestData($this->request('GET')->withHeader('Accept', 'application/vnd.api+json'));
+        $jsonBody = new RequestData($this->request('POST')->withHeader('Content-Type', 'application/json'));
+
+        self::assertTrue($json->wantsJson());
+        self::assertFalse($html->wantsJson());
+        self::assertTrue($jsonAndText->wantsJson());
+        self::assertTrue($jsonPreferred->wantsJson());
+        self::assertFalse($htmlPreferred->wantsJson());
+        self::assertFalse($wildcard->wantsJson());
+        self::assertFalse($missing->wantsJson());
+        self::assertTrue($problem->wantsJson());
+        self::assertTrue($vendor->wantsJson());
+        self::assertFalse($jsonBody->wantsJson());
+    }
+
+    public function testWantsJsonCombinesMultipleAcceptHeaderLines(): void
+    {
+        $request = $this->request('GET')
+            ->withHeader('Accept', 'text/html;q=0.8')
+            ->withAddedHeader('Accept', 'application/json;q=0.9');
+
+        self::assertTrue((new RequestData($request))->wantsJson());
+    }
+
     public function testExpectsJsonForJsonRequestAcceptJsonOrAjaxRequest(): void
     {
         $jsonRequest = new RequestData($this->request('POST')->withHeader('Content-Type', 'application/json'));

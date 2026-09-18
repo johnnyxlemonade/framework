@@ -57,6 +57,29 @@ final class AuthMiddleware implements MiddlewareInterface
 }
 ```
 
+## JSON response preference
+
+`Content-Type` describes the format of the request body; it does not determine the requested
+response format. Use `HttpRequestInspector::wantsJson()` to inspect `Accept` when middleware,
+controllers, validation, or error handling needs a JSON-or-HTML decision. `wantsJson()` returns
+true only when a JSON media type has a positive quality value and is at least as preferred as the
+other accepted media types. It recognizes `application/json` and media types ending in `+json`.
+Missing `Accept` and `Accept: */*` alone return false.
+
+```php
+use Lemonade\Framework\Http\Request\HttpRequestInspector;
+
+if ($this->requestInspector->wantsJson($request)) {
+    // Return a JSON response.
+}
+
+// Return an HTML response or redirect.
+```
+
+Controllers can use the equivalent protected `$this->wantsJson()` helper. This is distinct from
+the existing `expectsJson()` helper, which is intentionally broader and may also consider request
+body format or AJAX request characteristics.
+
 ## CSRF response token contract
 
 Unsafe CSRF-protected requests (`POST`, `PUT`, `PATCH`, `DELETE`) validate the supplied token and

@@ -181,6 +181,14 @@ final class RequestData
         return $accept !== '' && (str_contains($accept, 'application/json') || str_contains($accept, 'application/*') || str_contains($accept, '*/*'));
     }
 
+    /**
+     * Reports whether JSON is an explicitly preferred acceptable response representation.
+     */
+    public function wantsJson(): bool
+    {
+        return $this->inspector->wantsJson($this->request);
+    }
+
     public function expectsJson(): bool
     {
         return $this->isJsonRequest() || $this->acceptsJson() || $this->isAjaxRequest();
