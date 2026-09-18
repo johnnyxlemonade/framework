@@ -28,7 +28,10 @@ final class View
     private ?string $extends = null;
     private ?string $content = null;
 
-    public function __construct(private readonly string $basePath = 'app/views') {}
+    public function __construct(
+        private readonly string $basePath = 'app/views',
+        private readonly ?ViewResourceRegistry $resources = null,
+    ) {}
 
     public function share(string $key, mixed $value): void
     {
@@ -156,7 +159,7 @@ final class View
      */
     private function renderFile(string $view, array $data): string
     {
-        $file = rtrim($this->basePath, '/\\') . DIRECTORY_SEPARATOR . str_replace('.', DIRECTORY_SEPARATOR, $view) . '.php';
+        $file = $this->resolveFile($view);
         if (!is_file($file)) {
             throw new RuntimeException(sprintf('View not found: %s', $file));
         }
@@ -175,6 +178,23 @@ final class View
 
             throw $exception;
         }
+    }
+
+    private function resolveFile(string $view): string
+    {
+        $this->resources?->freeze();
+
+        if (!str_contains($view, '::')) {
+            return rtrim($this->basePath, '/\\') . DIRECTORY_SEPARATOR . str_replace('.', DIRECTORY_SEPARATOR, $view) . '.php';
+        }
+
+        if ($this->resources === null) {
+            throw new RuntimeException('Namespaced views require a ViewResourceRegistry.');
+        }
+
+        [$namespace, $name] = explode('::', $view, 2);
+
+        return $this->resources->resolve($namespace, $name);
     }
 
     private function resetViewState(): void

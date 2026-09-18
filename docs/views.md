@@ -8,6 +8,39 @@ The default base path is:
 app/Views
 ```
 
+## Provider-owned view resources
+
+A provider can register an explicit, namespaced view root during bootstrap. The framework has no
+knowledge of application modules or directory conventions; the provider supplies both the stable
+namespace and an existing directory.
+
+```php
+use Lemonade\Framework\View\ViewResourceRegistry;
+
+$container->get(ViewResourceRegistry::class)->register(
+    'users',
+    __DIR__ . '/Resources/views',
+);
+```
+
+Namespaced views use exactly `namespace::dot.notation`:
+
+```php
+$view->render('users::editor');
+$view->template('admin::layouts.admin', 'users::editor');
+```
+
+The namespace must match `[a-z][a-z0-9-]*`; a namespaced view name permits only dot-separated
+segments containing letters, digits, `_` and `-`. Slashes, backslashes, `..`, absolute paths and
+NUL bytes are rejected. A namespace has exactly one owner: duplicate registrations fail, and no
+application override or precedence layer exists.
+
+The registry canonicalizes roots with `realpath()` and resolves a requested PHP file with the same
+check, so symlinks cannot escape the registered root. Registration is bootstrap-only: the first
+view resolution freezes the registry, making later registrations fail deterministically. Existing
+unqualified names such as `frontend.home`, `errors/404` and `layouts.error` keep their legacy
+single-root behavior unchanged.
+
 ## Rendering from a controller
 
 ```php

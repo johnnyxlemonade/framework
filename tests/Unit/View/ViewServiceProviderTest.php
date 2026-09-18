@@ -30,6 +30,7 @@ use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\Config\ViewConfigDefinition;
 use Lemonade\Framework\View\Config\ViewConfigResolver;
 use Lemonade\Framework\View\View;
+use Lemonade\Framework\View\ViewResourceRegistry;
 use Lemonade\Framework\View\ViewHelpers;
 use Lemonade\Framework\View\ViewServiceProvider;
 use Nyholm\Psr7\ServerRequest;
@@ -59,6 +60,7 @@ final class ViewServiceProviderTest extends TestCase
         $provider->register($container);
 
         self::assertTrue($container->isBound(View::class));
+        self::assertTrue($container->isBound(ViewResourceRegistry::class));
 
         $viewA = $container->get(View::class);
         $viewB = $container->get(View::class);
@@ -72,6 +74,20 @@ final class ViewServiceProviderTest extends TestCase
         self::assertStringContainsString(BaseUrlResolver::class, $output);
         self::assertStringContainsString(UrlGenerator::class, $output);
         self::assertStringContainsString(CsrfViewHelper::class, $output);
+    }
+
+    public function testRegisterProvidesSharedViewResourceRegistryToView(): void
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+        (new ViewServiceProvider())->register($container);
+
+        $moduleViews = $this->root . DIRECTORY_SEPARATOR . 'module-views';
+        mkdir($moduleViews, 0775, true);
+        file_put_contents($moduleViews . DIRECTORY_SEPARATOR . 'editor.php', 'EDITOR');
+
+        $container->get(ViewResourceRegistry::class)->register('users', $moduleViews);
+
+        self::assertSame('EDITOR', $container->get(View::class)->render('users::editor'));
     }
 
     public function testRegisterSharesHelpersVariableIntoRenderedView(): void

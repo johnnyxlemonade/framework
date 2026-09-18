@@ -22,6 +22,7 @@ final class ViewServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
+        $container->singleton(ViewResourceRegistry::class, ViewResourceRegistry::class);
         $container->singleton(ViewConfigResolver::class, ViewConfigResolver::class);
         $container->singleton(ViewConfig::class, static function (ContainerInterface $container): ViewConfig {
             return $container
@@ -50,7 +51,10 @@ final class ViewServiceProvider implements ServiceProviderInterface
                     ->path($configuredBasePath);
             }
 
-            $view = new View($resolvedBasePath);
+            $view = new View(
+                $resolvedBasePath,
+                $container->get(ViewResourceRegistry::class),
+            );
 
             $view->share('helpers', $container->get(ViewHelpers::class));
             $view->share('component', $container->get(ComponentRegistry::class));
