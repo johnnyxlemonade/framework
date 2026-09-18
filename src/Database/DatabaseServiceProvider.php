@@ -66,16 +66,6 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
             return $factory->create($config);
         });
 
-        $container->singleton(Database::class, static function (ContainerInterface $container): Database {
-            /** @var DatabaseFactory $factory */
-            $factory = $container->get(DatabaseFactory::class);
-
-            /** @var DatabaseConfig $config */
-            $config = $container->get(DatabaseConfig::class);
-
-            return $factory->create($config);
-        });
-
         $container->singleton(DatabaseDriverInterface::class, static function (ContainerInterface $container): DatabaseDriverInterface {
             /** @var DatabaseConfig $config */
             $config = $container->get(DatabaseConfig::class);
@@ -91,6 +81,19 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
                 connection: $connection,
                 config: $config,
                 container: $container,
+            );
+        });
+
+        $container->singleton(Database::class, static function (ContainerInterface $container): Database {
+            /** @var ConnectionInterface $connection */
+            $connection = $container->get(ConnectionInterface::class);
+
+            /** @var DatabaseDriverInterface $driver */
+            $driver = $container->get(DatabaseDriverInterface::class);
+
+            return new Database(
+                connection: $connection,
+                driver: $driver,
             );
         });
 

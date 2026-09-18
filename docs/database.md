@@ -59,6 +59,17 @@ SQLite schema support is intentionally conservative. Some `ALTER TABLE` operatio
 
 App-level YAML is still mapped into `DatabaseConfigDefinition` before `DatabaseConfigResolver` produces runtime config objects.
 
+## Container-managed database services and models
+
+The default application container resolves `ConnectionInterface`, `DatabaseDriverInterface`, and
+`Database` as one shared connection stack. A concrete `Model` resolved with the container-managed
+`DatabaseDriverInterface` therefore participates safely in `Database::transaction(...)` together
+with `Database` and Query Builder writes.
+
+`DatabaseFactory::create()` is intentionally different: it explicitly creates an independent
+`Database` instance with its own connection and driver for callers that need a separate database
+context.
+
 ## Migrations
 
 Lemonade provides a small, one-way migration runner. Concrete migration classes stay in the application and are registered explicitly from an application service provider; the framework does not scan directories.
