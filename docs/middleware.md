@@ -82,9 +82,19 @@ body format or AJAX request characteristics.
 
 ## CSRF response token contract
 
-Unsafe CSRF-protected requests (`POST`, `PUT`, `PATCH`, `DELETE`) validate the supplied token and
-rotate it before the route handler runs. Every response carries the current token in
-`X-CSRF-Token`; AJAX clients must use that response token for their next mutation request.
-An invalid or stale token returns `419` without executing the handler and also includes the
-current `X-CSRF-Token` value, so a client can resynchronise without automatically replaying the
-mutation.
+Unsafe CSRF-protected requests (`POST`, `PUT`, `PATCH`, `DELETE`) validate the session-scoped
+synchronizer token. The token is generated from secure random bytes on first use and remains stable
+for the lifetime of that session; every response that passes `CsrfMiddleware` carries it in
+`X-CSRF-Token`. This lets HTML forms, AJAX mutations and concurrently opened pages safely share one
+token. An invalid token returns `419`
+without executing the handler and includes the current token for resynchronisation. Authentication
+code may explicitly regenerate the token after a session/identity boundary; session invalidation
+naturally invalidates it.
+
+Only `GET`, `HEAD` and `OPTIONS` bypass CSRF validation. The middleware reads the public HTML form
+field `LEMONADE_CSRF` first and otherwise the `X-CSRF-Token` header; it never reads a token from the
+query string. If both body and header are present, the body field is authoritative.
+
+`CsrfTokenNames::FORM_FIELD` and `CsrfTokenNames::HEADER` are the canonical fixed framework
+transport contract for those names. They are intentionally not application configuration: views,
+same-origin JavaScript and middleware must use the same stable protocol.

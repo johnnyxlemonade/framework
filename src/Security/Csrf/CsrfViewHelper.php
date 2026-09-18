@@ -6,8 +6,6 @@ namespace Lemonade\Framework\Security\Csrf;
 
 final class CsrfViewHelper
 {
-    private const FIELD = 'LEMONADE_CSRF';
-
     public function __construct(
         private readonly CsrfTokenManager $tokens,
     ) {}
@@ -21,13 +19,13 @@ final class CsrfViewHelper
     {
         return sprintf(
             '<input type="hidden" name="%s" value="%s">',
-            self::FIELD,
+            CsrfTokenNames::FORM_FIELD,
             htmlspecialchars($this->token($name), ENT_QUOTES, 'UTF-8'),
         );
     }
 
     public function fieldName(): string
     {
-        return self::FIELD;
+        return CsrfTokenNames::FORM_FIELD;
     }
 }

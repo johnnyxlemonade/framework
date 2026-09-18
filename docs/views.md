@@ -50,9 +50,11 @@ The view service provider shares an explicit `$helpers` object with templates. `
 </a>
 
 <?= $helpers->csrfField() ?>
-
-<input type="hidden" name="_token" value="<?= htmlspecialchars($helpers->csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 ```
+
+`csrfField()` is the canonical form helper. It emits the fixed public
+`CsrfTokenNames::FORM_FIELD` name and a session-scoped token; templates must not repeat that field
+name manually.
 
 ## Request View Helpers
 

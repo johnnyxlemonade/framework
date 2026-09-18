@@ -8,7 +8,7 @@ use Lemonade\Framework\Session\Contract\SessionInterface;
 
 final class CsrfTokenManager
 {
-    private const SESSION_KEY = '_csrf_tokens';
+    private const SESSION_TOKENS_KEY = '_csrf_tokens';
 
     public function __construct(
         private readonly SessionInterface $session,
@@ -20,7 +20,7 @@ final class CsrfTokenManager
 
         if (!isset($tokens[$name])) {
             $tokens[$name] = bin2hex(random_bytes(32));
-            $this->session->set(self::SESSION_KEY, $tokens);
+            $this->session->set(self::SESSION_TOKENS_KEY, $tokens);
         }
 
         return $tokens[$name];
@@ -40,7 +40,7 @@ final class CsrfTokenManager
         $tokens = $this->tokens();
         $tokens[$name] = bin2hex(random_bytes(32));
 
-        $this->session->set(self::SESSION_KEY, $tokens);
+        $this->session->set(self::SESSION_TOKENS_KEY, $tokens);
 
         return $tokens[$name];
     }
@@ -51,7 +51,7 @@ final class CsrfTokenManager
 
         unset($tokens[$name]);
 
-        $this->session->set(self::SESSION_KEY, $tokens);
+        $this->session->set(self::SESSION_TOKENS_KEY, $tokens);
     }
 
     /**
@@ -59,7 +59,7 @@ final class CsrfTokenManager
      */
     private function tokens(): array
     {
-        $tokens = $this->session->get(self::SESSION_KEY, []);
+        $tokens = $this->session->get(self::SESSION_TOKENS_KEY, []);
 
         if (!is_array($tokens)) {
             return [];

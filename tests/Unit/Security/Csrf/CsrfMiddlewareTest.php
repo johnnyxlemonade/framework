@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Tests\Unit\Security\Csrf;
 
 use Lemonade\Framework\Security\Csrf\CsrfMiddleware;
 use Lemonade\Framework\Security\Csrf\CsrfTokenManager;
+use Lemonade\Framework\Security\Csrf\CsrfTokenNames;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
@@ -15,7 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final class CsrfMiddlewareTest extends TestCase
 {
-    public function testValidMutationRegeneratesToken(): void
+    public function testValidMutationKeepsTheSessionToken(): void
     {
         $tokens = $this->tokens();
         $initial = $tokens->token();
@@ -25,35 +26,35 @@ final class CsrfMiddlewareTest extends TestCase
 
         self::assertSame(1, $handler->calls());
         self::assertSame(200, $response->getStatusCode());
-        self::assertNotSame($initial, $response->getHeaderLine('X-CSRF-Token'));
+        self::assertSame($initial, $response->getHeaderLine('X-CSRF-Token'));
     }
 
-    public function testNextMutationWorksWithTokenReturnedByPreviousResponse(): void
+    public function testRepeatedMutationsAndConcurrentPagesCanUseTheSameSessionToken(): void
     {
         $tokens = $this->tokens();
         $handler = new CsrfMiddlewareHandler();
         $middleware = $this->middleware($tokens);
 
-        $first = $middleware->process($this->request('POST', bodyToken: $tokens->token()), $handler);
-        $second = $middleware->process($this->request('POST', headerToken: $first->getHeaderLine('X-CSRF-Token')), $handler);
+        $token = $tokens->token();
+        $first = $middleware->process($this->request('POST', bodyToken: $token), $handler);
+        $second = $middleware->process($this->request('POST', headerToken: $token), $handler);
 
         self::assertSame(2, $handler->calls());
         self::assertSame(200, $second->getStatusCode());
+        self::assertSame($token, $first->getHeaderLine('X-CSRF-Token'));
     }
 
-    public function testStaleTokenFailsWithoutCallingHandlerAndExposesCurrentToken(): void
+    public function testInvalidTokenFailsWithoutCallingHandlerAndExposesTheSessionToken(): void
     {
         $tokens = $this->tokens();
         $initial = $tokens->token();
         $handler = new CsrfMiddlewareHandler();
         $middleware = $this->middleware($tokens);
-        $fresh = $middleware->process($this->request('POST', bodyToken: $initial), $handler)->getHeaderLine('X-CSRF-Token');
+        $response = $middleware->process($this->request('POST', bodyToken: 'invalid'), $handler);
 
-        $response = $middleware->process($this->request('POST', bodyToken: $initial), $handler);
-
-        self::assertSame(1, $handler->calls());
+        self::assertSame(0, $handler->calls());
         self::assertSame(419, $response->getStatusCode());
-        self::assertSame($fresh, $response->getHeaderLine('X-CSRF-Token'));
+        self::assertSame($initial, $response->getHeaderLine('X-CSRF-Token'));
     }
 
     public function testBodyFieldRemainsSupported(): void
@@ -78,6 +79,84 @@ final class CsrfMiddlewareTest extends TestCase
         self::assertSame(1, $handler->calls());
     }
 
+    public function testMissingEmptyMalformedAndForeignSessionTokensAreRejected(): void
+    {
+        $tokens = $this->tokens();
+        $handler = new CsrfMiddlewareHandler();
+        $middleware = $this->middleware($tokens);
+
+        foreach ([null, '', 'not-a-csrf-token', (new CsrfTokenManager(new CsrfMiddlewareSession()))->token()] as $token) {
+            $response = $middleware->process($this->request('POST', bodyToken: $token), $handler);
+            self::assertSame(419, $response->getStatusCode());
+        }
+        self::assertSame(0, $handler->calls());
+    }
+
+    public function testFormFieldTakesPrecedenceOverHeader(): void
+    {
+        $tokens = $this->tokens();
+        $handler = new CsrfMiddlewareHandler();
+        $request = $this->request('POST', bodyToken: 'invalid', headerToken: $tokens->token());
+
+        $response = $this->middleware($tokens)->process($request, $handler);
+
+        self::assertSame(419, $response->getStatusCode());
+        self::assertSame(0, $handler->calls());
+    }
+
+    public function testSafeMethodsDoNotRequireAToken(): void
+    {
+        foreach (['GET', 'HEAD', 'OPTIONS'] as $method) {
+            $tokens = $this->tokens();
+            $handler = new CsrfMiddlewareHandler();
+            $response = $this->middleware($tokens)->process($this->request($method), $handler);
+
+            self::assertSame(200, $response->getStatusCode());
+            self::assertSame(1, $handler->calls());
+        }
+    }
+
+    public function testQueryParametersCannotProvideTheToken(): void
+    {
+        $tokens = $this->tokens();
+        $handler = new CsrfMiddlewareHandler();
+        $request = (new Psr17Factory())->createServerRequest(
+            'POST',
+            'https://example.test/admin/resource?' . CsrfTokenNames::FORM_FIELD . '=' . $tokens->token(),
+        );
+
+        $response = $this->middleware($tokens)->process($request, $handler);
+
+        self::assertSame(419, $response->getStatusCode());
+        self::assertSame(0, $handler->calls());
+    }
+
+    public function testExplicitSessionBoundaryRegenerationInvalidatesThePreviousToken(): void
+    {
+        $session = new CsrfMiddlewareSession();
+        $tokens = new CsrfTokenManager($session);
+        $anonymousToken = $tokens->token();
+
+        $session->regenerate(true);
+        $authenticatedToken = $tokens->regenerate();
+
+        self::assertNotSame($anonymousToken, $authenticatedToken);
+        self::assertFalse($tokens->validate($anonymousToken));
+        self::assertTrue($tokens->validate($authenticatedToken));
+    }
+
+    public function testSessionInvalidationMakesThePreviousTokenInvalid(): void
+    {
+        $session = new CsrfMiddlewareSession();
+        $tokens = new CsrfTokenManager($session);
+        $token = $tokens->token();
+
+        $session->clear();
+        $session->regenerate(true);
+
+        self::assertFalse($tokens->validate($token));
+    }
+
     private function middleware(CsrfTokenManager $tokens): CsrfMiddleware
     {
         return new CsrfMiddleware($tokens, new Psr17Factory());
@@ -93,10 +172,10 @@ final class CsrfMiddlewareTest extends TestCase
         $request = (new Psr17Factory())->createServerRequest($method, 'https://example.test/admin/api/resource');
 
         if ($bodyToken !== null) {
-            $request = $request->withParsedBody(['LEMONADE_CSRF' => $bodyToken]);
+            $request = $request->withParsedBody([CsrfTokenNames::FORM_FIELD => $bodyToken]);
         }
 
-        return $headerToken === null ? $request : $request->withHeader('X-CSRF-Token', $headerToken);
+        return $headerToken === null ? $request : $request->withHeader(CsrfTokenNames::HEADER, $headerToken);
     }
 }
 
