@@ -18,6 +18,7 @@ final class FileTranslator implements TranslatorInterface
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly LocalizationConfig $config,
+        private readonly ?TranslationResourceRegistry $resources = null,
     ) {}
 
     public function setLocale(?string $locale): self
@@ -68,6 +69,7 @@ final class FileTranslator implements TranslatorInterface
 
     public function all(?string $locale = null): array
     {
+        $this->freezeResources();
         $resolvedLocale = $this->resolveLocale($locale);
         $groups = $this->groupNames($resolvedLocale);
         $output = [];
@@ -105,6 +107,7 @@ final class FileTranslator implements TranslatorInterface
      */
     private function lines(string $group, string $locale): array
     {
+        $this->freezeResources();
         $cacheKey = $locale . ':' . $group;
         if (isset($this->cache[$cacheKey])) {
             return $this->cache[$cacheKey];
@@ -118,9 +121,13 @@ final class FileTranslator implements TranslatorInterface
             $this->loadFile($packageFrameworkFile),
             $this->loadFile($frameworkFile),
         );
+        $resourceLines = [];
+        foreach ($this->resourcePaths($locale, $group) as $resourcePath) {
+            $resourceLines = array_replace($resourceLines, $this->loadFile($resourcePath));
+        }
         $appLines = $this->loadFile($appFile);
 
-        return $this->cache[$cacheKey] = array_replace($frameworkLines, $appLines);
+        return $this->cache[$cacheKey] = array_replace($frameworkLines, $resourceLines, $appLines);
     }
 
     /**
@@ -185,6 +192,9 @@ final class FileTranslator implements TranslatorInterface
         $fallbackPackageFrameworkDir = $this->frameworkLanguageDirectory($fallbackLocale);
         $fallbackAppDir = $this->context->appPath('Language/' . $fallbackLocale);
 
+        $resourceDirectories = $this->resourceDirectories($locale);
+        $fallbackResourceDirectories = $this->resourceDirectories($fallbackLocale);
+
         $names = array_merge(
             $this->collectGroupNamesFromDirectory($frameworkDir),
             $this->collectGroupNamesFromDirectory($packageFrameworkDir),
@@ -192,6 +202,8 @@ final class FileTranslator implements TranslatorInterface
             $this->collectGroupNamesFromDirectory($fallbackFrameworkDir),
             $this->collectGroupNamesFromDirectory($fallbackPackageFrameworkDir),
             $this->collectGroupNamesFromDirectory($fallbackAppDir),
+            ...array_map($this->collectGroupNamesFromDirectory(...), $resourceDirectories),
+            ...array_map($this->collectGroupNamesFromDirectory(...), $fallbackResourceDirectories),
         );
 
         $names = array_values(array_unique($names));
@@ -249,5 +261,36 @@ final class FileTranslator implements TranslatorInterface
     private function frameworkLanguagePath(string $locale, string $group): string
     {
         return $this->frameworkLanguageDirectory($locale) . DIRECTORY_SEPARATOR . $group . '.php';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resourcePaths(string $locale, string $group): array
+    {
+        return array_map(
+            static fn(string $directory): string => $directory . DIRECTORY_SEPARATOR . $group . '.php',
+            $this->resourceDirectories($locale),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resourceDirectories(string $locale): array
+    {
+        if ($this->resources === null) {
+            return [];
+        }
+
+        return array_map(
+            static fn(string $directory): string => $directory . DIRECTORY_SEPARATOR . $locale,
+            $this->resources->directories(),
+        );
+    }
+
+    private function freezeResources(): void
+    {
+        $this->resources?->freeze();
     }
 }

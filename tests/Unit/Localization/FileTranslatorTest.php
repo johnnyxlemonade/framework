@@ -11,8 +11,16 @@ use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\FileTranslator;
+use Lemonade\Framework\Localization\TranslationResourceRegistry;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * PHPStan type aliases cannot be recursive. The explicit mixed value at deeper
+ * levels preserves arbitrary nested PHP translation catalogs at this test-file
+ * serialization boundary.
+ *
+ * @phpstan-type TranslationCatalog array<string, string|array<string, mixed>>
+ */
 final class FileTranslatorTest extends TestCase
 {
     private string $root = '';
@@ -138,6 +146,130 @@ final class FileTranslatorTest extends TestCase
         self::assertSame('App', $translator->get('messages.hello'));
         self::assertSame('FW', $translator->get('messages.only_fw'));
         self::assertSame('APP', $translator->get('messages.only_app'));
+    }
+
+    public function testRegisteredTranslationResourceIsDiscoveredAndAppCanOverrideIt(): void
+    {
+        $resource = $this->root . DIRECTORY_SEPARATOR . 'module' . DIRECTORY_SEPARATOR . 'Resources' . DIRECTORY_SEPARATOR . 'lang';
+        $this->writeRaw(
+            $resource . DIRECTORY_SEPARATOR . 'cs' . DIRECTORY_SEPARATOR . 'auth.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nreturn ['login' => ['title' => 'Module login']];\n",
+        );
+        $this->writeLang('app', 'cs', 'auth', ['login' => ['title' => 'Application login']]);
+
+        $resources = new TranslationResourceRegistry();
+        $resources->register($resource);
+        $translator = new FileTranslator(
+            new ApplicationContext(Environment::Testing, new Path($this->root), DebugMode::disabled()),
+            new LocalizationConfig(
+                defaultLocale: 'cs',
+                fallbackLocale: 'en',
+                supportedLocales: ['cs', 'en'],
+                url: new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false),
+            ),
+            $resources,
+        );
+
+        self::assertSame('Application login', $translator->get('auth.login.title'));
+        self::assertArrayHasKey('auth', $translator->all('cs'));
+    }
+
+    public function testProviderResourcesMergeInRegistrationOrderAndApplicationHasFinalOverride(): void
+    {
+        $locale = 'fr-CA';
+        $group = 'catalog';
+        $providerA = $this->root . DIRECTORY_SEPARATOR . 'provider-a' . DIRECTORY_SEPARATOR . 'Resources' . DIRECTORY_SEPARATOR . 'lang';
+        $providerB = $this->root . DIRECTORY_SEPARATOR . 'provider-b' . DIRECTORY_SEPARATOR . 'Resources' . DIRECTORY_SEPARATOR . 'lang';
+
+        $this->writeLang('src', $locale, $group, [
+            'chain' => 'framework',
+            'framework_only' => 'framework only',
+            'nested' => ['title' => 'framework title', 'description' => 'framework description'],
+        ]);
+        $this->writeResourceLang($providerA, $locale, $group, [
+            'chain' => 'provider A',
+            'provider_a_only' => 'provider A only',
+            'nested' => ['title' => 'provider A title', 'description' => 'provider A description'],
+        ]);
+        $this->writeResourceLang($providerB, $locale, $group, [
+            'chain' => 'provider B',
+            'provider_b_only' => 'provider B only',
+            'nested' => ['title' => 'provider B title'],
+        ]);
+        $this->writeLang('app', $locale, $group, [
+            'chain' => 'application',
+            'application_only' => 'application only',
+        ]);
+
+        $resources = new TranslationResourceRegistry();
+        $resources->register($providerA);
+        $resources->register($providerB);
+        $translator = $this->translatorWithResources($resources, $locale);
+
+        self::assertSame('application', $translator->get('catalog.chain'));
+        self::assertSame('framework only', $translator->get('catalog.framework_only'));
+        self::assertSame('provider A only', $translator->get('catalog.provider_a_only'));
+        self::assertSame('provider B only', $translator->get('catalog.provider_b_only'));
+        self::assertSame('application only', $translator->get('catalog.application_only'));
+        self::assertSame('provider B title', $translator->get('catalog.nested.title'));
+        self::assertSame('provider A description', $translator->get('catalog.nested.description'));
+    }
+
+    public function testTranslationResourceRegistryDeduplicatesCanonicalPaths(): void
+    {
+        $resource = $this->root . DIRECTORY_SEPARATOR . 'module' . DIRECTORY_SEPARATOR . 'Resources' . DIRECTORY_SEPARATOR . 'lang';
+        $this->writeResourceLang($resource, 'fr-CA', 'catalog', ['title' => 'Example']);
+
+        $resources = new TranslationResourceRegistry();
+        $resources->register($resource);
+        $resources->register($resource . DIRECTORY_SEPARATOR);
+        $resources->register($this->root . DIRECTORY_SEPARATOR . 'module' . DIRECTORY_SEPARATOR . 'Resources' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'Resources' . DIRECTORY_SEPARATOR . 'lang');
+
+        $link = $this->root . DIRECTORY_SEPARATOR . 'resource-link';
+        if (DIRECTORY_SEPARATOR !== '\\' && function_exists('symlink') && @symlink($resource, $link)) {
+            $resources->register($link);
+        }
+
+        self::assertSame([realpath($resource)], $resources->directories());
+    }
+
+    public function testTranslationResourceRegistryRejectsMissingResourceRoot(): void
+    {
+        $resources = new TranslationResourceRegistry();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('must exist and be a directory');
+
+        $resources->register($this->root . DIRECTORY_SEPARATOR . 'missing');
+    }
+
+    public function testTranslationResourceRegistryRejectsFileAsResourceRoot(): void
+    {
+        $file = $this->root . DIRECTORY_SEPARATOR . 'not-a-directory.php';
+        $this->writeRaw($file, "<?php\n");
+        $resources = new TranslationResourceRegistry();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('must exist and be a directory');
+
+        $resources->register($file);
+    }
+
+    public function testTranslationResourceRegistrationIsRejectedAfterTranslatorFirstUse(): void
+    {
+        $locale = 'fr-CA';
+        $this->writeLang('src', $locale, 'catalog', ['title' => 'Framework catalog']);
+        $resource = $this->root . DIRECTORY_SEPARATOR . 'module' . DIRECTORY_SEPARATOR . 'Resources' . DIRECTORY_SEPARATOR . 'lang';
+        $this->writeResourceLang($resource, $locale, 'catalog', ['title' => 'Provider catalog']);
+
+        $resources = new TranslationResourceRegistry();
+        $translator = $this->translatorWithResources($resources, $locale);
+        self::assertSame('Framework catalog', $translator->get('catalog.title'));
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('must be registered during provider registration');
+
+        $resources->register($resource);
     }
 
     public function testGroupReturnsMergedFallbackAndPrimaryWithPrimaryPriority(): void
@@ -309,6 +441,24 @@ final class FileTranslatorTest extends TestCase
         );
     }
 
+    private function translatorWithResources(TranslationResourceRegistry $resources, string $locale): FileTranslator
+    {
+        return new FileTranslator(
+            new ApplicationContext(
+                Environment::Testing,
+                new Path($this->root),
+                DebugMode::disabled(),
+            ),
+            new LocalizationConfig(
+                defaultLocale: $locale,
+                fallbackLocale: $locale,
+                supportedLocales: [$locale],
+                url: new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false),
+            ),
+            $resources,
+        );
+    }
+
     private function stringOr(mixed $value, string $default): string
     {
         if (!is_scalar($value)) {
@@ -336,7 +486,7 @@ final class FileTranslatorTest extends TestCase
     }
 
     /**
-     * @param array<string, string> $lines
+     * @param TranslationCatalog $lines
      */
     private function writeLang(string $scope, string $locale, string $group, array $lines): void
     {
@@ -355,7 +505,19 @@ final class FileTranslatorTest extends TestCase
     }
 
     /**
-     * @param array<mixed> $lines
+     * @param TranslationCatalog $lines
+     */
+    private function writeResourceLang(string $resource, string $locale, string $group, array $lines): void
+    {
+        $code = "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($lines, true) . ";\n";
+        $this->writeRaw(
+            $resource . DIRECTORY_SEPARATOR . $locale . DIRECTORY_SEPARATOR . $group . '.php',
+            $code,
+        );
+    }
+
+    /**
+     * @param TranslationCatalog $lines
      */
     private function writeLangNested(string $path, array $lines): void
     {

@@ -26,12 +26,10 @@ final class LocalizationServiceProvider implements ServiceProviderInterface
         });
 
         $container->singleton(FileTranslator::class, FileTranslator::class);
+        $container->singleton(TranslationResourceRegistry::class, TranslationResourceRegistry::class);
         $container->singleton(TranslatorInterface::class, FileTranslator::class);
 
         $container->singleton(LocaleResolver::class, LocaleResolver::class);
         $container->singleton(LocaleResolverInterface::class, LocaleResolver::class);
-
-        $container->singleton('translator', TranslatorInterface::class);
-        $container->singleton('locale.resolver', LocaleResolverInterface::class);
     }
 }
