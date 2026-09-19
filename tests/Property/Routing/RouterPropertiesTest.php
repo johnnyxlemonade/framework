@@ -12,6 +12,8 @@ use Eris\Random\RandomRange;
 use Eris\TestTrait;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Lemonade\Framework\Routing\RouteMatch;
+use Lemonade\Framework\Routing\RouteRegistrarInterface;
+use Lemonade\Framework\Routing\RouteRegistrarRegistry;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -20,7 +22,7 @@ final class RouterPropertiesTest extends TestCase
 {
     use TestTrait;
 
-    private const PROPERTY_CASES = 200;
+    private const PROPERTY_CASES = 500;
 
     public function testRouteParameterRoundTripForSimpleSegment(): void
     {
@@ -253,6 +255,143 @@ final class RouterPropertiesTest extends TestCase
             });
     }
 
+    public function testPathNormalizationIsIdempotentForRegistrationAndDispatch(): void
+    {
+        $this
+            ->limitTo(self::PROPERTY_CASES)
+            ->forAll(RoutePropertyGenerators::staticRoutePath())
+            ->then(function (string $path): void {
+                $router = new Router();
+                $registrationVariant = '///' . trim($path, '/') . '///';
+                $requestVariant = rtrim($path, '/') . '/';
+                $route = $router->get($registrationVariant, 'CatalogController@index');
+
+                self::assertSame($path, $route->path());
+                self::assertSame(
+                    'App\\Controllers\\CatalogController',
+                    $router->match(new ServerRequest('GET', $requestVariant))->controller(),
+                );
+                self::assertSame(
+                    'App\\Controllers\\CatalogController',
+                    $router->match(new ServerRequest('GET', $path))->controller(),
+                );
+            });
+    }
+
+    public function testRegistrarOrderingIsIndependentOfRegistrationOrder(): void
+    {
+        $this
+            ->limitTo(self::PROPERTY_CASES)
+            ->forAll(RoutePropertyGenerators::staticRoutePath())
+            ->then(function (string $seed): void {
+                $log = new PropertyRouteRegistrarLog();
+                $registry = new RouteRegistrarRegistry();
+                $registrars = [
+                    'a' => new PropertyRecordingRouteRegistrar('a', 10, $log),
+                    'z' => new PropertyRecordingRouteRegistrar('z', 10, $log),
+                    'b' => new PropertyRecordingRouteRegistrar('b', 20, $log),
+                ];
+
+                foreach ($this->registrarRegistrationOrder($seed) as $id) {
+                    $registry->register($registrars[$id]);
+                }
+
+                $registry->registerRoutes(new Router());
+
+                self::assertSame(['a', 'z', 'b'], $log->ids());
+            });
+    }
+
+    public function testRegistrarOrderingUsesPriorityThenId(): void
+    {
+        $this
+            ->limitTo(self::PROPERTY_CASES)
+            ->forAll(RoutePropertyGenerators::staticRoutePath())
+            ->then(function (string $seed): void {
+                $log = new PropertyRouteRegistrarLog();
+                $registry = new RouteRegistrarRegistry();
+                $registrars = [
+                    'middle' => new PropertyRecordingRouteRegistrar('middle.' . $seed, 20, $log),
+                    'late' => new PropertyRecordingRouteRegistrar('z.' . $seed, 10, $log),
+                    'early' => new PropertyRecordingRouteRegistrar('a.' . $seed, 10, $log),
+                ];
+
+                foreach (array_reverse($this->registrarRegistrationOrder($seed)) as $id) {
+                    $registry->register($registrars[$id === 'a' ? 'early' : ($id === 'z' ? 'late' : 'middle')]);
+                }
+
+                $registry->registerRoutes(new Router());
+
+                self::assertSame(['a.' . $seed, 'z.' . $seed, 'middle.' . $seed], $log->ids());
+            });
+    }
+
+    public function testFreezeIsIdempotentAndPreventsRouteMutation(): void
+    {
+        $this
+            ->limitTo(self::PROPERTY_CASES)
+            ->forAll(RoutePropertyGenerators::staticRoutePath())
+            ->then(function (string $path): void {
+                $router = new Router();
+                $router->get($path, 'CatalogController@index');
+                $router->freeze();
+                $router->freeze();
+
+                self::assertTrue($router->isFrozen());
+                self::assertSame(
+                    'App\\Controllers\\CatalogController',
+                    $router->match(new ServerRequest('GET', $path))->controller(),
+                );
+
+                try {
+                    $router->post($path, 'CatalogController@store');
+                } catch (\LogicException $exception) {
+                    self::assertSame('Router is frozen.', $exception->getMessage());
+
+                    return;
+                }
+
+                self::fail('Frozen router accepted a route mutation.');
+            });
+    }
+
+    public function testNamedRouteNamesAreUniqueAcrossPublicNamingApis(): void
+    {
+        $this
+            ->limitTo(self::PROPERTY_CASES)
+            ->forAll(RoutePropertyGenerators::staticRoutePath())
+            ->then(function (string $path): void {
+                $router = new Router();
+                $router->getNamed('catalog.item', $path, 'CatalogController@index');
+                $alternatePath = rtrim($path, '/') . '/alternate';
+
+                try {
+                    $router->get($alternatePath, 'CatalogController@alternate')->name('catalog.item');
+                } catch (\LogicException) {
+                    self::assertSame($path, $router->url('catalog.item'));
+
+                    return;
+                }
+
+                self::fail('Duplicate route name registered through map(...)->name(...).');
+            });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function registrarRegistrationOrder(string $seed): array
+    {
+        return match (crc32($seed) % 6) {
+            0 => ['a', 'z', 'b'],
+            1 => ['a', 'b', 'z'],
+            2 => ['z', 'a', 'b'],
+            3 => ['z', 'b', 'a'],
+            4 => ['b', 'a', 'z'],
+            default => ['b', 'z', 'a'],
+        };
+    }
+
     /**
      * @return array{controller:string, action:string, params:array<string, string>}
      */
@@ -274,6 +413,53 @@ final class RouterPropertiesTest extends TestCase
         return $invariant
             . "\nFirst failing case: " . json_encode($firstFailure, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             . "\nCurrent failing case: " . json_encode($currentFailure, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+}
+
+final class PropertyRouteRegistrarLog
+{
+    /**
+     * @var list<string>
+     */
+    private array $ids = [];
+
+    public function add(string $id): void
+    {
+        $this->ids[] = $id;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function ids(): array
+    {
+        return $this->ids;
+    }
+}
+
+final class PropertyRecordingRouteRegistrar implements RouteRegistrarInterface
+{
+    public function __construct(
+        private readonly string $registrarId,
+        private readonly int $registrarPriority,
+        private readonly PropertyRouteRegistrarLog $log,
+    ) {}
+
+    public function id(): string
+    {
+        return $this->registrarId;
+    }
+
+    public function priority(): int
+    {
+        return $this->registrarPriority;
+    }
+
+    public function registerRoutes(Router $router): void
+    {
+        unset($router);
+
+        $this->log->add($this->registrarId);
     }
 }
 
