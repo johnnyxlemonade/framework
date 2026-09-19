@@ -151,6 +151,10 @@ final class PdoConnection implements ConnectionInterface
 
     public function transaction(callable $callback): mixed
     {
+        if ($this->inTransaction()) {
+            return $callback($this);
+        }
+
         $this->beginTransaction();
 
         try {

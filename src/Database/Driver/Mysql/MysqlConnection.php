@@ -206,6 +206,10 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
     public function transaction(callable $callback): mixed
     {
+        if ($this->inTransaction()) {
+            return $callback($this);
+        }
+
         $this->beginTransaction();
 
         try {

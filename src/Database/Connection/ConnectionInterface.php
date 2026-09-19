@@ -32,6 +32,9 @@ interface ConnectionInterface
     public function inTransaction(): bool;
 
     /**
+     * Executes the callback atomically. A call made while this connection already has an active
+     * transaction reuses that outer transaction; it must not issue a second physical BEGIN.
+     *
      * @template T
      * @param callable(self): T $callback
      * @return T

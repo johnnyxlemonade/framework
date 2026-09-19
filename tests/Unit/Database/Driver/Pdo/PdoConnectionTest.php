@@ -97,6 +97,27 @@ final class PdoConnectionTest extends TestCase
         }
     }
 
+    public function testNestedTransactionReusesTheOuterTransactionAndRollsBackWithIt(): void
+    {
+        $connection = $this->sqliteConnection();
+        $this->prepareUsers($connection);
+
+        try {
+            $connection->transaction(static function (ConnectionInterface $outer): void {
+                $outer->statement('INSERT INTO users(name) VALUES (?)', ['Outer']);
+                $outer->transaction(static function (ConnectionInterface $inner): void {
+                    $inner->statement('INSERT INTO users(name) VALUES (?)', ['Inner']);
+                });
+                throw new RuntimeException('outer rollback');
+            });
+        } catch (RuntimeException $exception) {
+            self::assertSame('outer rollback', $exception->getMessage());
+        }
+
+        self::assertSame([['id' => 1]], $connection->select('SELECT id FROM users ORDER BY id'));
+        self::assertFalse($connection->inTransaction());
+    }
+
     public function testCursorStreamsRowsAsGenerator(): void
     {
         $connection = $this->sqliteConnection();
