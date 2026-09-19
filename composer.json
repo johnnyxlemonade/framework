@@ -124,6 +124,10 @@
       "@php -d xdebug.mode=coverage vendor/bin/phpunit --configuration .infection/phpunit.xml.dist --coverage-xml build/infection/coverage/coverage-xml --log-junit build/infection/coverage/junit.xml",
       "@php vendor/bin/infection --configuration=infection.routing.json5 --threads=max --show-mutations --filter=src/Routing/Router.php,src/Routing/Route.php,src/Routing/RouteCollection.php,src/Routing/RouteRegistrarRegistry.php --skip-initial-tests --coverage=build/infection/coverage"
     ],
+    "test:mutation:container": [
+      "@php -d xdebug.mode=coverage vendor/bin/phpunit --configuration .infection/phpunit.container.xml.dist --coverage-xml build/infection/container-coverage/coverage-xml --log-junit build/infection/container-coverage/junit.xml",
+      "@php vendor/bin/infection --configuration=infection.container.json5 --threads=max --show-mutations --filter=src/Container/Container.php --skip-initial-tests --coverage=build/infection/container-coverage"
+    ],
     "test:ci": [
       "@php vendor/bin/phpunit --colors=always"
     ],
@@ -165,6 +169,7 @@
     "test": "Run the PHPUnit test suite.",
     "test:property": "Run the property-based test suite.",
     "test:mutation:routing": "Run Infection mutation testing for the routing core using the routing unit and property suites.",
+    "test:mutation:container": "Run Infection mutation testing for container bindings and tagged-service collection invariants.",
     "test:ci": "Run the PHPUnit test suite with CI-friendly output.",
     "stan": "Run PHPStan static analysis.",
     "stan:ci": "Run PHPStan static analysis for GitHub Actions with an increased memory limit.",

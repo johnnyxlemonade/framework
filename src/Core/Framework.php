@@ -23,6 +23,7 @@ use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkServiceProvider;
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\RouteRegistrarRegistry;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
@@ -169,6 +170,20 @@ final class Framework
     public function finalizeRoutes(): void
     {
         $registry = $this->container->get(RouteRegistrarRegistry::class);
+
+        foreach ($this->container->tagged(RouteRegistrarInterface::class) as $serviceId => $registrar) {
+            if (!$registrar instanceof RouteRegistrarInterface) {
+                throw new RuntimeException(sprintf(
+                    'Tagged service "%s" for tag "%s" must implement %s.',
+                    $serviceId,
+                    RouteRegistrarInterface::class,
+                    RouteRegistrarInterface::class,
+                ));
+            }
+
+            $registry->register($registrar);
+        }
+
         $registry->registerRoutes($this->router);
         $registry->freeze();
         $this->router->freeze();

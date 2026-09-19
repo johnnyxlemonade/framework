@@ -321,6 +321,12 @@ Run routing mutation tests with:
 composer test:mutation:routing
 ```
 
+Run container mutation tests, including tagged-service collection invariants, with:
+
+```bash
+composer test:mutation:container
+```
+
 ## Code Quality
 
 The project is designed to be static-analysis friendly.

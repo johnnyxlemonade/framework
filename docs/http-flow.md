@@ -19,6 +19,8 @@ public/index.php
    -> register common framework providers
    -> register application providers
    -> load routes
+   -> resolve tagged RouteRegistrarInterface services
+   -> finalize and freeze routing
 -> Framework::run()
    -> start or continue benchmark run
    -> resolve global middleware stack

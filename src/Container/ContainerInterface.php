@@ -21,6 +21,31 @@ interface ContainerInterface extends PsrContainerInterface
      */
     public function singleton(string $id, callable|object|string $concrete): void;
 
+    /**
+     * Registers a singleton service and declares one or more collection capability tags.
+     *
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|class-string $concrete
+     * @param non-empty-string ...$tags
+     */
+    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void;
+
+    /**
+     * Declares an explicit bound service as a member of a collection capability.
+     *
+     * @param class-string|non-empty-string $serviceId
+     * @param non-empty-string $tag
+     */
+    public function tag(string $serviceId, string $tag): void;
+
+    /**
+     * Resolves tagged services in their declaration order.
+     *
+     * @param non-empty-string $tag
+     * @return iterable<string, object>
+     */
+    public function tagged(string $tag): iterable;
+
     public function setDiagnosticLogger(?LoggerInterface $logger): void;
 
     /**

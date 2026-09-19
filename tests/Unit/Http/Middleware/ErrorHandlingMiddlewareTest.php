@@ -324,6 +324,23 @@ final class TrackingViewContainer implements ContainerInterface
         unset($id, $concrete);
     }
 
+    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
+    {
+        unset($id, $concrete, $tags);
+    }
+
+    public function tag(string $serviceId, string $tag): void
+    {
+        unset($serviceId, $tag);
+    }
+
+    public function tagged(string $tag): iterable
+    {
+        unset($tag);
+
+        return [];
+    }
+
     public function setDiagnosticLogger(?\Psr\Log\LoggerInterface $logger): void
     {
         unset($logger);

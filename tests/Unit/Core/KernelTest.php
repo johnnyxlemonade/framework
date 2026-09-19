@@ -550,7 +550,11 @@ final class KernelRouteRegistrarProvider implements \Lemonade\Framework\Core\Ser
 {
     public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
     {
-        $container->get(\Lemonade\Framework\Routing\RouteRegistrarRegistry::class)->register(new KernelRouteRegistrar());
+        $container->singletonTagged(
+            KernelRouteRegistrar::class,
+            KernelRouteRegistrar::class,
+            \Lemonade\Framework\Routing\RouteRegistrarInterface::class,
+        );
     }
 }
 

@@ -200,6 +200,117 @@ final class ContainerTest extends TestCase
         self::assertSame($instance, $container->get('singleton.object'));
     }
 
+    public function testExplicitlyBoundServiceCanBeTaggedAndResolved(): void
+    {
+        $container = new Container();
+        $service = new \stdClass();
+        $container->set('tagged.service', $service);
+        $container->tag('tagged.service', 'capability.example');
+
+        self::assertSame(['tagged.service' => $service], $this->taggedServices($container->tagged('capability.example')));
+    }
+
+    public function testUnboundServiceCannotBeTagged(): void
+    {
+        $container = new Container();
+
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('must be explicitly bound');
+        $container->tag('unbound.service', 'capability.example');
+    }
+
+    public function testRejectsDuplicateTagForTheSameService(): void
+    {
+        $container = new Container();
+        $container->singleton('tagged.service', new \stdClass());
+        $container->tag('tagged.service', 'capability.example');
+
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('already tagged');
+        $container->tag('tagged.service', 'capability.example');
+    }
+
+    public function testTagNormalizesWhitespaceAndRejectsAnEmptyTag(): void
+    {
+        $container = new Container();
+        $service = new \stdClass();
+        $container->singleton('tagged.service', $service);
+        $container->tag('tagged.service', ' capability.example ');
+
+        self::assertSame(['tagged.service' => $service], $this->taggedServices($container->tagged('capability.example')));
+
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('must not be empty');
+        $container->tag('tagged.service', ' ');
+    }
+
+    public function testServiceCanHaveMultipleTagsAndTagKeepsDeclarationOrder(): void
+    {
+        $container = new Container();
+        $first = new \stdClass();
+        $second = new \stdClass();
+        $container->singleton('tagged.first', $first);
+        $container->singleton('tagged.second', $second);
+        $container->tag('tagged.first', 'capability.first');
+        $container->tag('tagged.first', 'capability.second');
+        $container->tag('tagged.second', 'capability.first');
+
+        self::assertSame(
+            ['tagged.first' => $first, 'tagged.second' => $second],
+            $this->taggedServices($container->tagged('capability.first')),
+        );
+        self::assertSame(['tagged.first' => $first], $this->taggedServices($container->tagged('capability.second')));
+    }
+
+    public function testTaggedResolutionPreservesSingletonIdentity(): void
+    {
+        $container = new Container();
+        $container->singleton('tagged.singleton', static fn(): \stdClass => new \stdClass());
+        $container->tag('tagged.singleton', 'capability.example');
+
+        $services = $this->taggedServices($container->tagged('capability.example'));
+
+        self::assertSame($container->get('tagged.singleton'), $services['tagged.singleton']);
+    }
+
+    public function testSingletonTaggedUsesTheStandardBindingAndTagContracts(): void
+    {
+        $container = new Container();
+        $container->singletonTagged('tagged.singleton', static fn(): \stdClass => new \stdClass(), 'capability.first', 'capability.second');
+
+        $first = $this->taggedServices($container->tagged('capability.first'));
+        $second = $this->taggedServices($container->tagged('capability.second'));
+
+        self::assertSame($container->get('tagged.singleton'), $first['tagged.singleton']);
+        self::assertSame($first['tagged.singleton'], $second['tagged.singleton']);
+    }
+
+    public function testTaggedServicesMustResolveToObjects(): void
+    {
+        $container = new Container();
+        $container->singleton('tagged.scalar', static fn(): string => 'not-an-object');
+        $container->tag('tagged.scalar', 'capability.example');
+
+        $this->expectException(ContainerException::class);
+        $this->expectExceptionMessage('must resolve to an object');
+        self::assertSame([], $this->taggedServices($container->tagged('capability.example')));
+    }
+
+    /**
+     * @param iterable<string, object> $services
+     * @return array<string, object>
+     */
+    private function taggedServices(iterable $services): array
+    {
+        $resolved = [];
+
+        foreach ($services as $serviceId => $service) {
+            $resolved[$serviceId] = $service;
+        }
+
+        return $resolved;
+    }
+
     public function testSetAfterExistingSingletonInvalidatesStoredInstance(): void
     {
         $container = new Container();

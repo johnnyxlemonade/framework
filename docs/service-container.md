@@ -24,6 +24,39 @@ $container->singleton(Bar::class, static function (ContainerInterface $container
 $container->singleton('custom.service', new CustomService());
 ```
 
+## Tagged services
+
+Tags declare an explicit service as a member of a collection capability. They are not filesystem
+discovery, reflection scanning, interface autowiring, or constructor self-registration: the owning
+provider still explicitly binds every service and explicitly declares each capability membership.
+
+```php
+$container->singleton(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
+$container->tag(ArticlesRouteRegistrar::class, RouteRegistrarInterface::class);
+```
+
+`tag()` accepts only an explicitly bound service (`set()` or `singleton()`); tagging an autowire
+fallback service fails fast. The same `serviceId + tag` pair is rejected, while one service may
+have multiple tags and one tag may contain multiple services. `tagged($tag)` resolves services
+through the normal container and returns them in tag declaration order, preserving ordinary
+singleton semantics.
+
+For the common singleton case, `singletonTagged()` is equivalent to `singleton()` followed by one
+or more `tag()` calls; it does not implement a second binding mechanism:
+
+```php
+$container->singletonTagged(
+    ArticlesRouteRegistrar::class,
+    ArticlesRouteRegistrar::class,
+    RouteRegistrarInterface::class,
+);
+```
+
+Tag order is deterministic collection order, not business ordering. A consumer needing semantic
+ordering must define and apply its own contract. `RouteRegistrarRegistry`, for example, sorts
+registrars by `priority()` and then `id()`. Suitable future collection consumers include dashboard
+widget providers, health checks and extension providers; tagging alone never activates a service.
+
 ## String service identifiers
 
 String service identifiers are supported and are used by some framework providers as convenient aliases.

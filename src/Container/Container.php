@@ -30,6 +30,11 @@ final class Container implements ContainerInterface
     private array $instances = [];
 
     /**
+     * @var array<string, list<string>>
+     */
+    private array $tags = [];
+
+    /**
      * @var array<string, true>
      */
     private array $reportedAutowireFallbacks = [];
@@ -101,6 +106,47 @@ final class Container implements ContainerInterface
 
         unset($this->instances[$id]);
         $this->invalidateDiagnosticCacheFor($id);
+    }
+
+    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
+    {
+        $this->singleton($id, $concrete);
+
+        foreach ($tags as $tag) {
+            $this->tag($id, $tag);
+        }
+    }
+
+    public function tag(string $serviceId, string $tag): void
+    {
+        if (!$this->isBound($serviceId)) {
+            throw new ContainerException(sprintf(
+                'Tagged service "%s" must be explicitly bound before it can be tagged.',
+                $serviceId,
+            ));
+        }
+
+        $normalizedTag = $this->normalizeTag($tag);
+        $services = $this->tags[$normalizedTag] ?? [];
+
+        if (in_array($serviceId, $services, true)) {
+            throw new ContainerException(sprintf(
+                'Service "%s" is already tagged with "%s".',
+                $serviceId,
+                $normalizedTag,
+            ));
+        }
+
+        $services[] = $serviceId;
+        $this->tags[$normalizedTag] = $services;
+    }
+
+    public function tagged(string $tag): iterable
+    {
+        $normalizedTag = $this->normalizeTag($tag);
+        $serviceIds = $this->tags[$normalizedTag] ?? [];
+
+        return $this->resolveTagged($normalizedTag, $serviceIds);
     }
 
     public function setDiagnosticLogger(?LoggerInterface $logger): void
@@ -551,5 +597,35 @@ final class Container implements ContainerInterface
         if ($id === LoggerInterface::class) {
             $this->autowireFallbackLogger = null;
         }
+    }
+
+    /**
+     * @param list<string> $serviceIds
+     * @return \Generator<string, object>
+     */
+    private function resolveTagged(string $tag, array $serviceIds): \Generator
+    {
+        foreach ($serviceIds as $serviceId) {
+            $service = $this->get($serviceId);
+            if (!is_object($service)) {
+                throw new ContainerException(sprintf(
+                    'Tagged service "%s" for tag "%s" must resolve to an object.',
+                    $serviceId,
+                    $tag,
+                ));
+            }
+
+            yield $serviceId => $service;
+        }
+    }
+
+    private function normalizeTag(string $tag): string
+    {
+        $normalizedTag = trim($tag);
+        if ($normalizedTag === '') {
+            throw new ContainerException('Service tag must not be empty.');
+        }
+
+        return $normalizedTag;
     }
 }

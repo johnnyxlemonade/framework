@@ -37,15 +37,21 @@ final class ArticlesRouteRegistrar implements RouteRegistrarInterface
 }
 ```
 
-The owning service provider registers the registrar as a service and declares it in the
-framework registry:
+The owning service provider registers the registrar as a service and tags it as a route capability:
 
 ```php
-$container->singleton(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
-$container->get(RouteRegistrarRegistry::class)->register(
-    $container->get(ArticlesRouteRegistrar::class),
+$container->singletonTagged(
+    ArticlesRouteRegistrar::class,
+    ArticlesRouteRegistrar::class,
+    RouteRegistrarInterface::class,
 );
 ```
+
+The Kernel resolves services tagged with `RouteRegistrarInterface::class` during route
+finalization and passes them to `RouteRegistrarRegistry`. The registry remains public for explicit
+advanced use-cases, but providers do not manually register ordinary DI services. A tagged service
+that does not implement `RouteRegistrarInterface` fails fast with its service ID and tag in the
+diagnostic.
 
 Registrars execute after application composition routes. They are ordered deterministically by
 `priority()` ascending and then `id()` ascending. IDs must be globally unique. A provider without
@@ -55,9 +61,9 @@ The HTTP and CLI kernels own the finalization lifecycle:
 
 ```text
 Router exists
-→ providers register services and typed route registrars
+→ providers bind services and tag typed route registrars
 → application Routing.php registers application/shared routes
-→ framework executes route registrars
+→ framework resolves tagged registrars and executes route registrars
 → registrar registry freezes
 → router freezes
 → dispatch

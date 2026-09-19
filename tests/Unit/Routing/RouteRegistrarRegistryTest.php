@@ -11,6 +11,7 @@ use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Localization\LocalizationServiceProvider;
+use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\RouteRegistrarRegistry;
 use Lemonade\Framework\Routing\Router;
@@ -95,16 +96,17 @@ final class RouteRegistrarRegistryTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
         $framework->register(new LocalizationServiceProvider());
-        $registry = $container->get(RouteRegistrarRegistry::class);
         $log = new RouteRegistrarLog();
 
-        $registry->register(new RecordingRouteRegistrar('articles', 10, $log));
+        $container->singleton('route.registrar.articles', new RecordingRouteRegistrar('articles', 10, $log));
+        $container->tag('route.registrar.articles', RouteRegistrarInterface::class);
         $framework->routes(static function (Router $router): void {
             $router->get('/application', 'ApplicationController@index');
         });
         $framework->finalizeRoutes();
 
         $router = $container->get(Router::class);
+        $registry = $container->get(RouteRegistrarRegistry::class);
         self::assertSame(['articles'], $log->ids());
         self::assertTrue($registry->isFrozen());
         self::assertTrue($router->isFrozen());
@@ -116,6 +118,89 @@ final class RouteRegistrarRegistryTest extends TestCase
             'App\\Controllers\\ArticlesController',
             $router->match(new ServerRequest('GET', '/provider/articles'))->controller(),
         );
+    }
+
+    public function testFrameworkSortsTaggedRegistrarsByPriorityThenId(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path(sys_get_temp_dir()),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+        $log = new RouteRegistrarLog();
+
+        $container->singleton('route.registrar.z', new RecordingRouteRegistrar('z', 10, $log));
+        $container->singleton('route.registrar.b', new RecordingRouteRegistrar('b', 20, $log));
+        $container->singleton('route.registrar.a', new RecordingRouteRegistrar('a', 10, $log));
+        $container->tag('route.registrar.z', RouteRegistrarInterface::class);
+        $container->tag('route.registrar.b', RouteRegistrarInterface::class);
+        $container->tag('route.registrar.a', RouteRegistrarInterface::class);
+
+        $framework->finalizeRoutes();
+
+        self::assertSame(['a', 'z', 'b'], $log->ids());
+    }
+
+    public function testTaggedRouteRegistrarMustImplementTheRouteRegistrarContract(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path(sys_get_temp_dir()),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+        $container->singleton('route.registrar.invalid', new \stdClass());
+        $container->tag('route.registrar.invalid', RouteRegistrarInterface::class);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('route.registrar.invalid');
+        $this->expectExceptionMessage(RouteRegistrarInterface::class);
+        $framework->finalizeRoutes();
+    }
+
+    public function testExplicitAndTaggedRegistrarWithTheSameIdAreRejected(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path(sys_get_temp_dir()),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+        $log = new RouteRegistrarLog();
+        $registry = $container->get(RouteRegistrarRegistry::class);
+        $registry->register(new RecordingRouteRegistrar('duplicate', 10, $log));
+        $container->singleton('route.registrar.duplicate', new RecordingRouteRegistrar('duplicate', 20, $log));
+        $container->tag('route.registrar.duplicate', RouteRegistrarInterface::class);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('duplicate');
+        $framework->finalizeRoutes();
+    }
+
+    public function testTagAddedAfterRouteFinalizationDoesNotMutateTheFrozenRouter(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path(sys_get_temp_dir()),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+
+        $framework->finalizeRoutes();
+
+        $container->singleton('route.registrar.late', new RecordingRouteRegistrar('late', 10, new RouteRegistrarLog()));
+        $container->tag('route.registrar.late', RouteRegistrarInterface::class);
+
+        $router = $container->get(Router::class);
+        self::assertTrue($router->isFrozen());
+
+        $this->expectException(RouteNotFoundException::class);
+        $router->match(new ServerRequest('GET', '/provider/late'));
     }
 }
 
