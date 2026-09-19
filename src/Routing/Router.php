@@ -41,6 +41,8 @@ final class Router
 
     private readonly RouteCollection $collection;
 
+    private bool $frozen = false;
+
     public function __construct()
     {
         $this->collection = new RouteCollection();
@@ -118,6 +120,8 @@ final class Router
 
     public function map(HttpMethod|string $method, string $path, string $handler): Route
     {
+        $this->assertMutable();
+
         [$controller, $action] = $this->parseHandler($handler);
 
         $methodName = $this->normalizeMethod($method);
@@ -128,6 +132,10 @@ final class Router
             path: $normalizedPath,
             controller: $controller,
             action: $action,
+            assertMutable: fn(): bool => $this->assertMutable(),
+            registerName: function (Route $route, string $name): void {
+                $this->registerRouteName($route, $name);
+            },
         );
 
         $this->applyLocalizedRouteConstraints($route);
@@ -140,15 +148,11 @@ final class Router
 
     public function mapNamed(string $name, HttpMethod|string $method, string $path, string $handler): Route
     {
+        $this->assertMutable();
+
         $resolvedName = $this->withNamePrefix($name);
 
-        if (isset($this->namedRoutes[$resolvedName])) {
-            throw new \LogicException(sprintf(
-                'Named route "%s" is already registered as "%s".',
-                $resolvedName,
-                $this->namedRoutes[$resolvedName],
-            ));
-        }
+        $this->assertRouteNameAvailable($resolvedName);
 
         $route = $this->map($method, $path, $handler);
 
@@ -164,6 +168,8 @@ final class Router
      */
     public function group(string $prefix, callable $builder): RouteGroup
     {
+        $this->assertMutable();
+
         $before = count($this->routeList);
 
         $this->groupPrefixes[] = $this->normalizePath($prefix);
@@ -184,6 +190,8 @@ final class Router
      */
     public function localizedGroup(callable $builder): LocalizedRouteGroup
     {
+        $this->assertMutable();
+
         $beforePlain = count($this->routeList);
 
         $builder($this);
@@ -214,6 +222,8 @@ final class Router
         string $localeParameter = 'locale',
         array $supportedLocales = [],
     ): void {
+        $this->assertMutable();
+
         $localeParameter = trim($localeParameter);
         $this->localizedLocaleParameter = $localeParameter !== '' ? $localeParameter : 'locale';
         $this->localizedRouteNamePrefix = $routeNamePrefix;
@@ -251,7 +261,22 @@ final class Router
 
     public function setControllerNamespace(string $namespace): void
     {
+        $this->assertMutable();
+
         $this->controllerNamespace = trim($namespace, '\\');
+    }
+
+    /**
+     * Prevents further route and route-configuration mutation.
+     */
+    public function freeze(): void
+    {
+        $this->frozen = true;
+    }
+
+    public function isFrozen(): bool
+    {
+        return $this->frozen;
     }
 
     public function match(ServerRequestInterface $request): RouteMatch
@@ -540,6 +565,34 @@ final class Router
         }
 
         return implode('', $this->namePrefixes) . $name;
+    }
+
+    private function registerRouteName(Route $route, string $name): void
+    {
+        $this->assertMutable();
+        $this->assertRouteNameAvailable($name);
+
+        $this->namedRoutes[$name] = $this->formatUrl($route->path());
+    }
+
+    private function assertRouteNameAvailable(string $name): void
+    {
+        if (isset($this->namedRoutes[$name])) {
+            throw new \LogicException(sprintf(
+                'Named route "%s" is already registered as "%s".',
+                $name,
+                $this->namedRoutes[$name],
+            ));
+        }
+    }
+
+    private function assertMutable(): bool
+    {
+        if ($this->frozen) {
+            throw new \LogicException('Router is frozen.');
+        }
+
+        return true;
     }
 
     private function normalizePath(string $path): string

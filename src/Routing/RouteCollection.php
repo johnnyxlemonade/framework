@@ -28,6 +28,14 @@ final class RouteCollection
 
     public function add(Route $route): void
     {
+        if (isset($this->routes[$route->method()][$route->path()])) {
+            throw new \LogicException(sprintf(
+                'Route "%s %s" is already registered.',
+                $route->method(),
+                $route->path(),
+            ));
+        }
+
         $this->routes[$route->method()][$route->path()] = $route;
     }
 

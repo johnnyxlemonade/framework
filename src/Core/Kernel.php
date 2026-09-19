@@ -87,6 +87,7 @@ final class Kernel
 
         $this->framework
             ->routesFromFile($this->context->configPath('Routing.php'));
+        $this->framework->finalizeRoutes();
         $this->markBenchmark('routes_registered');
 
         $this->booted = true;

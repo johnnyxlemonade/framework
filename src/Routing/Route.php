@@ -20,6 +20,8 @@ final class Route
         private array $middleware = [],
         private array $parameterConstraints = [],
         private ?string $name = null,
+        private readonly ?\Closure $assertMutable = null,
+        private readonly ?\Closure $registerName = null,
     ) {}
 
     public function method(): string
@@ -48,6 +50,25 @@ final class Route
             return $this->name;
         }
 
+        $this->assertMutable();
+
+        if ($this->name !== null && $this->name !== $name) {
+            throw new \LogicException(sprintf(
+                'Route "%s %s" is already named "%s".',
+                $this->method,
+                $this->path,
+                $this->name,
+            ));
+        }
+
+        if ($this->name === $name) {
+            return $this;
+        }
+
+        if ($this->registerName !== null) {
+            ($this->registerName)($this, $name);
+        }
+
         $this->name = $name;
 
         return $this;
@@ -58,6 +79,8 @@ final class Route
      */
     public function middleware(string ...$middleware): self
     {
+        $this->assertMutable();
+
         foreach ($middleware as $item) {
             $this->middleware[] = $item;
         }
@@ -78,6 +101,8 @@ final class Route
      */
     public function constrainParameter(string $name, array $allowedValues): self
     {
+        $this->assertMutable();
+
         $normalized = [];
 
         foreach ($allowedValues as $value) {
@@ -101,5 +126,12 @@ final class Route
     public function parameterConstraints(): array
     {
         return $this->parameterConstraints;
+    }
+
+    private function assertMutable(): void
+    {
+        if ($this->assertMutable !== null) {
+            ($this->assertMutable)();
+        }
     }
 }

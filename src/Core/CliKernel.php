@@ -146,6 +146,7 @@ final class CliKernel
         $this->markBenchmark('app_providers_registered');
         $this->markBenchmark('providers_registered');
         $this->registerCliRoutesIfPresent();
+        $this->framework->finalizeRoutes();
 
         $this->booted = true;
     }

@@ -39,8 +39,8 @@ final class RouterTest extends TestCase
         $router = new Router();
 
         self::assertSame('HEAD', $router->head('/health', 'HealthController@show')->method());
-        self::assertSame('HEAD', $router->headNamed('health.check', '/health', 'HealthController@show')->method());
-        self::assertSame('/health', $router->url('health.check'));
+        self::assertSame('HEAD', $router->headNamed('health.check', '/health-check', 'HealthController@show')->method());
+        self::assertSame('/health-check', $router->url('health.check'));
     }
 
     public function testMapAcceptsHttpMethodEnumAndString(): void
@@ -92,6 +92,82 @@ final class RouterTest extends TestCase
 
         $this->expectException(\LogicException::class);
         $router->getNamed('users.index', '/users/all', 'UserController@all');
+    }
+
+    public function testMapThenNameRegistersRouteForUrlGeneration(): void
+    {
+        $router = new Router();
+        $router->get('/users/{id}', 'UserController@show')->name('users.show');
+
+        self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
+    }
+
+    public function testMapThenNameRejectsDuplicateNamedRoute(): void
+    {
+        $router = new Router();
+        $router->getNamed('users.index', '/users', 'UserController@index');
+
+        $this->expectException(\LogicException::class);
+        $router->get('/users/all', 'UserController@all')->name('users.index');
+    }
+
+    public function testExactNormalizedDuplicateRouteThrowsLogicException(): void
+    {
+        $router = new Router();
+        $router->get('/users/', 'UserController@index');
+
+        $this->expectException(\LogicException::class);
+        $router->get('/users', 'UserController@all');
+    }
+
+    public function testRouterFreezeRejectsRouteAndRouteMutation(): void
+    {
+        $router = new Router();
+        $route = $router->get('/users/{id}', 'UserController@show');
+        $group = $router->group('/admin', static function (Router $router): void {
+            $router->get('/users', 'UserController@index');
+        });
+
+        $router->freeze();
+        $router->freeze();
+
+        self::assertTrue($router->isFrozen());
+
+        try {
+            $router->get('/settings', 'SettingsController@index');
+            self::fail('Expected frozen router to reject a new route.');
+        } catch (\LogicException $exception) {
+            self::assertSame('Router is frozen.', $exception->getMessage());
+        }
+
+        try {
+            $route->name('users.show');
+            self::fail('Expected frozen router to reject route naming.');
+        } catch (\LogicException $exception) {
+            self::assertSame('Router is frozen.', $exception->getMessage());
+        }
+
+        try {
+            $route->constrainParameter('id', ['1']);
+            self::fail('Expected frozen router to reject route constraints.');
+        } catch (\LogicException $exception) {
+            self::assertSame('Router is frozen.', $exception->getMessage());
+        }
+
+        $this->expectException(\LogicException::class);
+        $group->middleware(\stdClass::class);
+    }
+
+    public function testRouterDispatchAndUrlGenerationWorkAfterFreeze(): void
+    {
+        $router = new Router();
+        $router->getNamed('users.show', '/users/{id}', 'UserController@show');
+        $router->freeze();
+
+        $match = $router->match(new ServerRequest('GET', '/users/15'));
+
+        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
     }
 
     public function testUrlInjectsRouteParameters(): void

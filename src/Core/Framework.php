@@ -23,6 +23,7 @@ use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkServiceProvider;
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\RouteRegistrarRegistry;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -70,6 +71,7 @@ final class Framework
         $this->config(...(new FrameworkDefaultsLoader())->load());
         $this->container->singleton(ContainerInterface::class, $this->container);
         $this->container->singleton(Router::class, $this->router);
+        $this->container->singleton(RouteRegistrarRegistry::class, RouteRegistrarRegistry::class);
 
         $frameworkLogger = new NullLogger();
         $this->container->singleton(LoggerInterface::class, $frameworkLogger);
@@ -156,6 +158,20 @@ final class Framework
         $loader($this->router);
 
         return $this;
+    }
+
+    /**
+     * Finalizes application routing after providers and application composition routes.
+     *
+     * The kernel owns this lifecycle boundary. Providers only register typed route
+     * registrars; application routing files only register application routes.
+     */
+    public function finalizeRoutes(): void
+    {
+        $registry = $this->container->get(RouteRegistrarRegistry::class);
+        $registry->registerRoutes($this->router);
+        $registry->freeze();
+        $this->router->freeze();
     }
 
     /**

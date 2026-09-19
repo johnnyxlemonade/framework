@@ -4,6 +4,81 @@ Routes are registered through the router, usually in `app/Config/Routing.php`.
 
 The router maps HTTP methods and paths to controller actions using the `Controller@action` format.
 
+## Provider-owned route registrars
+
+An application route file owns application composition routes. A provider that owns a
+specialized route capability can contribute typed routes without adding its routes to the
+central application route file:
+
+```php
+<?php
+
+use Lemonade\Framework\Routing\RouteRegistrarInterface;
+use Lemonade\Framework\Routing\Router;
+
+final class ArticlesRouteRegistrar implements RouteRegistrarInterface
+{
+    public function id(): string
+    {
+        return 'cms.articles';
+    }
+
+    public function priority(): int
+    {
+        return 100;
+    }
+
+    public function registerRoutes(Router $router): void
+    {
+        $router->group('/admin/articles', static function (Router $router): void {
+            $router->getNamed('admin.articles.import', '/import', 'ArticlesImportController@form');
+        });
+    }
+}
+```
+
+The owning service provider registers the registrar as a service and declares it in the
+framework registry:
+
+```php
+$container->singleton(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
+$container->get(RouteRegistrarRegistry::class)->register(
+    $container->get(ArticlesRouteRegistrar::class),
+);
+```
+
+Registrars execute after application composition routes. They are ordered deterministically by
+`priority()` ascending and then `id()` ascending. IDs must be globally unique. A provider without
+specialized routes simply does not register a route registrar.
+
+The HTTP and CLI kernels own the finalization lifecycle:
+
+```text
+Router exists
+→ providers register services and typed route registrars
+→ application Routing.php registers application/shared routes
+→ framework executes route registrars
+→ registrar registry freezes
+→ router freezes
+→ dispatch
+```
+
+`Routing.php` must not execute or freeze the registrar registry itself. After finalization,
+registering another registrar or mutating router configuration, routes, names, middleware, or
+parameter constraints fails fast. Router read operations, URL generation, and dispatch remain
+available.
+
+## Route conflicts and ordering
+
+The router rejects an exact duplicate method and normalized path, for example two `GET /admin/foo`
+routes. It also rejects duplicate route names regardless of whether a name is set through
+`getNamed()`/`mapNamed()` or `map(...)->name(...)`.
+
+The framework intentionally does not attempt to detect every semantic overlap between dynamic
+patterns such as `/foo/{id}` and `/foo/{slug}`. Such overlaps must be intentional. Registrar
+priority makes provider registration deterministic; it does not infer the correct meaning of
+ambiguous dynamic routes.
+
 ## Basic routes
 
 ```php
