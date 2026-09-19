@@ -11,6 +11,8 @@ final class Route
     /**
      * @param array<int, class-string<MiddlewareInterface>> $middleware
      * @param array<string, list<string>> $parameterConstraints
+     * @param (\Closure(): bool)|null $assertMutable
+     * @param (\Closure(self, string): void)|null $registerName
      */
     public function __construct(
         private readonly string $method,

@@ -133,29 +133,46 @@ final class RouterTest extends TestCase
 
         self::assertTrue($router->isFrozen());
 
-        try {
+        $this->assertFrozenRouterOperation(static function () use ($router): void {
             $router->get('/settings', 'SettingsController@index');
-            self::fail('Expected frozen router to reject a new route.');
-        } catch (\LogicException $exception) {
-            self::assertSame('Router is frozen.', $exception->getMessage());
-        }
-
-        try {
+        });
+        $this->assertFrozenRouterOperation(static function () use ($router): void {
+            $router->mapNamed('users.show', 'GET', '/users/{id}', 'UserController@show');
+        });
+        $this->assertFrozenRouterOperation(static function () use ($route): void {
             $route->name('users.show');
-            self::fail('Expected frozen router to reject route naming.');
-        } catch (\LogicException $exception) {
-            self::assertSame('Router is frozen.', $exception->getMessage());
-        }
-
-        try {
+        });
+        $this->assertFrozenRouterOperation(static function () use ($route): void {
+            $route->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
+        });
+        $this->assertFrozenRouterOperation(static function () use ($route): void {
             $route->constrainParameter('id', ['1']);
-            self::fail('Expected frozen router to reject route constraints.');
-        } catch (\LogicException $exception) {
-            self::assertSame('Router is frozen.', $exception->getMessage());
-        }
+        });
+        $this->assertFrozenRouterOperation(static function () use ($group): void {
+            $group->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
+        });
+        $this->assertFrozenRouterOperation(static function () use ($router): void {
+            $router->configureLocalizedRoutes(localeParameter: 'lang');
+        });
+        $this->assertFrozenRouterOperation(static function () use ($router): void {
+            $router->setControllerNamespace('App\\AlternativeControllers');
+        });
 
-        $this->expectException(\LogicException::class);
-        $group->middleware(\stdClass::class);
+        $groupBuilderCalled = false;
+        $this->assertFrozenRouterOperation(static function () use ($router, &$groupBuilderCalled): void {
+            $router->group('/other', static function () use (&$groupBuilderCalled): void {
+                $groupBuilderCalled = true;
+            });
+        });
+        self::assertFalse($groupBuilderCalled);
+
+        $localizedBuilderCalled = false;
+        $this->assertFrozenRouterOperation(static function () use ($router, &$localizedBuilderCalled): void {
+            $router->localizedGroup(static function () use (&$localizedBuilderCalled): void {
+                $localizedBuilderCalled = true;
+            });
+        });
+        self::assertFalse($localizedBuilderCalled);
     }
 
     public function testRouterDispatchAndUrlGenerationWorkAfterFreeze(): void
@@ -168,6 +185,19 @@ final class RouterTest extends TestCase
 
         self::assertSame('App\\Controllers\\UserController', $match->controller());
         self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
+    }
+
+    /**
+     * @param callable(): void $operation
+     */
+    private function assertFrozenRouterOperation(callable $operation): void
+    {
+        try {
+            $operation();
+            self::fail('Expected frozen router to reject a routing mutation.');
+        } catch (\LogicException $exception) {
+            self::assertSame('Router is frozen.', $exception->getMessage());
+        }
     }
 
     public function testUrlInjectsRouteParameters(): void

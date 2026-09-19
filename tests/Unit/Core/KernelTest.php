@@ -22,6 +22,9 @@ use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
+use Lemonade\Framework\Routing\RouteRegistrarInterface;
+use Lemonade\Framework\Routing\RouteRegistrarRegistry;
+use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -173,6 +176,40 @@ final class KernelTest extends TestCase
 
         self::assertTrue($container->isBound(MiddlewareStack::class));
         self::assertTrue($container->isBound(MiddlewareResolver::class));
+    }
+
+    public function testBootstrapExecutesProviderRouteRegistrarsAfterApplicationRoutesAndFreezesRouting(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\n  - Providers\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'Providers.yaml',
+            "module: providers\nconfig:\n  providers:\n    - Lemonade\\Framework\\Tests\\Unit\\Core\\KernelRouteRegistrarProvider\n",
+        );
+        $this->writeConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/application-phase', 'KernelRouteRegistrarSupportController@application');\n};\n",
+        );
+
+        $kernel = $this->kernel(false);
+        $kernel->bootstrap();
+
+        $container = $kernel->container();
+        $router = $container->get(Router::class);
+        $registry = $container->get(RouteRegistrarRegistry::class);
+
+        self::assertTrue($router->isFrozen());
+        self::assertTrue($registry->isFrozen());
+        self::assertSame(
+            'App\\Controllers\\KernelRouteRegistrarSupportController',
+            $router->match(new ServerRequest('GET', '/application-phase'))->controller(),
+        );
+        self::assertSame(
+            'App\\Controllers\\KernelRouteRegistrarSupportController',
+            $router->match(new ServerRequest('GET', '/provider-phase'))->controller(),
+        );
     }
 
     public function testBootstrapSkipsMissingConventionalConfigFiles(): void
@@ -491,5 +528,50 @@ final class OptionsKernelSupportController extends AbstractController
     public function options(): ResponseInterface
     {
         return $this->response('explicit-options', 209, 'text/plain; charset=UTF-8');
+    }
+}
+
+final class KernelRouteRegistrarSupportController extends AbstractController
+{
+    public function application(): ResponseInterface
+    {
+        return $this->response('application');
+    }
+
+    public function provider(): ResponseInterface
+    {
+        return $this->response('provider');
+    }
+}
+
+namespace Lemonade\Framework\Tests\Unit\Core;
+
+final class KernelRouteRegistrarProvider implements \Lemonade\Framework\Core\ServiceProviderInterface
+{
+    public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
+    {
+        $container->get(\Lemonade\Framework\Routing\RouteRegistrarRegistry::class)->register(new KernelRouteRegistrar());
+    }
+}
+
+final class KernelRouteRegistrar implements \Lemonade\Framework\Routing\RouteRegistrarInterface
+{
+    public function id(): string
+    {
+        return 'test.kernel-provider';
+    }
+
+    public function priority(): int
+    {
+        return 10;
+    }
+
+    public function registerRoutes(\Lemonade\Framework\Routing\Router $router): void
+    {
+        if (!$router->hasExplicitRouteForPath('GET', '/application-phase')) {
+            throw new \RuntimeException('Application routes must register before provider routes.');
+        }
+
+        $router->get('/provider-phase', 'KernelRouteRegistrarSupportController@provider');
     }
 }

@@ -216,6 +216,43 @@ final class RouterPropertiesTest extends TestCase
             });
     }
 
+    public function testExactNormalizedDuplicateRoutesAreRejectedPerMethod(): void
+    {
+        $firstFailure = null;
+
+        $this
+            ->limitTo(self::PROPERTY_CASES)
+            ->forAll(RoutePropertyGenerators::staticRoutePath())
+            ->then(function (string $path) use (&$firstFailure): void {
+                $router = new Router();
+                $normalizedEquivalent = rtrim($path, '/') . '/';
+                $router->get($path, 'CatalogController@index');
+                $postRoute = $router->post($normalizedEquivalent, 'CatalogController@store');
+
+                self::assertSame('POST', $postRoute->method());
+
+                try {
+                    $router->get($normalizedEquivalent, 'CatalogController@duplicate');
+                } catch (\LogicException) {
+                    return;
+                }
+
+                $firstFailure ??= [
+                    'path' => $path,
+                    'normalized_equivalent' => $normalizedEquivalent,
+                ];
+
+                self::fail($this->formatFailureMessage(
+                    invariant: 'The same HTTP method and normalized path must not register twice, while another method remains valid.',
+                    firstFailure: $firstFailure,
+                    currentFailure: [
+                        'path' => $path,
+                        'normalized_equivalent' => $normalizedEquivalent,
+                    ],
+                ));
+            });
+    }
+
     /**
      * @return array{controller:string, action:string, params:array<string, string>}
      */

@@ -7,7 +7,9 @@
     <source>
         <include>
             <file>../src/Routing/Router.php</file>
+            <file>../src/Routing/Route.php</file>
             <file>../src/Routing/RouteCollection.php</file>
+            <file>../src/Routing/RouteRegistrarRegistry.php</file>
         </include>
     </source>
     <testsuites>

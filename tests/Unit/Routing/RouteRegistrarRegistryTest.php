@@ -43,6 +43,14 @@ final class RouteRegistrarRegistryTest extends TestCase
         $registry->register(new RecordingRouteRegistrar('articles', 20, $log));
     }
 
+    public function testRejectsEmptyRegistrarIdAfterNormalization(): void
+    {
+        $registry = new RouteRegistrarRegistry();
+
+        $this->expectException(\LogicException::class);
+        $registry->register(new RecordingRouteRegistrar('  ', 10, new RouteRegistrarLog()));
+    }
+
     public function testRejectsRegistrationAndExecutionAfterFreeze(): void
     {
         $registry = new RouteRegistrarRegistry();
@@ -71,7 +79,9 @@ final class RouteRegistrarRegistryTest extends TestCase
             self::fail('Expected route registrar failure.');
         } catch (\RuntimeException $exception) {
             self::assertStringContainsString('broken.routes', $exception->getMessage());
+            self::assertSame(0, $exception->getCode());
             self::assertInstanceOf(\RuntimeException::class, $exception->getPrevious());
+            self::assertSame('Registrar failure.', $exception->getPrevious()->getMessage());
         }
     }
 
