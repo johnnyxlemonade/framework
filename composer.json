@@ -122,7 +122,7 @@
     ],
     "test:mutation:routing": [
       "@php -d xdebug.mode=coverage vendor/bin/phpunit --configuration .infection/phpunit.xml.dist --coverage-xml build/infection/coverage/coverage-xml --log-junit build/infection/coverage/junit.xml",
-      "@php vendor/bin/infection --configuration=infection.routing.json5 --threads=max --show-mutations --filter=src/Routing/Router.php,src/Routing/Route.php,src/Routing/RouteCollection.php,src/Routing/RouteRegistrarRegistry.php --skip-initial-tests --coverage=build/infection/coverage"
+      "@php vendor/bin/infection --configuration=infection.routing.json5 --threads=max --show-mutations --filter=src/Routing/Router.php,src/Routing/Route.php,src/Routing/RouteCollection.php,src/Routing/RouteRegistrarRegistry.php,src/Routing/RoutePathNormalizer.php --skip-initial-tests --coverage=build/infection/coverage"
     ],
     "test:mutation:container": [
       "@php -d xdebug.mode=coverage vendor/bin/phpunit --configuration .infection/phpunit.container.xml.dist --coverage-xml build/infection/container-coverage/coverage-xml --log-junit build/infection/container-coverage/junit.xml",

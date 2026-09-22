@@ -28,6 +28,7 @@ use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ServerRequestInterface;
 use ReflectionProperty;
 
 final class KernelTest extends TestCase
@@ -176,6 +177,45 @@ final class KernelTest extends TestCase
 
         self::assertTrue($container->isBound(MiddlewareStack::class));
         self::assertTrue($container->isBound(MiddlewareResolver::class));
+    }
+
+    public function testRunBindsExactRequestBeforeApplicationProvidersRegister(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\n  - Providers\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'Providers.yaml',
+            "module: providers\nconfig:\n  providers:\n    - Lemonade\\Framework\\Tests\\Unit\\Core\\KernelRequestProbeProvider\n",
+        );
+        KernelRequestProbeProvider::$request = null;
+        $request = new ServerRequest('GET', '/provider-request');
+        $kernel = $this->kernel(false);
+
+        $kernel->run($request);
+
+        self::assertSame($request, KernelRequestProbeProvider::$request);
+        self::assertSame($request, $kernel->container()->get(ServerRequestInterface::class));
+    }
+
+    public function testExplicitBootstrapRemainsRequestlessForApplicationProviders(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\n  - Providers\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'Providers.yaml',
+            "module: providers\nconfig:\n  providers:\n    - Lemonade\\Framework\\Tests\\Unit\\Core\\KernelRequestProbeProvider\n",
+        );
+        KernelRequestProbeProvider::$request = null;
+        $kernel = $this->kernel(false);
+
+        $kernel->bootstrap();
+
+        self::assertNull(KernelRequestProbeProvider::$request);
+        self::assertFalse($kernel->container()->isBound(ServerRequestInterface::class));
     }
 
     public function testBootstrapExecutesProviderRouteRegistrarsAfterApplicationRoutesAndFreezesRouting(): void
@@ -555,6 +595,20 @@ final class KernelRouteRegistrarProvider implements \Lemonade\Framework\Core\Ser
             KernelRouteRegistrar::class,
             \Lemonade\Framework\Routing\RouteRegistrarInterface::class,
         );
+    }
+}
+
+final class KernelRequestProbeProvider implements \Lemonade\Framework\Core\ServiceProviderInterface
+{
+    public static ?\Psr\Http\Message\ServerRequestInterface $request = null;
+
+    public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
+    {
+        if (!$container->isBound(\Psr\Http\Message\ServerRequestInterface::class)) {
+            return;
+        }
+
+        self::$request = $container->get(\Psr\Http\Message\ServerRequestInterface::class);
     }
 }
 

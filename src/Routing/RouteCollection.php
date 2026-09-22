@@ -42,7 +42,7 @@ final class RouteCollection
     public function match(string $method, string $path): ?RouteMatch
     {
         $methodName = $this->normalizeMethod($method);
-        $normalizedPath = $this->normalizePath($path);
+        $normalizedPath = RoutePathNormalizer::normalize($path);
 
         if (!isset($this->routes[$methodName])) {
             return null;
@@ -67,7 +67,7 @@ final class RouteCollection
      */
     public function allowedMethodsForPath(string $path): array
     {
-        $normalizedPath = $this->normalizePath($path);
+        $normalizedPath = RoutePathNormalizer::normalize($path);
         $allowed = [];
 
         foreach ($this->routes as $method => $methodRoutes) {
@@ -93,7 +93,7 @@ final class RouteCollection
     public function hasExplicitRouteForPath(HttpMethod|string $method, string $path): bool
     {
         $methodName = $this->normalizeMethod($method);
-        $normalizedPath = $this->normalizePath($path);
+        $normalizedPath = RoutePathNormalizer::normalize($path);
 
         if (!isset($this->routes[$methodName])) {
             return false;
@@ -137,13 +137,6 @@ final class RouteCollection
         return $method instanceof HttpMethod
             ? $method->value
             : strtoupper($method);
-    }
-
-    private function normalizePath(string $path): string
-    {
-        $path = '/' . trim($path, '/');
-
-        return $path === '/' ? '/' : rtrim($path, '/');
     }
 
     /**

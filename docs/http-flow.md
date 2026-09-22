@@ -11,6 +11,7 @@ public/index.php
 -> Kernel::handle()
    -> create ServerRequest from globals when no request is provided
 -> Kernel::run()
+   -> bind the provided ServerRequestInterface into the container
 -> Kernel::bootstrap()
    -> load conventional YAML application config files
    -> apply runtime app config
@@ -57,6 +58,8 @@ $kernel->handle();
 ```
 
 ## Notes
+
+When `run()` receives a request, that exact `ServerRequestInterface` is available from the container before application providers register. An explicit requestless `bootstrap()` does not synthesize or bind an HTTP request.
 
 Bootstrap happens before request dispatch. Global middleware wraps route matching and controller execution. Route-specific middleware wraps the matched controller handler.
 

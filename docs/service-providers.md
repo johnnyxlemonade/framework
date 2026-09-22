@@ -47,6 +47,8 @@ Framework providers are resolved from `FrameworkConfigDefinition`. Application p
 
 During bootstrap, the kernel registers core framework providers first, then common framework providers, and finally application providers. This allows application code to extend or override services after the framework services have been registered.
 
+When bootstrap is initiated by `Kernel::run($request)`, the exact current `ServerRequestInterface` is bound in the container before application providers register. Providers may use it for narrowly scoped pre-routing decisions. Calling `Kernel::bootstrap()` directly remains requestless and does not create an HTTP request.
+
 ## Translation resources
 
 Providers may contribute file translation resources without copying them into the application

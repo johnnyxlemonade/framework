@@ -80,6 +80,10 @@ The router rejects an exact duplicate method and normalized path, for example tw
 routes. It also rejects duplicate route names regardless of whether a name is set through
 `getNamed()`/`mapNamed()` or `map(...)->name(...)`.
 
+`RoutePathNormalizer::normalize()` exposes the same path normalization used by route registration
+and matching for pre-routing consumers. It adds a leading slash, removes surrounding slashes, keeps
+the root path as `/`, and therefore treats `/admin/foo/` and `/admin/foo` identically.
+
 The framework intentionally does not attempt to detect every semantic overlap between dynamic
 patterns such as `/foo/{id}` and `/foo/{slug}`. Such overlaps must be intentional. Registrar
 priority makes provider registration deterministic; it does not infer the correct meaning of

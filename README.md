@@ -301,7 +301,7 @@ It demonstrates Doctrine ORM with SQLite, `ManyToMany` relations, author and tag
 The framework uses complementary testing techniques:
 
 - **Property-based testing (Eris)** generates varied input datasets and verifies invariants across a broader input space than example-based tests alone.
-- **Mutation testing (Infection)** applies small changes to production code and checks whether the test suite detects the resulting behavioral changes. It currently covers the routing core: `Router`, `Route`, `RouteCollection` and `RouteRegistrarRegistry`.
+- **Mutation testing (Infection)** applies small changes to production code and checks whether the test suite detects the resulting behavioral changes. It currently covers the routing core: `Router`, `Route`, `RouteCollection`, `RouteRegistrarRegistry` and `RoutePathNormalizer`.
 
 Run the standard quality suite with:
 

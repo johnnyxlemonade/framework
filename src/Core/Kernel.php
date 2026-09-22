@@ -111,6 +111,8 @@ final class Kernel
             $this->ensureConfigurationLoaded();
 
             if ($request !== null) {
+                $this->container->set(ServerRequestInterface::class, $request);
+
                 $response = $this->healthFastPath->tryHandle(
                     $request,
                 );

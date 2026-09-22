@@ -172,7 +172,7 @@ final class Router
 
         $before = count($this->routeList);
 
-        $this->groupPrefixes[] = $this->normalizePath($prefix);
+        $this->groupPrefixes[] = RoutePathNormalizer::normalize($prefix);
 
         try {
             $builder($this);
@@ -282,7 +282,7 @@ final class Router
     public function match(ServerRequestInterface $request): RouteMatch
     {
         $method = strtoupper($request->getMethod());
-        $path = $this->normalizePath($request->getUri()->getPath());
+        $path = RoutePathNormalizer::normalize($request->getUri()->getPath());
 
         $candidateMethods = $method === 'HEAD' ? ['HEAD', 'GET'] : [$method];
         foreach ($candidateMethods as $candidateMethod) {
@@ -310,7 +310,7 @@ final class Router
      */
     public function allowedMethodsForPath(string $path): array
     {
-        $normalizedPath = $this->normalizePath($path);
+        $normalizedPath = RoutePathNormalizer::normalize($path);
         $allowed = $this->collection->allowedMethodsForPath($normalizedPath);
 
         if ($allowed === [] && $this->resolveConventionRoute($normalizedPath) !== null) {
@@ -552,10 +552,10 @@ final class Router
         $prefix = implode('', $this->groupPrefixes);
 
         if ($prefix === '') {
-            return $this->normalizePath($path);
+            return RoutePathNormalizer::normalize($path);
         }
 
-        return $this->normalizePath($prefix . '/' . ltrim($path, '/'));
+        return RoutePathNormalizer::normalize($prefix . '/' . ltrim($path, '/'));
     }
 
     private function withNamePrefix(string $name): string
@@ -595,16 +595,9 @@ final class Router
         return true;
     }
 
-    private function normalizePath(string $path): string
-    {
-        $path = '/' . trim($path, '/');
-
-        return $path === '/' ? '/' : rtrim($path, '/');
-    }
-
     private function formatUrl(string $path): string
     {
-        return '/' . ltrim($this->normalizePath($path), '/');
+        return '/' . ltrim(RoutePathNormalizer::normalize($path), '/');
     }
 
     private function applyLocalizedRouteConstraints(Route $route): void
