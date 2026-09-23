@@ -128,6 +128,10 @@
       "@php -d xdebug.mode=coverage vendor/bin/phpunit --configuration .infection/phpunit.container.xml.dist --coverage-xml build/infection/container-coverage/coverage-xml --log-junit build/infection/container-coverage/junit.xml",
       "@php vendor/bin/infection --configuration=infection.container.json5 --threads=max --show-mutations --filter=src/Container/Container.php --skip-initial-tests --coverage=build/infection/container-coverage"
     ],
+    "test:mutation:slugger": [
+      "@php -d xdebug.mode=coverage vendor/bin/phpunit --configuration .infection/phpunit.slugger.xml.dist --coverage-xml build/infection/slugger-coverage/coverage-xml --log-junit build/infection/slugger-coverage/junit.xml",
+      "@php vendor/bin/infection --configuration=infection.slugger.json5 --threads=max --show-mutations --filter=src/Support/Slug/Slugger.php --skip-initial-tests --coverage=build/infection/slugger-coverage"
+    ],
     "test:ci": [
       "@php vendor/bin/phpunit --colors=always"
     ],
@@ -157,6 +161,9 @@
     ],
     "check:platform": [
       "@composer check-platform-reqs"
+    ],
+    "docs:api": [
+      "@php vendor/bin/doctum.php update doctum.php --force"
     ]
   },
   "scripts-descriptions": {
@@ -170,6 +177,7 @@
     "test:property": "Run the property-based test suite.",
     "test:mutation:routing": "Run Infection mutation testing for the routing core using the routing unit and property suites.",
     "test:mutation:container": "Run Infection mutation testing for container bindings and tagged-service collection invariants.",
+    "test:mutation:slugger": "Run manual local Infection mutation testing for the Slugger utility; requires Xdebug coverage.",
     "test:ci": "Run the PHPUnit test suite with CI-friendly output.",
     "stan": "Run PHPStan static analysis.",
     "stan:ci": "Run PHPStan static analysis for GitHub Actions with an increased memory limit.",
@@ -177,7 +185,8 @@
     "cs:fix": "Fix coding standards using PHP CS Fixer.",
     "qa": "Run coding standards check, static analysis, property tests, and the PHPUnit test suite.",
     "check:platform": "Check installed platform requirements.",
-    "check": "Run full project validation."
+    "check": "Run full project validation.",
+    "docs:api": "Regenerate local API documentation with Doctum."
   },
   "license": "MIT",
   "support": {

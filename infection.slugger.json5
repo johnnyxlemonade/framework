@@ -1,0 +1,20 @@
+{
+    "$schema": "./vendor/infection/infection/resources/schema.json",
+    "source": {
+        "directories": [
+            "src/Support/Slug"
+        ]
+    },
+    "phpUnit": {
+        "configDir": ".infection"
+    },
+    "timeout": 10,
+    "tmpDir": "build/infection/slugger-tmp",
+    "logs": {
+        "summary": "build/infection/slugger-summary.log",
+        "json": "build/infection/slugger-report.json"
+    },
+    "mutators": {
+        "@default": true
+    }
+}
