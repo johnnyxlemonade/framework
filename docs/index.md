@@ -1,8 +1,8 @@
 # Lemonade Framework Documentation
 
-This directory contains focused documentation for Lemonade Framework.
+This directory contains focused documentation for Lemonade Framework, a modular PHP 8.1+ application framework with an explicit PSR-based HTTP runtime, provider bootstrap, CLI kernel and reusable infrastructure modules.
 
-The main `README.md` is intentionally short and should explain what the framework is, how to install it and how to start using it. Detailed runtime, configuration and module documentation belongs here.
+The main `README.md` is intentionally an entry overview. Detailed runtime, configuration and package-module documentation belongs here. Application-specific administration, CMS screens and domain workflows do not belong to this package documentation.
 
 ## Contents
 
@@ -21,6 +21,9 @@ The main `README.md` is intentionally short and should explain what the framewor
 - [Components](components.md)
 - [Validation](validation.md)
 - [Database](database.md)
+- [Infrastructure modules](infrastructure.md)
 - [CLI commands](cli-commands.md)
 - [Observability](observability.md)
 - [Discovery](discovery.md)
+- [Support utilities](support-utilities.md)
+- [Development tooling](development.md)

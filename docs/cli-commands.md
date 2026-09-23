@@ -57,3 +57,24 @@ vendor/bin/lemonade products:import
 ```
 
 When no command is provided, the CLI kernel defaults to the command list.
+
+## Framework operational commands
+
+Framework providers can register operational commands alongside application commands. The exact
+set depends on enabled configuration and services. Common package commands include:
+
+```bash
+vendor/bin/lemonade database:migrate
+vendor/bin/lemonade database:migrate:status
+vendor/bin/lemonade queue:install
+vendor/bin/lemonade queue:work
+vendor/bin/lemonade discovery:sitemap:generate
+```
+
+`queue:install` creates the configured database-transport tables. `queue:work` requires an
+asynchronous transport such as `database`; its optional arguments are queue name, transport, maximum
+processed job count and idle sleep in milliseconds. These commands are suitable for supervisor or
+cron-driven operations, but the framework does not provide a separate scheduler or workflow engine.
+
+See [Database](database.md), [Infrastructure modules](infrastructure.md) and
+[Discovery](discovery.md) for their configuration and operational contracts.

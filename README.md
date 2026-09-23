@@ -5,13 +5,13 @@
 [![Lint](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Lemonade Framework is a modular PHP 8.1+ application framework for classic synchronous PHP applications.
+Lemonade Framework is a modular PHP 8.1+ application framework for maintainable web applications, administration systems, CMS projects and integration-oriented services.
 
-It combines a PSR-based HTTP runtime, a PSR-11 compatible service container, explicit service providers, conventional application bootstrap and a shared runtime model for HTTP and CLI workloads.
+It combines a PSR-based HTTP runtime, a PSR-11 compatible service container, provider-based bootstrap, routing, a CLI kernel and reusable infrastructure for long-lived application development.
 
-The architecture is closer to an explicit application kernel than to a large full-stack ecosystem. A request enters the kernel, configuration is loaded, services are registered through providers, middleware is executed, the router resolves a controller action and the result is normalized into a PSR response.
+It is an application framework rather than a micro-framework layer. Its architecture keeps application flow explicit: a request enters the kernel, configuration is loaded, services are registered through providers, middleware is executed, the router resolves a controller action and the result is normalized into a PSR response.
 
-The framework is intended for applications where predictable control flow matters more than heavy magic: internal tools, administration systems, backend integrations, cron tasks, small-to-medium web applications and legacy-friendly modernization projects.
+The framework is intended for projects where predictable control flow and maintainable composition matter: internal tools, administration systems, CMS applications, backend integrations, cron-driven workflows and legacy-friendly modernization projects.
 
 ## Status
 
@@ -29,7 +29,7 @@ The framework focuses on:
 - shared HTTP and CLI composition model
 - conservative dependency injection
 - pragmatic controller ergonomics
-- reusable infrastructure modules
+- modular infrastructure services composed through providers
 - CLI and cron-friendly execution
 - strict typing and static-analysis-friendly APIs
 
@@ -83,20 +83,50 @@ Optional dependencies depend on selected modules and integrations:
 
 ## What the Framework Provides
 
-The framework source is organized into focused modules under `src/`.
+The framework source is organized into focused modules under `src/`. Applications compose them through service providers, so configured services remain the integration boundary instead of manually wired framework internals.
 
-Core runtime modules:
+### Runtime, HTTP and Routing
 
-- `Core` — application context, configuration loading, HTTP and CLI kernels, provider bootstrap, base controller and controller dispatch
-- `Container` — PSR-11 compatible dependency injection container with explicit bindings, singleton services and conservative autowiring
-- `Http` — PSR-7 / PSR-15 HTTP runtime, middleware stack, request handling, response helpers and response emitting
-- `Routing` — route registration, route matching, route groups, localized routes, convention-based fallback routing and URL generation
-- `Cli` — command interface, command registry and CLI kernel integration
-- `Config` — framework default configuration, including the default provider list
+- `Core` — application context, HTTP and CLI kernels, provider bootstrap, controller dispatch and response normalization
+- `Http` — PSR-7 request and response handling, PSR-15 middleware pipeline, response emitting and Nyholm PSR-17 integration
+- HTTP middleware for errors, CORS, `OPTIONS`, request logging, benchmarks, HTML minification and response headers
+- `Routing` — normalized route paths, route collections, named routes and URL generation, route groups, localized routes and convention-based fallback routing
+- `Api` — configurable endpoint registry, health endpoint, OpenAPI and HTML documentation, Problem Details responses, and bearer-token scope authorization
 
-Reusable infrastructure modules include cache, database, debugging, events, filesystem, localization, observability, queue, security, session, upload handling, validation, views and reusable UI/application components.
+### Container, Providers and Configuration
 
-The framework does not force every module into application code directly. Modules are composed through service providers, so applications use configured services instead of manually wiring framework internals.
+- `Container` — PSR-11 compatible dependency injection with explicit bindings, singleton services and conservative autowiring
+- `ServiceProviderInterface` — explicit registration and composition of framework, application and integration services
+- `Config` — YAML application configuration mapped to typed definitions and runtime DTOs, environment values and production config caching
+- package extension points for application providers, API endpoint providers, event listeners, sitemap providers, views and components
+
+### CLI and Operations
+
+- `Cli` and `bin/lemonade` — command interface, command registry and a CLI kernel sharing the configured application services
+- command-driven operations such as migrations, queue installation and workers, and sitemap generation; suitable for cron-driven tasks
+- `Discovery` — configurable `robots.txt`, sitemap and sitemap-index generation
+
+### Data, State and Integration
+
+- `Database` — PDO, MySQLi and ODBC drivers, schema tools and migrations; no ORM is required
+- `Cache` — PSR-6 cache pools with file, array and null stores
+- `Filesystem` and `Session` — storage and session services
+- `Event` — in-memory event dispatcher with registered listeners and priorities
+- `Queue` — synchronous and database-backed transports, message serialization, delayed jobs and worker commands
+- optional PSR-18 HTTP client providers for Guzzle, Symfony HTTP Client and PHP-HTTP cURL transport
+
+### Application Building Blocks
+
+- `Localization` and `Validation` — file-backed translation catalogs, locale-aware routing support and validation rules
+- `Security` — CSRF token management, middleware and view helpers
+- `Upload` — profile-based file and image uploads, MIME and dimension validation, storage, and optional GD re-encoding
+- `View` and `Component` — view resources and helpers plus reusable pagination, breadcrumb and metadata components
+- `Logging`, `Debug` and `Observability` — PSR-3 logging, diagnostics and request/database benchmark data
+
+### Support Utilities
+
+- `Lemonade\Framework\Support\Slug\Slugger` — a URLify-inspired best-effort ASCII slug generator with curated transliteration maps; it is intended for URL slugs, not as a general Unicode transliterator
+- environment and base-URL helpers, escaping and formatting helpers, clock abstractions and XML stream writing
 
 ## Basic Usage
 
@@ -301,7 +331,7 @@ It demonstrates Doctrine ORM with SQLite, `ManyToMany` relations, author and tag
 The framework uses complementary testing techniques:
 
 - **Property-based testing (Eris)** generates varied input datasets and verifies invariants across a broader input space than example-based tests alone.
-- **Mutation testing (Infection)** applies small changes to production code and checks whether the test suite detects the resulting behavioral changes. It currently covers the routing core: `Router`, `Route`, `RouteCollection`, `RouteRegistrarRegistry` and `RoutePathNormalizer`.
+- **Mutation testing (Infection)** applies small changes to production code and checks whether the test suite detects the resulting behavioral changes. Manual local suites cover the routing core, container invariants and the `Slugger` utility.
 
 Run the standard quality suite with:
 
@@ -325,6 +355,18 @@ Run container mutation tests, including tagged-service collection invariants, wi
 
 ```bash
 composer test:mutation:container
+```
+
+Run manual Slugger mutation tests with Xdebug coverage enabled:
+
+```bash
+composer test:mutation:slugger
+```
+
+Regenerate local API documentation with Doctum:
+
+```bash
+composer docs:api
 ```
 
 ## Code Quality
