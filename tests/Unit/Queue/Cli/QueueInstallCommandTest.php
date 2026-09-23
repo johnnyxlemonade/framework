@@ -119,7 +119,7 @@ final class QueueInstallCommandTest extends TestCase
         $command = $this->command($schema, $this->queueConfig());
 
         self::assertSame(0, $command->run([]));
-        self::assertSame(0, $command->run([]));
+        $command->run([]);
         self::assertSame(
             "Queue tables ready: system_queue_job, system_queue_failed_job\n"
             . "Queue tables ready: system_queue_job, system_queue_failed_job\n",

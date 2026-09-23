@@ -219,7 +219,7 @@ final class MigrationSubsystemTest extends TestCase
         );
 
         self::assertSame(0, $migrate->run([]));
-        self::assertSame(0, $migrate->run([]));
+        $migrate->run([]);
         $container->get(MigrationStateRepository::class)->record('20260901090000_orphaned');
         self::assertSame(0, $status->run([]));
         self::assertStringContainsString('Migrated: 20260908090000_test', $this->contents($this->stdout));

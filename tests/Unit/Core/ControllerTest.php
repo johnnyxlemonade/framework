@@ -254,7 +254,6 @@ final class ControllerTest extends TestCase
         $controller = $this->controller($this->request(), $container);
 
         self::assertSame($context, $controller->exposedApp());
-        self::assertSame($context, $controller->exposedApp());
     }
 
     public function testAppThrowsWhenServiceIsNotAvailableInExplicitContainer(): void

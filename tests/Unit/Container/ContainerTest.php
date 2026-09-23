@@ -196,8 +196,13 @@ final class ContainerTest extends TestCase
         $instance = new \stdClass();
         $container->singleton('singleton.object', $instance);
 
-        self::assertSame($instance, $container->get('singleton.object'));
-        self::assertSame($instance, $container->get('singleton.object'));
+        $first = $container->get('singleton.object');
+        self::assertInstanceOf(\stdClass::class, $first);
+        $first->value = 'shared';
+
+        $second = $container->get('singleton.object');
+        self::assertInstanceOf(\stdClass::class, $second);
+        self::assertSame('shared', $second->value);
     }
 
     public function testExplicitlyBoundServiceCanBeTaggedAndResolved(): void

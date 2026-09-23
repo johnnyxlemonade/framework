@@ -78,8 +78,7 @@ final class BenchmarkMiddleware implements MiddlewareInterface
         $data = $run->toArray();
         $context = $data['context'];
 
-        $this->logs->benchmark()->info('request.benchmark', [
-            ...$data,
+        $this->logs->benchmark()->info('request.benchmark', array_replace($data, [
             'status' => $context['status'] ?? null,
             'exception_class' => $context['exception_class'] ?? null,
             'exception_message' => $context['exception_message'] ?? null,
@@ -87,6 +86,6 @@ final class BenchmarkMiddleware implements MiddlewareInterface
             'memory_delta_bytes' => $run->memoryDeltaBytes(),
             'peak_memory_bytes' => $run->peakMemoryBytes(),
             'marks' => $run->marks(),
-        ]);
+        ]));
     }
 }

@@ -498,9 +498,8 @@ final class OdbcConnection implements ConnectionInterface
         if (@odbc_fetch_into($statement, $raw) === false) {
             return null;
         }
-        if (!is_array($raw)) {
-            return null;
-        }
+
+        /** @var array<int, mixed> $raw */
 
         $assoc = [];
         $count = count($raw);

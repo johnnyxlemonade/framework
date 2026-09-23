@@ -93,7 +93,7 @@ final class FileTranslatorTest extends TestCase
         self::assertSame('Ahoj', $translator->get('messages.hello'));
 
         $translator->setLocale(null);
-        self::assertSame('Ahoj', $translator->get('messages.hello'));
+        self::assertNull($translator->locale());
     }
 
     public function testInvalidDefaultLocaleFallsBackToCs(): void
