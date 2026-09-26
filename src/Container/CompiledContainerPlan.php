@@ -44,6 +44,21 @@ final readonly class CompiledContainerPlan
         return $this->aliases[$id] ?? $id;
     }
 
+    /** @return list<ServiceDecorator> */
+    public function decorators(string $id): array
+    {
+        $definition = $this->definition($id);
+        $decorators = $definition === null ? [] : $definition->decorators;
+
+        usort($decorators, static function (ServiceDecorator $left, ServiceDecorator $right): int {
+            $priority = $right->priority <=> $left->priority;
+
+            return $priority !== 0 ? $priority : $left->order <=> $right->order;
+        });
+
+        return $decorators;
+    }
+
     /** @return list<string> */
     public function taggedServiceIds(string $tag): array
     {

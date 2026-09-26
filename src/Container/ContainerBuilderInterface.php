@@ -39,5 +39,11 @@ interface ContainerBuilderInterface
      */
     public function alias(string $alias, string $target): void;
 
+    /**
+     * @param class-string|non-empty-string $serviceId
+     * @param class-string<ServiceDecoratorInterface>|callable(ContainerInterface, mixed):mixed $decorator
+     */
+    public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void;
+
     public function compile(): CompiledContainerPlan;
 }

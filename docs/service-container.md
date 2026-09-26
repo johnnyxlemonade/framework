@@ -51,6 +51,27 @@ and transient aliases retain transient behavior. Aliases must not collide with s
 must not target themselves, and must point to an existing service or autowireable concrete class at
 runtime.
 
+## Service decorators
+
+Definition providers may wrap an explicit service with `decorate()`. A callable decorator receives
+the runtime container and the previous service value. Class decorators implement
+`ServiceDecoratorInterface`; their `decorate()` method receives the previous value explicitly while
+their constructor can use normal autowiring.
+
+```php
+$builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+$builder->decorate(
+    InvoiceImporter::class,
+    static fn(ContainerInterface $container, mixed $inner): CachedInvoiceImporter => new CachedInvoiceImporter($inner),
+    priority: 100,
+);
+```
+
+Decorators are applied by descending priority; equal priorities retain registration order. Decoration
+always attaches to the canonical ID, so decorating an alias affects its target. The complete
+decorated chain is cached for singleton and instance definitions; transient definitions rebuild both
+their base service and decorator chain for every resolution.
+
 ## Tagged services
 
 Tags declare an explicit service as a member of a collection capability. They are not filesystem

@@ -11,6 +11,7 @@ use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\AliasTargetNotFoundException;
 use Lemonade\Framework\Container\Exception\ContainerException;
+use Lemonade\Framework\Container\Exception\InvalidServiceDecoratorException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Psr\Log\LoggerInterface;
@@ -116,6 +117,20 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
         $this->compiledPlan = null;
     }
 
+    /**
+     * The concrete container implements the builder contract used by definition providers.
+     * This method intentionally is not added to the legacy ContainerInterface.
+     *
+     * @param class-string|non-empty-string $serviceId
+     * @param class-string<ServiceDecoratorInterface>|callable(ContainerInterface, mixed):mixed $decorator
+     */
+    public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void
+    {
+        $canonicalId = $this->compiledPlan()->canonicalId($serviceId);
+        $this->builder->decorate($serviceId, $decorator, $priority);
+        $this->definitionChanged($canonicalId);
+    }
+
     public function compile(): CompiledContainerPlan
     {
         return $this->compiledPlan();
@@ -215,6 +230,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
         }
 
         $resolved = $this->resolve($definition->target);
+        $resolved = $this->applyDecorators($plan->decorators($canonicalId), $resolved);
 
         if ($definition->lifetime === ServiceLifetime::Singleton) {
             $this->instances[$canonicalId] = $resolved;
@@ -351,6 +367,33 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
         }
 
         return $this->build($target->className);
+    }
+
+    /**
+     * @param list<ServiceDecorator> $decorators
+     */
+    private function applyDecorators(array $decorators, mixed $inner): mixed
+    {
+        foreach ($decorators as $decorator) {
+            if ($decorator->decorator instanceof \Closure) {
+                $inner = ($decorator->decorator)($this, $inner);
+
+                continue;
+            }
+
+            $instance = $this->build($decorator->decorator);
+            if (!$instance instanceof ServiceDecoratorInterface) {
+                throw new InvalidServiceDecoratorException(sprintf(
+                    'Service decorator class "%s" must implement %s.',
+                    $decorator->decorator,
+                    ServiceDecoratorInterface::class,
+                ));
+            }
+
+            $inner = $instance->decorate($inner);
+        }
+
+        return $inner;
     }
 
     private function build(string $className): object
