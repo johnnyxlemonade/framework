@@ -28,6 +28,8 @@ final class CliKernelTest extends TestCase
         CliKernelRecorderCommand::reset();
         CliKernelFailingCommand::reset();
         CliKernelApiConfigProbeCommand::$lastPrefix = null;
+        CliKernelLazyAlphaCommand::reset();
+        CliKernelLazyZuluCommand::reset();
         $this->writeConfigFile(
             'Config.yaml',
             "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
@@ -71,6 +73,29 @@ final class CliKernelTest extends TestCase
         self::assertSame(0, $exit);
         self::assertStringContainsString('Available commands:', $this->stdoutContents());
         self::assertStringContainsString('recorder', $this->stdoutContents());
+    }
+
+    public function testDefinitionConfigListsAndHelpsWithoutInstantiatingCommands(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: lazy:alpha\n      class: " . CliKernelLazyAlphaCommand::class . "\n      description: Lazy alpha command\n    - name: lazy:zulu\n      class: " . CliKernelLazyZuluCommand::class . "\n      description: Lazy zulu command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(0, $kernel->handle(['bin/lemonade', 'list']));
+        self::assertSame(0, $kernel->handle(['bin/lemonade', '--help']));
+        self::assertStringContainsString('lazy:alpha', $this->stdoutContents());
+        self::assertSame(0, CliKernelLazyAlphaCommand::$instances);
+        self::assertSame(0, CliKernelLazyZuluCommand::$instances);
+    }
+
+    public function testDefinitionConfigInstantiatesOnlyTheSelectedCommandWhenRun(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: lazy:alpha\n      class: " . CliKernelLazyAlphaCommand::class . "\n      description: Lazy alpha command\n    - name: lazy:zulu\n      class: " . CliKernelLazyZuluCommand::class . "\n      description: Lazy zulu command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(17, $kernel->handle(['bin/lemonade', 'lazy:alpha']));
+        self::assertSame(1, CliKernelLazyAlphaCommand::$instances);
+        self::assertSame(1, CliKernelLazyAlphaCommand::$runCount);
+        self::assertSame(0, CliKernelLazyZuluCommand::$instances);
     }
 
     public function testHandleHelpPrintsListAndReturnsZero(): void
@@ -486,6 +511,70 @@ final class CliKernelApiConfigProbeCommand implements CommandInterface
         unset($args);
         self::$lastPrefix = $this->config->prefix;
 
+        return 0;
+    }
+}
+
+final class CliKernelLazyAlphaCommand implements CommandInterface
+{
+    public static int $instances = 0;
+    public static int $runCount = 0;
+
+    public static function reset(): void
+    {
+        self::$instances = 0;
+        self::$runCount = 0;
+    }
+
+    public function __construct()
+    {
+        self::$instances++;
+    }
+
+    public function name(): string
+    {
+        return 'lazy:alpha';
+    }
+
+    public function description(): string
+    {
+        return 'Lazy alpha command';
+    }
+
+    public function run(array $args): int
+    {
+        self::$runCount++;
+
+        return 17;
+    }
+}
+
+final class CliKernelLazyZuluCommand implements CommandInterface
+{
+    public static int $instances = 0;
+
+    public static function reset(): void
+    {
+        self::$instances = 0;
+    }
+
+    public function __construct()
+    {
+        self::$instances++;
+    }
+
+    public function name(): string
+    {
+        return 'lazy:zulu';
+    }
+
+    public function description(): string
+    {
+        return 'Lazy zulu command';
+    }
+
+    public function run(array $args): int
+    {
         return 0;
     }
 }

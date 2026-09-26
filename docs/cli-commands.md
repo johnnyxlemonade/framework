@@ -10,10 +10,23 @@ A command receives CLI arguments and returns an integer exit code.
 module: commands
 config:
   commands:
-    - App\Console\ImportProductsCommand
+    - name: products:import
+      class: App\Console\ImportProductsCommand
+      description: Import products from the configured source.
 ```
 
-The YAML file is mapped to `CommandsConfigDefinition`, then resolved through the existing typed config pipeline into runtime `CommandsConfig`.
+The YAML file is mapped to `CommandsConfigDefinition`, then resolved through the existing typed config pipeline into runtime `CommandsConfig`. The definition supplies list/help metadata without constructing the command. The command class is resolved from the container only when that command is run.
+
+Optional `aliases` may be added as a list of alternative command names. Command names and aliases must be unique.
+
+The former class-string-only entry remains supported as a legacy compatibility form:
+
+```yaml
+commands:
+  - App\Console\ImportProductsCommand
+```
+
+It requires command instantiation during registration to read `name()` and `description()`. Use the definition mapping for lazy registration. Command scope is a future lifecycle step; this metadata model intentionally does not create one yet.
 
 ## Command class
 

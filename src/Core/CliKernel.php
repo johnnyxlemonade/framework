@@ -28,6 +28,7 @@ final class CliKernel
     use KernelBootstrapTrait;
 
     private bool $booted = false;
+    private ?CommandRegistry $commandRegistry = null;
     /** @var resource */
     private $stdout;
     /** @var resource */
@@ -157,21 +158,29 @@ final class CliKernel
 
     private function buildCommandRegistry(): CommandRegistry
     {
+        if ($this->commandRegistry !== null) {
+            return $this->commandRegistry;
+        }
+
         $registry = $this->container->get(CommandRegistry::class);
 
-        foreach ($this->container->get(CommandsConfig::class)->commands as $commandClass) {
+        foreach ($this->container->get(CommandsConfig::class)->definitions as $definition) {
+            $registry->registerDefinition($definition);
+        }
+
+        foreach ($this->container->get(CommandsConfig::class)->legacyCommandClasses as $commandClass) {
             $registry->register($commandClass);
         }
 
-        return $registry;
+        return $this->commandRegistry = $registry;
     }
 
     private function printCommandList(CommandRegistry $registry): void
     {
         $this->writeStdout("Available commands:\n");
 
-        foreach ($registry->all() as $command) {
-            $this->writeStdout(sprintf("  %-24s %s\n", $command->name(), $command->description()));
+        foreach ($registry->allDefinitions() as $definition) {
+            $this->writeStdout(sprintf("  %-24s %s\n", $definition->name, $definition->description));
         }
     }
 

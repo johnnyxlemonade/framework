@@ -9,58 +9,125 @@ use RuntimeException;
 
 final class CommandRegistry
 {
-    /**
-     * @var array<string, class-string<CommandInterface>>
-     */
-    private array $commands = [];
+    /** @var array<string, CommandDefinition> */
+    private array $definitions = [];
+
+    /** @var array<string, string> */
+    private array $names = [];
 
     public function __construct(
         private readonly ContainerInterface $container,
     ) {}
 
     /**
-     * @param class-string<CommandInterface> $commandClass
+     * Legacy registration for commands whose metadata is only available from
+     * an instance. New code should use registerDefinition().
+     *
+     * @param class-string<CommandInterface>|CommandInterface $command
      */
-    public function register(string $commandClass): void
+    public function register(string|CommandInterface $command): void
     {
-        if (!class_exists($commandClass)) {
+        if ($command instanceof CommandInterface) {
+            $this->registerDefinition(new CommandDefinition(
+                name: trim($command->name()),
+                commandClass: $command::class,
+                description: $command->description(),
+            ));
+
+            return;
+        }
+
+        if (!class_exists($command)) {
             throw new RuntimeException(sprintf(
                 'CLI command class "%s" does not exist.',
-                $commandClass,
+                $command,
             ));
         }
 
-        $resolved = $this->container->get($commandClass);
+        $resolved = $this->container->get($command);
 
-        $name = trim($resolved->name());
-
-        if ($name === '') {
+        if (!$resolved instanceof CommandInterface) {
             throw new RuntimeException(sprintf(
-                'CLI command "%s" must define a non-empty name.',
-                $commandClass,
+                'CLI command "%s" must implement %s.',
+                $command,
+                CommandInterface::class,
             ));
         }
 
-        $this->commands[$name] = $commandClass;
+        $this->register($resolved);
+    }
+
+    public function registerDefinition(CommandDefinition $definition): void
+    {
+        $registeredNames = [];
+
+        foreach ([$definition->name, ...$definition->aliases] as $name) {
+            if (isset($this->names[$name]) || isset($registeredNames[$name])) {
+                throw new RuntimeException(sprintf(
+                    'CLI command name or alias "%s" is already registered.',
+                    $name,
+                ));
+            }
+
+            $registeredNames[$name] = true;
+        }
+
+        $this->definitions[$definition->name] = $definition;
+        $this->names[$definition->name] = $definition->name;
+
+        foreach ($definition->aliases as $alias) {
+            $this->names[$alias] = $definition->name;
+        }
     }
 
     public function has(string $name): bool
     {
-        return isset($this->commands[$name]);
+        return isset($this->names[$name]);
     }
 
     public function get(string $name): CommandInterface
     {
-        if (!isset($this->commands[$name])) {
+        $definition = $this->definition($name);
+        $command = $this->container->get($definition->commandClass);
+
+        if (!$command instanceof CommandInterface) {
+            throw new RuntimeException(sprintf(
+                'CLI command "%s" must resolve to %s.',
+                $definition->commandClass,
+                CommandInterface::class,
+            ));
+        }
+
+        return $command;
+    }
+
+    public function definition(string $name): CommandDefinition
+    {
+        $primaryName = $this->names[$name] ?? null;
+
+        if ($primaryName === null || !isset($this->definitions[$primaryName])) {
             throw new RuntimeException(sprintf(
                 'CLI command "%s" is not registered.',
                 $name,
             ));
         }
 
-        $command = $this->container->get($this->commands[$name]);
+        return $this->definitions[$primaryName];
+    }
 
-        return $command;
+    /**
+     * @return list<CommandDefinition>
+     */
+    public function allDefinitions(): array
+    {
+        $definitions = array_values($this->definitions);
+
+        usort(
+            $definitions,
+            static fn(CommandDefinition $a, CommandDefinition $b): int => strcmp($a->name, $b->name),
+        );
+
+        return $definitions;
     }
 
     /**
@@ -70,14 +137,9 @@ final class CommandRegistry
     {
         $items = [];
 
-        foreach (array_keys($this->commands) as $name) {
-            $items[] = $this->get($name);
+        foreach ($this->allDefinitions() as $definition) {
+            $items[] = $this->get($definition->name);
         }
-
-        usort(
-            $items,
-            static fn(CommandInterface $a, CommandInterface $b): int => strcmp($a->name(), $b->name()),
-        );
 
         return $items;
     }
