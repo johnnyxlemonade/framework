@@ -10,11 +10,16 @@ use Lemonade\Framework\Container\Definition\DefinitionTarget;
 use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\ContainerException;
+use Lemonade\Framework\Container\Exception\DuplicateServiceAliasException;
+use Lemonade\Framework\Container\Exception\InvalidServiceAliasException;
 
 final class ContainerBuilder implements ContainerBuilderInterface
 {
     /** @var array<string, ServiceDefinition> */
     private array $definitions = [];
+
+    /** @var array<string, string> */
+    private array $aliases = [];
 
     /**
      * @param class-string|string $id
@@ -46,6 +51,13 @@ final class ContainerBuilder implements ContainerBuilderInterface
     /** @param class-string|string $id */
     public function instance(string $id, object $instance): void
     {
+        if (isset($this->aliases[$id])) {
+            throw new DuplicateServiceAliasException(sprintf(
+                'Service definition "%s" conflicts with an existing service alias.',
+                $id,
+            ));
+        }
+
         $this->definitions[$id] = new ServiceDefinition(
             id: $id,
             lifetime: ServiceLifetime::Singleton,
@@ -81,6 +93,35 @@ final class ContainerBuilder implements ContainerBuilderInterface
         $this->definitions[$serviceId] = $definition->withTag($tag);
     }
 
+    public function alias(string $alias, string $target): void
+    {
+        $alias = $this->normalizeAliasPart($alias, 'Alias');
+        $target = $this->normalizeAliasPart($target, 'Alias target');
+
+        if ($alias === $target) {
+            throw new InvalidServiceAliasException(sprintf(
+                'Service alias "%s" must not target itself.',
+                $alias,
+            ));
+        }
+
+        if (isset($this->definitions[$alias])) {
+            throw new DuplicateServiceAliasException(sprintf(
+                'Service alias "%s" conflicts with an existing service definition.',
+                $alias,
+            ));
+        }
+
+        if (isset($this->aliases[$alias])) {
+            throw new DuplicateServiceAliasException(sprintf(
+                'Service alias "%s" is already registered.',
+                $alias,
+            ));
+        }
+
+        $this->aliases[$alias] = $target;
+    }
+
     public function compile(): CompiledContainerPlan
     {
         $tags = [];
@@ -91,7 +132,7 @@ final class ContainerBuilder implements ContainerBuilderInterface
             }
         }
 
-        return new CompiledContainerPlan($this->definitions, $tags);
+        return new CompiledContainerPlan($this->definitions, $tags, $this->aliases);
     }
 
     /**
@@ -100,6 +141,13 @@ final class ContainerBuilder implements ContainerBuilderInterface
      */
     private function define(string $id, callable|object|string $concrete, ServiceLifetime $lifetime): void
     {
+        if (isset($this->aliases[$id])) {
+            throw new DuplicateServiceAliasException(sprintf(
+                'Service definition "%s" conflicts with an existing service alias.',
+                $id,
+            ));
+        }
+
         $target = $this->target($concrete);
 
         $this->definitions[$id] = new ServiceDefinition(
@@ -132,5 +180,15 @@ final class ContainerBuilder implements ContainerBuilderInterface
         }
 
         return $normalizedTag;
+    }
+
+    private function normalizeAliasPart(string $value, string $label): string
+    {
+        $normalized = trim($value);
+        if ($normalized === '') {
+            throw new InvalidServiceAliasException(sprintf('%s must not be empty.', $label));
+        }
+
+        return $normalized;
     }
 }

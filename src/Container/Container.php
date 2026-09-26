@@ -9,6 +9,7 @@ use Lemonade\Framework\Container\Definition\ClassTarget;
 use Lemonade\Framework\Container\Definition\DefinitionTarget;
 use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
+use Lemonade\Framework\Container\Exception\AliasTargetNotFoundException;
 use Lemonade\Framework\Container\Exception\ContainerException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -102,6 +103,19 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
         $this->definitionChanged($id);
     }
 
+    /**
+     * The concrete container implements the builder contract used by definition providers.
+     * This method intentionally is not added to the legacy ContainerInterface.
+     *
+     * @param non-empty-string $alias
+     * @param non-empty-string $target
+     */
+    public function alias(string $alias, string $target): void
+    {
+        $this->builder->alias($alias, $target);
+        $this->compiledPlan = null;
+    }
+
     public function compile(): CompiledContainerPlan
     {
         return $this->compiledPlan();
@@ -145,7 +159,10 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
      */
     public function has(string $id): bool
     {
-        return $this->isBound($id) || $this->classExists($id);
+        $plan = $this->compiledPlan();
+        $canonicalId = $plan->canonicalId($id);
+
+        return $plan->hasDefinition($canonicalId) || $this->classExists($canonicalId);
     }
 
     /**
@@ -153,7 +170,10 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
      */
     public function isBound(string $id): bool
     {
-        return isset($this->instances[$id]) || $this->builder->hasDefinition($id);
+        $plan = $this->compiledPlan();
+        $canonicalId = $plan->canonicalId($id);
+
+        return isset($this->instances[$canonicalId]) || $plan->hasDefinition($canonicalId) || $plan->hasAlias($id);
     }
 
     /**
@@ -164,29 +184,40 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
      */
     public function get(string $id): mixed
     {
-        if (isset($this->instances[$id])) {
-            return $this->instances[$id];
+        $plan = $this->compiledPlan();
+        $canonicalId = $plan->canonicalId($id);
+
+        if (isset($this->instances[$canonicalId])) {
+            return $this->instances[$canonicalId];
         }
 
-        $definition = $this->compiledPlan()->definition($id);
+        $definition = $plan->definition($canonicalId);
 
         if ($definition === null) {
-            if (!$this->classExists($id)) {
+            if (!$this->classExists($canonicalId)) {
+                if ($plan->hasAlias($id)) {
+                    throw new AliasTargetNotFoundException(sprintf(
+                        'Service alias "%s" resolves to "%s", but the target service was not found.',
+                        $id,
+                        $canonicalId,
+                    ));
+                }
+
                 throw new ServiceNotFoundException(sprintf(
                     'Service "%s" was not found.',
-                    $id,
+                    $canonicalId,
                 ));
             }
 
-            $this->reportAutowireFallback($id);
+            $this->reportAutowireFallback($canonicalId);
 
-            return $this->build($id);
+            return $this->build($canonicalId);
         }
 
         $resolved = $this->resolve($definition->target);
 
         if ($definition->lifetime === ServiceLifetime::Singleton) {
-            $this->instances[$id] = $resolved;
+            $this->instances[$canonicalId] = $resolved;
         }
 
         return $resolved;

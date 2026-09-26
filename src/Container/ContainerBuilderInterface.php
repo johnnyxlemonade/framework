@@ -33,5 +33,11 @@ interface ContainerBuilderInterface
      */
     public function tag(string $serviceId, string $tag): void;
 
+    /**
+     * @param non-empty-string $alias
+     * @param non-empty-string $target
+     */
+    public function alias(string $alias, string $target): void;
+
     public function compile(): CompiledContainerPlan;
 }

@@ -35,6 +35,22 @@ Definition-based service providers receive `ContainerBuilderInterface`, which ex
 definition registration and compilation. Runtime resolution and side effects belong in a bootable
 provider's `boot(ContainerInterface $container)` phase after all providers have registered.
 
+## Service aliases
+
+Definition providers may declare an explicit alias through `ContainerBuilderInterface::alias()`. An
+alias maps one service ID to a canonical target ID; it never creates a second binding or instance.
+Alias chains are canonicalized when the container plan compiles, and cycles fail fast.
+
+```php
+$builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+$builder->alias('invoice.importer', InvoiceImporter::class);
+```
+
+Resolving either ID follows the canonical service definition, so singleton aliases share identity
+and transient aliases retain transient behavior. Aliases must not collide with service definitions,
+must not target themselves, and must point to an existing service or autowireable concrete class at
+runtime.
+
 ## Tagged services
 
 Tags declare an explicit service as a member of a collection capability. They are not filesystem
