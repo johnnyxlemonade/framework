@@ -8,4 +8,5 @@ enum ServiceLifetime: string
 {
     case Singleton = 'singleton';
     case Transient = 'transient';
+    case Scoped = 'scoped';
 }

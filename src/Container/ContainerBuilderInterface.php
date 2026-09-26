@@ -22,6 +22,12 @@ interface ContainerBuilderInterface
      * @param class-string|non-empty-string $id
      * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
      */
+    public function scoped(string $id, callable|object|string $concrete): void;
+
+    /**
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
+     */
     public function transient(string $id, callable|object|string $concrete): void;
 
     /** @param class-string|non-empty-string $id */

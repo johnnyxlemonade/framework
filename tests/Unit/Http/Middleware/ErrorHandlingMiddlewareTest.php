@@ -324,6 +324,11 @@ final class TrackingViewContainer implements ContainerInterface
         unset($id, $concrete);
     }
 
+    public function scoped(string $id, callable|object|string $concrete): void
+    {
+        unset($id, $concrete);
+    }
+
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
     {
         unset($id, $concrete, $tags);

@@ -22,6 +22,12 @@ interface ContainerInterface extends PsrContainerInterface
     public function singleton(string $id, callable|object|string $concrete): void;
 
     /**
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|class-string $concrete
+     */
+    public function scoped(string $id, callable|object|string $concrete): void;
+
+    /**
      * Registers a singleton service and declares one or more collection capability tags.
      *
      * @param class-string|non-empty-string $id

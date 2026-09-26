@@ -57,6 +57,15 @@ final class ContainerBuilder implements ContainerBuilderInterface
         $this->define($id, $concrete, ServiceLifetime::Singleton);
     }
 
+    /**
+     * @param class-string|string $id
+     * @param callable(ContainerInterface):mixed|object|string $concrete
+     */
+    public function scoped(string $id, callable|object|string $concrete): void
+    {
+        $this->define($id, $concrete, ServiceLifetime::Scoped);
+    }
+
     /** @param class-string|string $id */
     public function instance(string $id, object $instance): void
     {

@@ -35,6 +35,44 @@ Definition-based service providers receive `ContainerBuilderInterface`, which ex
 definition registration and compilation. Runtime resolution and side effects belong in a bootable
 provider's `boot(ContainerInterface $container)` phase after all providers have registered.
 
+## Service lifetimes and scopes
+
+`set()` and `transient()` create a fresh service value for every resolution. `singleton()` caches a
+service in the root container. `scoped()` caches a service only in the active request, command or
+job scope.
+
+```php
+use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Container\ScopeKind;
+
+$builder->scoped(CurrentRequestContext::class, CurrentRequestContext::class);
+
+$scope = $scopeFactory->beginScope(ScopeKind::Request);
+
+try {
+    $context = $scope->get(CurrentRequestContext::class);
+} finally {
+    $scope->close();
+}
+```
+
+`ScopeFactoryInterface::beginScope()` returns a `ScopedContainerInterface`. A scoped service cannot
+be resolved from the root container. Within one scope, its complete decorated result is cached;
+separate scopes receive separate instances. Singleton instances remain cached in and shared by the
+root container across all scopes, while transient services are always rebuilt.
+
+`close()` discards the scope cache and is idempotent. A closed scope cannot resolve further
+services. Factories, callable decorators and contextual bindings receive the active runtime
+container, so a scoped dependency remains in the same scope throughout resolution.
+
+A singleton must never depend on a scoped service, directly or through a contextual binding or
+alias. The container rejects that resolution with a dedicated exception. Scoped services may depend
+on singletons, and transients may depend on scoped services only when they are resolved from an
+active scope.
+
+Automatic creation and closing of HTTP, CLI or job scopes is intentionally not part of this
+container step; kernel and worker lifecycle integration is a separate follow-up.
+
 ## Service aliases
 
 Definition providers may declare an explicit alias through `ContainerBuilderInterface::alias()`. An
