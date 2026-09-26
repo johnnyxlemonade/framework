@@ -8,6 +8,7 @@ use Lemonade\Framework\Component\Pagination\Config\PaginationConfig;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfigDefinition;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfigResolver;
 use Lemonade\Framework\Component\Support\ComponentConfig;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -18,6 +19,8 @@ final class PaginationServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
+        $builder = $this->builder($container);
+
         $container->singleton(PaginationConfigResolver::class, PaginationConfigResolver::class);
         $container->singleton(PaginationConfig::class, static function (ContainerInterface $container): PaginationConfig {
             return $container
@@ -27,7 +30,7 @@ final class PaginationServiceProvider implements ServiceProviderInterface
                     PaginationConfigDefinition::class,
                 ));
         });
-        $container->singleton(PaginationFactory::class, static function (ContainerInterface $container): PaginationFactory {
+        $builder->scoped(PaginationFactory::class, static function (ContainerInterface $container): PaginationFactory {
             $config = $container->get(PaginationConfig::class);
 
             return new PaginationFactory(
@@ -47,5 +50,18 @@ final class PaginationServiceProvider implements ServiceProviderInterface
             );
         });
         $container->singleton(PaginationComponent::class, PaginationComponent::class);
+    }
+
+    private function builder(ContainerInterface $container): ContainerBuilderInterface
+    {
+        if (!$container instanceof ContainerBuilderInterface) {
+            throw new \RuntimeException(sprintf(
+                '%s requires a container implementing %s to register request-scoped services.',
+                self::class,
+                ContainerBuilderInterface::class,
+            ));
+        }
+
+        return $container;
     }
 }

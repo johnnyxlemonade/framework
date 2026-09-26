@@ -22,6 +22,7 @@ use Lemonade\Framework\Component\Pagination\PaginationFactory;
 use Lemonade\Framework\Component\Pagination\PaginationRenderer;
 use Lemonade\Framework\Component\Pagination\PaginationServiceProvider;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\Exception\SingletonDependsOnScopedServiceException;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use LogicException;
@@ -55,7 +56,7 @@ final class ComponentServiceProviderTest extends TestCase
         ], $registry->all());
     }
 
-    public function testRegistryResolvesBuiltInComponentObjects(): void
+    public function testRegistryResolvesRootComponentObjects(): void
     {
         $container = $this->buildContainer();
         $provider = new ComponentServiceProvider();
@@ -65,11 +66,10 @@ final class ComponentServiceProviderTest extends TestCase
         $registry = $container->get(ComponentRegistry::class);
 
         self::assertInstanceOf(BreadcrumbComponent::class, $registry->get('breadcrumb'));
-        self::assertInstanceOf(PaginationComponent::class, $registry->get('pagination'));
         self::assertInstanceOf(MetaComponent::class, $registry->get('meta'));
     }
 
-    public function testConvenienceMethodsResolveBuiltInComponents(): void
+    public function testRegistryFailsClearlyWhenRootPaginationComponentDependsOnRequestScopedFactory(): void
     {
         $container = $this->buildContainer();
         $provider = new ComponentServiceProvider();
@@ -78,9 +78,10 @@ final class ComponentServiceProviderTest extends TestCase
         /** @var ComponentRegistry $registry */
         $registry = $container->get(ComponentRegistry::class);
 
-        self::assertInstanceOf(BreadcrumbComponent::class, $registry->breadcrumb());
-        self::assertInstanceOf(PaginationComponent::class, $registry->pagination());
-        self::assertInstanceOf(MetaComponent::class, $registry->meta());
+        $this->expectException(SingletonDependsOnScopedServiceException::class);
+        $this->expectExceptionMessage(PaginationComponent::class . ' -> ' . PaginationFactory::class);
+
+        $registry->pagination();
     }
 
     public function testRegistryRegistersComponentFromConfig(): void
