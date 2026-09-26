@@ -37,6 +37,11 @@ a container plan before resolution. This preserves the existing `set()`, `single
 `tagged()` API while separating registration metadata from lazy runtime resolution. The plan does
 not generate PHP code and does not change the singleton, transient, factory or autowiring contracts.
 
+`Container::compile()` creates the current compiled snapshot/plan; it is not a hard freeze of
+registration. Legacy registration calls after compilation can invalidate and rebuild that plan under
+their existing compatibility semantics. New code should still register definitions in a provider's
+`register()` phase and must not mutate root definitions during runtime dispatch.
+
 Definition-based service providers receive `ContainerBuilderInterface`, which exposes only
 definition registration and compilation. Runtime resolution and side effects belong in a bootable
 provider's `boot(ContainerInterface $container)` phase after all providers have registered.
@@ -82,7 +87,9 @@ must enforce a request-local contract.
 
 ScopedContainerInterface retains the legacy container mutators for runtime compatibility, but
 set(), singleton(), tag() and singletonTagged() delegate to the root container. They do not create
-scope-local definitions. bindScopedInstance() is the only scope-local write API.
+scope-local definitions. bindScopedInstance() is the only scope-local write API. Middleware,
+controllers, commands and job handlers must not use those root-mutating legacy methods. This is
+especially important in a long-running queue worker, where a root mutation could affect later jobs.
 
 A singleton must never depend on a scoped service, directly or through a contextual binding or
 alias. The container rejects that resolution with a dedicated exception. Scoped services may depend

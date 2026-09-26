@@ -11,10 +11,12 @@ public/index.php
 -> Kernel::handle()
    -> create ServerRequest from globals when no request is provided
 -> Kernel::run()
+   -> load HTTP config definitions once into the root config registry
    -> create a Request scope
    -> bind the provided ServerRequestInterface only in that scope
+   -> try the framework health fast-path
+      -> on a public health hit, create and return the response without full bootstrap
 -> Kernel::bootstrap()
-   -> load conventional YAML application config files
    -> apply runtime app config
    -> register core providers
    -> register HTTP provider
@@ -65,6 +67,11 @@ Each `Kernel::run()` call creates a `Request` scope and binds its exact
 remain requestless: the root container never stores a request-specific binding. The scope is closed
 in a `finally` block after a normal response, a not-found response, or any middleware/controller
 exception. This also applies to the health fast path.
+
+Configuration definitions are loaded before the Request scope is created. The health fast-path runs
+after the request is bound locally but before `Kernel::bootstrap()`: a matching public health request
+therefore skips full provider registration, route loading, middleware and controller dispatch. A
+health miss continues with the ordinary bootstrap and request pipeline.
 
 Services resolved for the request pipeline, route middleware, dispatch handler and controller use
 the active scoped container. Therefore `ContainerInterface` injected into a request-scoped or

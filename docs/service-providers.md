@@ -128,8 +128,9 @@ only for bootstrap-safe root services that were explicitly bound before configur
 created. This makes value and configuration services available without allowing a provider to
 resolve arbitrary runtime services.
 
-Provider constructors cannot receive a container, a container builder, a scope, or
-`ServerRequestInterface`. They also cannot depend on a service registered by the same provider or
+Provider constructors cannot receive a container, a container builder, a scope, request values, or
+the Command/Job scope-local values (`CommandContext`, `CommandInput`, `CommandOutput`, `JobContext`,
+`QueuedMessage`). They also cannot depend on a service registered by the same provider or
 by another provider in the same registration batch, because provider construction happens before
 that batch is registered. A constructor dependency that is not already explicitly bound, or is
 scope-local, fails during bootstrap with a clear exception.

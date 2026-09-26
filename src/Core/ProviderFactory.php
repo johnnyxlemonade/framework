@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
+use Lemonade\Framework\Cli\CommandContext;
+use Lemonade\Framework\Cli\CommandInput;
+use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Core\Exception\ProviderConstructionException;
+use Lemonade\Framework\Queue\JobContext;
+use Lemonade\Framework\Queue\QueuedMessage;
 use Psr\Container\ContainerInterface as PsrContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReflectionClass;
@@ -71,7 +76,7 @@ final class ProviderFactory
 
         if ($this->isRuntimeOnlyDependency($dependency)) {
             throw new ProviderConstructionException(sprintf(
-                'Cannot construct service provider "%s": constructor dependency "%s" for $%s is runtime-only. Provider constructors cannot receive the container, scopes, or request values.',
+                'Cannot construct service provider "%s": constructor dependency "%s" for $%s is runtime-only. Provider constructors cannot receive the container, scopes, request, command, or job values.',
                 $providerClass,
                 $dependency,
                 $parameter->getName(),
@@ -132,6 +137,11 @@ final class ProviderFactory
             ScopedContainerInterface::class,
             ScopeFactoryInterface::class,
             ServerRequestInterface::class,
+            CommandContext::class,
+            CommandInput::class,
+            CommandOutput::class,
+            JobContext::class,
+            QueuedMessage::class,
         ], true);
     }
 }
