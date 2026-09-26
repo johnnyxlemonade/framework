@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Core;
 use DateTimeZone;
 use Lemonade\Framework\Clock\ClockInterface;
 use Lemonade\Framework\Clock\SystemClock;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
@@ -44,6 +45,8 @@ final class CoreServiceProvider implements ServiceProviderInterface
      */
     public function register(ContainerInterface $container): void
     {
+        $builder = $this->builder($container);
+
         /*
          * PSR-7 / PSR-17 factories.
          *
@@ -59,7 +62,7 @@ final class CoreServiceProvider implements ServiceProviderInterface
         /*
          * Core framework utilities.
          */
-        $container->scoped(ControllerResolver::class, ControllerResolver::class);
+        $builder->scoped(ControllerResolver::class, ControllerResolver::class);
         $container->singleton(BaseUrlResolver::class, BaseUrlResolver::class);
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);
@@ -86,5 +89,18 @@ final class CoreServiceProvider implements ServiceProviderInterface
                 $exception,
             );
         }
+    }
+
+    private function builder(ContainerInterface $container): ContainerBuilderInterface
+    {
+        if (!$container instanceof ContainerBuilderInterface) {
+            throw new RuntimeException(sprintf(
+                '%s requires a container implementing %s to register scoped HTTP services.',
+                self::class,
+                ContainerBuilderInterface::class,
+            ));
+        }
+
+        return $container;
     }
 }

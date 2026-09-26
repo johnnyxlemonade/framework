@@ -77,12 +77,16 @@ application and are registered explicitly from an application service provider.
 
 ```php
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\BootableServiceProviderInterface;
 use Lemonade\Framework\Database\Migration\MigrationRegistry;
 use App\Database\Migrations\CreateUsersTable;
 
-public function register(ContainerInterface $container): void
+final class AppMigrationProvider implements BootableServiceProviderInterface
 {
-    $container->get(MigrationRegistry::class)->register(CreateUsersTable::class);
+    public function boot(ContainerInterface $container): void
+    {
+        $container->get(MigrationRegistry::class)->register(CreateUsersTable::class);
+    }
 }
 ```
 

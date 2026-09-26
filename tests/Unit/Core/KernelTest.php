@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\Exception\ScopedContainerClosedException;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Api\Config\ApiConfigDefinition;
@@ -461,6 +462,7 @@ final class KernelTest extends TestCase
         \App\Controllers\RequestScopeKernelController::reset();
         $kernel = $this->kernel(false);
         $root = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $root);
         $root->scoped(RequestScopeKernelService::class, RequestScopeKernelService::class);
         $root->singleton(RequestScopeKernelSingleton::class, RequestScopeKernelSingleton::class);
         $firstRequest = new ServerRequest('GET', '/request-scope?request=first');
@@ -487,7 +489,9 @@ final class KernelTest extends TestCase
     {
         KernelScopeCaptureMiddleware::reset();
         $kernel = $this->kernel(false);
-        $kernel->container()->scoped(KernelScopeCaptureMiddleware::class, KernelScopeCaptureMiddleware::class);
+        $container = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $container);
+        $container->scoped(KernelScopeCaptureMiddleware::class, KernelScopeCaptureMiddleware::class);
         $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
             $stack->prepend(KernelScopeCaptureMiddleware::class);
         });
@@ -522,7 +526,9 @@ final class KernelTest extends TestCase
     {
         KernelThrowingScopeMiddleware::$container = null;
         $kernel = $this->kernel(false);
-        $kernel->container()->scoped(KernelThrowingScopeMiddleware::class, KernelThrowingScopeMiddleware::class);
+        $container = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $container);
+        $container->scoped(KernelThrowingScopeMiddleware::class, KernelThrowingScopeMiddleware::class);
         $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
             $stack->insertAfter(ErrorHandlingMiddleware::class, KernelThrowingScopeMiddleware::class);
         });
@@ -791,7 +797,7 @@ final class RequestScopeThrowingController
 
 namespace Lemonade\Framework\Tests\Unit\Core;
 
-final class KernelScopeTrackingContainer implements \Lemonade\Framework\Container\ContainerInterface, \Lemonade\Framework\Container\ScopeFactoryInterface
+final class KernelScopeTrackingContainer implements \Lemonade\Framework\Container\ContainerInterface, \Lemonade\Framework\Container\ContainerBuilderInterface, \Lemonade\Framework\Container\ScopeFactoryInterface
 {
     public ?\Lemonade\Framework\Container\ScopedContainerInterface $lastScope = null;
 
@@ -804,19 +810,61 @@ final class KernelScopeTrackingContainer implements \Lemonade\Framework\Containe
         return $this->lastScope = $this->delegate->beginScope($kind);
     }
 
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
     public function set(string $id, callable|object|string $concrete): void
     {
         $this->delegate->set($id, $concrete);
     }
 
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
     public function singleton(string $id, callable|object|string $concrete): void
     {
         $this->delegate->singleton($id, $concrete);
     }
 
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
     public function scoped(string $id, callable|object|string $concrete): void
     {
         $this->delegate->scoped($id, $concrete);
+    }
+
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function transient(string $id, callable|object|string $concrete): void
+    {
+        $this->delegate->transient($id, $concrete);
+    }
+
+    public function instance(string $id, object $instance): void
+    {
+        $this->delegate->instance($id, $instance);
+    }
+
+    public function alias(string $alias, string $target): void
+    {
+        $this->delegate->alias($alias, $target);
+    }
+
+    public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void
+    {
+        $this->delegate->decorate($serviceId, $decorator, $priority);
+    }
+
+    public function when(string $consumer): \Lemonade\Framework\Container\ContextualBindingBuilder
+    {
+        return $this->delegate->when($consumer);
+    }
+
+    public function compile(): \Lemonade\Framework\Container\CompiledContainerPlan
+    {
+        return $this->delegate->compile();
     }
 
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void

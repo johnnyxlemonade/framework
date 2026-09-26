@@ -7,6 +7,8 @@ Service providers are the main composition mechanism for framework and applicati
 New providers should separate service definitions from runtime side effects. A
 `DefinitionServiceProviderInterface` receives `ContainerBuilderInterface` in `register()` and
 should only declare bindings and tags. It cannot resolve services through that contract.
+`scoped()` is a builder operation; scope creation itself belongs to
+`ScopeFactoryInterface::beginScope()` at the runtime boundary.
 
 ```php
 use Lemonade\Framework\Container\ContainerBuilderInterface;

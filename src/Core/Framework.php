@@ -108,7 +108,9 @@ final class Framework
     }
 
     /**
-     * Registers one or more service providers in the order they are supplied.
+     * Registers one or more service providers in stable dependency order.
+     *
+     * Providers without explicit dependencies preserve their supplied order.
      *
      * @return $this Returns the same framework instance for fluent chaining.
      */

@@ -6,6 +6,8 @@ namespace Lemonade\Framework\Tests\Unit\Container;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerBuilder;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\Definition\ClassTarget;
 use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
@@ -14,6 +16,12 @@ use PHPUnit\Framework\TestCase;
 
 final class ContainerBuilderTest extends TestCase
 {
+    public function testScopedRegistrationIsBuilderOnly(): void
+    {
+        self::assertNotContains('scoped', get_class_methods(ContainerInterface::class));
+        self::assertContains('scoped', get_class_methods(ContainerBuilderInterface::class));
+    }
+
     public function testCompilePreservesDefinitionTargetsAndLifetimes(): void
     {
         $builder = new ContainerBuilder();

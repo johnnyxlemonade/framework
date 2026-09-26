@@ -2,6 +2,12 @@
 
 The framework container is PSR-11 compatible and supports explicit bindings, singleton bindings and conservative autowiring.
 
+ContainerInterface is the runtime and legacy contract: it exposes service resolution plus the
+established set(), singleton(), tag() and tagged() registration operations. Definition providers
+receive ContainerBuilderInterface instead. Builder-only operations include scoped(), transient(),
+instance(), aliases, decorators and contextual bindings. Scope lifecycle belongs to
+ScopeFactoryInterface::beginScope(), not to ContainerInterface.
+
 Services are registered with `set()` or `singleton()`.
 
 ```php
@@ -74,6 +80,10 @@ runtime factories and services can retrieve the active scope without changing th
 `hasScopedBinding()` distinguishes this scope-local overlay from a root binding when an integration
 must enforce a request-local contract.
 
+ScopedContainerInterface retains the legacy container mutators for runtime compatibility, but
+set(), singleton(), tag() and singletonTagged() delegate to the root container. They do not create
+scope-local definitions. bindScopedInstance() is the only scope-local write API.
+
 A singleton must never depend on a scoped service, directly or through a contextual binding or
 alias. The container rejects that resolution with a dedicated exception. Scoped services may depend
 on singletons, and transients may depend on scoped services only when they are resolved from an
@@ -89,6 +99,11 @@ providers registered. The replacement is intentionally breaking: `register()` an
 read a current request. Put request-dependent decisions in middleware, a scoped service, or a
 controller instead. The root container must never contain a request-specific
 `ServerRequestInterface` binding.
+
+HTTP runtime is scope-capable by contract: the kernel requires a container implementing
+ScopeFactoryInterface, and framework HTTP providers require ContainerBuilderInterface to declare
+their scoped definitions. This is intentional; the framework does not provide a fallback for
+containers that cannot create request scopes.
 
 ## Service aliases
 

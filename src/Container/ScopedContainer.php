@@ -60,12 +60,6 @@ final class ScopedContainer implements ScopedContainerInterface
         $this->root->singleton($id, $concrete);
     }
 
-    public function scoped(string $id, callable|object|string $concrete): void
-    {
-        $this->assertOpen();
-        $this->root->scoped($id, $concrete);
-    }
-
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
     {
         $this->assertOpen();
