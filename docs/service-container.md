@@ -98,6 +98,9 @@ isolated `Job` scope with `JobContext`, plus `QueuedMessage` for asynchronously 
 Synchronous queue dispatch also creates its own Job scope instead of reusing an active Request
 scope. Legacy queue callables remain compatible, but are not resolved through the container.
 
+The in-memory event dispatcher is not scope-aware. Do not rely on event listeners receiving scoped
+dependencies; a scoped dispatcher/listener invoker design remains future work.
+
 This replaces the older root-container request binding that was available before application
 providers registered. The replacement is intentionally breaking: `register()` and `boot()` must not
 read a current request. Put request-dependent decisions in middleware, a scoped service, or a

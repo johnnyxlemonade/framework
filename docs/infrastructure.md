@@ -31,6 +31,10 @@ available for integrations that need native cache items.
 event class or registered programmatically. Listener classes are resolved through the container and
 callable listeners are supported.
 
+Events are currently not scope-aware: listener resolution does not provide a request, command or
+job scope contract. `EventListenerRegistry` plus a scoped dispatcher/invoker is future P2 work,
+not a current framework feature.
+
 ```yaml
 module: events
 config:
@@ -54,6 +58,11 @@ through the container when invoked; this is the preferred form for dependency in
 selection prefers the concrete message class, then parent classes, then implemented interfaces.
 Registering the same message class again replaces its prior handler.
 
+`QueueBus` orchestrates transport dispatch and processing. `JobHandlerRegistry` owns this handler
+selection; `JobHandlerInvoker` creates the Job scope and resolves a class-string handler from it.
+This separation is intentional: a legacy callable remains compatible, but is invoked directly and
+is not container-resolved.
+
 ```yaml
 module: queue
 config:
@@ -69,8 +78,12 @@ config:
 
 Create the database tables with `vendor/bin/lemonade queue:install`. Run a worker with
 `vendor/bin/lemonade queue:work [queue] [transport] [max] [sleep-ms]`; a worker requires an
-asynchronous transport such as `database`. Worker lifecycle, deployment supervision and retry policy
-remain application or operations concerns.
+asynchronous transport such as `database`. Worker lifecycle and deployment supervision remain
+application or operations concerns. There is no retry or release mechanism in the queue contract yet.
+
+For an asynchronously dequeued message, success calls `ack()`. A handler failure calls `fail()` and
+then rethrows the original handler exception; if `fail()` itself fails, the resulting exception
+retains the original handler exception. An `ack()` failure does not call `fail()`.
 
 For an asynchronously dequeued message, a successful handler is acknowledged only after it returns.
 When a handler throws, the transport's `fail()` operation runs and the original handler error remains

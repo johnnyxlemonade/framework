@@ -138,6 +138,10 @@ scope-local, fails during bootstrap with a clear exception.
 provider registration and booting; it does not make another provider's services available to a
 constructor.
 
+Core bootstrap providers are constructed from root-safe services only. The same rule applies to
+application and integration providers: constructor injection is for explicitly bound bootstrap
+values, configuration and other root-safe services, never for runtime or scope-local state.
+
 ### Breaking migration: request-aware providers
 
 Older framework versions exposed the current `ServerRequestInterface` as a root-container binding

@@ -83,6 +83,10 @@ Internally this YAML payload is still mapped to `CommandsConfigDefinition` and r
 
 The legacy class-string entry is still accepted, but it constructs the command to obtain its metadata. Prefer the definition mapping so list and help remain lazy. When `CliKernel` runs a known command, it creates an isolated `Command` scope, binds `CommandContext`, `CommandInput` and `CommandOutput`, and closes the scope in `finally`. List, help and unknown-command handling do not create a command scope; direct calls to `CommandInterface::run()` outside `CliKernel` do not create one either.
 
+`CommandRegistry::get()` is a legacy lookup API outside this dispatch flow. New command execution
+should go through `CliKernel`; list/help use `CommandDefinition` metadata and do not instantiate a
+command.
+
 ## Running commands
 
 ```bash
