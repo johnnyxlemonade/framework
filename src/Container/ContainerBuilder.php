@@ -12,6 +12,7 @@ use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\ContainerException;
 use Lemonade\Framework\Container\Exception\DecorationTargetNotFoundException;
 use Lemonade\Framework\Container\Exception\DuplicateServiceAliasException;
+use Lemonade\Framework\Container\Exception\InvalidContextualBindingException;
 use Lemonade\Framework\Container\Exception\InvalidServiceAliasException;
 use Lemonade\Framework\Container\Exception\InvalidServiceDecoratorException;
 use ReflectionClass;
@@ -25,6 +26,9 @@ final class ContainerBuilder implements ContainerBuilderInterface
     private array $aliases = [];
 
     private int $decoratorOrder = 0;
+
+    /** @var array<string, array{'dependency': array<string, ContextualBinding>, 'parameter': array<string, ContextualBinding>}> */
+    private array $contextualBindings = [];
 
     /**
      * @param class-string|string $id
@@ -147,6 +151,28 @@ final class ContainerBuilder implements ContainerBuilderInterface
         ));
     }
 
+    public function when(string $consumer): ContextualBindingBuilder
+    {
+        return $this->contextualBindingBuilder($consumer);
+    }
+
+    /** @param \Closure():void|null $onChange */
+    public function contextualBindingBuilder(string $consumer, ?Closure $onChange = null): ContextualBindingBuilder
+    {
+        $consumer = $this->assertConsumerExists($consumer);
+
+        return new ContextualBindingBuilder($this, $consumer, $onChange);
+    }
+
+    public function addContextualBinding(ContextualBinding $binding): void
+    {
+        $this->contextualBindings[$binding->consumer] ??= [
+            'dependency' => [],
+            'parameter' => [],
+        ];
+        $this->contextualBindings[$binding->consumer][$binding->kind][$binding->key] = $binding;
+    }
+
     public function compile(): CompiledContainerPlan
     {
         $tags = [];
@@ -157,7 +183,7 @@ final class ContainerBuilder implements ContainerBuilderInterface
             }
         }
 
-        return new CompiledContainerPlan($this->definitions, $tags, $this->aliases);
+        return new CompiledContainerPlan($this->definitions, $tags, $this->aliases, $this->contextualBindings);
     }
 
     /**
@@ -216,6 +242,45 @@ final class ContainerBuilder implements ContainerBuilderInterface
         }
 
         return $normalized;
+    }
+
+    public function assertConstructorParameterExists(string $consumer, string $name): void
+    {
+        $consumer = $this->assertConsumerExists($consumer);
+        $constructor = (new ReflectionClass($consumer))->getConstructor();
+        if ($constructor === null) {
+            throw new InvalidContextualBindingException(sprintf(
+                'Contextual parameter binding for "%s::$%s" is invalid because the consumer has no constructor.',
+                $consumer,
+                $name,
+            ));
+        }
+
+        foreach ($constructor->getParameters() as $parameter) {
+            if ($parameter->getName() === $name) {
+                return;
+            }
+        }
+
+        throw new InvalidContextualBindingException(sprintf(
+            'Contextual parameter binding for "%s::$%s" does not match a constructor parameter.',
+            $consumer,
+            $name,
+        ));
+    }
+
+    /** @return class-string */
+    private function assertConsumerExists(string $consumer): string
+    {
+        if (!class_exists($consumer)) {
+            throw new InvalidContextualBindingException(sprintf(
+                'Contextual binding consumer "%s" does not exist.',
+                $consumer,
+            ));
+        }
+
+        /** @var class-string $consumer */
+        return $consumer;
     }
 
     private function canonicalDefinitionId(string $serviceId): string

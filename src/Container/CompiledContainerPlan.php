@@ -12,11 +12,13 @@ final readonly class CompiledContainerPlan
      * @param array<string, ServiceDefinition> $definitions
      * @param array<string, list<string>> $tags
      * @param array<string, string> $aliases
+     * @param array<string, array{'dependency': array<string, ContextualBinding>, 'parameter': array<string, ContextualBinding>}> $contextualBindings
      */
     public function __construct(
         private array $definitions,
         private array $tags,
         array $aliases = [],
+        private array $contextualBindings = [],
     ) {
         $this->aliases = $this->canonicalizeAliases($aliases);
     }
@@ -57,6 +59,16 @@ final readonly class CompiledContainerPlan
         });
 
         return $decorators;
+    }
+
+    public function contextualDependency(string $consumer, string $dependency): ?ContextualBinding
+    {
+        return $this->contextualBindings[$consumer]['dependency'][$dependency] ?? null;
+    }
+
+    public function contextualParameter(string $consumer, string $parameter): ?ContextualBinding
+    {
+        return $this->contextualBindings[$consumer]['parameter'][$parameter] ?? null;
     }
 
     /** @return list<string> */

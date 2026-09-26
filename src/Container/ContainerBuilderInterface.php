@@ -45,5 +45,8 @@ interface ContainerBuilderInterface
      */
     public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void;
 
+    /** @param class-string|string $consumer */
+    public function when(string $consumer): ContextualBindingBuilder;
+
     public function compile(): CompiledContainerPlan;
 }

@@ -11,6 +11,7 @@ use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\AliasTargetNotFoundException;
 use Lemonade\Framework\Container\Exception\ContainerException;
+use Lemonade\Framework\Container\Exception\InvalidContextualBindingException;
 use Lemonade\Framework\Container\Exception\InvalidServiceDecoratorException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -129,6 +130,20 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
         $canonicalId = $this->compiledPlan()->canonicalId($serviceId);
         $this->builder->decorate($serviceId, $decorator, $priority);
         $this->definitionChanged($canonicalId);
+    }
+
+    /**
+     * The concrete container implements the builder contract used by definition providers.
+     * This method intentionally is not added to the legacy ContainerInterface.
+     *
+     * @param class-string|string $consumer
+     */
+    public function when(string $consumer): ContextualBindingBuilder
+    {
+        return $this->builder->contextualBindingBuilder($consumer, function (): void {
+            $this->instances = [];
+            $this->compiledPlan = null;
+        });
     }
 
     public function compile(): CompiledContainerPlan
@@ -533,6 +548,15 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
         bool $hasDefaultValue,
         mixed $defaultValue,
     ): mixed {
+        $contextualBinding = $this->compiledPlan()->contextualParameter($className, $parameterName);
+        if (!$contextualBinding instanceof ContextualBinding && $dependency !== null) {
+            $contextualBinding = $this->compiledPlan()->contextualDependency($className, $dependency);
+        }
+
+        if ($contextualBinding instanceof ContextualBinding) {
+            return $this->resolveContextualBinding($contextualBinding);
+        }
+
         if ($kind === 'unresolvable' || $dependency === null) {
             if ($hasDefaultValue) {
                 return $defaultValue;
@@ -559,6 +583,27 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
         }
 
         return $this->get($dependency);
+    }
+
+    private function resolveContextualBinding(ContextualBinding $binding): mixed
+    {
+        if ($binding->value->kind === 'service') {
+            if (!is_string($binding->value->value)) {
+                throw new InvalidContextualBindingException('Contextual service binding must contain a service ID.');
+            }
+
+            return $this->get($binding->value->value);
+        }
+
+        if ($binding->value->kind === 'factory') {
+            if (!$binding->value->value instanceof \Closure) {
+                throw new InvalidContextualBindingException('Contextual factory binding must contain a callable factory.');
+            }
+
+            return ($binding->value->value)($this);
+        }
+
+        return $binding->value->value;
     }
 
     private function classExists(string $className): bool

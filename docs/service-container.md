@@ -72,6 +72,30 @@ always attaches to the canonical ID, so decorating an alias affects its target. 
 decorated chain is cached for singleton and instance definitions; transient definitions rebuild both
 their base service and decorator chain for every resolution.
 
+## Contextual bindings
+
+Contextual bindings provide an explicit dependency or constructor-parameter value for one consumer
+only. They take precedence over ordinary service bindings and autowiring, and never infer values
+from parameter names, environment variables or configuration files.
+
+```php
+$builder->when(BackofficeExporter::class)
+    ->needs(ClockInterface::class)
+    ->give(FrozenClock::class);
+
+$builder->when(CsvImporter::class)
+    ->parameter('delimiter')
+    ->value(';');
+
+$builder->when(S3Storage::class)
+    ->parameter('config')
+    ->config(StorageConfig::class);
+```
+
+`give()` resolves a service ID or class through the container, invokes an explicit factory, or uses
+an explicit object. `value()` supplies a literal parameter value. `config()` resolves the named
+typed config service normally; it does not read configuration or environment state directly.
+
 ## Tagged services
 
 Tags declare an explicit service as a member of a collection capability. They are not filesystem
