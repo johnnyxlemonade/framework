@@ -85,11 +85,13 @@ runtime factories and services can retrieve the active scope without changing th
 `hasScopedBinding()` distinguishes this scope-local overlay from a root binding when an integration
 must enforce a request-local contract.
 
-ScopedContainerInterface retains the legacy container mutators for runtime compatibility, but
-set(), singleton(), tag() and singletonTagged() delegate to the root container. They do not create
-scope-local definitions. bindScopedInstance() is the only scope-local write API. Middleware,
-controllers, commands and job handlers must not use those root-mutating legacy methods. This is
-especially important in a long-running queue worker, where a root mutation could affect later jobs.
+`ScopedContainerInterface` is a runtime resolver and scope-local binding boundary, not a service
+registration API. `bindScopedInstance()` is its only write API; it adds an object only to the active
+scope. `set()`, `singleton()`, `singletonTagged()`, `tag()` and `setDiagnosticLogger()` are retained
+only because the legacy `ContainerInterface` requires them, and reject calls with
+`ScopedContainerMutationException`. Middleware, controllers, commands and job handlers must register
+root services during provider registration instead. This prevents a runtime mutation in a long-running
+queue worker from affecting later jobs.
 
 A singleton must never depend on a scoped service, directly or through a contextual binding or
 alias. The container rejects that resolution with a dedicated exception. Scoped services may depend
