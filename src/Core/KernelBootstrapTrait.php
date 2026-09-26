@@ -72,9 +72,10 @@ trait KernelBootstrapTrait
     private function providerInstances(array $providerClasses): array
     {
         $providers = [];
+        $factory = new ProviderFactory($this->container);
 
         foreach ($providerClasses as $providerClass) {
-            $providers[] = new $providerClass();
+            $providers[] = $factory->create($providerClass);
         }
 
         return $providers;

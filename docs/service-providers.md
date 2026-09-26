@@ -121,6 +121,23 @@ that scope for middleware and dispatch. Providers must therefore not read or ret
 request during `register()` or `boot()`; request-dependent work belongs in a scoped runtime service.
 Calling `Kernel::bootstrap()` directly remains requestless and does not create an HTTP request.
 
+### Provider constructor dependencies
+
+Configured framework and application provider class strings may use constructor dependencies, but
+only for bootstrap-safe root services that were explicitly bound before configured providers are
+created. This makes value and configuration services available without allowing a provider to
+resolve arbitrary runtime services.
+
+Provider constructors cannot receive a container, a container builder, a scope, or
+`ServerRequestInterface`. They also cannot depend on a service registered by the same provider or
+by another provider in the same registration batch, because provider construction happens before
+that batch is registered. A constructor dependency that is not already explicitly bound, or is
+scope-local, fails during bootstrap with a clear exception.
+
+`register()` and `boot()` remain requestless. The static provider dependency graph still orders
+provider registration and booting; it does not make another provider's services available to a
+constructor.
+
 ### Breaking migration: request-aware providers
 
 Older framework versions exposed the current `ServerRequestInterface` as a root-container binding

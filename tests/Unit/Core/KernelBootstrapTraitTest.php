@@ -67,6 +67,16 @@ final class KernelBootstrapTraitTest extends TestCase
 
         self::assertSame([ValidDefinitionServiceProvider::class], $subject->commonProviderClasses());
     }
+
+    public function testConfiguredProviderCanReceiveBootstrapSafeConstructorDependency(): void
+    {
+        $subject = new KernelBootstrapTraitHarness(new Container());
+
+        $providers = $subject->providers([ConstructorDependencyServiceProvider::class]);
+
+        self::assertInstanceOf(ConstructorDependencyServiceProvider::class, $providers[0]);
+        self::assertSame($subject->context, $providers[0]->context);
+    }
 }
 
 final class KernelBootstrapTraitHarness
@@ -96,6 +106,15 @@ final class KernelBootstrapTraitHarness
     {
         return $this->commonFrameworkProviderClasses();
     }
+
+    /**
+     * @param list<class-string> $providerClasses
+     * @return list<object>
+     */
+    public function providers(array $providerClasses): array
+    {
+        return $this->providerInstances($providerClasses);
+    }
 }
 
 final class NotAServiceProvider {}
@@ -108,4 +127,13 @@ final class ValidServiceProvider implements ServiceProviderInterface
 final class ValidDefinitionServiceProvider implements DefinitionServiceProviderInterface
 {
     public function register(ContainerBuilderInterface $builder): void {}
+}
+
+final class ConstructorDependencyServiceProvider implements ServiceProviderInterface
+{
+    public function __construct(
+        public readonly ApplicationContext $context,
+    ) {}
+
+    public function register(ContainerInterface $container): void {}
 }
