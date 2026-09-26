@@ -58,6 +58,16 @@ final class ContextualBindingTest extends TestCase
         self::assertInstanceOf(ContextualFrozenClock::class, (new Container($builder))->get(ContextualClockConsumer::class)->clock);
     }
 
+    public function testContextualInvokableObjectIsAnExplicitValueRatherThanAFactory(): void
+    {
+        $value = new ContextualInvokableClock();
+        $builder = new ContainerBuilder();
+        $builder->when(ContextualClockConsumer::class)->needs(ContextualClock::class)->give($value);
+
+        self::assertSame($value, (new Container($builder))->get(ContextualClockConsumer::class)->clock);
+        self::assertSame(0, $value->invocations);
+    }
+
     public function testContextualParameterSuppliesExplicitScalar(): void
     {
         $builder = new ContainerBuilder();
@@ -145,6 +155,19 @@ interface ContextualClock {}
 final class ContextualSystemClock implements ContextualClock {}
 
 final class ContextualFrozenClock implements ContextualClock {}
+
+final class ContextualInvokableClock implements ContextualClock
+{
+    public int $invocations = 0;
+
+    public function __invoke(ContainerInterface $container): ContextualClock
+    {
+        unset($container);
+        $this->invocations++;
+
+        return new ContextualFrozenClock();
+    }
+}
 
 final class ContextualDecoratedClock implements ContextualClock
 {

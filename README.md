@@ -197,6 +197,9 @@ Controller actions may return a PSR response directly. Scalar, stringable and `n
 
 Application services are registered through providers.
 
+New providers can separate definition registration from runtime initialization through the
+`register()` / `boot()` lifecycle. See [service provider documentation](docs/service-providers.md).
+
 ```php
 <?php
 

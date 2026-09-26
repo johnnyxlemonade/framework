@@ -68,7 +68,7 @@ Every dependency must be a supported provider class and must be included in the 
 provider list. Missing, invalid and cyclic dependencies fail during bootstrap with a descriptive
 exception. Provider priorities and automatic discovery are intentionally not part of this model.
 
-A service provider implements `ServiceProviderInterface` and receives the framework container through its `register()` method. Inside that method it can register transient bindings, singleton bindings, factories, concrete objects or string aliases.
+A service provider implements `ServiceProviderInterface` and receives the framework container through its `register()` method. Inside that method it can register transient bindings, singleton bindings, factories, concrete objects or string service IDs. A string service ID is an ordinary binding identifier, not a service alias; definition providers declare explicit aliases through `ContainerBuilderInterface::alias()`.
 
 ## Provider example
 

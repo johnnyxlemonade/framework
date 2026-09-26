@@ -92,9 +92,14 @@ $builder->when(S3Storage::class)
     ->config(StorageConfig::class);
 ```
 
-`give()` resolves a service ID or class through the container, invokes an explicit factory, or uses
-an explicit object. `value()` supplies a literal parameter value. `config()` resolves the named
-typed config service normally; it does not read configuration or environment state directly.
+`give()` resolves a service ID or class through the container, invokes an explicit closure or
+non-object callable factory, or uses an explicit object. An invokable object is still an explicit
+object value, not a factory. `value()` supplies a literal parameter value. `config()` resolves the
+named typed config service normally; it does not read configuration or environment state directly.
+
+Scalar parameters are always explicit: use `parameter()->value()`,
+`parameter()->config()`, a constructor default, or an explicit factory. The framework never maps a
+scalar from its parameter name, an environment variable, or a configuration key automatically.
 
 ## Tagged services
 
@@ -131,7 +136,9 @@ widget providers, health checks and extension providers; tagging alone never act
 
 ## String service identifiers
 
-String service identifiers are supported and are used by some framework providers as convenient aliases.
+String service identifiers are supported and are used by some framework providers as stable binding
+IDs. A string service ID is not a service alias; explicit aliases use
+`ContainerBuilderInterface::alias()`.
 
 ```php
 $container->singleton('custom.service', new CustomService());
@@ -159,7 +166,8 @@ Autowiring is available for concrete classes, but it is intentionally limited:
 - unbound concrete classes can be instantiated through reflection
 - class-typed constructor parameters can be resolved recursively
 - interfaces must be explicitly bound in the container
-- scalar and builtin constructor parameters must have default values or be provided by a factory
+- scalar and builtin constructor parameters must have default values, an explicit contextual
+  `parameter()->value()` or `parameter()->config()` binding, or be provided by a factory
 - non-instantiable classes fail early
 - missing services fail with a service-not-found exception
 
