@@ -6,7 +6,9 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\AbstractController;
+use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -406,6 +408,44 @@ final class ControllerTest extends TestCase
             self::assertNotSame($previousRender, $firstRender);
         } finally {
             @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
+    public function testViewUsesComponentsFromTheActiveRequestScope(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents($viewsPath . DIRECTORY_SEPARATOR . 'component.php', '<?= $component->get("request")->path() ?>');
+
+        $container = new Container();
+        $container->singleton(View::class, new View($viewsPath));
+        $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+        $this->registerViewHelpers($container);
+        $container->scoped(
+            RequestScopedViewComponent::class,
+            static fn(ContainerInterface $container): RequestScopedViewComponent => new RequestScopedViewComponent(
+                $container->get(ServerRequestInterface::class),
+            ),
+        );
+        $container->set(ComponentRegistry::class, static function (ContainerInterface $container): ComponentRegistry {
+            $components = new ComponentRegistry($container);
+            $components->register('request', RequestScopedViewComponent::class);
+
+            return $components;
+        });
+
+        $scope = $container->beginScope(ScopeKind::Request);
+        $request = $this->request(uri: 'https://example.test/scoped-component');
+        $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+
+        try {
+            $controller = $this->controller($request, $scope);
+
+            self::assertSame('/scoped-component', $controller->exposedView()->render('component'));
+        } finally {
+            $scope->close();
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'component.php');
             @rmdir($viewsPath);
         }
     }
@@ -847,4 +887,16 @@ final class ControllerTestSubject extends AbstractController
         return $this->app();
     }
 
+}
+
+final class RequestScopedViewComponent
+{
+    public function __construct(
+        private readonly ServerRequestInterface $request,
+    ) {}
+
+    public function path(): string
+    {
+        return $this->request->getUri()->getPath();
+    }
 }

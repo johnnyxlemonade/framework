@@ -49,7 +49,7 @@ final class PaginationServiceProvider implements ServiceProviderInterface
                 showFirstLast: $config->showFirstLast,
             );
         });
-        $container->singleton(PaginationComponent::class, PaginationComponent::class);
+        $builder->scoped(PaginationComponent::class, PaginationComponent::class);
     }
 
 }

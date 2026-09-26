@@ -63,7 +63,7 @@ final class ComponentServiceProvider implements ServiceProviderInterface
 
     private function registerRegistry(ContainerInterface $container): void
     {
-        $container->singleton(ComponentRegistry::class, function (ContainerInterface $container): ComponentRegistry {
+        $container->set(ComponentRegistry::class, function (ContainerInterface $container): ComponentRegistry {
             $registry = new ComponentRegistry($container);
 
             foreach (self::COMPONENTS as $name => $componentClass) {

@@ -22,7 +22,8 @@ use Lemonade\Framework\Component\Pagination\PaginationFactory;
 use Lemonade\Framework\Component\Pagination\PaginationRenderer;
 use Lemonade\Framework\Component\Pagination\PaginationServiceProvider;
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Container\Exception\SingletonDependsOnScopedServiceException;
+use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use LogicException;
@@ -69,7 +70,7 @@ final class ComponentServiceProviderTest extends TestCase
         self::assertInstanceOf(MetaComponent::class, $registry->get('meta'));
     }
 
-    public function testRegistryFailsClearlyWhenRootPaginationComponentDependsOnRequestScopedFactory(): void
+    public function testRegistryRequiresARequestScopeForPaginationComponent(): void
     {
         $container = $this->buildContainer();
         $provider = new ComponentServiceProvider();
@@ -78,10 +79,29 @@ final class ComponentServiceProviderTest extends TestCase
         /** @var ComponentRegistry $registry */
         $registry = $container->get(ComponentRegistry::class);
 
-        $this->expectException(SingletonDependsOnScopedServiceException::class);
-        $this->expectExceptionMessage(PaginationComponent::class . ' -> ' . PaginationFactory::class);
+        $this->expectException(ScopedServiceRequestedFromRootException::class);
 
         $registry->pagination();
+    }
+
+    public function testRegistryCanResolvePaginationComponentFromRequestScopedRegistry(): void
+    {
+        $container = $this->buildContainer();
+        (new ComponentServiceProvider())->register($container);
+
+        /** @var ComponentRegistry $registry */
+        $registry = $container->get(ComponentRegistry::class);
+        $scope = $container->beginScope(ScopeKind::Request);
+        $scope->bindScopedInstance(ServerRequestInterface::class, new ServerRequest('GET', '/articles?page=2'));
+
+        try {
+            $pagination = $scope->get(ComponentRegistry::class)->pagination();
+
+            self::assertInstanceOf(PaginationComponent::class, $pagination);
+            self::assertSame('/articles?page=2', $pagination->fromArray([['id' => 1]])->state()->url(2));
+        } finally {
+            $scope->close();
+        }
     }
 
     public function testRegistryRegistersComponentFromConfig(): void
