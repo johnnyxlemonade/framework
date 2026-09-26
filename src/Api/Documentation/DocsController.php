@@ -10,8 +10,8 @@ use Psr\Http\Message\ResponseInterface;
 
 final class DocsController
 {
-    private const SWAGGER_UI_VERSION = '5.32.14';
-    private const SWAGGER_ASSET_BASE_URL = 'https://static.lemonadeframework.cz/swagger';
+    private const string SWAGGER_UI_VERSION = '5.32.14';
+    private const string SWAGGER_ASSET_BASE_URL = 'https://static.lemonadeframework.cz/swagger';
 
     public function __construct(
         private readonly ApiConfig $config,

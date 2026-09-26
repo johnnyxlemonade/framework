@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config;
 
-final class AppConfig
+final readonly class AppConfig
 {
     public function __construct(
-        public readonly ?string $timezone,
-        public readonly ?string $baseUrl,
-        public readonly string $basePath,
-        public readonly string $publicPath,
-        public readonly string $env,
-        public readonly bool $debug,
-        public readonly string $appPath,
-        public readonly string $configPath,
-        public readonly string $storagePath,
+        public ?string $timezone,
+        public ?string $baseUrl,
+        public string $basePath,
+        public string $publicPath,
+        public string $env,
+        public bool $debug,
+        public string $appPath,
+        public string $configPath,
+        public string $storagePath,
     ) {}
 }

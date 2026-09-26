@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Config;
 
-final class HtmlMinifyConfig
+final readonly class HtmlMinifyConfig
 {
     public function __construct(
-        public readonly bool $enabled,
+        public bool $enabled,
     ) {}
 }
