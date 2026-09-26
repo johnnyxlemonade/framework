@@ -63,7 +63,14 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
     /**
      * @var list<string>
      */
-    private array $resolutionStack = [];
+    private array $classResolutionStack = [];
+
+    /**
+     * Canonical service IDs currently being resolved through get().
+     *
+     * @var list<string>
+     */
+    private array $serviceResolutionStack = [];
 
     private ?LoggerInterface $diagnosticLogger = null;
     private ?LoggerInterface $autowireFallbackLogger = null;
@@ -221,37 +228,57 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
             return $this->instances[$canonicalId];
         }
 
-        $definition = $plan->definition($canonicalId);
+        $this->beginServiceResolution($canonicalId);
 
-        if ($definition === null) {
-            if (!$this->classExists($canonicalId)) {
-                if ($plan->hasAlias($id)) {
-                    throw new AliasTargetNotFoundException(sprintf(
-                        'Service alias "%s" resolves to "%s", but the target service was not found.',
-                        $id,
+        try {
+            $definition = $plan->definition($canonicalId);
+
+            if ($definition === null) {
+                if (!$this->classExists($canonicalId)) {
+                    if ($plan->hasAlias($id)) {
+                        throw new AliasTargetNotFoundException(sprintf(
+                            'Service alias "%s" resolves to "%s", but the target service was not found.',
+                            $id,
+                            $canonicalId,
+                        ));
+                    }
+
+                    throw new ServiceNotFoundException(sprintf(
+                        'Service "%s" was not found.',
                         $canonicalId,
                     ));
                 }
 
-                throw new ServiceNotFoundException(sprintf(
-                    'Service "%s" was not found.',
-                    $canonicalId,
-                ));
+                $this->reportAutowireFallback($canonicalId);
+
+                return $this->build($canonicalId);
             }
 
-            $this->reportAutowireFallback($canonicalId);
+            $resolved = $this->resolve($definition->target);
+            $resolved = $this->applyDecorators($plan->decorators($canonicalId), $resolved);
 
-            return $this->build($canonicalId);
+            if ($definition->lifetime === ServiceLifetime::Singleton) {
+                $this->instances[$canonicalId] = $resolved;
+            }
+
+            return $resolved;
+        } finally {
+            array_pop($this->serviceResolutionStack);
+        }
+    }
+
+    private function beginServiceResolution(string $canonicalId): void
+    {
+        if (in_array($canonicalId, $this->serviceResolutionStack, true)) {
+            $chain = [...$this->serviceResolutionStack, $canonicalId];
+
+            throw new ContainerException(sprintf(
+                'Circular dependency detected: %s',
+                implode(' -> ', $chain),
+            ));
         }
 
-        $resolved = $this->resolve($definition->target);
-        $resolved = $this->applyDecorators($plan->decorators($canonicalId), $resolved);
-
-        if ($definition->lifetime === ServiceLifetime::Singleton) {
-            $this->instances[$canonicalId] = $resolved;
-        }
-
-        return $resolved;
+        $this->serviceResolutionStack[] = $canonicalId;
     }
 
     private function reportAutowireFallback(string $id): void
@@ -413,8 +440,8 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
 
     private function build(string $className): object
     {
-        if (in_array($className, $this->resolutionStack, true)) {
-            $chain = [...$this->resolutionStack, $className];
+        if (in_array($className, $this->classResolutionStack, true)) {
+            $chain = [...$this->classResolutionStack, $className];
 
             throw new ContainerException(sprintf(
                 'Circular dependency detected: %s',
@@ -422,7 +449,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
             ));
         }
 
-        $this->resolutionStack[] = $className;
+        $this->classResolutionStack[] = $className;
 
         try {
             $plan = $this->buildPlan($className);
@@ -446,7 +473,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface
 
             return $plan['reflection']->newInstanceArgs($arguments);
         } finally {
-            array_pop($this->resolutionStack);
+            array_pop($this->classResolutionStack);
         }
     }
 
