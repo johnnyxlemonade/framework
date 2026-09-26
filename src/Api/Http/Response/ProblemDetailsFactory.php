@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Api\Http\Response;
 
 use JsonException;
+use Lemonade\Framework\Http\HttpStatus;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -50,7 +51,7 @@ final class ProblemDetailsFactory
     public function unauthenticated(ServerRequestInterface $request): ResponseInterface
     {
         return $this->create(
-            status: 401,
+            status: HttpStatus::UNAUTHORIZED->value,
             title: 'Unauthenticated',
             detail: 'Authentication is required to access this API endpoint.',
             request: $request,
@@ -61,7 +62,7 @@ final class ProblemDetailsFactory
     public function forbidden(ServerRequestInterface $request): ResponseInterface
     {
         return $this->create(
-            status: 403,
+            status: HttpStatus::FORBIDDEN->value,
             title: 'Forbidden',
             detail: 'You are not allowed to access this API endpoint.',
             request: $request,
@@ -72,11 +73,22 @@ final class ProblemDetailsFactory
     public function notFound(ServerRequestInterface $request): ResponseInterface
     {
         return $this->create(
-            status: 404,
+            status: HttpStatus::NOT_FOUND->value,
             title: 'Not Found',
             detail: 'The requested resource was not found.',
             request: $request,
             type: 'https://lemonade.dev/problems/not-found',
+        );
+    }
+
+    public function internalServerError(ServerRequestInterface $request): ResponseInterface
+    {
+        return $this->create(
+            status: HttpStatus::INTERNAL_SERVER_ERROR->value,
+            title: 'Internal Server Error',
+            detail: 'An unexpected error occurred while processing this API request.',
+            request: $request,
+            type: 'https://lemonade.dev/problems/internal-server-error',
         );
     }
 }

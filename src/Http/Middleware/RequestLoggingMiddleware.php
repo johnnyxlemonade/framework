@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Http\Middleware;
 
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Logging\HttpLogContext;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -55,11 +56,11 @@ final class RequestLoggingMiddleware implements MiddlewareInterface
 
     private function levelForStatus(int $statusCode): string
     {
-        if ($statusCode >= 500) {
+        if ($statusCode >= HttpStatus::INTERNAL_SERVER_ERROR->value) {
             return 'error';
         }
 
-        if ($statusCode >= 400) {
+        if ($statusCode >= HttpStatus::BAD_REQUEST->value) {
             return 'warning';
         }
 

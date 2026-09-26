@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core\Controller;
 
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
+use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Filesystem\Filesystem;
@@ -25,6 +26,8 @@ final class ControllerServices
 {
     /** @var array<class-string, object> */
     private array $services = [];
+
+    private ?View $requestView = null;
 
     public function __construct(
         private readonly ContainerInterface $container,
@@ -73,7 +76,7 @@ final class ControllerServices
 
     public function view(): View
     {
-        $view = $this->service(View::class, 'View service is not available.');
+        $view = $this->requestView ??= clone $this->service(View::class, 'View service is not available.');
         $view->shareOnce(
             'helpers',
             $this->service(ViewHelpers::class, 'ViewHelpers service is not available.'),
@@ -84,6 +87,10 @@ final class ControllerServices
             flash: $this->optionalService(FlashBagInterface::class),
             session: $this->optionalService(SessionInterface::class),
         ));
+
+        if ($this->container->isBound(ComponentRegistry::class)) {
+            $view->shareOnce('component', $this->components());
+        }
 
         return $view;
     }
@@ -146,5 +153,10 @@ final class ControllerServices
         $service = $this->container->get($id);
 
         return $service instanceof $id ? $service : null;
+    }
+
+    private function components(): ComponentRegistry
+    {
+        return $this->service(ComponentRegistry::class, 'ComponentRegistry service is not available.');
     }
 }

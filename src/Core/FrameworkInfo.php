@@ -9,9 +9,9 @@ namespace Lemonade\Framework\Core;
  */
 final class FrameworkInfo
 {
-    private const NAME = 'Lemonade Framework';
-    private const VERSION = '1.0.0';
-    private const POWERED_BY_HEADER = 'X-Powered-Framework';
+    private const string NAME = 'Lemonade Framework';
+    private const string VERSION = '1.0.0';
+    private const string POWERED_BY_HEADER = 'X-Powered-Framework';
 
     /**
      * Returns the stable framework name.

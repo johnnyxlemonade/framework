@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Queue\Config;
 
-final class QueueDatabaseConfig
+final readonly class QueueDatabaseConfig
 {
     public function __construct(
-        public readonly string $table,
-        public readonly string $failedTable,
+        public string $table,
+        public string $failedTable,
     ) {}
 }

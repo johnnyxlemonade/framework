@@ -107,6 +107,27 @@ return static function (Router $router): void {
 
 Controller names are resolved against the application controller namespace unless a fully qualified class name is used.
 
+## Matched route request context
+
+After the router successfully matches a request, route middleware and the controller action receive
+the same PSR-7 request with the immutable `RouteMatch` stored under
+`Lemonade\Framework\Routing\RouteRequestAttributes::MATCH`.
+
+```php
+use Lemonade\Framework\Routing\RouteMatch;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
+
+$match = $request->getAttribute(RouteRequestAttributes::MATCH);
+if ($match instanceof RouteMatch) {
+    $controller = $match->controller();
+    $action = $match->action();
+    $params = $match->params();
+}
+```
+
+Global middleware executes before routing, so it must not expect this attribute. It is absent for
+requests that do not match a route.
+
 ## Named routes and URL generation
 
 Named routes can be used for URL generation:
@@ -132,7 +153,10 @@ In views, use the explicit shared helper object:
 </a>
 ```
 
-Legacy global helper resolving remains available for existing applications, but new code should prefer controller services, constructor DI, or `$helpers` in views.
+Legacy global helper resolving remains available for existing applications, but new code
+should prefer constructor DI or `$helpers` in views. Controller service helpers are
+convenience APIs for `AbstractController`-based controllers, not a general replacement
+for explicit dependencies.
 
 Result:
 

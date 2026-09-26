@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Cli\CommandInterface;
+use Lemonade\Framework\Cli\CommandContext;
+use Lemonade\Framework\Cli\CommandInput;
+use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Core\CliKernel;
 use Lemonade\Framework\Core\CliKernelFactory;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -28,6 +31,9 @@ final class CliKernelTest extends TestCase
         CliKernelRecorderCommand::reset();
         CliKernelFailingCommand::reset();
         CliKernelApiConfigProbeCommand::$lastPrefix = null;
+        CliKernelLazyAlphaCommand::reset();
+        CliKernelLazyZuluCommand::reset();
+        CliKernelScopedCommand::reset();
         $this->writeConfigFile(
             'Config.yaml',
             "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
@@ -71,6 +77,50 @@ final class CliKernelTest extends TestCase
         self::assertSame(0, $exit);
         self::assertStringContainsString('Available commands:', $this->stdoutContents());
         self::assertStringContainsString('recorder', $this->stdoutContents());
+    }
+
+    public function testDefinitionConfigListsAndHelpsWithoutInstantiatingCommands(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: lazy:alpha\n      class: " . CliKernelLazyAlphaCommand::class . "\n      description: Lazy alpha command\n    - name: lazy:zulu\n      class: " . CliKernelLazyZuluCommand::class . "\n      description: Lazy zulu command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(0, $kernel->handle(['bin/lemonade', 'list']));
+        self::assertSame(0, $kernel->handle(['bin/lemonade', '--help']));
+        self::assertStringContainsString('lazy:alpha', $this->stdoutContents());
+        self::assertSame(0, CliKernelLazyAlphaCommand::$instances);
+        self::assertSame(0, CliKernelLazyZuluCommand::$instances);
+    }
+
+    public function testDefinitionConfigInstantiatesOnlyTheSelectedCommandWhenRun(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: lazy:alpha\n      class: " . CliKernelLazyAlphaCommand::class . "\n      description: Lazy alpha command\n    - name: lazy:zulu\n      class: " . CliKernelLazyZuluCommand::class . "\n      description: Lazy zulu command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(17, $kernel->handle(['bin/lemonade', 'lazy:alpha']));
+        self::assertSame(1, CliKernelLazyAlphaCommand::$instances);
+        self::assertSame(1, CliKernelLazyAlphaCommand::$runCount);
+        self::assertSame(0, CliKernelLazyZuluCommand::$instances);
+    }
+
+    public function testKnownCommandRunsInCommandScopeWithKernelStreams(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: scope:kernel\n      class: " . CliKernelScopedCommand::class . "\n      description: Scoped kernel command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(29, $kernel->handle(['bin/lemonade', 'scope:kernel', 'first']));
+        self::assertSame('scope:kernel', CliKernelScopedCommand::$context?->commandName);
+        self::assertSame('first', CliKernelScopedCommand::$input?->argument(0));
+        self::assertStringContainsString("scoped stdout\n", $this->stdoutContents());
+        self::assertStringContainsString("scoped stderr\n", $this->stderrContents());
+    }
+
+    public function testUnknownCommandDoesNotInstantiateDefinitionCommand(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: lazy:alpha\n      class: " . CliKernelLazyAlphaCommand::class . "\n      description: Lazy alpha command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(1, $kernel->handle(['bin/lemonade', 'unknown']));
+        self::assertSame(0, CliKernelLazyAlphaCommand::$instances);
     }
 
     public function testHandleHelpPrintsListAndReturnsZero(): void
@@ -487,5 +537,109 @@ final class CliKernelApiConfigProbeCommand implements CommandInterface
         self::$lastPrefix = $this->config->prefix;
 
         return 0;
+    }
+}
+
+final class CliKernelLazyAlphaCommand implements CommandInterface
+{
+    public static int $instances = 0;
+    public static int $runCount = 0;
+
+    public static function reset(): void
+    {
+        self::$instances = 0;
+        self::$runCount = 0;
+    }
+
+    public function __construct()
+    {
+        self::$instances++;
+    }
+
+    public function name(): string
+    {
+        return 'lazy:alpha';
+    }
+
+    public function description(): string
+    {
+        return 'Lazy alpha command';
+    }
+
+    public function run(array $args): int
+    {
+        self::$runCount++;
+
+        return 17;
+    }
+}
+
+final class CliKernelLazyZuluCommand implements CommandInterface
+{
+    public static int $instances = 0;
+
+    public static function reset(): void
+    {
+        self::$instances = 0;
+    }
+
+    public function __construct()
+    {
+        self::$instances++;
+    }
+
+    public function name(): string
+    {
+        return 'lazy:zulu';
+    }
+
+    public function description(): string
+    {
+        return 'Lazy zulu command';
+    }
+
+    public function run(array $args): int
+    {
+        return 0;
+    }
+}
+
+final class CliKernelScopedCommand implements CommandInterface
+{
+    public static ?CommandContext $context = null;
+    public static ?CommandInput $input = null;
+
+    public static function reset(): void
+    {
+        self::$context = null;
+        self::$input = null;
+    }
+
+    public function __construct(
+        CommandContext $context,
+        CommandInput $input,
+        private readonly CommandOutput $output,
+    ) {
+        self::$context = $context;
+        self::$input = $input;
+    }
+
+    public function name(): string
+    {
+        return 'scope:kernel';
+    }
+
+    public function description(): string
+    {
+        return 'Scoped kernel command';
+    }
+
+    public function run(array $args): int
+    {
+        unset($args);
+        $this->output->writeln('scoped stdout');
+        $this->output->errorln('scoped stderr');
+
+        return 29;
     }
 }

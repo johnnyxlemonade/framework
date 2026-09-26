@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload;
 
-final class FileUploadOptions
+final readonly class FileUploadOptions
 {
     /**
      * @param list<string> $allowedMimeTypes
      * @param list<string> $allowedExtensions
      */
     public function __construct(
-        private readonly string $targetDirectory,
-        private readonly string $targetRelativeDirectory,
-        private readonly int $maxBytes = 10_485_760,
-        private readonly array $allowedMimeTypes = [],
-        private readonly array $allowedExtensions = [],
+        private string $targetDirectory,
+        private string $targetRelativeDirectory,
+        private int $maxBytes = 10_485_760,
+        private array $allowedMimeTypes = [],
+        private array $allowedExtensions = [],
     ) {}
 
     public function targetDirectory(): string

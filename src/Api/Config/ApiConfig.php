@@ -6,16 +6,16 @@ namespace Lemonade\Framework\Api\Config;
 
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 
-final class ApiConfig
+final readonly class ApiConfig
 {
     /**
      * @param list<class-string<ApiEndpointProviderInterface>> $endpointProviders
      */
     public function __construct(
-        public readonly bool $enabled,
-        public readonly string $prefix,
-        public readonly array $endpointProviders,
-        public readonly ApiSecurityConfig $security,
-        public readonly FrameworkApiConfig $framework,
+        public bool $enabled,
+        public string $prefix,
+        public array $endpointProviders,
+        public ApiSecurityConfig $security,
+        public FrameworkApiConfig $framework,
     ) {}
 }

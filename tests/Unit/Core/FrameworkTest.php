@@ -8,6 +8,8 @@ use Lemonade\Framework\Api\ApiServiceProvider;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Component\ComponentServiceProvider;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\FrameworkConfig;
 use Lemonade\Framework\Core\Config\FrameworkConfigDefinition;
@@ -16,6 +18,7 @@ use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\CoreServiceProvider;
+use Lemonade\Framework\Core\Exception\InvalidRequestScopeException;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Logging\LoggingServiceProvider;
 use Lemonade\Framework\Database\DatabaseServiceProvider;
@@ -266,6 +269,71 @@ final class FrameworkTest extends TestCase
         self::assertSame('1', $response->getHeaderLine('X-Trace-Middleware'));
     }
 
+    public function testRunInScopeRejectsNonRequestScope(): void
+    {
+        $framework = $this->framework();
+        $request = (new Psr17Factory())->createServerRequest('GET', '/');
+        $scope = $this->scopeFactory($framework)->beginScope(ScopeKind::Command);
+        $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+
+        try {
+            $this->expectException(InvalidRequestScopeException::class);
+            $this->expectExceptionMessage('requires a request scope; received command');
+            $framework->runInScope($scope, $request);
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testRunInScopeRejectsRequestScopeWithoutBoundRequest(): void
+    {
+        $framework = $this->framework();
+        $request = (new Psr17Factory())->createServerRequest('GET', '/');
+        $scope = $this->scopeFactory($framework)->beginScope(ScopeKind::Request);
+
+        try {
+            $this->expectException(InvalidRequestScopeException::class);
+            $this->expectExceptionMessage('ServerRequestInterface to be bound locally in the request scope');
+            $framework->runInScope($scope, $request);
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testRunInScopeRejectsScopeBoundToDifferentRequest(): void
+    {
+        $framework = $this->framework();
+        $factory = new Psr17Factory();
+        $scopeRequest = $factory->createServerRequest('GET', '/scope');
+        $argumentRequest = $factory->createServerRequest('GET', '/argument');
+        $scope = $this->scopeFactory($framework)->beginScope(ScopeKind::Request);
+        $scope->bindScopedInstance(ServerRequestInterface::class, $scopeRequest);
+
+        try {
+            $this->expectException(InvalidRequestScopeException::class);
+            $this->expectExceptionMessage('same object as the request argument');
+            $framework->runInScope($scope, $argumentRequest);
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testRunInScopeRejectsRequestBoundOnlyInRootContainer(): void
+    {
+        $framework = $this->framework();
+        $request = (new Psr17Factory())->createServerRequest('GET', '/');
+        $framework->container()->singleton(ServerRequestInterface::class, $request);
+        $scope = $this->scopeFactory($framework)->beginScope(ScopeKind::Request);
+
+        try {
+            $this->expectException(InvalidRequestScopeException::class);
+            $this->expectExceptionMessage('bound locally in the request scope');
+            $framework->runInScope($scope, $request);
+        } finally {
+            $scope->close();
+        }
+    }
+
     public function testMiddlewareQueuedBeforeHttpServiceProviderRegistrationIsAppliedInRun(): void
     {
         $framework = $this->framework();
@@ -435,6 +503,14 @@ final class FrameworkTest extends TestCase
         );
 
         return new Framework($container, $context);
+    }
+
+    private function scopeFactory(Framework $framework): ScopeFactoryInterface
+    {
+        $container = $framework->container();
+        assert($container instanceof ScopeFactoryInterface);
+
+        return $container;
     }
 }
 

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Container\Exception\ScopedContainerClosedException;
+use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Api\Config\ApiConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -18,12 +21,14 @@ use Lemonade\Framework\Core\Kernel;
 use Lemonade\Framework\Core\KernelFactory;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
+use Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\RouteRegistrarRegistry;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
@@ -179,7 +184,7 @@ final class KernelTest extends TestCase
         self::assertTrue($container->isBound(MiddlewareResolver::class));
     }
 
-    public function testRunBindsExactRequestBeforeApplicationProvidersRegister(): void
+    public function testRunDoesNotBindRequestIntoRootContainerBeforeApplicationProvidersRegister(): void
     {
         $this->writeConfigFile(
             'Config.yaml',
@@ -195,8 +200,8 @@ final class KernelTest extends TestCase
 
         $kernel->run($request);
 
-        self::assertSame($request, KernelRequestProbeProvider::$request);
-        self::assertSame($request, $kernel->container()->get(ServerRequestInterface::class));
+        self::assertNull(KernelRequestProbeProvider::$request);
+        self::assertFalse($kernel->container()->isBound(ServerRequestInterface::class));
     }
 
     public function testExplicitBootstrapRemainsRequestlessForApplicationProviders(): void
@@ -216,6 +221,24 @@ final class KernelTest extends TestCase
 
         self::assertNull(KernelRequestProbeProvider::$request);
         self::assertFalse($kernel->container()->isBound(ServerRequestInterface::class));
+    }
+
+    public function testBootstrapRunsBootableProviderAfterAllConfiguredProvidersRegister(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\n  - Providers\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'Providers.yaml',
+            "module: providers\nconfig:\n  providers:\n    - Lemonade\\Framework\\Tests\\Unit\\Core\\KernelBootDependencyProvider\n    - Lemonade\\Framework\\Tests\\Unit\\Core\\KernelBootObserverProvider\n",
+        );
+        KernelBootObserverProvider::$resolved = false;
+
+        $kernel = $this->kernel(false);
+        $kernel->bootstrap();
+
+        self::assertTrue(KernelBootObserverProvider::$resolved);
     }
 
     public function testBootstrapExecutesProviderRouteRegistrarsAfterApplicationRoutesAndFreezesRouting(): void
@@ -403,6 +426,136 @@ final class KernelTest extends TestCase
         self::assertCount(2, $definitions->entriesFor(ApiConfigDefinition::moduleKey()));
     }
 
+    public function testHealthFastPathClosesTheRequestScope(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $container = new KernelScopeTrackingContainer(new Container());
+        $framework = new Framework($container, $context);
+        $kernel = new Kernel(
+            $context,
+            $container,
+            $framework,
+            new ResponseEmitter(),
+            new FrameworkHealthFastPath(
+                $container->get(ConfigDefinitionRegistry::class),
+                $container->get(Benchmark::class),
+            ),
+            $container->get(Benchmark::class),
+        );
+
+        $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
+
+        self::assertSame(200, $response->getStatusCode());
+        $scope = $container->lastScope;
+        self::assertInstanceOf(ScopedContainerInterface::class, $scope);
+
+        $this->expectException(ScopedContainerClosedException::class);
+        $scope->get('anything');
+    }
+
+    public function testEachRequestUsesAnIsolatedScopeWithoutLeakingRequestIntoRoot(): void
+    {
+        $this->writeRequestScopeRouting();
+        \App\Controllers\RequestScopeKernelController::reset();
+        $kernel = $this->kernel(false);
+        $root = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $root);
+        $root->scoped(RequestScopeKernelService::class, RequestScopeKernelService::class);
+        $root->singleton(RequestScopeKernelSingleton::class, RequestScopeKernelSingleton::class);
+        $firstRequest = new ServerRequest('GET', '/request-scope?request=first');
+        $secondRequest = new ServerRequest('GET', '/request-scope?request=second');
+
+        $firstResponse = $kernel->run($firstRequest);
+        $secondResponse = $kernel->run($secondRequest);
+
+        self::assertSame(200, $firstResponse->getStatusCode());
+        self::assertSame(200, $secondResponse->getStatusCode());
+        self::assertCount(2, \App\Controllers\RequestScopeKernelController::$requests);
+        self::assertNotSame($firstRequest, \App\Controllers\RequestScopeKernelController::$requests[0]);
+        self::assertNotSame($secondRequest, \App\Controllers\RequestScopeKernelController::$requests[1]);
+        self::assertSame('first', \App\Controllers\RequestScopeKernelController::$requests[0]->getQueryParams()['request']);
+        self::assertSame('second', \App\Controllers\RequestScopeKernelController::$requests[1]->getQueryParams()['request']);
+        self::assertInstanceOf(
+            \Lemonade\Framework\Routing\RouteMatch::class,
+            \App\Controllers\RequestScopeKernelController::$requests[0]->getAttribute(RouteRequestAttributes::MATCH),
+        );
+        self::assertInstanceOf(
+            \Lemonade\Framework\Routing\RouteMatch::class,
+            \App\Controllers\RequestScopeKernelController::$requests[1]->getAttribute(RouteRequestAttributes::MATCH),
+        );
+        self::assertCount(2, \App\Controllers\RequestScopeKernelController::$containers);
+        self::assertInstanceOf(ScopedContainerInterface::class, \App\Controllers\RequestScopeKernelController::$containers[0]);
+        self::assertNotSame(\App\Controllers\RequestScopeKernelController::$containers[0], \App\Controllers\RequestScopeKernelController::$containers[1]);
+        self::assertNotSame(\App\Controllers\RequestScopeKernelController::$services[0], \App\Controllers\RequestScopeKernelController::$services[1]);
+        self::assertSame(\App\Controllers\RequestScopeKernelController::$singletons[0], \App\Controllers\RequestScopeKernelController::$singletons[1]);
+        self::assertFalse($root->isBound(ServerRequestInterface::class));
+
+        $this->expectException(ScopedContainerClosedException::class);
+        \App\Controllers\RequestScopeKernelController::$containers[0]->get(RequestScopeKernelService::class);
+    }
+
+    public function testRequestScopeClosesAfterRouteNotFound(): void
+    {
+        KernelScopeCaptureMiddleware::reset();
+        $kernel = $this->kernel(false);
+        $container = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $container);
+        $container->scoped(KernelScopeCaptureMiddleware::class, KernelScopeCaptureMiddleware::class);
+        $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
+            $stack->prepend(KernelScopeCaptureMiddleware::class);
+        });
+
+        $response = $kernel->run(new ServerRequest('GET', '/missing'));
+
+        self::assertSame(404, $response->getStatusCode());
+        $scope = KernelScopeCaptureMiddleware::$container;
+        self::assertInstanceOf(ScopedContainerInterface::class, $scope);
+
+        $this->expectException(ScopedContainerClosedException::class);
+        $scope->get('anything');
+    }
+
+    public function testRequestScopeClosesAfterControllerExceptionHandledByErrorMiddleware(): void
+    {
+        $this->writeRequestScopeThrowingRouting();
+        \App\Controllers\RequestScopeThrowingController::$container = null;
+        $kernel = $this->kernel(false);
+
+        $response = $kernel->run(new ServerRequest('GET', '/request-scope-throw'));
+
+        self::assertSame(500, $response->getStatusCode());
+        $scope = \App\Controllers\RequestScopeThrowingController::$container;
+        self::assertInstanceOf(ScopedContainerInterface::class, $scope);
+
+        $this->expectException(ScopedContainerClosedException::class);
+        $scope->get('anything');
+    }
+
+    public function testRequestScopeClosesAfterMiddlewareException(): void
+    {
+        KernelThrowingScopeMiddleware::$container = null;
+        $kernel = $this->kernel(false);
+        $container = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $container);
+        $container->scoped(KernelThrowingScopeMiddleware::class, KernelThrowingScopeMiddleware::class);
+        $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
+            $stack->insertAfter(ErrorHandlingMiddleware::class, KernelThrowingScopeMiddleware::class);
+        });
+
+        $response = $kernel->run(new ServerRequest('GET', '/missing'));
+
+        self::assertSame(500, $response->getStatusCode());
+        $scope = KernelThrowingScopeMiddleware::$container;
+        self::assertInstanceOf(ScopedContainerInterface::class, $scope);
+
+        $this->expectException(ScopedContainerClosedException::class);
+        $scope->get('anything');
+    }
+
     private function kernel(bool $debug, Environment $environment = Environment::Testing): Kernel
     {
         $context = new ApplicationContext(
@@ -488,6 +641,22 @@ final class KernelTest extends TestCase
         $this->writeConfigFile(
             'Routing.php',
             "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/options-explicit', 'OptionsKernelSupportController@index');\n    \$router->options('/options-explicit', 'OptionsKernelSupportController@options');\n};\n",
+        );
+    }
+
+    private function writeRequestScopeRouting(): void
+    {
+        $this->writeConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/request-scope', 'RequestScopeKernelController@index');\n};\n",
+        );
+    }
+
+    private function writeRequestScopeThrowingRouting(): void
+    {
+        $this->writeConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/request-scope-throw', 'RequestScopeThrowingController@index');\n};\n",
         );
     }
 
@@ -584,7 +753,168 @@ final class KernelRouteRegistrarSupportController extends AbstractController
     }
 }
 
+final class RequestScopeKernelController
+{
+    /** @var list<\Psr\Http\Message\ServerRequestInterface> */
+    public static array $requests = [];
+
+    /** @var list<\Lemonade\Framework\Container\ContainerInterface> */
+    public static array $containers = [];
+
+    /** @var list<\Lemonade\Framework\Tests\Unit\Core\RequestScopeKernelService> */
+    public static array $services = [];
+
+    /** @var list<\Lemonade\Framework\Tests\Unit\Core\RequestScopeKernelSingleton> */
+    public static array $singletons = [];
+
+    public function __construct(
+        private readonly \Psr\Http\Message\ServerRequestInterface $request,
+        private readonly \Lemonade\Framework\Container\ContainerInterface $container,
+        private readonly \Lemonade\Framework\Tests\Unit\Core\RequestScopeKernelService $service,
+        private readonly \Lemonade\Framework\Tests\Unit\Core\RequestScopeKernelSingleton $singleton,
+    ) {}
+
+    public static function reset(): void
+    {
+        self::$requests = [];
+        self::$containers = [];
+        self::$services = [];
+        self::$singletons = [];
+    }
+
+    public function index(): string
+    {
+        self::$requests[] = $this->request;
+        self::$containers[] = $this->container;
+        self::$services[] = $this->service;
+        self::$singletons[] = $this->singleton;
+
+        return 'request-scope';
+    }
+}
+
+final class RequestScopeThrowingController
+{
+    public static ?\Lemonade\Framework\Container\ContainerInterface $container = null;
+
+    public function __construct(\Lemonade\Framework\Container\ContainerInterface $container)
+    {
+        self::$container = $container;
+    }
+
+    public function index(): never
+    {
+        throw new \RuntimeException('Request scope controller failure.');
+    }
+}
+
 namespace Lemonade\Framework\Tests\Unit\Core;
+
+final class KernelScopeTrackingContainer implements \Lemonade\Framework\Container\ContainerInterface, \Lemonade\Framework\Container\ContainerBuilderInterface, \Lemonade\Framework\Container\ScopeFactoryInterface
+{
+    public ?\Lemonade\Framework\Container\ScopedContainerInterface $lastScope = null;
+
+    public function __construct(
+        private readonly \Lemonade\Framework\Container\Container $delegate,
+    ) {}
+
+    public function beginScope(\Lemonade\Framework\Container\ScopeKind $kind): \Lemonade\Framework\Container\ScopedContainerInterface
+    {
+        return $this->lastScope = $this->delegate->beginScope($kind);
+    }
+
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function set(string $id, callable|object|string $concrete): void
+    {
+        $this->delegate->set($id, $concrete);
+    }
+
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function singleton(string $id, callable|object|string $concrete): void
+    {
+        $this->delegate->singleton($id, $concrete);
+    }
+
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function scoped(string $id, callable|object|string $concrete): void
+    {
+        $this->delegate->scoped($id, $concrete);
+    }
+
+    /**
+     * @param callable(\Lemonade\Framework\Container\ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function transient(string $id, callable|object|string $concrete): void
+    {
+        $this->delegate->transient($id, $concrete);
+    }
+
+    public function instance(string $id, object $instance): void
+    {
+        $this->delegate->instance($id, $instance);
+    }
+
+    public function alias(string $alias, string $target): void
+    {
+        $this->delegate->alias($alias, $target);
+    }
+
+    public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void
+    {
+        $this->delegate->decorate($serviceId, $decorator, $priority);
+    }
+
+    public function when(string $consumer): \Lemonade\Framework\Container\ContextualBindingBuilder
+    {
+        return $this->delegate->when($consumer);
+    }
+
+    public function compile(): \Lemonade\Framework\Container\CompiledContainerPlan
+    {
+        return $this->delegate->compile();
+    }
+
+    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
+    {
+        $this->delegate->singletonTagged($id, $concrete, ...$tags);
+    }
+
+    public function tag(string $serviceId, string $tag): void
+    {
+        $this->delegate->tag($serviceId, $tag);
+    }
+
+    public function tagged(string $tag): iterable
+    {
+        return $this->delegate->tagged($tag);
+    }
+
+    public function setDiagnosticLogger(?\Psr\Log\LoggerInterface $logger): void
+    {
+        $this->delegate->setDiagnosticLogger($logger);
+    }
+
+    public function has(string $id): bool
+    {
+        return $this->delegate->has($id);
+    }
+
+    public function isBound(string $id): bool
+    {
+        return $this->delegate->isBound($id);
+    }
+
+    public function get(string $id): mixed
+    {
+        return $this->delegate->get($id);
+    }
+}
 
 final class KernelRouteRegistrarProvider implements \Lemonade\Framework\Core\ServiceProviderInterface
 {
@@ -609,6 +939,70 @@ final class KernelRequestProbeProvider implements \Lemonade\Framework\Core\Servi
         }
 
         self::$request = $container->get(\Psr\Http\Message\ServerRequestInterface::class);
+    }
+}
+
+final class KernelBootDependencyProvider implements \Lemonade\Framework\Core\DefinitionServiceProviderInterface
+{
+    public function register(\Lemonade\Framework\Container\ContainerBuilderInterface $builder): void
+    {
+        $builder->singleton(KernelBootDependency::class, KernelBootDependency::class);
+    }
+}
+
+final class KernelBootObserverProvider implements \Lemonade\Framework\Core\BootableServiceProviderInterface
+{
+    public static bool $resolved = false;
+
+    public function boot(\Lemonade\Framework\Container\ContainerInterface $container): void
+    {
+        self::$resolved = $container->get(KernelBootDependency::class) instanceof KernelBootDependency;
+    }
+}
+
+final class KernelBootDependency {}
+
+final class RequestScopeKernelService {}
+
+final class RequestScopeKernelSingleton {}
+
+final class KernelScopeCaptureMiddleware implements \Psr\Http\Server\MiddlewareInterface
+{
+    public static ?\Lemonade\Framework\Container\ContainerInterface $container = null;
+
+    public function __construct(\Lemonade\Framework\Container\ContainerInterface $container)
+    {
+        self::$container = $container;
+    }
+
+    public static function reset(): void
+    {
+        self::$container = null;
+    }
+
+    public function process(
+        \Psr\Http\Message\ServerRequestInterface $request,
+        \Psr\Http\Server\RequestHandlerInterface $handler,
+    ): \Psr\Http\Message\ResponseInterface {
+        return $handler->handle($request);
+    }
+}
+
+final class KernelThrowingScopeMiddleware implements \Psr\Http\Server\MiddlewareInterface
+{
+    public static ?\Lemonade\Framework\Container\ContainerInterface $container = null;
+
+    public function __construct(\Lemonade\Framework\Container\ContainerInterface $container)
+    {
+        self::$container = $container;
+    }
+
+    public function process(
+        \Psr\Http\Message\ServerRequestInterface $request,
+        \Psr\Http\Server\RequestHandlerInterface $handler,
+    ): \Psr\Http\Message\ResponseInterface {
+        unset($request, $handler);
+        throw new \RuntimeException('Request scope middleware failure.');
     }
 }
 

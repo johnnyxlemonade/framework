@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Meta;
 
-final class MetaData
+final readonly class MetaData
 {
     /**
      * @param array<string, string|null> $custom
@@ -12,21 +12,21 @@ final class MetaData
      * @param array<string, string> $alternates
      */
     public function __construct(
-        private readonly ?string $websiteName = null,
-        private readonly ?string $charset = null,
-        private readonly ?string $viewport = null,
-        private readonly ?string $rating = null,
-        private readonly ?string $titleSeparator = null,
-        private readonly ?string $title = null,
-        private readonly ?string $description = null,
-        private readonly ?string $keywords = null,
-        private readonly ?string $author = null,
-        private readonly ?string $robots = null,
-        private readonly ?string $canonical = null,
-        private readonly ?string $image = null,
-        private readonly array $custom = [],
-        private readonly array $extraParams = [],
-        private readonly array $alternates = [],
+        private ?string $websiteName = null,
+        private ?string $charset = null,
+        private ?string $viewport = null,
+        private ?string $rating = null,
+        private ?string $titleSeparator = null,
+        private ?string $title = null,
+        private ?string $description = null,
+        private ?string $keywords = null,
+        private ?string $author = null,
+        private ?string $robots = null,
+        private ?string $canonical = null,
+        private ?string $image = null,
+        private array $custom = [],
+        private array $extraParams = [],
+        private array $alternates = [],
     ) {}
 
     public function withParam(string $key, ?string $value): self

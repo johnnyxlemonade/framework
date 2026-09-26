@@ -4,25 +4,28 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container;
 
-use Closure;
 use Lemonade\Framework\Container\Config\ContainerConfig;
+use Lemonade\Framework\Container\Definition\ClassTarget;
+use Lemonade\Framework\Container\Definition\DefinitionTarget;
+use Lemonade\Framework\Container\Definition\FactoryTarget;
+use Lemonade\Framework\Container\Definition\InstanceTarget;
+use Lemonade\Framework\Container\Exception\AliasTargetNotFoundException;
 use Lemonade\Framework\Container\Exception\ContainerException;
+use Lemonade\Framework\Container\Exception\InvalidContextualBindingException;
+use Lemonade\Framework\Container\Exception\InvalidServiceDecoratorException;
+use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
+use Lemonade\Framework\Container\Exception\SingletonDependsOnScopedServiceException;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use ReflectionClass;
 use ReflectionNamedType;
 
-final class Container implements ContainerInterface
+final class Container implements ContainerInterface, ContainerBuilderInterface, ScopeFactoryInterface
 {
-    /**
-     * @var array<string, array{
-     *     concrete: callable(ContainerInterface):mixed|object|string,
-     *     singleton: bool
-     * }>
-     */
-    private array $bindings = [];
+    private ContainerBuilder $builder;
+    private ?CompiledContainerPlan $compiledPlan = null;
 
     /**
      * @var array<string, mixed>
@@ -30,19 +33,9 @@ final class Container implements ContainerInterface
     private array $instances = [];
 
     /**
-     * @var array<string, list<string>>
-     */
-    private array $tags = [];
-
-    /**
      * @var array<string, true>
      */
     private array $reportedAutowireFallbacks = [];
-
-    /**
-     * @var array<string, bool>
-     */
-    private array $autowireFallbackReportable = [];
 
     /**
      * @var array<string, bool>
@@ -72,11 +65,26 @@ final class Container implements ContainerInterface
     /**
      * @var list<string>
      */
-    private array $resolutionStack = [];
+    private array $classResolutionStack = [];
+
+    /**
+     * Canonical service IDs currently being resolved through get().
+     *
+     * @var list<string>
+     */
+    private array $serviceResolutionStack = [];
+
+    /** @var list<ServiceLifetime> */
+    private array $serviceLifetimeStack = [];
 
     private ?LoggerInterface $diagnosticLogger = null;
     private ?LoggerInterface $autowireFallbackLogger = null;
     private ?bool $autowireFallbackWarningEnabled = null;
+
+    public function __construct(?ContainerBuilder $builder = null)
+    {
+        $this->builder = $builder ?? new ContainerBuilder();
+    }
 
     /**
      * @param class-string|non-empty-string $id
@@ -84,13 +92,8 @@ final class Container implements ContainerInterface
      */
     public function set(string $id, callable|object|string $concrete): void
     {
-        $this->bindings[$id] = [
-            'concrete' => $concrete,
-            'singleton' => false,
-        ];
-
-        unset($this->instances[$id]);
-        $this->invalidateDiagnosticCacheFor($id);
+        $this->builder->set($id, $concrete);
+        $this->definitionChanged($id);
     }
 
     /**
@@ -99,13 +102,80 @@ final class Container implements ContainerInterface
      */
     public function singleton(string $id, callable|object|string $concrete): void
     {
-        $this->bindings[$id] = [
-            'concrete' => $concrete,
-            'singleton' => true,
-        ];
+        $this->builder->singleton($id, $concrete);
+        $this->definitionChanged($id);
+    }
 
-        unset($this->instances[$id]);
-        $this->invalidateDiagnosticCacheFor($id);
+    /**
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function scoped(string $id, callable|object|string $concrete): void
+    {
+        $this->builder->scoped($id, $concrete);
+        $this->definitionChanged($id);
+    }
+
+    public function beginScope(ScopeKind $kind): ScopedContainerInterface
+    {
+        return new ScopedContainer($this, $kind);
+    }
+
+    public function transient(string $id, callable|object|string $concrete): void
+    {
+        $this->set($id, $concrete);
+    }
+
+    public function instance(string $id, object $instance): void
+    {
+        $this->builder->instance($id, $instance);
+        $this->definitionChanged($id);
+    }
+
+    /**
+     * The concrete container implements the builder contract used by definition providers.
+     * This method intentionally is not added to the legacy ContainerInterface.
+     *
+     * @param non-empty-string $alias
+     * @param non-empty-string $target
+     */
+    public function alias(string $alias, string $target): void
+    {
+        $this->builder->alias($alias, $target);
+        $this->compiledPlan = null;
+    }
+
+    /**
+     * The concrete container implements the builder contract used by definition providers.
+     * This method intentionally is not added to the legacy ContainerInterface.
+     *
+     * @param class-string|non-empty-string $serviceId
+     * @param class-string<ServiceDecoratorInterface>|callable(ContainerInterface, mixed):mixed $decorator
+     */
+    public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void
+    {
+        $canonicalId = $this->compiledPlan()->canonicalId($serviceId);
+        $this->builder->decorate($serviceId, $decorator, $priority);
+        $this->definitionChanged($canonicalId);
+    }
+
+    /**
+     * The concrete container implements the builder contract used by definition providers.
+     * This method intentionally is not added to the legacy ContainerInterface.
+     *
+     * @param class-string|string $consumer
+     */
+    public function when(string $consumer): ContextualBindingBuilder
+    {
+        return $this->builder->contextualBindingBuilder($consumer, function (): void {
+            $this->instances = [];
+            $this->compiledPlan = null;
+        });
+    }
+
+    public function compile(): CompiledContainerPlan
+    {
+        return $this->compiledPlan();
     }
 
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
@@ -119,34 +189,33 @@ final class Container implements ContainerInterface
 
     public function tag(string $serviceId, string $tag): void
     {
-        if (!$this->isBound($serviceId)) {
-            throw new ContainerException(sprintf(
-                'Tagged service "%s" must be explicitly bound before it can be tagged.',
-                $serviceId,
-            ));
-        }
-
-        $normalizedTag = $this->normalizeTag($tag);
-        $services = $this->tags[$normalizedTag] ?? [];
-
-        if (in_array($serviceId, $services, true)) {
-            throw new ContainerException(sprintf(
-                'Service "%s" is already tagged with "%s".',
-                $serviceId,
-                $normalizedTag,
-            ));
-        }
-
-        $services[] = $serviceId;
-        $this->tags[$normalizedTag] = $services;
+        $this->builder->tag($serviceId, $tag);
+        $this->compiledPlan = null;
     }
 
+    /** @return iterable<string, object> */
     public function tagged(string $tag): iterable
     {
-        $normalizedTag = $this->normalizeTag($tag);
-        $serviceIds = $this->tags[$normalizedTag] ?? [];
+        return $this->taggedFor($this, $tag);
+    }
 
-        return $this->resolveTagged($normalizedTag, $serviceIds);
+    /** @return iterable<string, object> */
+    public function taggedInScope(ScopedContainer $scope, string $tag): iterable
+    {
+        return $this->taggedFor($scope, $tag);
+    }
+
+    /** @return iterable<string, object> */
+    private function taggedFor(ContainerInterface $runtimeContainer, string $tag): iterable
+    {
+        $normalizedTag = trim($tag);
+        if ($normalizedTag === '') {
+            throw new ContainerException('Service tag must not be empty.');
+        }
+
+        $serviceIds = $this->compiledPlan()->taggedServiceIds($normalizedTag);
+
+        return $this->resolveTagged($runtimeContainer, $normalizedTag, $serviceIds);
     }
 
     public function setDiagnosticLogger(?LoggerInterface $logger): void
@@ -160,7 +229,10 @@ final class Container implements ContainerInterface
      */
     public function has(string $id): bool
     {
-        return $this->isBound($id) || $this->classExists($id);
+        $plan = $this->compiledPlan();
+        $canonicalId = $plan->canonicalId($id);
+
+        return $plan->hasDefinition($canonicalId) || $this->classExists($canonicalId);
     }
 
     /**
@@ -168,7 +240,10 @@ final class Container implements ContainerInterface
      */
     public function isBound(string $id): bool
     {
-        return isset($this->instances[$id]) || isset($this->bindings[$id]);
+        $plan = $this->compiledPlan();
+        $canonicalId = $plan->canonicalId($id);
+
+        return isset($this->instances[$canonicalId]) || $plan->hasDefinition($canonicalId) || $plan->hasAlias($id);
     }
 
     /**
@@ -179,41 +254,136 @@ final class Container implements ContainerInterface
      */
     public function get(string $id): mixed
     {
-        if (isset($this->instances[$id])) {
-            return $this->instances[$id];
+        return $this->resolveService($this, $id);
+    }
+
+    public function getInScope(ScopedContainer $scope, string $id): mixed
+    {
+        return $this->resolveService($scope, $id);
+    }
+
+    public function assertScopeLocalServiceCanResolve(string $id): void
+    {
+        if (!in_array(ServiceLifetime::Singleton, $this->serviceLifetimeStack, true)) {
+            return;
         }
 
-        $binding = $this->bindings[$id] ?? null;
+        $chain = [...$this->serviceResolutionStack, $id];
 
-        if ($binding === null) {
-            if (!$this->classExists($id)) {
-                throw new ServiceNotFoundException(sprintf(
-                    'Service "%s" was not found.',
-                    $id,
-                ));
+        throw new SingletonDependsOnScopedServiceException(sprintf(
+            'Singleton service resolution cannot depend on scope-local service "%s": %s',
+            $id,
+            implode(' -> ', $chain),
+        ));
+    }
+
+    private function resolveService(ContainerInterface $runtimeContainer, string $id): mixed
+    {
+        $plan = $this->compiledPlan();
+        $canonicalId = $plan->canonicalId($id);
+
+        $definition = $plan->definition($canonicalId);
+
+        if ($definition?->lifetime === ServiceLifetime::Singleton && isset($this->instances[$canonicalId])) {
+            return $this->instances[$canonicalId];
+        }
+
+        $scope = $runtimeContainer instanceof ScopedContainer ? $runtimeContainer : null;
+        if ($definition?->lifetime === ServiceLifetime::Scoped) {
+            $scope = $this->scopedContainerFor($canonicalId, $scope);
+
+            if ($scope->hasInstance($canonicalId)) {
+                return $scope->instance($canonicalId);
+            }
+        }
+
+        $this->beginServiceResolution(
+            $canonicalId,
+            $definition === null ? ServiceLifetime::Transient : $definition->lifetime,
+        );
+
+        try {
+            if ($definition === null) {
+                if (!$this->classExists($canonicalId)) {
+                    if ($plan->hasAlias($id)) {
+                        throw new AliasTargetNotFoundException(sprintf(
+                            'Service alias "%s" resolves to "%s", but the target service was not found.',
+                            $id,
+                            $canonicalId,
+                        ));
+                    }
+
+                    throw new ServiceNotFoundException(sprintf(
+                        'Service "%s" was not found.',
+                        $canonicalId,
+                    ));
+                }
+
+                $this->reportAutowireFallback($canonicalId);
+
+                return $this->build($canonicalId, $runtimeContainer);
             }
 
-            $this->reportAutowireFallback($id);
+            $resolutionContainer = $definition->lifetime === ServiceLifetime::Singleton
+                ? $this
+                : $runtimeContainer;
+            $resolved = $this->resolve($definition->target, $resolutionContainer);
+            $resolved = $this->applyDecorators($resolutionContainer, $plan->decorators($canonicalId), $resolved);
 
-            return $this->build($id);
+            if ($definition->lifetime === ServiceLifetime::Singleton) {
+                $this->instances[$canonicalId] = $resolved;
+            } elseif ($definition->lifetime === ServiceLifetime::Scoped) {
+                assert($scope instanceof ScopedContainer);
+                $scope->storeInstance($canonicalId, $resolved);
+            }
+
+            return $resolved;
+        } finally {
+            array_pop($this->serviceResolutionStack);
+            array_pop($this->serviceLifetimeStack);
+        }
+    }
+
+    private function beginServiceResolution(string $canonicalId, ServiceLifetime $lifetime): void
+    {
+        if (in_array($canonicalId, $this->serviceResolutionStack, true)) {
+            $chain = [...$this->serviceResolutionStack, $canonicalId];
+
+            throw new ContainerException(sprintf(
+                'Circular dependency detected: %s',
+                implode(' -> ', $chain),
+            ));
         }
 
-        $resolved = $this->resolve($binding['concrete']);
+        $this->serviceResolutionStack[] = $canonicalId;
+        $this->serviceLifetimeStack[] = $lifetime;
+    }
 
-        if ($binding['singleton']) {
-            $this->instances[$id] = $resolved;
+    private function scopedContainerFor(string $canonicalId, ?ScopedContainer $scope): ScopedContainer
+    {
+        if (in_array(ServiceLifetime::Singleton, $this->serviceLifetimeStack, true)) {
+            $chain = [...$this->serviceResolutionStack, $canonicalId];
+
+            throw new SingletonDependsOnScopedServiceException(sprintf(
+                'Singleton service resolution cannot depend on scoped service "%s": %s',
+                $canonicalId,
+                implode(' -> ', $chain),
+            ));
         }
 
-        return $resolved;
+        if ($scope === null) {
+            throw new ScopedServiceRequestedFromRootException(sprintf(
+                'Scoped service "%s" can only be resolved from an active scope.',
+                $canonicalId,
+            ));
+        }
+
+        return $scope;
     }
 
     private function reportAutowireFallback(string $id): void
     {
         if (!$this->isAutowireFallbackWarningEnabled()) {
-            return;
-        }
-
-        if (!$this->shouldReportAutowireFallback($id)) {
             return;
         }
 
@@ -224,21 +394,9 @@ final class Container implements ContainerInterface
         $this->reportedAutowireFallbacks[$id] = true;
 
         $message = sprintf(
-            'Autowiring fallback used for "%s". Register this service explicitly in the appropriate ServiceProvider (for app services usually App\\Providers\\AppServiceProvider).',
+            'Autowiring fallback used for "%s". Register this service explicitly in an appropriate ServiceProvider.',
             $id,
         );
-
-        if (str_starts_with($id, 'App\\')) {
-            $message = sprintf(
-                'Autowiring fallback used for "%s". Register this service explicitly in App\\Providers\\AppServiceProvider or another application ServiceProvider.',
-                $id,
-            );
-        } elseif (str_starts_with($id, 'Lemonade\\Framework\\')) {
-            $message = sprintf(
-                'Autowiring fallback used for "%s". Register this service explicitly in the appropriate framework ServiceProvider.',
-                $id,
-            );
-        }
 
         $logger = $this->autowireFallbackLogger();
         if ($logger !== null && !$logger instanceof NullLogger) {
@@ -251,47 +409,6 @@ final class Container implements ContainerInterface
         }
 
         error_log('[Lemonade][Container] ' . $message);
-    }
-
-    private function shouldReportAutowireFallback(string $id): bool
-    {
-        if (array_key_exists($id, $this->autowireFallbackReportable)) {
-            return $this->autowireFallbackReportable[$id];
-        }
-
-        $shouldReport = false;
-
-        if (str_starts_with($id, 'App\\')) {
-            $shouldReport = $this->shouldReportApplicationAutowireFallback($id);
-        } elseif (str_starts_with($id, 'Lemonade\\Framework\\')) {
-            $shouldReport = $this->shouldReportFrameworkAutowireFallback($id);
-        }
-
-        $this->autowireFallbackReportable[$id] = $shouldReport;
-
-        return $shouldReport;
-    }
-
-    private function shouldReportApplicationAutowireFallback(string $id): bool
-    {
-        return str_contains($id, '\\Services\\')
-            || str_contains($id, '\\Models\\')
-            || str_contains($id, '\\Documentation\\')
-            || str_contains($id, '\\Auth\\')
-            || str_contains($id, '\\Routing\\')
-            || str_ends_with($id, 'Service')
-            || str_ends_with($id, 'Model')
-            || str_ends_with($id, 'Catalog')
-            || str_ends_with($id, 'Authenticator');
-    }
-
-    private function shouldReportFrameworkAutowireFallback(string $id): bool
-    {
-        return str_ends_with($id, 'Service')
-            || str_ends_with($id, 'Manager')
-            || str_ends_with($id, 'Registry')
-            || str_ends_with($id, 'Compiler')
-            || str_ends_with($id, 'Middleware');
     }
 
     private function isAutowireFallbackWarningEnabled(): bool
@@ -330,9 +447,9 @@ final class Container implements ContainerInterface
             return $this->instances[ApplicationContext::class];
         }
 
-        $binding = $this->bindings[ApplicationContext::class]['concrete'] ?? null;
+        $instance = $this->boundInstance(ApplicationContext::class);
 
-        return $binding instanceof ApplicationContext ? $binding : null;
+        return $instance instanceof ApplicationContext ? $instance : null;
     }
 
     private function peekContainerConfig(): ?ContainerConfig
@@ -344,9 +461,9 @@ final class Container implements ContainerInterface
             return $this->instances[ContainerConfig::class];
         }
 
-        $binding = $this->bindings[ContainerConfig::class]['concrete'] ?? null;
+        $instance = $this->boundInstance(ContainerConfig::class);
 
-        return $binding instanceof ContainerConfig ? $binding : null;
+        return $instance instanceof ContainerConfig ? $instance : null;
     }
 
     private function peekLogger(): ?LoggerInterface
@@ -358,9 +475,9 @@ final class Container implements ContainerInterface
             return $this->instances[LoggerInterface::class];
         }
 
-        $binding = $this->bindings[LoggerInterface::class]['concrete'] ?? null;
+        $instance = $this->boundInstance(LoggerInterface::class);
 
-        return $binding instanceof LoggerInterface ? $binding : null;
+        return $instance instanceof LoggerInterface ? $instance : null;
     }
 
     private function autowireFallbackLogger(): ?LoggerInterface
@@ -374,37 +491,57 @@ final class Container implements ContainerInterface
         return $this->autowireFallbackLogger;
     }
 
-    /**
-     * @param callable(ContainerInterface):mixed|object|string $concrete
-     */
-    private function resolve(callable|object|string $concrete): mixed
+    private function resolve(DefinitionTarget $target, ContainerInterface $runtimeContainer): mixed
     {
-        if ($concrete instanceof Closure) {
-            return $concrete($this);
+        if ($target instanceof FactoryTarget) {
+            return ($target->factory)($runtimeContainer);
         }
 
-        if (is_callable($concrete) && !is_string($concrete)) {
-            return $concrete($this);
+        if ($target instanceof InstanceTarget) {
+            return $target->instance;
         }
 
-        if (is_object($concrete)) {
-            return $concrete;
-        }
-
-        if (!$this->classExists($concrete)) {
+        if (!$target instanceof ClassTarget || !$this->classExists($target->className)) {
             throw new ServiceNotFoundException(sprintf(
                 'Service "%s" was not found.',
-                $concrete,
+                $target instanceof ClassTarget ? $target->className : get_debug_type($target),
             ));
         }
 
-        return $this->build($concrete);
+        return $this->build($target->className, $runtimeContainer);
     }
 
-    private function build(string $className): object
+    /**
+     * @param list<ServiceDecorator> $decorators
+     */
+    private function applyDecorators(ContainerInterface $runtimeContainer, array $decorators, mixed $inner): mixed
     {
-        if (in_array($className, $this->resolutionStack, true)) {
-            $chain = [...$this->resolutionStack, $className];
+        foreach ($decorators as $decorator) {
+            if ($decorator->decorator instanceof \Closure) {
+                $inner = ($decorator->decorator)($runtimeContainer, $inner);
+
+                continue;
+            }
+
+            $instance = $this->build($decorator->decorator, $runtimeContainer);
+            if (!$instance instanceof ServiceDecoratorInterface) {
+                throw new InvalidServiceDecoratorException(sprintf(
+                    'Service decorator class "%s" must implement %s.',
+                    $decorator->decorator,
+                    ServiceDecoratorInterface::class,
+                ));
+            }
+
+            $inner = $instance->decorate($inner);
+        }
+
+        return $inner;
+    }
+
+    private function build(string $className, ContainerInterface $runtimeContainer): object
+    {
+        if (in_array($className, $this->classResolutionStack, true)) {
+            $chain = [...$this->classResolutionStack, $className];
 
             throw new ContainerException(sprintf(
                 'Circular dependency detected: %s',
@@ -412,7 +549,7 @@ final class Container implements ContainerInterface
             ));
         }
 
-        $this->resolutionStack[] = $className;
+        $this->classResolutionStack[] = $className;
 
         try {
             $plan = $this->buildPlan($className);
@@ -425,6 +562,7 @@ final class Container implements ContainerInterface
 
             foreach ($plan['parameters'] as $parameter) {
                 $arguments[] = $this->resolveConstructorParameter(
+                    runtimeContainer: $runtimeContainer,
                     className: $className,
                     parameterName: $parameter['name'],
                     kind: $parameter['kind'],
@@ -436,7 +574,7 @@ final class Container implements ContainerInterface
 
             return $plan['reflection']->newInstanceArgs($arguments);
         } finally {
-            array_pop($this->resolutionStack);
+            array_pop($this->classResolutionStack);
         }
     }
 
@@ -531,6 +669,7 @@ final class Container implements ContainerInterface
     }
 
     private function resolveConstructorParameter(
+        ContainerInterface $runtimeContainer,
         string $className,
         string $parameterName,
         string $kind,
@@ -538,6 +677,15 @@ final class Container implements ContainerInterface
         bool $hasDefaultValue,
         mixed $defaultValue,
     ): mixed {
+        $contextualBinding = $this->compiledPlan()->contextualParameter($className, $parameterName);
+        if (!$contextualBinding instanceof ContextualBinding && $dependency !== null) {
+            $contextualBinding = $this->compiledPlan()->contextualDependency($className, $dependency);
+        }
+
+        if ($contextualBinding instanceof ContextualBinding) {
+            return $this->resolveContextualBinding($runtimeContainer, $contextualBinding);
+        }
+
         if ($kind === 'unresolvable' || $dependency === null) {
             if ($hasDefaultValue) {
                 return $defaultValue;
@@ -550,7 +698,7 @@ final class Container implements ContainerInterface
             ));
         }
 
-        if ($kind === 'interface' && !$this->isBound($dependency)) {
+        if ($kind === 'interface' && !$runtimeContainer->isBound($dependency)) {
             if ($hasDefaultValue) {
                 return $defaultValue;
             }
@@ -563,7 +711,28 @@ final class Container implements ContainerInterface
             ));
         }
 
-        return $this->get($dependency);
+        return $runtimeContainer->get($dependency);
+    }
+
+    private function resolveContextualBinding(ContainerInterface $runtimeContainer, ContextualBinding $binding): mixed
+    {
+        if ($binding->value->kind === 'service') {
+            if (!is_string($binding->value->value)) {
+                throw new InvalidContextualBindingException('Contextual service binding must contain a service ID.');
+            }
+
+            return $runtimeContainer->get($binding->value->value);
+        }
+
+        if ($binding->value->kind === 'factory') {
+            if (!$binding->value->value instanceof \Closure) {
+                throw new InvalidContextualBindingException('Contextual factory binding must contain a callable factory.');
+            }
+
+            return ($binding->value->value)($runtimeContainer);
+        }
+
+        return $binding->value->value;
     }
 
     private function classExists(string $className): bool
@@ -599,14 +768,33 @@ final class Container implements ContainerInterface
         }
     }
 
+    private function definitionChanged(string $id): void
+    {
+        unset($this->instances[$id]);
+        $this->compiledPlan = null;
+        $this->invalidateDiagnosticCacheFor($id);
+    }
+
+    private function compiledPlan(): CompiledContainerPlan
+    {
+        return $this->compiledPlan ??= $this->builder->compile();
+    }
+
+    private function boundInstance(string $id): ?object
+    {
+        $target = $this->compiledPlan()->definition($id)?->target;
+
+        return $target instanceof InstanceTarget ? $target->instance : null;
+    }
+
     /**
      * @param list<string> $serviceIds
      * @return \Generator<string, object>
      */
-    private function resolveTagged(string $tag, array $serviceIds): \Generator
+    private function resolveTagged(ContainerInterface $runtimeContainer, string $tag, array $serviceIds): \Generator
     {
         foreach ($serviceIds as $serviceId) {
-            $service = $this->get($serviceId);
+            $service = $runtimeContainer->get($serviceId);
             if (!is_object($service)) {
                 throw new ContainerException(sprintf(
                     'Tagged service "%s" for tag "%s" must resolve to an object.',
@@ -619,13 +807,4 @@ final class Container implements ContainerInterface
         }
     }
 
-    private function normalizeTag(string $tag): string
-    {
-        $normalizedTag = trim($tag);
-        if ($normalizedTag === '') {
-            throw new ContainerException('Service tag must not be empty.');
-        }
-
-        return $normalizedTag;
-    }
 }

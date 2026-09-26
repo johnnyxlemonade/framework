@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Api\Documentation;
 
 use Lemonade\Framework\Api\Config\ApiConfig;
+use Lemonade\Framework\Http\HttpStatus;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
 final class DocsController
 {
-    private const SWAGGER_UI_VERSION = '5.32.14';
-    private const SWAGGER_ASSET_BASE_URL = 'https://static.lemonadeframework.cz/swagger';
+    private const string SWAGGER_UI_VERSION = '5.32.14';
+    private const string SWAGGER_ASSET_BASE_URL = 'https://static.lemonadeframework.cz/swagger';
 
     public function __construct(
         private readonly ApiConfig $config,
@@ -48,7 +49,7 @@ final class DocsController
             . '</body></html>';
 
         return $this->psr17
-            ->createResponse(200)
+            ->createResponse(HttpStatus::OK->value)
             ->withHeader('Content-Type', 'text/html; charset=utf-8')
             ->withBody($this->psr17->createStream($html));
     }

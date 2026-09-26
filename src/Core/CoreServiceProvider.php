@@ -44,6 +44,8 @@ final class CoreServiceProvider implements ServiceProviderInterface
      */
     public function register(ContainerInterface $container): void
     {
+        $builder = ProviderContainerAssertions::builder($container, self::class, 'scoped HTTP services');
+
         /*
          * PSR-7 / PSR-17 factories.
          *
@@ -59,7 +61,7 @@ final class CoreServiceProvider implements ServiceProviderInterface
         /*
          * Core framework utilities.
          */
-        $container->singleton(ControllerResolver::class, ControllerResolver::class);
+        $builder->scoped(ControllerResolver::class, ControllerResolver::class);
         $container->singleton(BaseUrlResolver::class, BaseUrlResolver::class);
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);
@@ -87,4 +89,5 @@ final class CoreServiceProvider implements ServiceProviderInterface
             );
         }
     }
+
 }

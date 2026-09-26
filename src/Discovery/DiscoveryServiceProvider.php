@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Discovery;
 
+use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
@@ -67,14 +68,17 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
             );
         });
 
-        $container->singleton(GenerateSitemapCommand::class, GenerateSitemapCommand::class);
         $container->singleton(RobotsController::class, RobotsController::class);
         $container->singleton(SitemapController::class, SitemapController::class);
 
         $config = $container->get(DiscoveryConfig::class);
 
         if ($container->isBound(CommandRegistry::class)) {
-            $container->get(CommandRegistry::class)->register(GenerateSitemapCommand::class);
+            $container->get(CommandRegistry::class)->registerDefinition(new CommandDefinition(
+                name: 'discovery:sitemap:generate',
+                commandClass: GenerateSitemapCommand::class,
+                description: 'Generates cached sitemap files.',
+            ));
         }
 
         if (!$container->isBound(Router::class)) {

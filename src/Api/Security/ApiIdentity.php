@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Security;
 
-final class ApiIdentity
+final readonly class ApiIdentity
 {
     /**
      * @param non-empty-string $id
@@ -12,10 +12,10 @@ final class ApiIdentity
      * @param list<non-empty-string> $scopes
      */
     public function __construct(
-        private readonly string $id,
-        private readonly string $type,
-        private readonly array $scopes = [],
-        private readonly ?string $name = null,
+        private string $id,
+        private string $type,
+        private array $scopes = [],
+        private ?string $name = null,
     ) {
         if (trim($id) === '') {
             throw new \InvalidArgumentException('API identity id cannot be empty.');

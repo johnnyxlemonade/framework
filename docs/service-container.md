@@ -2,6 +2,12 @@
 
 The framework container is PSR-11 compatible and supports explicit bindings, singleton bindings and conservative autowiring.
 
+ContainerInterface is the runtime and legacy contract: it exposes service resolution plus the
+established set(), singleton(), tag() and tagged() registration operations. Definition providers
+receive ContainerBuilderInterface instead. Builder-only operations include scoped(), transient(),
+instance(), aliases, decorators and contextual bindings. Scope lifecycle belongs to
+ScopeFactoryInterface::beginScope(), not to ContainerInterface.
+
 Services are registered with `set()` or `singleton()`.
 
 ```php
@@ -23,6 +29,163 @@ $container->singleton(Bar::class, static function (ContainerInterface $container
 
 $container->singleton('custom.service', new CustomService());
 ```
+
+## Definition planning
+
+Explicit registrations are represented internally as immutable service definitions and compiled into
+a container plan before resolution. This preserves the existing `set()`, `singleton()`, `tag()` and
+`tagged()` API while separating registration metadata from lazy runtime resolution. The plan does
+not generate PHP code and does not change the singleton, transient, factory or autowiring contracts.
+
+`Container::compile()` creates the current compiled snapshot/plan; it is not a hard freeze of
+registration. Legacy registration calls after compilation can invalidate and rebuild that plan under
+their existing compatibility semantics. New code should still register definitions in a provider's
+`register()` phase and must not mutate root definitions during runtime dispatch.
+
+Definition-based service providers receive `ContainerBuilderInterface`, which exposes only
+definition registration and compilation. Runtime resolution and side effects belong in a bootable
+provider's `boot(ContainerInterface $container)` phase after all providers have registered.
+
+## Service lifetimes and scopes
+
+`set()` and `transient()` create a fresh service value for every resolution. `singleton()` caches a
+service in the root container. `scoped()` caches a service only in the active request, command or
+job scope.
+
+```php
+use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Container\ScopeKind;
+use Psr\Http\Message\ServerRequestInterface;
+
+$builder->scoped(CurrentRequestContext::class, CurrentRequestContext::class);
+
+$scope = $scopeFactory->beginScope(ScopeKind::Request);
+
+try {
+    $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+    $context = $scope->get(CurrentRequestContext::class);
+} finally {
+    $scope->close();
+}
+```
+
+`ScopeFactoryInterface::beginScope()` returns a `ScopedContainerInterface`. A scoped service cannot
+be resolved from the root container. Within one scope, its complete decorated result is cached;
+separate scopes receive separate instances. Singleton instances remain cached in and shared by the
+root container across all scopes, while transient services are always rebuilt.
+
+`close()` discards the scope cache and is idempotent. A closed scope cannot resolve further
+services. Factories, callable decorators and contextual bindings receive the active runtime
+container, so a scoped dependency remains in the same scope throughout resolution.
+
+`ScopedContainerInterface::bindScopedInstance()` adds an object value only to the current scope.
+It takes precedence over root bindings and is discarded by `close()`. Each scope automatically
+binds itself under both `ContainerInterface::class` and `ScopedContainerInterface::class`, so
+runtime factories and services can retrieve the active scope without changing the root container.
+`hasScopedBinding()` distinguishes this scope-local overlay from a root binding when an integration
+must enforce a request-local contract.
+
+`ScopedContainerInterface` is a runtime resolver and scope-local binding boundary, not a service
+registration API. `bindScopedInstance()` is its only write API; it adds an object only to the active
+scope. `set()`, `singleton()`, `singletonTagged()`, `tag()` and `setDiagnosticLogger()` are retained
+only because the legacy `ContainerInterface` requires them, and reject calls with
+`ScopedContainerMutationException`. Middleware, controllers, commands and job handlers must register
+root services during provider registration instead. This prevents a runtime mutation in a long-running
+queue worker from affecting later jobs.
+
+A singleton must never depend on a scoped service, directly or through a contextual binding or
+alias. The container rejects that resolution with a dedicated exception. Scoped services may depend
+on singletons, and transients may depend on scoped services only when they are resolved from an
+active scope.
+
+`Kernel::run()` automatically creates a `Request` scope, binds the PSR-7 request only in that scope,
+and closes it in `finally`, including error and health-fast-path responses. HTTP middleware,
+dispatch and controller resolution use this active scope. `CliKernel` creates a `Command` scope
+only for a selected command, binding `CommandContext`, `CommandInput` and `CommandOutput`; list,
+help and unknown-command handling remain scope-free. Queue class-string handlers run in an
+isolated `Job` scope with `JobContext`, plus `QueuedMessage` for asynchronously dequeued work.
+Synchronous queue dispatch also creates its own Job scope instead of reusing an active Request
+scope. Legacy queue callables remain compatible, but are not resolved through the container.
+
+The in-memory event dispatcher is not scope-aware. Do not rely on event listeners receiving scoped
+dependencies; a scoped dispatcher/listener invoker design remains future work.
+
+This replaces the older root-container request binding that was available before application
+providers registered. The replacement is intentionally breaking: `register()` and `boot()` must not
+read a current request. Put request-dependent decisions in middleware, a scoped service, or a
+controller instead. The root container must never contain a request-specific
+`ServerRequestInterface` binding.
+
+HTTP runtime is scope-capable by contract: the kernel requires a container implementing
+ScopeFactoryInterface, and framework HTTP providers require ContainerBuilderInterface to declare
+their scoped definitions. This is intentional; the framework does not provide a fallback for
+containers that cannot create request scopes.
+
+## Service aliases
+
+Definition providers may declare an explicit alias through `ContainerBuilderInterface::alias()`. An
+alias maps one service ID to a canonical target ID; it never creates a second binding or instance.
+Alias chains are canonicalized when the container plan compiles, and cycles fail fast.
+
+```php
+$builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+$builder->alias('invoice.importer', InvoiceImporter::class);
+```
+
+Resolving either ID follows the canonical service definition, so singleton aliases share identity
+and transient aliases retain transient behavior. Aliases must not collide with service definitions,
+must not target themselves, and must point to an existing service or autowireable concrete class at
+runtime.
+
+## Service decorators
+
+Definition providers may wrap an explicit service with `decorate()`. A callable decorator receives
+the runtime container and the previous service value. Class decorators implement
+`ServiceDecoratorInterface`; their `decorate()` method receives the previous value explicitly while
+their constructor can use normal autowiring.
+
+```php
+$builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+$builder->decorate(
+    InvoiceImporter::class,
+    static fn(ContainerInterface $container, mixed $inner): CachedInvoiceImporter => new CachedInvoiceImporter($inner),
+    priority: 100,
+);
+```
+
+Decorators are applied by descending priority; equal priorities retain registration order. Decoration
+always attaches to the canonical ID, so decorating an alias affects its target. The complete
+decorated chain is cached for singleton and instance definitions; transient definitions rebuild both
+their base service and decorator chain for every resolution.
+
+## Contextual bindings
+
+Contextual bindings provide an explicit dependency or constructor-parameter value for one consumer
+only. They take precedence over ordinary service bindings and autowiring, and never infer values
+from parameter names, environment variables or configuration files.
+
+```php
+$builder->when(BackofficeExporter::class)
+    ->needs(ClockInterface::class)
+    ->give(FrozenClock::class);
+
+$builder->when(CsvImporter::class)
+    ->parameter('delimiter')
+    ->value(';');
+
+$builder->when(S3Storage::class)
+    ->parameter('config')
+    ->config(StorageConfig::class);
+```
+
+`give()` resolves a service ID or class through the container, invokes an explicit closure or
+non-object callable factory, or uses an explicit object. An invokable object is still an explicit
+object value, not a factory. `value()` supplies a literal parameter value. `config()` resolves the
+named typed config service normally; it does not read configuration or environment state directly.
+
+Scalar parameters are always explicit: use `parameter()->value()`,
+`parameter()->config()`, a constructor default, or an explicit factory. The framework never maps a
+scalar from its parameter name, an environment variable, or a configuration key automatically.
 
 ## Tagged services
 
@@ -59,13 +222,15 @@ widget providers, health checks and extension providers; tagging alone never act
 
 ## String service identifiers
 
-String service identifiers are supported and are used by some framework providers as convenient aliases.
+String service identifiers are supported and are used by some framework providers as stable binding
+IDs. A string service ID is not a service alias; explicit aliases use
+`ContainerBuilderInterface::alias()`.
 
 ```php
 $container->singleton('custom.service', new CustomService());
 ```
 
-New application and framework code should resolve services through constructor DI, service provider factories, explicit view data, or `$helpers` / `$requestHelpers` in views. Controller service helpers are for controller infrastructure and common framework services; they are not a replacement for constructor DI in action controllers.
+New application and framework code should resolve services through constructor DI, service provider factories, explicit view data, or `$helpers` / `$requestHelpers` in views. Controller service helpers are `AbstractController` convenience APIs; `controllerService()` is a generic lookup escape hatch, not a replacement for constructor DI in action controllers.
 
 For example, use controller services instead of resolving common services globally:
 
@@ -87,10 +252,16 @@ Autowiring is available for concrete classes, but it is intentionally limited:
 - unbound concrete classes can be instantiated through reflection
 - class-typed constructor parameters can be resolved recursively
 - interfaces must be explicitly bound in the container
-- scalar and builtin constructor parameters must have default values or be provided by a factory
+- scalar and builtin constructor parameters must have default values, an explicit contextual
+  `parameter()->value()` or `parameter()->config()` binding, or be provided by a factory
 - non-instantiable classes fail early
 - missing services fail with a service-not-found exception
 
-The container may report autowiring fallback usage for selected application and framework services when diagnostics are enabled. This encourages explicit service registration without removing the convenience of resolving simple concrete classes.
+The container may report concrete-class autowiring fallback usage when diagnostics are enabled. This encourages explicit service registration without removing the convenience of resolving simple concrete classes.
+
+Fallback reporting is an explicit diagnostics policy, not a naming convention: when enabled, the
+container reports every concrete-class autowiring fallback once per service ID. It never infers
+reportability from a namespace, directory or class-name suffix. Applications can disable reporting
+through the existing `container.autowire_fallback_warning` typed configuration.
 
 This keeps the container useful for small object graphs while making important service wiring visible in service providers.

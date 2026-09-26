@@ -5,7 +5,7 @@
 [![Lint](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Lemonade Framework is a modular PHP 8.1+ application framework for maintainable web applications, administration systems, CMS projects and integration-oriented services.
+Lemonade Framework is a modular PHP 8.3+ application framework for maintainable web applications, administration systems, CMS projects and integration-oriented services.
 
 It combines a PSR-based HTTP runtime, a PSR-11 compatible service container, provider-based bootstrap, routing, a CLI kernel and reusable infrastructure for long-lived application development.
 
@@ -63,9 +63,11 @@ composer install
 
 Required platform requirements:
 
-- PHP `>= 8.1`
+- PHP `>= 8.3 < 8.6`
 - `ext-fileinfo`
 - `ext-mbstring`
+
+Official support covers PHP 8.3, 8.4 and 8.5. The syntax and runtime target is PHP 8.3: new framework source and generated PHP source must remain PHP 8.3 compatible, even when development or CI runs on PHP 8.4 or 8.5. Framework source does not use PHP 8.4+ syntax.
 
 Composer installs the required PSR and Nyholm packages automatically.
 
@@ -87,32 +89,32 @@ The framework source is organized into focused modules under `src/`. Application
 
 ### Runtime, HTTP and Routing
 
-- `Core` — application context, HTTP and CLI kernels, provider bootstrap, controller dispatch and response normalization
-- `Http` — PSR-7 request and response handling, PSR-15 middleware pipeline, response emitting and Nyholm PSR-17 integration
+- `Core` — application context, HTTP and CLI kernels, provider bootstrap, controller dispatch and response normalization; each HTTP run uses an isolated Request scope
+- `Http` — PSR-7 request and response handling, PSR-15 middleware pipeline, response emitting, `HttpStatus` enum and Nyholm PSR-17 integration
 - HTTP middleware for errors, CORS, `OPTIONS`, request logging, benchmarks, HTML minification and response headers
 - `Routing` — normalized route paths, route collections, named routes and URL generation, route groups, localized routes and convention-based fallback routing
 - `Api` — configurable endpoint registry, health endpoint, OpenAPI and HTML documentation, Problem Details responses, and bearer-token scope authorization
 
 ### Container, Providers and Configuration
 
-- `Container` — PSR-11 compatible dependency injection with explicit bindings, singleton services and conservative autowiring
-- `ServiceProviderInterface` — explicit registration and composition of framework, application and integration services
+- `Container` — PSR-11 compatible, definition-based dependency injection with transient, singleton and scoped lifetimes; aliases, decorators, contextual bindings and conservative autowiring
+- `ServiceProviderInterface` — explicit registration and composition of framework, application and integration services, with bootstrap-safe provider constructor DI and dependency ordering
 - `Config` — YAML application configuration mapped to typed definitions and runtime DTOs, environment values and production config caching
 - package extension points for application providers, API endpoint providers, event listeners, sitemap providers, views and components
 
 ### CLI and Operations
 
-- `Cli` and `bin/lemonade` — command interface, command registry and a CLI kernel sharing the configured application services
+- `Cli` and `bin/lemonade` — lazy command definitions, command registry and a CLI kernel; a selected command runs in its own Command scope with `CommandContext`, `CommandInput` and `CommandOutput`
 - command-driven operations such as migrations, queue installation and workers, and sitemap generation; suitable for cron-driven tasks
 - `Discovery` — configurable `robots.txt`, sitemap and sitemap-index generation
 
 ### Data, State and Integration
 
-- `Database` — PDO, MySQLi and ODBC drivers, schema tools and migrations; no ORM is required
+- `Database` — PDO, MySQLi and ODBC drivers, schema tools, migrations and explicit migration-directory discovery; no ORM is required
 - `Cache` — PSR-6 cache pools with file, array and null stores
 - `Filesystem` and `Session` — storage and session services
 - `Event` — in-memory event dispatcher with registered listeners and priorities
-- `Queue` — synchronous and database-backed transports, message serialization, delayed jobs and worker commands
+- `Queue` — synchronous and database-backed transports, message serialization, delayed jobs and worker commands; class-string handlers run in isolated Job scopes
 - optional PSR-18 HTTP client providers for Guzzle, Symfony HTTP Client and PHP-HTTP cURL transport
 
 ### Application Building Blocks
@@ -170,30 +172,39 @@ return static function (Router $router): void {
 
 ### Controller
 
-Controllers extend `Lemonade\Framework\Core\AbstractController`.
+New controllers are plain `final` classes with explicit constructor dependencies. The
+framework resolves them in the active Request scope, and action methods must be `public`.
 
 ```php
 <?php
 
 namespace App\Controllers;
 
-use Lemonade\Framework\Core\AbstractController;
-use Psr\Http\Message\ResponseInterface;
-
-final class HomeController extends AbstractController
+final class HomeController
 {
-    public function index(): ResponseInterface
+    public function __construct(
+        private readonly HomePage $homePage,
+    ) {}
+
+    public function index(): string
     {
-        return $this->html('<h1>Hello</h1>');
+        return $this->homePage->render();
     }
 }
 ```
 
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
 
+`AbstractController` remains available as a convenience facade for server-rendered
+controllers, but it holds mutable runtime context and must not be registered as a
+singleton. See the [controller documentation](docs/controllers.md).
+
 ### Service Provider
 
 Application services are registered through providers.
+
+New providers can separate definition registration from runtime initialization through the
+`register()` / `boot()` lifecycle. See [service provider documentation](docs/service-providers.md).
 
 ```php
 <?php
@@ -319,6 +330,8 @@ vendor/bin/lemonade products:import
 ## Documentation
 
 Detailed documentation lives in [docs/index.md](docs/index.md).
+
+For lifecycle details, see [HTTP flow](docs/http-flow.md), [CLI flow](docs/cli-flow.md), [service container](docs/service-container.md), [service providers](docs/service-providers.md), [database migrations](docs/database.md#migrations) and [infrastructure modules](docs/infrastructure.md).
 
 ## ORM Integration
 

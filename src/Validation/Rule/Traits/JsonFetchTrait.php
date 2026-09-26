@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation\Rule\Traits;
 
+use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
@@ -23,7 +24,7 @@ trait JsonFetchTrait
 
             $response = $this->jsonFetchClient()->sendRequest($request);
 
-            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            if ($response->getStatusCode() < HttpStatus::OK->value || $response->getStatusCode() >= HttpStatus::MULTIPLE_CHOICES->value) {
                 return null;
             }
 
@@ -51,7 +52,7 @@ trait JsonFetchTrait
 
             $response = $this->jsonFetchClient()->sendRequest($request);
 
-            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            if ($response->getStatusCode() < HttpStatus::OK->value || $response->getStatusCode() >= HttpStatus::MULTIPLE_CHOICES->value) {
                 return null;
             }
 
@@ -77,7 +78,7 @@ trait JsonFetchTrait
 
             $response = $this->jsonFetchClient()->sendRequest($request);
 
-            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            if ($response->getStatusCode() < HttpStatus::OK->value || $response->getStatusCode() >= HttpStatus::MULTIPLE_CHOICES->value) {
                 return null;
             }
 

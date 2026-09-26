@@ -211,14 +211,20 @@ final class YamlDefinitionLoader
 
         $normalized = [];
 
-        foreach ($commands as $commandClass) {
-            if (!is_string($commandClass) || trim($commandClass) === '') {
+        foreach ($commands as $command) {
+            if (is_string($command) && trim($command) !== '') {
+                $normalized[] = $command;
+
+                continue;
+            }
+
+            if (!is_array($command)) {
                 throw new \InvalidArgumentException(
-                    'Commands config payload must contain only non-empty command class strings.',
+                    'Commands config payload must contain only non-empty command class strings. Command definition mappings are also supported.',
                 );
             }
 
-            $normalized[] = $commandClass;
+            $normalized[] = $command;
         }
 
         return CommandsConfigDefinition::create()->commands($normalized);

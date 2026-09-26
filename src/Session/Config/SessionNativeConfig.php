@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Config;
 
-final class SessionNativeConfig
+final readonly class SessionNativeConfig
 {
     public function __construct(
-        public readonly string $path,
+        public string $path,
     ) {}
 }

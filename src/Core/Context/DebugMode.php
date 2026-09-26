@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Context;
 
-final class DebugMode
+final readonly class DebugMode
 {
     public function __construct(
-        private readonly bool $enabled,
+        private bool $enabled,
     ) {}
 
     public static function enabled(): self

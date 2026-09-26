@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Config;
 
-final class SessionRedisConfig
+final readonly class SessionRedisConfig
 {
     public function __construct(
-        public readonly string $host,
-        public readonly int $port,
-        public readonly int $database,
-        public readonly ?string $password,
-        public readonly string $prefix,
-        public readonly float $timeout,
+        public string $host,
+        public int $port,
+        public int $database,
+        public ?string $password,
+        public string $prefix,
+        public float $timeout,
     ) {}
 }

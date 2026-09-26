@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Queue;
 
+use Lemonade\Framework\Cli\CommandDefinition;
+use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
+use Lemonade\Framework\Queue\Cli\QueueInstallCommand;
+use Lemonade\Framework\Queue\Cli\QueueWorkCommand;
 use Lemonade\Framework\Queue\Config\QueueConfig;
 use Lemonade\Framework\Queue\Config\QueueConfigDefinition;
 use Lemonade\Framework\Queue\Config\QueueConfigResolver;
@@ -28,6 +33,20 @@ final class QueueServiceProvider implements ServiceProviderInterface
                 ));
         });
         $container->singleton(MessageSerializer::class, MessageSerializer::class);
+        $container->singleton(JobHandlerRegistry::class, JobHandlerRegistry::class);
+        $container->singleton(JobHandlerInvoker::class, static function (ContainerInterface $container): JobHandlerInvoker {
+            if (!$container instanceof ScopeFactoryInterface) {
+                throw new \LogicException(sprintf(
+                    'Queue handler invocation requires a container implementing %s.',
+                    ScopeFactoryInterface::class,
+                ));
+            }
+
+            return new JobHandlerInvoker(
+                handlers: $container->get(JobHandlerRegistry::class),
+                scopeFactory: $container,
+            );
+        });
         $container->singleton(SyncQueueTransport::class, SyncQueueTransport::class);
         $container->singleton(DatabaseQueueTransport::class, static function (ContainerInterface $container): DatabaseQueueTransport {
             $config = $container->get(QueueConfig::class);
@@ -58,7 +77,13 @@ final class QueueServiceProvider implements ServiceProviderInterface
                 $transports['sync'] = $container->get(SyncQueueTransport::class);
             }
 
-            $bus = new QueueBus($container, $transports, $default);
+            $bus = new QueueBus(
+                container: $container,
+                transports: $transports,
+                defaultTransport: $default,
+                handlers: $container->get(JobHandlerRegistry::class),
+                invoker: $container->get(JobHandlerInvoker::class),
+            );
 
             foreach ($handlers as $messageClass => $handler) {
                 if (!is_string($messageClass)) {
@@ -84,5 +109,18 @@ final class QueueServiceProvider implements ServiceProviderInterface
         });
 
         $container->singleton('queue', QueueBusInterface::class);
+        if ($container->isBound(CommandRegistry::class)) {
+            $commands = $container->get(CommandRegistry::class);
+            $commands->registerDefinition(new CommandDefinition(
+                name: 'queue:install',
+                commandClass: QueueInstallCommand::class,
+                description: 'Create queue tables for database transport.',
+            ));
+            $commands->registerDefinition(new CommandDefinition(
+                name: 'queue:work',
+                commandClass: QueueWorkCommand::class,
+                description: 'Process queued jobs from an async transport.',
+            ));
+        }
     }
 }

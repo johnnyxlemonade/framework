@@ -174,16 +174,23 @@ final class ControllerResolverTest extends TestCase
         $container->singleton(ResponseFactoryInterface::class, $psr17);
         $container->singleton(StreamFactoryInterface::class, $psr17);
 
-        $resolver = new ControllerResolver($container, new Benchmark());
+        $firstRequest = $psr17->createServerRequest('GET', '/first');
+        $firstScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
+        $firstScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $firstRequest);
+        $firstResponse = (new ControllerResolver($firstScope, new Benchmark()))->handle(
+            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
+            $firstRequest,
+        );
+        $firstScope->close();
 
-        $firstResponse = $resolver->handle(
+        $secondRequest = $psr17->createServerRequest('GET', '/second');
+        $secondScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
+        $secondScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $secondRequest);
+        $secondResponse = (new ControllerResolver($secondScope, new Benchmark()))->handle(
             new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
-            $psr17->createServerRequest('GET', '/first'),
+            $secondRequest,
         );
-        $secondResponse = $resolver->handle(
-            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
-            $psr17->createServerRequest('GET', '/second'),
-        );
+        $secondScope->close();
 
         self::assertSame('/first', (string) $firstResponse->getBody());
         self::assertSame('/second', (string) $secondResponse->getBody());
@@ -229,6 +236,56 @@ final class ControllerResolverTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Action "' . LegacyHelperController::class . '::missing" not found.');
         $resolver->handle(new RouteMatch(LegacyHelperController::class, 'missing'), $this->request());
+    }
+
+    public function testLegacyControllerContextIsInitializedOnlyAfterActionIsValid(): void
+    {
+        LegacyContextInspectionController::$lastInstance = null;
+        $resolver = $this->resolver();
+
+        try {
+            $resolver->handle(new RouteMatch(LegacyContextInspectionController::class, 'missing'), $this->request());
+            self::fail('Expected missing action to throw.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('not found', $exception->getMessage());
+        }
+
+        self::assertInstanceOf(LegacyContextInspectionController::class, LegacyContextInspectionController::$lastInstance);
+        self::assertFalse(LegacyContextInspectionController::$lastInstance->contextIsInitialized());
+
+        $response = $resolver->handle(
+            new RouteMatch(LegacyContextInspectionController::class, 'index'),
+            $this->request(),
+        );
+
+        self::assertSame('/', (string) $response->getBody());
+        self::assertInstanceOf(LegacyContextInspectionController::class, LegacyContextInspectionController::$lastInstance);
+        self::assertTrue(LegacyContextInspectionController::$lastInstance->contextIsInitialized());
+    }
+
+    /**
+     * @dataProvider nonPublicActionProvider
+     */
+    public function testNonPublicActionThrowsBeforeInvocation(string $action): void
+    {
+        NonPublicActionController::$invoked = false;
+        $resolver = $this->resolver();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Controller action "' . NonPublicActionController::class . '::' . $action . '" must be public.');
+
+        try {
+            $resolver->handle(new RouteMatch(NonPublicActionController::class, $action), $this->request());
+        } finally {
+            self::assertFalse(NonPublicActionController::$invoked);
+        }
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function nonPublicActionProvider(): iterable
+    {
+        yield 'protected action' => ['protectedAction'];
+        yield 'private action' => ['privateAction'];
     }
 
     public function testInvalidReturnValueThrowsRuntimeExceptionForPlainController(): void
@@ -387,6 +444,32 @@ final class LegacyHelperController extends AbstractController
     }
 }
 
+final class LegacyContextInspectionController extends AbstractController
+{
+    public static ?self $lastInstance = null;
+
+    public function __construct()
+    {
+        self::$lastInstance = $this;
+    }
+
+    public function index(): string
+    {
+        return $this->request()->getUri()->getPath();
+    }
+
+    public function contextIsInitialized(): bool
+    {
+        try {
+            $this->request();
+
+            return true;
+        } catch (RuntimeException) {
+            return false;
+        }
+    }
+}
+
 final class PlainInvalidReturnController
 {
     /**
@@ -406,6 +489,26 @@ final class LegacyInvalidReturnController extends AbstractController
     public function index(): array
     {
         return ['invalid' => 'return'];
+    }
+}
+
+final class NonPublicActionController
+{
+    public static bool $invoked = false;
+
+    protected function protectedAction(): string
+    {
+        self::$invoked = true;
+
+        return 'protected';
+    }
+
+    // @phpstan-ignore-next-line
+    private function privateAction(): string
+    {
+        self::$invoked = true;
+
+        return 'private';
     }
 }
 

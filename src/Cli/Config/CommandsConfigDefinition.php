@@ -25,7 +25,7 @@ final class CommandsConfigDefinition extends AbstractConfigDefinition
         return $this;
     }
 
-    /** @param list<string> $commands */
+    /** @param list<string|array<mixed>> $commands */
     public function commands(array $commands): self
     {
         $this->data = array_values($commands);

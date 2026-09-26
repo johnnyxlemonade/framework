@@ -6,7 +6,9 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\AbstractController;
+use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -25,6 +27,7 @@ use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\View;
 use Lemonade\Framework\View\ViewHelpers;
+use JsonException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -59,7 +62,7 @@ final class ControllerTest extends TestCase
         $controller = new ControllerTestSubject();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Controller context is not initialized. Missing ControllerResponses.');
+        $this->expectExceptionMessage('Controller context is not initialized. Missing ControllerContext.');
 
         $controller->exposedText('Hello');
     }
@@ -199,6 +202,15 @@ final class ControllerTest extends TestCase
         self::assertSame('Custom', (string) $response->getBody());
     }
 
+    public function testJsonResponseHelperThrowsWhenPayloadCannotBeEncoded(): void
+    {
+        $controller = $this->controller($this->request());
+
+        $this->expectException(JsonException::class);
+
+        $controller->exposedJson(['invalid' => INF]);
+    }
+
     public function testDownloadHelperCreatesAttachmentResponse(): void
     {
         $filePath = tempnam(sys_get_temp_dir(), 'lemonade-controller-download-');
@@ -333,6 +345,107 @@ final class ControllerTest extends TestCase
             self::assertSame('/second', $controller->exposedView()->render('current'));
         } finally {
             @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
+    public function testViewHelperDoesNotLeakWhenThePreviousRequestDoesNotRender(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents($viewsPath . DIRECTORY_SEPARATOR . 'current.php', '<?= $requestHelpers?->currentPath() ?? "missing" ?>');
+
+        try {
+            $container = new Container();
+            $view = new View($viewsPath);
+            $container->singleton(View::class, $view);
+            $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+            $this->registerViewHelpers($container);
+
+            $requestA = $this->controller(
+                $this->request(uri: 'https://example.test/request-a'),
+                $container,
+            );
+            $requestA->exposedView();
+
+            self::assertSame('missing', $view->render('current'));
+        } finally {
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
+    public function testViewHelperRemainsAvailableForRepeatedRendersInTheSameRequest(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents($viewsPath . DIRECTORY_SEPARATOR . 'current.php', '<?= $requestHelpers->currentPath() ?>');
+
+        try {
+            $container = new Container();
+            $container->singleton(View::class, new View($viewsPath));
+            $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+            $this->registerViewHelpers($container);
+
+            $previousRequest = $this->request(uri: 'https://example.test/previous');
+            $previousController = $this->controller(
+                $previousRequest,
+                $container,
+            );
+            $previousRender = $previousController->exposedView()->render('current');
+
+            $currentRequest = $this->request(uri: 'https://example.test/current');
+            $controller = $this->controller(
+                $currentRequest,
+                $container,
+            );
+            $firstRender = $controller->exposedView()->render('current');
+            $secondRender = $controller->exposedView()->render('current');
+
+            self::assertSame($previousRequest->getUri()->getPath(), $previousRender);
+            self::assertSame($currentRequest->getUri()->getPath(), $firstRender);
+            self::assertSame($firstRender, $secondRender);
+            self::assertNotSame($previousRender, $firstRender);
+        } finally {
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
+    public function testViewUsesComponentsFromTheActiveRequestScope(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents($viewsPath . DIRECTORY_SEPARATOR . 'component.php', '<?= $component->get("request")->path() ?>');
+
+        $container = new Container();
+        $container->singleton(View::class, new View($viewsPath));
+        $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+        $this->registerViewHelpers($container);
+        $container->scoped(
+            RequestScopedViewComponent::class,
+            static fn(ContainerInterface $container): RequestScopedViewComponent => new RequestScopedViewComponent(
+                $container->get(ServerRequestInterface::class),
+            ),
+        );
+        $container->set(ComponentRegistry::class, static function (ContainerInterface $container): ComponentRegistry {
+            $components = new ComponentRegistry($container);
+            $components->register('request', RequestScopedViewComponent::class);
+
+            return $components;
+        });
+
+        $scope = $container->beginScope(ScopeKind::Request);
+        $request = $this->request(uri: 'https://example.test/scoped-component');
+        $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+
+        try {
+            $controller = $this->controller($request, $scope);
+
+            self::assertSame('/scoped-component', $controller->exposedView()->render('component'));
+        } finally {
+            $scope->close();
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'component.php');
             @rmdir($viewsPath);
         }
     }
@@ -774,4 +887,16 @@ final class ControllerTestSubject extends AbstractController
         return $this->app();
     }
 
+}
+
+final class RequestScopedViewComponent
+{
+    public function __construct(
+        private readonly ServerRequestInterface $request,
+    ) {}
+
+    public function path(): string
+    {
+        return $this->request->getUri()->getPath();
+    }
 }

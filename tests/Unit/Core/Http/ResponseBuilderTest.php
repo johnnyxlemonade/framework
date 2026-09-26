@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Core\Http;
 
+use JsonException;
 use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
@@ -59,6 +60,15 @@ final class ResponseBuilderTest extends TestCase
             '{"url":"https://example.com/a/b","text":"Příliš žluťoučký kůň"}',
             (string) $response->getBody(),
         );
+    }
+
+    public function testJsonThrowsWhenPayloadCannotBeEncoded(): void
+    {
+        $builder = $this->builder();
+
+        $this->expectException(JsonException::class);
+
+        $builder->json(['invalid' => INF]);
     }
 
     public function testRedirectSetsStatusAndLocationHeader(): void

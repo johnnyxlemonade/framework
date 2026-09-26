@@ -10,6 +10,7 @@ use Lemonade\Framework\Component\Pagination\Config\PaginationConfigResolver;
 use Lemonade\Framework\Component\Support\ComponentConfig;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\ProviderContainerAssertions;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -18,6 +19,8 @@ final class PaginationServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
+        $builder = ProviderContainerAssertions::builder($container, self::class, 'request-scoped services');
+
         $container->singleton(PaginationConfigResolver::class, PaginationConfigResolver::class);
         $container->singleton(PaginationConfig::class, static function (ContainerInterface $container): PaginationConfig {
             return $container
@@ -27,7 +30,7 @@ final class PaginationServiceProvider implements ServiceProviderInterface
                     PaginationConfigDefinition::class,
                 ));
         });
-        $container->singleton(PaginationFactory::class, static function (ContainerInterface $container): PaginationFactory {
+        $builder->scoped(PaginationFactory::class, static function (ContainerInterface $container): PaginationFactory {
             $config = $container->get(PaginationConfig::class);
 
             return new PaginationFactory(
@@ -46,6 +49,7 @@ final class PaginationServiceProvider implements ServiceProviderInterface
                 showFirstLast: $config->showFirstLast,
             );
         });
-        $container->singleton(PaginationComponent::class, PaginationComponent::class);
+        $builder->scoped(PaginationComponent::class, PaginationComponent::class);
     }
+
 }

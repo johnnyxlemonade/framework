@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Localization\Config;
 
-final class LocalizationUrlConfig
+final readonly class LocalizationUrlConfig
 {
     public function __construct(
-        public readonly bool $enabled,
-        public readonly string $localizedRouteNamePrefix,
-        public readonly string $routePrefix,
-        public readonly string $localeParameter,
-        public readonly bool $includeDefaultLocale,
+        public bool $enabled,
+        public string $localizedRouteNamePrefix,
+        public string $routePrefix,
+        public string $localeParameter,
+        public bool $includeDefaultLocale,
     ) {}
 }

@@ -149,6 +149,7 @@ final class RouteCollection
             action: $route->action(),
             params: $params,
             middleware: $route->middlewareStack(),
+            name: $route->routeName(),
         );
     }
 

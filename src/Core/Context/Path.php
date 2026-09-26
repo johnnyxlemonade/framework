@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Context;
 
-final class Path
+final readonly class Path
 {
     public function __construct(
-        private readonly string $basePath,
-        private readonly ?string $publicPath = null,
+        private string $basePath,
+        private ?string $publicPath = null,
     ) {}
 
     public function base(): string

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Config;
 
-final class CorsConfig
+final readonly class CorsConfig
 {
     /**
      * @param list<non-empty-string> $allowedOrigins
@@ -13,12 +13,12 @@ final class CorsConfig
      * @param list<non-empty-string> $exposedHeaders
      */
     public function __construct(
-        public readonly bool $enabled,
-        public readonly array $allowedOrigins,
-        public readonly array $allowedMethods,
-        public readonly array $allowedHeaders,
-        public readonly array $exposedHeaders,
-        public readonly bool $allowCredentials,
-        public readonly ?int $maxAge,
+        public bool $enabled,
+        public array $allowedOrigins,
+        public array $allowedMethods,
+        public array $allowedHeaders,
+        public array $exposedHeaders,
+        public bool $allowCredentials,
+        public ?int $maxAge,
     ) {}
 }

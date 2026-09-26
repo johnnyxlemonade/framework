@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\View\Config;
 
-final class ViewConfig
+final readonly class ViewConfig
 {
     public function __construct(
-        public readonly string $basePath,
+        public string $basePath,
     ) {}
 }

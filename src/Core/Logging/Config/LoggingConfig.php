@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Logging\Config;
 
-final class LoggingConfig
+final readonly class LoggingConfig
 {
     public function __construct(
-        public readonly LoggingChannelConfig $app,
-        public readonly LoggingChannelConfig $error,
-        public readonly LoggingChannelConfig $request,
-        public readonly LoggingChannelConfig $benchmark,
-        public readonly int $requestMinStatus,
-        public readonly bool $errorLogNotFound,
+        public LoggingChannelConfig $app,
+        public LoggingChannelConfig $error,
+        public LoggingChannelConfig $request,
+        public LoggingChannelConfig $benchmark,
+        public int $requestMinStatus,
+        public bool $errorLogNotFound,
     ) {}
 }

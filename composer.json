@@ -1,10 +1,10 @@
 {
   "name": "johnnyxlemonade/framework",
-  "description": "Modular PHP 8.1+ framework with PSR-based HTTP runtime, PSR-11 compatible DI container, provider-based bootstrap and CLI kernel.",
+  "description": "Modular PHP 8.3+ framework with PSR-based HTTP runtime, PSR-11 compatible DI container, provider-based bootstrap and CLI kernel.",
   "type": "library",
   "keywords": [
     "php-framework",
-    "php-8.1",
+    "php-8.3",
     "psr",
     "psr-3",
     "psr-6",
@@ -28,7 +28,7 @@
   ],
   "require": {
     "composer-runtime-api": "^2.2",
-    "php": ">=8.1",
+    "php": ">=8.3 <8.6",
     "ext-fileinfo": "*",
     "ext-mbstring": "*",
     "ext-xmlwriter": "*",
@@ -88,7 +88,7 @@
     "notify-on-install": false,
     "process-timeout": 0,
     "platform": {
-      "php": "8.1.28"
+      "php": "8.3.0"
     },
     "allow-plugins": {
       "infection/extension-installer": false

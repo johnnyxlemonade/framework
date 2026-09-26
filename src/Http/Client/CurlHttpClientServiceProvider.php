@@ -14,7 +14,7 @@ use Psr\Http\Client\ClientInterface;
 
 final class CurlHttpClientServiceProvider implements ServiceProviderInterface
 {
-    private const CURL_CLIENT_CLASS = 'Http\\Client\\Curl\\Client';
+    private const string CURL_CLIENT_CLASS = 'Http\\Client\\Curl\\Client';
 
     public function register(ContainerInterface $container): void
     {

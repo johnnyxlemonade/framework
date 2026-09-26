@@ -31,6 +31,10 @@ available for integrations that need native cache items.
 event class or registered programmatically. Listener classes are resolved through the container and
 callable listeners are supported.
 
+Events are currently not scope-aware: listener resolution does not provide a request, command or
+job scope contract. `EventListenerRegistry` plus a scoped dispatcher/invoker is future P2 work,
+not a current framework feature.
+
 ```yaml
 module: events
 config:
@@ -49,6 +53,16 @@ names, transports or application event-sourcing policy.
 database-backed transports, serialized messages, delayed dispatch and failed-job storage. The default
 configuration is synchronous; applications opt into the database transport explicitly.
 
+Handlers are registered as class strings or legacy callables. Class-string handlers are resolved
+through the container when invoked; this is the preferred form for dependency injection. Handler
+selection prefers the concrete message class, then parent classes, then implemented interfaces.
+Registering the same message class again replaces its prior handler.
+
+`QueueBus` orchestrates transport dispatch and processing. `JobHandlerRegistry` owns this handler
+selection; `JobHandlerInvoker` creates the Job scope and resolves a class-string handler from it.
+This separation is intentional: a legacy callable remains compatible, but is invoked directly and
+is not container-resolved.
+
 ```yaml
 module: queue
 config:
@@ -64,8 +78,21 @@ config:
 
 Create the database tables with `vendor/bin/lemonade queue:install`. Run a worker with
 `vendor/bin/lemonade queue:work [queue] [transport] [max] [sleep-ms]`; a worker requires an
-asynchronous transport such as `database`. Worker lifecycle, deployment supervision and retry policy
-remain application or operations concerns.
+asynchronous transport such as `database`. Worker lifecycle and deployment supervision remain
+application or operations concerns. There is no retry or release mechanism in the queue contract yet.
+
+For an asynchronously dequeued message, success calls `ack()`. A handler failure calls `fail()` and
+then rethrows the original handler exception; if `fail()` itself fails, the resulting exception
+retains the original handler exception. An `ack()` failure does not call `fail()`.
+
+For an asynchronously dequeued message, a successful handler is acknowledged only after it returns.
+When a handler throws, the transport's `fail()` operation runs and the original handler error remains
+the primary failure. An `ack()` error is a transport-confirmation error and does not invoke `fail()`.
+Every handler invocation runs in an isolated `Job` scope. Class-string handlers can inject the
+scope-local `JobContext`; asynchronously dequeued handlers can also inject `QueuedMessage`.
+Synchronous dispatch receives its own Job scope and does not reuse an active HTTP request scope.
+Legacy callables remain supported, but are not container-resolved and therefore cannot receive these
+values through constructor injection.
 
 ## Outbound HTTP Clients
 

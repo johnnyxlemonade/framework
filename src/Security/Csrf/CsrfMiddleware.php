@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Security\Csrf;
 
+use Lemonade\Framework\Http\HttpStatus;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -38,7 +39,7 @@ final class CsrfMiddleware implements MiddlewareInterface
             $body = '419 CSRF token mismatch';
 
             return $this->responseFactory
-                ->createResponse(419)
+                ->createResponse(HttpStatus::CSRF_TOKEN_MISMATCH->value)
                 ->withHeader('Content-Type', 'text/plain; charset=utf-8')
                 ->withHeader(CsrfTokenNames::HEADER, $this->tokens->token())
                 ->withBody($this->responseFactory->createStream($body));

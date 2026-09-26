@@ -11,9 +11,12 @@ public/index.php
 -> Kernel::handle()
    -> create ServerRequest from globals when no request is provided
 -> Kernel::run()
-   -> bind the provided ServerRequestInterface into the container
+   -> load HTTP config definitions once into the root config registry
+   -> create a Request scope
+   -> bind the provided ServerRequestInterface only in that scope
+   -> try the framework health fast-path
+      -> on a public health hit, create and return the response without full bootstrap
 -> Kernel::bootstrap()
-   -> load conventional YAML application config files
    -> apply runtime app config
    -> register core providers
    -> register HTTP provider
@@ -22,17 +25,18 @@ public/index.php
    -> load routes
    -> resolve tagged RouteRegistrarInterface services
    -> finalize and freeze routing
--> Framework::run()
+-> Framework::runInScope()
    -> start or continue benchmark run
    -> resolve global middleware stack
    -> execute PSR-15 middleware pipeline
    -> DispatchRequestHandler
       -> match route
+      -> attach immutable RouteMatch to the request
       -> create controller request handler
       -> resolve route-specific middleware
       -> execute route middleware pipeline
       -> resolve controller
-      -> inject current ServerRequestInterface for this dispatch cycle
+      -> resolve the current scope-bound ServerRequestInterface
       -> resolve action arguments
       -> call controller action
       -> normalize result to PSR response
@@ -59,8 +63,45 @@ $kernel->handle();
 
 ## Notes
 
-When `run()` receives a request, that exact `ServerRequestInterface` is available from the container before application providers register. An explicit requestless `bootstrap()` does not synthesize or bind an HTTP request.
+Each `Kernel::run()` call creates a `Request` scope and binds its exact
+`ServerRequestInterface` only in that scope. Bootstrap and application-provider registration
+remain requestless: the root container never stores a request-specific binding. The scope is closed
+in a `finally` block after a normal response, a not-found response, or any middleware/controller
+exception. This also applies to the health fast path.
+
+Configuration definitions are loaded before the Request scope is created. The health fast-path runs
+after the request is bound locally but before `Kernel::bootstrap()`: a matching public health request
+therefore skips full provider registration, route loading, middleware and controller dispatch. A
+health miss continues with the ordinary bootstrap and request pipeline.
+
+Services resolved for the request pipeline, route middleware, dispatch handler and controller use
+the active scoped container. Therefore `ContainerInterface` injected into a request-scoped or
+transient runtime service resolves to that `ScopedContainerInterface`; root singletons remain shared
+and cannot consume request-local values.
+
+This is a breaking change from older versions that bound `ServerRequestInterface` into the root
+container before provider registration. Providers must not inspect the current request in
+`register()` or `boot()`; use middleware, a scoped service, or a controller for request-dependent
+decisions. Applications using the former provider-request pattern must migrate that composition
+logic separately; the framework provides no root-binding compatibility shim.
+
+`Framework::runInScope()` is the kernel integration API. It accepts only a `Request` scope whose
+scope-local `ServerRequestInterface` binding is the identical object passed as its request argument.
+The guard rejects command/job scopes, a missing local request binding, and a mismatched request.
 
 Bootstrap happens before request dispatch. Global middleware wraps route matching and controller execution. Route-specific middleware wraps the matched controller handler.
 
+After a successful match, `DispatchRequestHandler` adds the immutable `RouteMatch` as the
+`Lemonade\Framework\Routing\RouteRequestAttributes::MATCH` PSR-7 request attribute. Route
+middleware and the controller action receive that same request instance. Global middleware runs
+before routing and therefore must treat this attribute as absent. A non-matched request never
+receives a route-match attribute.
+
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
+
+## HTTP statuses
+
+Framework response paths use the general `Lemonade\Framework\Http\HttpStatus` backed enum
+for named HTTP statuses. PSR-7 response factories still receive the compatible integer through
+`HttpStatus::CASE->value`. The enum is a framework HTTP contract and does not contain
+application or administration-specific error codes.

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config;
 
-use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Core\ServiceProviderLifecycle;
 use LogicException;
 
 final class ProvidersConfigResolver
@@ -22,7 +22,7 @@ final class ProvidersConfigResolver
 
     /**
      * @param array<mixed> $value
-     * @return list<class-string<ServiceProviderInterface>>
+     * @return list<class-string>
      */
     private function resolveProviders(array $value): array
     {
@@ -36,15 +36,14 @@ final class ProvidersConfigResolver
                 ));
             }
 
-            if (!is_subclass_of($providerClass, ServiceProviderInterface::class)) {
+            if (!ServiceProviderLifecycle::supports($providerClass)) {
                 throw new LogicException(sprintf(
-                    'Configured service provider "%s" must implement %s.',
+                    'Configured service provider "%s" must implement a supported provider interface.',
                     $providerClass,
-                    ServiceProviderInterface::class,
                 ));
             }
 
-            /** @var class-string<ServiceProviderInterface> $providerClass */
+            /** @var class-string $providerClass */
             $providers[] = $providerClass;
         }
 

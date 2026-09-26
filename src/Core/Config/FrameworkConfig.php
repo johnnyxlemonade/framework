@@ -4,14 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config;
 
-use Lemonade\Framework\Core\ServiceProviderInterface;
-
-final class FrameworkConfig
+final readonly class FrameworkConfig
 {
-    /**
-     * @param list<class-string<ServiceProviderInterface>> $providers
-     */
+    /** @param list<class-string> $providers */
     public function __construct(
-        public readonly array $providers,
+        public array $providers,
     ) {}
 }

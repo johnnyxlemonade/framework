@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Config;
 
-final class ApiSecurityConfig
+final readonly class ApiSecurityConfig
 {
     public function __construct(
-        public readonly ?StaticBearerConfig $staticBearer,
+        public ?StaticBearerConfig $staticBearer,
     ) {}
 }

@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Pagination;
 
-final class PaginationState
+final readonly class PaginationState
 {
     /**
      * @param array<string, scalar|null> $query
      */
     public function __construct(
-        private readonly int $currentPage,
-        private readonly int $perPage,
-        private readonly int $total,
-        private readonly string $pageName,
-        private readonly string $basePath,
-        private readonly array $query = [],
+        private int $currentPage,
+        private int $perPage,
+        private int $total,
+        private string $pageName,
+        private string $basePath,
+        private array $query = [],
     ) {}
 
     public function currentPage(): int

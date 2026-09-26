@@ -11,7 +11,7 @@ use function sprintf;
 
 final class CacheKeyValidator
 {
-    private const RESERVED_PATTERN = '~[{}()/\\\\@:]~';
+    private const string RESERVED_PATTERN = '~[{}()/\\\\@:]~';
 
     public static function assertValid(string $key): void
     {

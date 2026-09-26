@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Api\Http\Response;
 
 use JsonException;
+use Lemonade\Framework\Http\HttpStatus;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
@@ -19,7 +20,7 @@ final class ApiResponseFactory
      *
      * @throws JsonException
      */
-    public function json(mixed $data, int $status = 200, array $meta = []): ResponseInterface
+    public function json(mixed $data, int $status = HttpStatus::OK->value, array $meta = []): ResponseInterface
     {
         $payload = [
             'data' => $data,
@@ -48,6 +49,6 @@ final class ApiResponseFactory
      */
     public function ok(array $data, array $meta = []): ResponseInterface
     {
-        return $this->json($data, 200, $meta);
+        return $this->json($data, HttpStatus::OK->value, $meta);
     }
 }

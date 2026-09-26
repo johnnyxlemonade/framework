@@ -12,7 +12,7 @@ use Lemonade\Framework\Component\Meta\Tag\TitleTag;
 
 final class Meta extends AbstractMetaEntity
 {
-    private const GENERATOR = 'Lemonade CMS [lemonadeframework.cz]';
+    private const string GENERATOR = 'Lemonade CMS [lemonadeframework.cz]';
 
     public function render(): string
     {

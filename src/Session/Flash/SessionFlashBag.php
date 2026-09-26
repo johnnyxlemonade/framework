@@ -8,7 +8,7 @@ use Lemonade\Framework\Session\Contract\SessionInterface;
 
 final class SessionFlashBag implements FlashBagInterface
 {
-    private const SESSION_KEY = '_flash';
+    private const string SESSION_KEY = '_flash';
 
     public function __construct(
         private readonly SessionInterface $session,

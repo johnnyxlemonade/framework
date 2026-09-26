@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Debug\Dump\Model;
 
-final class DumpNode
+final readonly class DumpNode
 {
     /**
      * @param list<DumpNode> $children
      * @param array<string, scalar|null> $meta
      */
     public function __construct(
-        private readonly string $type,
-        private readonly string $label,
-        private readonly ?string $value = null,
-        private readonly array $children = [],
-        private readonly array $meta = [],
-        private readonly bool $truncated = false,
-        private readonly bool $circular = false,
+        private string $type,
+        private string $label,
+        private ?string $value = null,
+        private array $children = [],
+        private array $meta = [],
+        private bool $truncated = false,
+        private bool $circular = false,
     ) {}
 
     public function type(): string

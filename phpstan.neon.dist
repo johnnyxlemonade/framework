@@ -7,6 +7,10 @@ includes:
     - vendor/phpstan/phpstan-strict-rules/rules.neon
 
 parameters:
+    # Analyse against the framework's syntax and runtime baseline, regardless
+    # of the PHP version running PHPStan.
+    phpVersion: 80300
+
     # Use the highest available PHPStan rule level.
     level: 10
 

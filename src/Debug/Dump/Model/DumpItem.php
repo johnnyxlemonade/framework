@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Debug\Dump\Model;
 
-final class DumpItem
+final readonly class DumpItem
 {
     public function __construct(
-        private readonly int $index,
-        private readonly DumpNode $value,
+        private int $index,
+        private DumpNode $value,
     ) {}
 
     public function index(): int

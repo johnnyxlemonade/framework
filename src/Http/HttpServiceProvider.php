@@ -12,6 +12,7 @@ use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
 use Lemonade\Framework\Api\Security\NullApiAuthenticator;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\ProviderContainerAssertions;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Config\CorsConfigDefinition;
@@ -41,6 +42,8 @@ final class HttpServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
+        $builder = ProviderContainerAssertions::builder($container, self::class, 'scoped HTTP services');
+
         $container->singleton(ErrorPageRenderer::class, ErrorPageRenderer::class);
         $container->singleton(ApiAuthenticatorInterface::class, static fn(): ApiAuthenticatorInterface => new NullApiAuthenticator());
         $container->singleton(ApiConfigResolver::class, ApiConfigResolver::class);
@@ -84,11 +87,11 @@ final class HttpServiceProvider implements ServiceProviderInterface
         $container->singleton(PoweredByMiddleware::class, PoweredByMiddleware::class);
         $container->singleton(RequestLoggingMiddleware::class, RequestLoggingMiddleware::class);
         $container->singleton(BenchmarkMiddleware::class, BenchmarkMiddleware::class);
-        $container->singleton(DispatchRequestHandler::class, DispatchRequestHandler::class);
+        $builder->scoped(DispatchRequestHandler::class, DispatchRequestHandler::class);
         $container->singleton(CorsMiddleware::class, CorsMiddleware::class);
         $container->singleton(HtmlMinifyMiddleware::class, HtmlMinifyMiddleware::class);
         $container->singleton(OptionsMiddleware::class, OptionsMiddleware::class);
-        $container->singleton(MiddlewareResolver::class, MiddlewareResolver::class);
+        $builder->scoped(MiddlewareResolver::class, MiddlewareResolver::class);
         $container->singleton(MiddlewareStack::class, static fn(): MiddlewareStack => new MiddlewareStack([
             RequestLoggingMiddleware::class,
             BenchmarkMiddleware::class,
@@ -104,4 +107,5 @@ final class HttpServiceProvider implements ServiceProviderInterface
         $container->singleton(HttpRequestInspector::class, HttpRequestInspector::class);
         $container->singleton(HttpLogContext::class, HttpLogContext::class);
     }
+
 }

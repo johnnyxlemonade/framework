@@ -8,10 +8,10 @@ use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Controller\ControllerContext;
-use Lemonade\Framework\Core\Controller\ControllerResponses;
 use Lemonade\Framework\Core\Controller\ControllerServices;
 use Lemonade\Framework\Core\Http\RequestData;
 use Lemonade\Framework\Filesystem\Filesystem;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Request\HttpMethod;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
@@ -39,7 +39,6 @@ use RuntimeException;
 abstract class AbstractController
 {
     private ?ControllerContext $controllerContext = null;
-    private ?ControllerResponses $controllerResponses = null;
     private ?ControllerServices $controllerServices = null;
 
     /**
@@ -47,7 +46,7 @@ abstract class AbstractController
      *
      * This framework-managed entrypoint stores the current request, response
      * factory, stream factory, and service container, then creates the
-     * controller context, response helpers, and service accessors used by
+     * controller context and service accessors used by
      * derived controllers.
      */
     final public function setControllerContext(
@@ -60,10 +59,6 @@ abstract class AbstractController
             request: $request,
             responseFactory: $responseFactory,
             streamFactory: $streamFactory,
-        );
-
-        $this->controllerResponses = new ControllerResponses(
-            $this->controllerContext->responseBuilder(),
         );
 
         $this->controllerServices = new ControllerServices($container, $request);
@@ -392,35 +387,37 @@ abstract class AbstractController
     /**
      * Creates a plain text response.
      */
-    protected function text(string $content, int $status = 200): ResponseInterface
+    protected function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
-        return $this->responses()->text($content, $status);
+        return $this->runtime()->responseBuilder()->text($content, $status);
     }
 
     /**
      * Creates an HTML response.
      */
-    protected function html(string $content, int $status = 200): ResponseInterface
+    protected function html(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
-        return $this->responses()->html($content, $status);
+        return $this->runtime()->responseBuilder()->html($content, $status);
     }
 
     /**
      * Creates a JSON response from the provided payload.
      *
      * @param array<string, mixed> $payload
+     *
+     * @throws \JsonException
      */
-    protected function json(array $payload, int $status = 200): ResponseInterface
+    protected function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
     {
-        return $this->responses()->json($payload, $status);
+        return $this->runtime()->responseBuilder()->json($payload, $status);
     }
 
     /**
      * Creates a redirect response.
      */
-    protected function redirect(string $to, int $status = 302): ResponseInterface
+    protected function redirect(string $to, int $status = HttpStatus::FOUND->value): ResponseInterface
     {
-        return $this->responses()->redirect($to, $status);
+        return $this->runtime()->responseBuilder()->redirect($to, $status);
     }
 
     /**
@@ -431,7 +428,7 @@ abstract class AbstractController
         ?string $downloadName = null,
         string $contentType = 'application/octet-stream',
     ): ResponseInterface {
-        return $this->responses()->download($filePath, $downloadName, $contentType);
+        return $this->runtime()->responseBuilder()->download($filePath, $downloadName, $contentType);
     }
 
     /**
@@ -439,10 +436,10 @@ abstract class AbstractController
      */
     protected function response(
         string $content = '',
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/html; charset=UTF-8',
     ): ResponseInterface {
-        return $this->responses()->response($content, $status, $contentType);
+        return $this->runtime()->responseBuilder()->response($content, $status, $contentType);
     }
 
     /**
@@ -453,11 +450,11 @@ abstract class AbstractController
      */
     protected function stream(
         callable $producer,
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/plain; charset=UTF-8',
         array $headers = [],
     ): ResponseInterface {
-        return $this->responses()->stream($producer, $status, $contentType, $headers);
+        return $this->runtime()->responseBuilder()->stream($producer, $status, $contentType, $headers);
     }
 
     /**
@@ -593,15 +590,6 @@ abstract class AbstractController
     private function requestData(): RequestData
     {
         return $this->runtime()->requestData();
-    }
-
-    private function responses(): ControllerResponses
-    {
-        if (!$this->controllerResponses instanceof ControllerResponses) {
-            throw new RuntimeException('Controller context is not initialized. Missing ControllerResponses.');
-        }
-
-        return $this->controllerResponses;
     }
 
     private function services(): ControllerServices

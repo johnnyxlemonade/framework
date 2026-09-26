@@ -100,6 +100,11 @@ $components->meta();
 
 These accessors exist only for framework-provided components.
 
+`pagination()` is request-scoped because its factory derives page and URL defaults from the
+current request. Resolve it from a controller, route middleware, or the `$component` registry
+provided to a controller-rendered view; do not resolve pagination from a root provider or other
+bootstrap code.
+
 Custom components intentionally use `get('name')` or `get('name', ExpectedClass::class)` instead of dynamic methods. This keeps the registry explicit and avoids magic method calls.
 
 ## Overriding Framework Components

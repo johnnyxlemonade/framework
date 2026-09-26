@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopedContainerInterface;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigFileLoader;
 use Lemonade\Framework\Core\Config\CoreConfigurationServiceProvider;
@@ -14,6 +17,7 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Config\FrameworkDefaultsLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
+use Lemonade\Framework\Core\Exception\InvalidRequestScopeException;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
@@ -43,6 +47,7 @@ use RuntimeException;
 final class Framework
 {
     private readonly Router $router;
+    private readonly ServiceProviderLifecycle $providerLifecycle;
     /**
      * @var list<callable(MiddlewareStack):void>
      */
@@ -58,6 +63,7 @@ final class Framework
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
     ) {
+        $this->providerLifecycle = new ServiceProviderLifecycle($this->container);
         $this->router = new Router();
 
         $this->registerCoreServices();
@@ -102,17 +108,25 @@ final class Framework
     }
 
     /**
-     * Registers one or more service providers in the order they are supplied.
+     * Registers one or more service providers in stable dependency order.
+     *
+     * Providers without explicit dependencies preserve their supplied order.
      *
      * @return $this Returns the same framework instance for fluent chaining.
      */
-    public function register(ServiceProviderInterface ...$providers): self
+    public function register(object ...$providers): self
     {
-        foreach ($providers as $provider) {
-            $provider->register($this->container);
-        }
+        $this->providerLifecycle->register(...$providers);
 
         return $this;
+    }
+
+    /**
+     * Compiles definitions and invokes bootable providers in registration order.
+     */
+    public function bootProviders(): void
+    {
+        $this->providerLifecycle->boot();
     }
 
     /**
@@ -252,8 +266,9 @@ final class Framework
      *
      * When no request is supplied, a server request is created from global PHP
      * state through the server request factory. Any deferred middleware
-     * configuration is applied before middleware is resolved, and the pipeline
-     * terminates in the dispatch request handler.
+     * configuration is applied before middleware is resolved. This convenience
+     * entrypoint creates and closes its own request scope; Kernel callers pass
+     * their already-active scope to {@see runInScope()} instead.
      */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
@@ -261,20 +276,80 @@ final class Framework
             ->get(ServerRequestFactory::class)
             ->fromGlobals();
 
+        if (!$this->container instanceof ScopeFactoryInterface) {
+            throw new RuntimeException(sprintf(
+                'Framework container must implement %s to run an HTTP request.',
+                ScopeFactoryInterface::class,
+            ));
+        }
+
+        $scope = $this->container->beginScope(ScopeKind::Request);
+        $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+
+        try {
+            return $this->runInScope($scope, $request);
+        } finally {
+            $scope->close();
+        }
+    }
+
+    /**
+     * Runs an HTTP request in an already-active request scope.
+     *
+     * The scope must be {@see ScopeKind::Request}, must hold a scope-local
+     * {@see ServerRequestInterface} binding, and that binding must be the same
+     * object as the request argument. Kernel owns this integration boundary.
+     *
+     * @throws InvalidRequestScopeException When the supplied scope does not satisfy the request contract.
+     */
+    public function runInScope(ScopedContainerInterface $scope, ServerRequestInterface $request): ResponseInterface
+    {
+        if ($scope->kind() !== ScopeKind::Request) {
+            throw new InvalidRequestScopeException(sprintf(
+                '%s requires a %s scope; received %s.',
+                __METHOD__,
+                ScopeKind::Request->value,
+                $scope->kind()->value,
+            ));
+        }
+
+        if (!$scope->hasScopedBinding(ServerRequestInterface::class)) {
+            throw new InvalidRequestScopeException(sprintf(
+                '%s requires %s to be bound locally in the request scope.',
+                __METHOD__,
+                ServerRequestInterface::class,
+            ));
+        }
+
+        $scopeRequest = $scope->get(ServerRequestInterface::class);
+        if (!$scopeRequest instanceof ServerRequestInterface || $scopeRequest !== $request) {
+            throw new InvalidRequestScopeException(sprintf(
+                '%s requires the request scope binding for %s to be the same object as the request argument.',
+                __METHOD__,
+                ServerRequestInterface::class,
+            ));
+        }
+
+        return $this->runWithContainer($scope, $request);
+    }
+
+    private function runWithContainer(ContainerInterface $runtimeContainer, ServerRequestInterface $request): ResponseInterface
+    {
+
         /** @var Benchmark $benchmark */
-        $benchmark = $this->container->get(Benchmark::class);
+        $benchmark = $runtimeContainer->get(Benchmark::class);
         $run = $benchmark->currentOrStart();
         $run->mark('request_received');
 
-        $stack = $this->container->get(MiddlewareStack::class);
+        $stack = $runtimeContainer->get(MiddlewareStack::class);
         $this->applyPendingMiddlewareConfiguration($stack);
-        $middleware = $this->container
+        $middleware = $runtimeContainer
             ->get(MiddlewareResolver::class)
             ->resolve($stack->all());
 
         $pipeline = MiddlewarePipeline::create(
             $middleware,
-            $this->container->get(DispatchRequestHandler::class),
+            $runtimeContainer->get(DispatchRequestHandler::class),
         );
 
         $run->mark('middleware_resolved');

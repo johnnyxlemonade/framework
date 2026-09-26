@@ -12,6 +12,7 @@ use Lemonade\Framework\Api\Config\StaticBearerConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
 use Lemonade\Framework\Api\Http\Middleware\ApiIdentityRequestAttribute;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
@@ -144,23 +145,24 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
 
     private function middleware(ApiEndpointRegistry $registry, StaticBearerTokenAuthenticator $auth): ApiAuthorizationMiddleware
     {
+        $config = new ApiConfig(
+            enabled: true,
+            prefix: '/api',
+            endpointProviders: [],
+            security: new ApiSecurityConfig(new StaticBearerConfig('token', ['api:admin'])),
+            framework: new FrameworkApiConfig(
+                enabled: true,
+                health: new ApiEndpointConfig(true, '/framework/health', ApiAccess::Public),
+                openapi: new ApiEndpointConfig(true, '/framework/openapi.json', ApiAccess::Protected, ['openapi:read']),
+                docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
+            ),
+        );
+
         return new ApiAuthorizationMiddleware(
-            $registry,
+            new ApiEndpointRequestResolver($registry, $config),
             $auth,
             new ScopeVoter(),
             new ProblemDetailsFactory(new Psr17Factory()),
-            new ApiConfig(
-                enabled: true,
-                prefix: '/api',
-                endpointProviders: [],
-                security: new ApiSecurityConfig(new StaticBearerConfig('token', ['api:admin'])),
-                framework: new FrameworkApiConfig(
-                    enabled: true,
-                    health: new ApiEndpointConfig(true, '/framework/health', ApiAccess::Public),
-                    openapi: new ApiEndpointConfig(true, '/framework/openapi.json', ApiAccess::Protected, ['openapi:read']),
-                    docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
-                ),
-            ),
             new AppConfig(null, null, '', '', 'testing', false, '', '', ''),
         );
     }

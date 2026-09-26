@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config\ConfigLoader;
+use Lemonade\Framework\Container\ScopedContainerInterface;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
-use Lemonade\Framework\Http\HttpServiceProvider;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
@@ -30,11 +32,8 @@ use Throwable;
  */
 final class Kernel
 {
-    use KernelBootstrapTrait;
-
     private bool $booted = false;
-
-    private bool $configurationLoaded = false;
+    private readonly ApplicationBootstrapper $bootstrapper;
 
     /**
      * Accepts the runtime services used by the HTTP kernel.
@@ -49,7 +48,14 @@ final class Kernel
         private readonly ResponseEmitter $emitter,
         private readonly FrameworkHealthFastPath $healthFastPath,
         private readonly Benchmark $benchmark,
-    ) {}
+    ) {
+        $this->bootstrapper = new ApplicationBootstrapper(
+            $this->context,
+            $this->container,
+            $this->framework,
+            $this->benchmark,
+        );
+    }
 
     /**
      * Bootstraps the HTTP kernel once for the current instance.
@@ -69,26 +75,7 @@ final class Kernel
             return;
         }
 
-        $this->markBenchmark('bootstrap_start');
-
-        $this->ensureConfigurationLoaded();
-
-        $this->applyRuntimeAppConfig();
-        $this->registerCoreProvidersWithDiagnostics();
-        $this->markBenchmark('core_providers_registered');
-
-        $this->framework
-            ->register(new HttpServiceProvider());
-        $this->markBenchmark('http_provider_registered');
-        $this->registerCommonFrameworkProviders();
-
-        $this->registerConfiguredProviders();
-        $this->markBenchmark('app_providers_registered');
-
-        $this->framework
-            ->routesFromFile($this->context->configPath('Routing.php'));
-        $this->framework->finalizeRoutes();
-        $this->markBenchmark('routes_registered');
+        $this->bootstrapper->bootstrap(BootstrapEntrypoint::Http);
 
         $this->booted = true;
     }
@@ -96,11 +83,13 @@ final class Kernel
     /**
      * Boots the kernel and runs the request through the framework runtime.
      *
-     * When no request is provided, request creation is delegated to
-     * {@see Framework::run()}. Route-not-found failures are converted to a 404
-     * text response and all other throwables are converted to a 500 text
-     * response. Captured exceptions are recorded in the benchmark and logged,
-     * and debug mode may include exception details in the response body.
+     * When no request is provided, the kernel creates one from global PHP state.
+     * It then creates a {@see ScopeKind::Request} scope, binds the exact request
+     * only in that scope, and delegates dispatch to {@see Framework::runInScope()}.
+     * The scope is closed in a finally block. Route-not-found failures are converted
+     * to a 404 text response and all other throwables are converted to a 500 text
+     * response. Captured exceptions are recorded in the benchmark and logged, and
+     * debug mode may include exception details in the response body.
      *
      * The method does not propagate exceptions because it converts them to
      * responses.
@@ -108,11 +97,15 @@ final class Kernel
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
         try {
-            $this->ensureConfigurationLoaded();
+            $this->bootstrapper->loadConfiguration(BootstrapEntrypoint::Http);
 
-            if ($request !== null) {
-                $this->container->set(ServerRequestInterface::class, $request);
+            $request ??= $this->container
+                ->get(ServerRequestFactory::class)
+                ->fromGlobals();
+            $scope = $this->beginRequestScope();
+            $scope->bindScopedInstance(ServerRequestInterface::class, $request);
 
+            try {
                 $response = $this->healthFastPath->tryHandle(
                     $request,
                 );
@@ -120,11 +113,13 @@ final class Kernel
                 if ($response instanceof ResponseInterface) {
                     return $response;
                 }
+
+                $this->bootstrap();
+
+                return $this->framework->runInScope($scope, $request);
+            } finally {
+                $scope->close();
             }
-
-            $this->bootstrap();
-
-            return $this->framework->run($request);
         } catch (RouteNotFoundException $exception) {
             $this->benchmark->currentOrStart()->with('exception', $exception::class);
             $this->markBenchmark('kernel_exception');
@@ -193,33 +188,34 @@ final class Kernel
         return $this->context;
     }
 
-    private function ensureConfigurationLoaded(): void
+    private function beginRequestScope(): ScopedContainerInterface
     {
-        if ($this->configurationLoaded) {
-            return;
+        if (!$this->container instanceof ScopeFactoryInterface) {
+            throw new \LogicException(sprintf(
+                'HTTP kernel container must implement %s to create request scopes.',
+                ScopeFactoryInterface::class,
+            ));
         }
 
-        (new ConfigLoader())->loadApplication(
-            $this->framework,
-            $this->context,
-            ConfigLoader::ENTRYPOINT_HTTP,
-        );
+        return $this->container->beginScope(ScopeKind::Request);
+    }
 
-        $this->configurationLoaded = true;
-        $this->markBenchmark('config_loaded');
+    private function markBenchmark(string $name): void
+    {
+        $this->benchmark->currentOrStart()->mark($name);
     }
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface
     {
         if ($this->context->debug()) {
             return $this->textResponse(
-                statusCode: 404,
+                statusCode: HttpStatus::NOT_FOUND->value,
                 body: '404 Not Found' . PHP_EOL . $exception->getMessage(),
             );
         }
 
         return $this->textResponse(
-            statusCode: 404,
+            statusCode: HttpStatus::NOT_FOUND->value,
             body: '404 Not Found',
         );
     }
@@ -228,7 +224,7 @@ final class Kernel
     {
         if ($this->context->debug()) {
             return $this->textResponse(
-                statusCode: 500,
+                statusCode: HttpStatus::INTERNAL_SERVER_ERROR->value,
                 body: sprintf(
                     "500 Internal Server Error\n\n%s: %s\n\n%s",
                     $exception::class,
@@ -239,7 +235,7 @@ final class Kernel
         }
 
         return $this->textResponse(
-            statusCode: 500,
+            statusCode: HttpStatus::INTERNAL_SERVER_ERROR->value,
             body: '500 Internal Server Error',
         );
     }

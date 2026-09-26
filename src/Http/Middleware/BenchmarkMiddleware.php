@@ -6,9 +6,12 @@ namespace Lemonade\Framework\Http\Middleware;
 
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkResponseInjector;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
+use Lemonade\Framework\Routing\RouteMatch;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -36,15 +39,7 @@ final class BenchmarkMiddleware implements MiddlewareInterface
             'query_count' => count($request->getQueryParams()),
         ]);
 
-        $route = $request->getAttribute('route');
-        if (is_string($route) && $route !== '') {
-            $run->with('route', $route);
-        }
-
-        $controller = $request->getAttribute('controller');
-        if (is_string($controller) && $controller !== '') {
-            $run->with('controller', $controller);
-        }
+        self::captureRouteMetadata($run, $request);
 
         $run->mark('benchmark_middleware_enter');
 
@@ -53,7 +48,7 @@ final class BenchmarkMiddleware implements MiddlewareInterface
             $run->with('status', $response->getStatusCode());
             $run->mark('response_ready');
         } catch (Throwable $exception) {
-            $run->with('status', 500);
+            $run->with('status', HttpStatus::INTERNAL_SERVER_ERROR->value);
             $run->with('exception_class', $exception::class);
             $run->with('exception_message', $exception->getMessage());
             $run->mark('exception');
@@ -67,6 +62,26 @@ final class BenchmarkMiddleware implements MiddlewareInterface
         $this->logRun($run);
 
         return $this->injector->inject($response, $run);
+    }
+
+    /**
+     * Captures metadata from the routing request-attribute contract.
+     *
+     * @internal Called by dispatch after a route match, because this global middleware runs before routing.
+     */
+    public static function captureRouteMetadata(BenchmarkRun $run, ServerRequestInterface $request): void
+    {
+        $match = $request->getAttribute(RouteRequestAttributes::MATCH);
+        if (!$match instanceof RouteMatch) {
+            return;
+        }
+
+        if ($match->name() !== null) {
+            $run->with('route', $match->name());
+        }
+
+        $run->with('controller', $match->controller());
+        $run->with('action', $match->action());
     }
 
     private function logRun(BenchmarkRun $run): void

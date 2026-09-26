@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Discovery\Sitemap;
 use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Discovery\Config\SitemapConfig;
+use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Message\ResponseInterface;
 
 final class SitemapController extends AbstractController
@@ -25,7 +26,7 @@ final class SitemapController extends AbstractController
             $path = $this->context->basePath() . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath) . DIRECTORY_SEPARATOR . $indexFilename;
 
             if (!is_file($path)) {
-                return $this->response('', 404, 'text/plain; charset=UTF-8');
+                return $this->response('', HttpStatus::NOT_FOUND->value, 'text/plain; charset=UTF-8');
             }
 
             $contentType = str_ends_with($path, '.gz')
@@ -52,7 +53,7 @@ final class SitemapController extends AbstractController
                     echo $chunk;
                 }
                 fclose($handle);
-            }, 200, $contentType, $headers);
+            }, HttpStatus::OK->value, $contentType, $headers);
         }
 
         return $this->stream(function (): void {
@@ -63,6 +64,6 @@ final class SitemapController extends AbstractController
 
             $this->generator->writeUrlset($stream, $this->generator->urls());
             fclose($stream);
-        }, 200, 'application/xml; charset=UTF-8');
+        }, HttpStatus::OK->value, 'application/xml; charset=UTF-8');
     }
 }

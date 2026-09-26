@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Driver\Mysql;
 
-final class MysqlField
+final readonly class MysqlField
 {
     public function __construct(
-        private readonly string $name,
-        private readonly string|int $type,
-        private readonly int $maxLength,
-        private readonly bool $primaryKey,
-        private readonly mixed $default,
+        private string $name,
+        private string|int $type,
+        private int $maxLength,
+        private bool $primaryKey,
+        private mixed $default,
     ) {}
 
     public function name(): string

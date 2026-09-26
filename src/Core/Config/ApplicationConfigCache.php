@@ -9,7 +9,7 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 
 final class ApplicationConfigCache
 {
-    private const CACHE_VERSION = 1;
+    private const int CACHE_VERSION = 1;
 
     /**
      * @return list<ConfigDefinitionInterface>|null

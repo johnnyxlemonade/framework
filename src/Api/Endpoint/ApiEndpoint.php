@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Endpoint;
 
-final class ApiEndpoint
+final readonly class ApiEndpoint
 {
     /**
      * @param non-empty-string $method
@@ -15,13 +15,13 @@ final class ApiEndpoint
      * @param non-empty-string $summary
      */
     public function __construct(
-        private readonly string $method,
-        private readonly string $path,
-        private readonly string $handler,
-        private readonly string $name,
-        private readonly string $summary,
-        private readonly string $description,
-        private readonly ApiAccess $access = ApiAccess::Protected,
+        private string $method,
+        private string $path,
+        private string $handler,
+        private string $name,
+        private string $summary,
+        private string $description,
+        private ApiAccess $access = ApiAccess::Protected,
         ?ApiEndpointMetadata $metadata = null,
     ) {
         $this->metadata = $metadata ?? ApiEndpointMetadata::default();
@@ -33,7 +33,7 @@ final class ApiEndpoint
         $this->assertSummary($summary);
     }
 
-    private readonly ApiEndpointMetadata $metadata;
+    private ApiEndpointMetadata $metadata;
 
     /**
      * @return non-empty-string

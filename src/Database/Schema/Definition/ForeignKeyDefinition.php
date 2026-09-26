@@ -6,19 +6,19 @@ namespace Lemonade\Framework\Database\Schema\Definition;
 
 use Lemonade\Framework\Database\Schema\Enum\ForeignKeyAction;
 
-final class ForeignKeyDefinition
+final readonly class ForeignKeyDefinition
 {
     /**
      * @param non-empty-list<string> $columns
      * @param non-empty-list<string> $referencedColumns
      */
     public function __construct(
-        private readonly array $columns,
-        private readonly string $referencedTable,
-        private readonly array $referencedColumns = ['id'],
-        private readonly ?string $name = null,
-        private readonly ?ForeignKeyAction $onUpdate = null,
-        private readonly ?ForeignKeyAction $onDelete = null,
+        private array $columns,
+        private string $referencedTable,
+        private array $referencedColumns = ['id'],
+        private ?string $name = null,
+        private ?ForeignKeyAction $onUpdate = null,
+        private ?ForeignKeyAction $onDelete = null,
     ) {
         if (trim($referencedTable) === '') {
             throw new \InvalidArgumentException('Referenced table cannot be empty.');

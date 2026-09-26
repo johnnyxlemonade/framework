@@ -8,7 +8,7 @@ use Lemonade\Framework\Session\Contract\SessionInterface;
 
 final class CsrfTokenManager
 {
-    private const SESSION_TOKENS_KEY = '_csrf_tokens';
+    private const string SESSION_TOKENS_KEY = '_csrf_tokens';
 
     public function __construct(
         private readonly SessionInterface $session,

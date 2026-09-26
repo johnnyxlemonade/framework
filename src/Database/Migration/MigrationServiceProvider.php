@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Migration;
 
+use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -34,15 +35,20 @@ final class MigrationServiceProvider implements ServiceProviderInterface
             $container->get(MigrationStateRepository::class),
             $container->get(Schema::class),
         ));
-        $container->singleton(MigrateCommand::class, MigrateCommand::class);
-        $container->singleton(MigrationStatusCommand::class, MigrationStatusCommand::class);
-
         if (!$container->isBound(CommandRegistry::class)) {
             return;
         }
 
         $commands = $container->get(CommandRegistry::class);
-        $commands->register(MigrateCommand::class);
-        $commands->register(MigrationStatusCommand::class);
+        $commands->registerDefinition(new CommandDefinition(
+            name: 'database:migrate',
+            commandClass: MigrateCommand::class,
+            description: 'Runs pending database migrations.',
+        ));
+        $commands->registerDefinition(new CommandDefinition(
+            name: 'database:migrate:status',
+            commandClass: MigrationStatusCommand::class,
+            description: 'Shows database migration status.',
+        ));
     }
 }

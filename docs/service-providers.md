@@ -2,7 +2,75 @@
 
 Service providers are the main composition mechanism for framework and application services.
 
-A service provider implements `ServiceProviderInterface` and receives the framework container through its `register()` method. Inside that method it can register transient bindings, singleton bindings, factories, concrete objects or string aliases.
+## Provider lifecycle
+
+New providers should separate service definitions from runtime side effects. A
+`DefinitionServiceProviderInterface` receives `ContainerBuilderInterface` in `register()` and
+should only declare bindings and tags. It cannot resolve services through that contract.
+`scoped()` is a builder operation; scope creation itself belongs to
+`ScopeFactoryInterface::beginScope()` at the runtime boundary.
+
+```php
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Core\DefinitionServiceProviderInterface;
+
+final class BillingProvider implements DefinitionServiceProviderInterface
+{
+    public function register(ContainerBuilderInterface $builder): void
+    {
+        $builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+    }
+}
+```
+
+Providers that need a fully registered runtime container implement
+`BootableServiceProviderInterface`. Their `boot()` method runs after all core, framework and
+application providers have registered, in provider declaration order. Use it for routes, commands,
+migrations, listeners and other runtime registry side effects.
+
+```php
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\BootableServiceProviderInterface;
+
+final class BillingRoutesProvider implements BootableServiceProviderInterface
+{
+    public function boot(ContainerInterface $container): void
+    {
+        $container->get(BillingRouteRegistry::class)->registerRoutes();
+    }
+}
+```
+
+The existing `ServiceProviderInterface::register(ContainerInterface $container)` remains fully
+supported for compatibility. Legacy providers may continue to use the container exactly as before,
+including immediate resolution where their established behavior requires it. New code should keep
+`register()` definition-only and move runtime side effects to `boot()`.
+
+## Provider dependencies
+
+A provider can implement `DependentServiceProviderInterface` to declare provider classes that must
+run first. Dependencies are sorted before either `register()` or `boot()` runs. The sorter preserves
+the configured order for providers that are otherwise independent, and boot uses the same resolved
+order as registration.
+
+```php
+use Lemonade\Framework\Core\DependentServiceProviderInterface;
+
+final class BillingRoutesProvider implements DependentServiceProviderInterface
+{
+    /** @return list<class-string> */
+    public static function requires(): array
+    {
+        return [BillingProvider::class];
+    }
+}
+```
+
+Every dependency must be a supported provider class and must be included in the same configured
+provider list. Missing, invalid and cyclic dependencies fail during bootstrap with a descriptive
+exception. Provider priorities and automatic discovery are intentionally not part of this model.
+
+A service provider implements `ServiceProviderInterface` and receives the framework container through its `register()` method. Inside that method it can register transient bindings, singleton bindings, factories, concrete objects or string service IDs. A string service ID is an ordinary binding identifier, not a service alias; definition providers declare explicit aliases through `ContainerBuilderInterface::alias()`.
 
 ## Provider example
 
@@ -47,7 +115,45 @@ Framework providers are resolved from `FrameworkConfigDefinition`. Application p
 
 During bootstrap, the kernel registers core framework providers first, then common framework providers, and finally application providers. This allows application code to extend or override services after the framework services have been registered.
 
-When bootstrap is initiated by `Kernel::run($request)`, the exact current `ServerRequestInterface` is bound in the container before application providers register. Providers may use it for narrowly scoped pre-routing decisions. Calling `Kernel::bootstrap()` directly remains requestless and does not create an HTTP request.
+Application providers register during requestless bootstrap. `Kernel::run($request)` creates the
+request scope only after configuration loading and binds the exact `ServerRequestInterface` only in
+that scope for middleware and dispatch. Providers must therefore not read or retain a current
+request during `register()` or `boot()`; request-dependent work belongs in a scoped runtime service.
+Calling `Kernel::bootstrap()` directly remains requestless and does not create an HTTP request.
+
+### Provider constructor dependencies
+
+Configured framework and application provider class strings may use constructor dependencies, but
+only for bootstrap-safe root services that were explicitly bound before configured providers are
+created. This makes value and configuration services available without allowing a provider to
+resolve arbitrary runtime services.
+
+Provider constructors cannot receive a container, a container builder, a scope, request values, or
+the Command/Job scope-local values (`CommandContext`, `CommandInput`, `CommandOutput`, `JobContext`,
+`QueuedMessage`). They also cannot depend on a service registered by the same provider or
+by another provider in the same registration batch, because provider construction happens before
+that batch is registered. A constructor dependency that is not already explicitly bound, or is
+scope-local, fails during bootstrap with a clear exception.
+
+`register()` and `boot()` remain requestless. The static provider dependency graph still orders
+provider registration and booting; it does not make another provider's services available to a
+constructor.
+
+Core bootstrap providers are constructed from root-safe services only. The same rule applies to
+application and integration providers: constructor injection is for explicitly bound bootstrap
+values, configuration and other root-safe services, never for runtime or scope-local state.
+
+### Breaking migration: request-aware providers
+
+Older framework versions exposed the current `ServerRequestInterface` as a root-container binding
+before application providers registered. That pattern has been removed: a request-specific value in
+the root container can leak into a singleton or a later request. It is a breaking change for a
+provider that called `isBound(ServerRequestInterface::class)` or `get(ServerRequestInterface::class)`
+during `register()` or `boot()`.
+
+Do not restore this pattern. Move request-dependent decisions to runtime middleware, a scoped
+service, or a controller. `ServerRequestInterface` is available only from the active `Request`
+scope; provider registration and boot remain requestless composition phases.
 
 ## Translation resources
 

@@ -6,12 +6,12 @@ namespace Lemonade\Framework\Validation;
 
 use InvalidArgumentException;
 
-final class ValidationRuleDefinition
+final readonly class ValidationRuleDefinition
 {
     private function __construct(
-        private readonly string $name,
-        private readonly ?string $param = null,
-        private readonly ?string $message = null,
+        private string $name,
+        private ?string $param = null,
+        private ?string $message = null,
     ) {}
 
     public static function create(string $name, ?string $param = null, ?string $message = null): self
