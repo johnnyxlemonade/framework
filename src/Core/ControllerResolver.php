@@ -80,16 +80,6 @@ final class ControllerResolver
             ));
         }
 
-        if ($controller instanceof AbstractController) {
-            /** @var ResponseFactoryInterface $responseFactory */
-            $responseFactory = $this->container->get(ResponseFactoryInterface::class);
-            /** @var StreamFactoryInterface $streamFactory */
-            $streamFactory = $this->container->get(StreamFactoryInterface::class);
-            $controller->setControllerContext($request, $responseFactory, $streamFactory, $this->container);
-        }
-
-        $this->markBenchmark('controller_resolved');
-
         if (!method_exists($controller, $action)) {
             throw new RuntimeException(sprintf(
                 'Action "%s::%s" not found.',
@@ -99,6 +89,23 @@ final class ControllerResolver
         }
 
         $method = new ReflectionMethod($controller, $action);
+        if (!$method->isPublic()) {
+            throw new RuntimeException(sprintf(
+                'Controller action "%s::%s" must be public.',
+                $controllerClass,
+                $action,
+            ));
+        }
+
+        if ($controller instanceof AbstractController) {
+            /** @var ResponseFactoryInterface $responseFactory */
+            $responseFactory = $this->container->get(ResponseFactoryInterface::class);
+            /** @var StreamFactoryInterface $streamFactory */
+            $streamFactory = $this->container->get(StreamFactoryInterface::class);
+            $controller->setControllerContext($request, $responseFactory, $streamFactory, $this->container);
+        }
+
+        $this->markBenchmark('controller_resolved');
         $args = [];
 
         foreach ($method->getParameters() as $parameter) {

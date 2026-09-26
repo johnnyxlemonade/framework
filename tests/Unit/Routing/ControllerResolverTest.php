@@ -238,6 +238,31 @@ final class ControllerResolverTest extends TestCase
         $resolver->handle(new RouteMatch(LegacyHelperController::class, 'missing'), $this->request());
     }
 
+    /**
+     * @dataProvider nonPublicActionProvider
+     */
+    public function testNonPublicActionThrowsBeforeInvocation(string $action): void
+    {
+        NonPublicActionController::$invoked = false;
+        $resolver = $this->resolver();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Controller action "' . NonPublicActionController::class . '::' . $action . '" must be public.');
+
+        try {
+            $resolver->handle(new RouteMatch(NonPublicActionController::class, $action), $this->request());
+        } finally {
+            self::assertFalse(NonPublicActionController::$invoked);
+        }
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function nonPublicActionProvider(): iterable
+    {
+        yield 'protected action' => ['protectedAction'];
+        yield 'private action' => ['privateAction'];
+    }
+
     public function testInvalidReturnValueThrowsRuntimeExceptionForPlainController(): void
     {
         $resolver = $this->resolver();
@@ -413,6 +438,26 @@ final class LegacyInvalidReturnController extends AbstractController
     public function index(): array
     {
         return ['invalid' => 'return'];
+    }
+}
+
+final class NonPublicActionController
+{
+    public static bool $invoked = false;
+
+    protected function protectedAction(): string
+    {
+        self::$invoked = true;
+
+        return 'protected';
+    }
+
+    // @phpstan-ignore-next-line
+    private function privateAction(): string
+    {
+        self::$invoked = true;
+
+        return 'private';
     }
 }
 

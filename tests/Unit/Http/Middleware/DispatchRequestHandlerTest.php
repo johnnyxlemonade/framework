@@ -92,6 +92,82 @@ final class DispatchRequestHandlerTest extends TestCase
         self::assertContains('route_matched', $names);
     }
 
+    public function testExplicitRouteDispatchesPublicAction(): void
+    {
+        $router = new Router();
+        $router->get('/visibility/show', DispatchVisibilityController::class . '@show');
+
+        $response = $this->buildHandler($router, $this->buildContainer())
+            ->handle((new Psr17Factory())->createServerRequest('GET', '/visibility/show'));
+
+        self::assertSame('public', (string) $response->getBody());
+    }
+
+    /**
+     * @dataProvider nonPublicExplicitActionProvider
+     */
+    public function testExplicitRouteRejectsNonPublicActionBeforeInvocation(string $action): void
+    {
+        DispatchVisibilityController::$invoked = false;
+        $router = new Router();
+        $router->get('/visibility/' . $action, DispatchVisibilityController::class . '@' . $action);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('must be public');
+
+        try {
+            $this->buildHandler($router, $this->buildContainer())
+                ->handle((new Psr17Factory())->createServerRequest('GET', '/visibility/' . $action));
+        } finally {
+            self::assertFalse(DispatchVisibilityController::$invoked);
+        }
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function nonPublicExplicitActionProvider(): iterable
+    {
+        yield 'protected action' => ['hidden'];
+        yield 'private action' => ['secret'];
+    }
+
+    public function testConventionRouteDispatchesPublicAction(): void
+    {
+        $router = new Router();
+        $router->setControllerNamespace(__NAMESPACE__);
+
+        $response = $this->buildHandler($router, $this->buildContainer())
+            ->handle((new Psr17Factory())->createServerRequest('GET', '/dispatch-visibility/show'));
+
+        self::assertSame('public', (string) $response->getBody());
+    }
+
+    /**
+     * @dataProvider nonPublicConventionActionProvider
+     */
+    public function testConventionRouteRejectsNonPublicActionBeforeInvocation(string $action): void
+    {
+        DispatchVisibilityController::$invoked = false;
+        $router = new Router();
+        $router->setControllerNamespace(__NAMESPACE__);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('must be public');
+
+        try {
+            $this->buildHandler($router, $this->buildContainer())
+                ->handle((new Psr17Factory())->createServerRequest('GET', '/dispatch-visibility/' . $action));
+        } finally {
+            self::assertFalse(DispatchVisibilityController::$invoked);
+        }
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function nonPublicConventionActionProvider(): iterable
+    {
+        yield 'protected action' => ['hidden'];
+        yield 'private action' => ['secret'];
+    }
+
     private function buildContainer(): Container
     {
         $container = new Container();
@@ -153,6 +229,35 @@ final class DispatchTestController extends AbstractController
         $factory = new Psr17Factory();
 
         return $factory->createResponse(200)->withBody($factory->createStream('controller'));
+    }
+}
+
+final class DispatchVisibilityController
+{
+    public static bool $invoked = false;
+
+    public function show(): ResponseInterface
+    {
+        self::$invoked = true;
+
+        $factory = new Psr17Factory();
+
+        return $factory->createResponse(200)->withBody($factory->createStream('public'));
+    }
+
+    protected function hidden(): ResponseInterface
+    {
+        self::$invoked = true;
+
+        return (new Psr17Factory())->createResponse(200);
+    }
+
+    // @phpstan-ignore-next-line
+    private function secret(): ResponseInterface
+    {
+        self::$invoked = true;
+
+        return (new Psr17Factory())->createResponse(200);
     }
 }
 
