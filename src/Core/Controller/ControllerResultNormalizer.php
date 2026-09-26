@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Controller;
 
-use Lemonade\Framework\Http\HttpStatus;
+use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
@@ -26,13 +26,10 @@ final class ControllerResultNormalizer
         }
 
         if (is_scalar($result) || $result === null || $result instanceof \Stringable) {
-            $responseFactory = $responseFactoryResolver();
-            $streamFactory = $streamFactoryResolver();
-
-            return $responseFactory
-                ->createResponse(HttpStatus::OK->value)
-                ->withHeader('Content-Type', 'text/html; charset=UTF-8')
-                ->withBody($streamFactory->createStream((string) $result));
+            return (new ResponseBuilder(
+                $responseFactoryResolver(),
+                $streamFactoryResolver(),
+            ))->html((string) $result);
         }
 
         throw new RuntimeException(sprintf(

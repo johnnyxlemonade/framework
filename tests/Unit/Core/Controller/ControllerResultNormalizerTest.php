@@ -54,5 +54,13 @@ final class ControllerResultNormalizerTest extends TestCase
     {
         yield 'string' => ['content', 'content'];
         yield 'integer' => [42, '42'];
+        yield 'boolean' => [true, '1'];
+        yield 'null' => [null, ''];
+        yield 'stringable' => [new class implements \Stringable {
+            public function __toString(): string
+            {
+                return 'stringable';
+            }
+        }, 'stringable'];
     }
 }

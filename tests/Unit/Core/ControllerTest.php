@@ -60,7 +60,7 @@ final class ControllerTest extends TestCase
         $controller = new ControllerTestSubject();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Controller context is not initialized. Missing ControllerResponses.');
+        $this->expectExceptionMessage('Controller context is not initialized. Missing ControllerContext.');
 
         $controller->exposedText('Hello');
     }
