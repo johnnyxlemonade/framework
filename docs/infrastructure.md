@@ -49,6 +49,11 @@ names, transports or application event-sourcing policy.
 database-backed transports, serialized messages, delayed dispatch and failed-job storage. The default
 configuration is synchronous; applications opt into the database transport explicitly.
 
+Handlers are registered as class strings or legacy callables. Class-string handlers are resolved
+through the container when invoked; this is the preferred form for dependency injection. Handler
+selection prefers the concrete message class, then parent classes, then implemented interfaces.
+Registering the same message class again replaces its prior handler.
+
 ```yaml
 module: queue
 config:
@@ -66,6 +71,12 @@ Create the database tables with `vendor/bin/lemonade queue:install`. Run a worke
 `vendor/bin/lemonade queue:work [queue] [transport] [max] [sleep-ms]`; a worker requires an
 asynchronous transport such as `database`. Worker lifecycle, deployment supervision and retry policy
 remain application or operations concerns.
+
+For an asynchronously dequeued message, a successful handler is acknowledged only after it returns.
+When a handler throws, the transport's `fail()` operation runs and the original handler error remains
+the primary failure. An `ack()` error is a transport-confirmation error and does not invoke `fail()`.
+A future Job scope will make an immutable `JobContext` available to handlers; this release does not
+create that scope yet.
 
 ## Outbound HTTP Clients
 

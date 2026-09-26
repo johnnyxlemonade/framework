@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Queue;
 
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Queue\Exception\QueueHandlerFailureException;
 
 final class QueueBus implements QueueBusInterface
 {
-    /**
-     * @var array<string, (callable(object): void)|string>
-     */
-    private array $handlers = [];
+    private readonly JobHandlerRegistry $handlers;
 
     /**
      * @param array<string, QueueTransportInterface> $transports
@@ -20,7 +18,10 @@ final class QueueBus implements QueueBusInterface
         private readonly ContainerInterface $container,
         private readonly array $transports,
         private readonly string $defaultTransport = 'sync',
-    ) {}
+        ?JobHandlerRegistry $handlers = null,
+    ) {
+        $this->handlers = $handlers ?? new JobHandlerRegistry();
+    }
 
     public function dispatch(object $message, ?string $transport = null, string $queue = 'default', int $delaySeconds = 0): void
     {
@@ -28,7 +29,7 @@ final class QueueBus implements QueueBusInterface
         $resolved = $this->transport($transportName);
 
         if ($transportName === 'sync') {
-            $this->handle($message);
+            $this->handle(new QueuedMessage($message, $queue), $transportName);
 
             return;
         }
@@ -41,7 +42,7 @@ final class QueueBus implements QueueBusInterface
      */
     public function addHandler(string $messageClass, callable|string $handler): void
     {
-        $this->handlers[$messageClass] = $handler;
+        $this->handlers->register($messageClass, $handler);
     }
 
     public function processNext(string $queue = 'default', ?string $transport = null): bool
@@ -55,48 +56,28 @@ final class QueueBus implements QueueBusInterface
         }
 
         try {
-            $this->handle($item->message());
-            $resolved->ack($item);
+            $this->handle($item, $transportName);
+        } catch (\Throwable $handlerException) {
+            try {
+                $resolved->fail($item, $handlerException->getMessage());
+            } catch (\Throwable $failException) {
+                throw new QueueHandlerFailureException($handlerException, $failException);
+            }
 
-            return true;
-        } catch (\Throwable $e) {
-            $resolved->fail($item, $e->getMessage());
-
-            throw $e;
+            throw $handlerException;
         }
+
+        $resolved->ack($item);
+
+        return true;
     }
 
-    private function handle(object $message): void
+    private function handle(QueuedMessage $item, string $transport): void
     {
-        $handler = $this->resolveHandler($message);
+        $context = JobContext::fromQueuedMessage($item, $transport);
+        $handler = $this->handlers->handlerFor($context->message);
         $resolved = $this->resolveCallable($handler);
-        $resolved($message);
-    }
-
-    /**
-     * @return (callable(object): void)|string
-     */
-    private function resolveHandler(object $message): callable|string
-    {
-        $class = get_class($message);
-
-        if (isset($this->handlers[$class])) {
-            return $this->handlers[$class];
-        }
-
-        foreach (class_parents($message) as $parent) {
-            if (isset($this->handlers[$parent])) {
-                return $this->handlers[$parent];
-            }
-        }
-
-        foreach (class_implements($message) as $iface) {
-            if (isset($this->handlers[$iface])) {
-                return $this->handlers[$iface];
-            }
-        }
-
-        throw new \RuntimeException(sprintf('Queue handler for "%s" is not registered.', $class));
+        $resolved($context->message);
     }
 
     /**
