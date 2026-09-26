@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload;
 
-use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\ProviderContainerAssertions;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Upload\Config\UploadConfig;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
@@ -19,7 +19,7 @@ final class UploadServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
-        $builder = $this->builder($container);
+        $builder = ProviderContainerAssertions::builder($container, self::class, 'request-scoped services');
 
         $container->singleton(UploadConfigResolver::class, UploadConfigResolver::class);
         $container->singleton(UploadConfig::class, static function (ContainerInterface $container): UploadConfig {
@@ -50,16 +50,4 @@ final class UploadServiceProvider implements ServiceProviderInterface
         $builder->scoped(UploadFactory::class, UploadFactory::class);
     }
 
-    private function builder(ContainerInterface $container): ContainerBuilderInterface
-    {
-        if (!$container instanceof ContainerBuilderInterface) {
-            throw new \RuntimeException(sprintf(
-                '%s requires a container implementing %s to register request-scoped services.',
-                self::class,
-                ContainerBuilderInterface::class,
-            ));
-        }
-
-        return $container;
-    }
 }

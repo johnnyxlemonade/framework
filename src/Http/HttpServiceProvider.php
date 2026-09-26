@@ -10,9 +10,9 @@ use Lemonade\Framework\Api\Config\ApiConfigResolver;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
 use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
 use Lemonade\Framework\Api\Security\NullApiAuthenticator;
-use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\ProviderContainerAssertions;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Config\CorsConfigDefinition;
@@ -42,7 +42,7 @@ final class HttpServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void
     {
-        $builder = $this->builder($container);
+        $builder = ProviderContainerAssertions::builder($container, self::class, 'scoped HTTP services');
 
         $container->singleton(ErrorPageRenderer::class, ErrorPageRenderer::class);
         $container->singleton(ApiAuthenticatorInterface::class, static fn(): ApiAuthenticatorInterface => new NullApiAuthenticator());
@@ -108,16 +108,4 @@ final class HttpServiceProvider implements ServiceProviderInterface
         $container->singleton(HttpLogContext::class, HttpLogContext::class);
     }
 
-    private function builder(ContainerInterface $container): ContainerBuilderInterface
-    {
-        if (!$container instanceof ContainerBuilderInterface) {
-            throw new \RuntimeException(sprintf(
-                '%s requires a container implementing %s to register scoped HTTP services.',
-                self::class,
-                ContainerBuilderInterface::class,
-            ));
-        }
-
-        return $container;
-    }
 }
