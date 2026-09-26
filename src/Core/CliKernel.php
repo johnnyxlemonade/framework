@@ -8,9 +8,7 @@ use Lemonade\Framework\Cli\CommandInvoker;
 use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Cli\Config\CommandsConfig;
-use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
@@ -27,9 +25,8 @@ use Throwable;
  */
 final class CliKernel
 {
-    use KernelBootstrapTrait;
-
     private bool $booted = false;
+    private readonly ApplicationBootstrapper $bootstrapper;
     private ?CommandRegistry $commandRegistry = null;
     /** @var resource */
     private $stdout;
@@ -62,6 +59,12 @@ final class CliKernel
 
         $this->stdout = $stdout ?? STDOUT;
         $this->stderr = $stderr ?? STDERR;
+        $this->bootstrapper = new ApplicationBootstrapper(
+            $this->context,
+            $this->container,
+            $this->framework,
+            $this->benchmark,
+        );
     }
 
     /**
@@ -141,26 +144,7 @@ final class CliKernel
             return;
         }
 
-        $this->loadApplicationConfigFiles();
-        $this->markBenchmark('config_loaded');
-
-        $this->applyRuntimeAppConfig();
-        $this->registerCoreProvidersWithDiagnostics();
-        $this->markBenchmark('core_logger_ready');
-
-        $providers = [
-            new ConsoleServiceProvider(),
-            ...$this->commonFrameworkProviders(),
-            ...$this->configuredProviders(),
-        ];
-        $this->framework->register(...$providers);
-        $this->markBenchmark('framework_providers_registered');
-        $this->markBenchmark('app_providers_registered');
-        $this->markBenchmark('providers_registered');
-        $this->framework->bootProviders();
-        $this->markBenchmark('providers_booted');
-        $this->registerCliRoutesIfPresent();
-        $this->framework->finalizeRoutes();
+        $this->bootstrapper->bootstrap(BootstrapEntrypoint::Cli);
 
         $this->booted = true;
     }
@@ -193,15 +177,6 @@ final class CliKernel
         }
     }
 
-    private function loadApplicationConfigFiles(): void
-    {
-        (new ConfigLoader())->loadApplication(
-            $this->framework,
-            $this->context,
-            ConfigLoader::ENTRYPOINT_CLI,
-        );
-    }
-
     private function logException(Throwable $exception): void
     {
         $this->container
@@ -217,16 +192,6 @@ final class CliKernel
     private function writeStderr(string $message): void
     {
         fwrite($this->stderr, $message);
-    }
-
-    private function registerCliRoutesIfPresent(): void
-    {
-        $routingConfig = $this->context->configPath('Routing.php');
-        if (!is_file($routingConfig)) {
-            return;
-        }
-
-        $this->framework->routesFromFile($routingConfig);
     }
 
 }

@@ -8,11 +8,9 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Container\ScopeKind;
-use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
-use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
@@ -34,11 +32,8 @@ use Throwable;
  */
 final class Kernel
 {
-    use KernelBootstrapTrait;
-
     private bool $booted = false;
-
-    private bool $configurationLoaded = false;
+    private readonly ApplicationBootstrapper $bootstrapper;
 
     /**
      * Accepts the runtime services used by the HTTP kernel.
@@ -53,7 +48,14 @@ final class Kernel
         private readonly ResponseEmitter $emitter,
         private readonly FrameworkHealthFastPath $healthFastPath,
         private readonly Benchmark $benchmark,
-    ) {}
+    ) {
+        $this->bootstrapper = new ApplicationBootstrapper(
+            $this->context,
+            $this->container,
+            $this->framework,
+            $this->benchmark,
+        );
+    }
 
     /**
      * Bootstraps the HTTP kernel once for the current instance.
@@ -73,31 +75,7 @@ final class Kernel
             return;
         }
 
-        $this->markBenchmark('bootstrap_start');
-
-        $this->ensureConfigurationLoaded();
-
-        $this->applyRuntimeAppConfig();
-        $this->registerCoreProvidersWithDiagnostics();
-        $this->markBenchmark('core_providers_registered');
-
-        $providers = [
-            new HttpServiceProvider(),
-            ...$this->commonFrameworkProviders(),
-            ...$this->configuredProviders(),
-        ];
-        $this->framework->register(...$providers);
-        $this->markBenchmark('http_provider_registered');
-        $this->markBenchmark('common_provider_registration_finished');
-        $this->markBenchmark('app_providers_registered');
-
-        $this->framework->bootProviders();
-        $this->markBenchmark('providers_booted');
-
-        $this->framework
-            ->routesFromFile($this->context->configPath('Routing.php'));
-        $this->framework->finalizeRoutes();
-        $this->markBenchmark('routes_registered');
+        $this->bootstrapper->bootstrap(BootstrapEntrypoint::Http);
 
         $this->booted = true;
     }
@@ -119,7 +97,7 @@ final class Kernel
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
         try {
-            $this->ensureConfigurationLoaded();
+            $this->bootstrapper->loadConfiguration(BootstrapEntrypoint::Http);
 
             $request ??= $this->container
                 ->get(ServerRequestFactory::class)
@@ -210,22 +188,6 @@ final class Kernel
         return $this->context;
     }
 
-    private function ensureConfigurationLoaded(): void
-    {
-        if ($this->configurationLoaded) {
-            return;
-        }
-
-        (new ConfigLoader())->loadApplication(
-            $this->framework,
-            $this->context,
-            ConfigLoader::ENTRYPOINT_HTTP,
-        );
-
-        $this->configurationLoaded = true;
-        $this->markBenchmark('config_loaded');
-    }
-
     private function beginRequestScope(): ScopedContainerInterface
     {
         if (!$this->container instanceof ScopeFactoryInterface) {
@@ -236,6 +198,11 @@ final class Kernel
         }
 
         return $this->container->beginScope(ScopeKind::Request);
+    }
+
+    private function markBenchmark(string $name): void
+    {
+        $this->benchmark->currentOrStart()->mark($name);
     }
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface
