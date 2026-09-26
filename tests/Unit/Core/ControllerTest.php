@@ -25,6 +25,7 @@ use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\View;
 use Lemonade\Framework\View\ViewHelpers;
+use JsonException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -197,6 +198,15 @@ final class ControllerTest extends TestCase
         self::assertSame(204, $response->getStatusCode());
         self::assertSame('text/custom', $response->getHeaderLine('Content-Type'));
         self::assertSame('Custom', (string) $response->getBody());
+    }
+
+    public function testJsonResponseHelperThrowsWhenPayloadCannotBeEncoded(): void
+    {
+        $controller = $this->controller($this->request());
+
+        $this->expectException(JsonException::class);
+
+        $controller->exposedJson(['invalid' => INF]);
     }
 
     public function testDownloadHelperCreatesAttachmentResponse(): void

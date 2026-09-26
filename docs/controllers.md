@@ -105,6 +105,10 @@ $this->download($path);
 $this->stream($producer);
 ```
 
+JSON response payloads must be JSON-encodable. Encoding failures throw `JsonException`
+and follow the normal HTTP error-handling policy; the helper never substitutes an empty
+JSON object.
+
 It also exposes common framework helpers:
 
 ```php

@@ -410,6 +410,8 @@ abstract class AbstractController
      * Creates a JSON response from the provided payload.
      *
      * @param array<string, mixed> $payload
+     *
+     * @throws \JsonException
      */
     protected function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
     {

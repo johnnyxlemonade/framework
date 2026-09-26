@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Controller;
 
+use JsonException;
 use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Message\ResponseInterface;
@@ -26,6 +27,8 @@ final class ControllerResponses
 
     /**
      * @param array<string, mixed> $payload
+     *
+     * @throws JsonException
      */
     public function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
     {

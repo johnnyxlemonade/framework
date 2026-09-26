@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Http;
 
+use JsonException;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Psr\CallbackStream;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -29,11 +30,15 @@ final class ResponseBuilder
 
     /**
      * @param array<string, mixed> $payload
+     *
+     * @throws JsonException
      */
     public function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
     {
-        $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $content = $encoded !== false ? $encoded : '{}';
+        $content = json_encode(
+            $payload,
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        );
 
         return $this->response($content, $status, 'application/json; charset=UTF-8');
     }
