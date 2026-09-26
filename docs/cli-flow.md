@@ -81,7 +81,7 @@ config:
 
 Internally this YAML payload is still mapped to `CommandsConfigDefinition` and resolved into runtime `CommandsConfig`.
 
-The legacy class-string entry is still accepted, but it constructs the command to obtain its metadata. Prefer the definition mapping so list and help remain lazy. A dedicated Command scope is intentionally not created by this flow yet.
+The legacy class-string entry is still accepted, but it constructs the command to obtain its metadata. Prefer the definition mapping so list and help remain lazy. When `CliKernel` runs a known command, it creates an isolated `Command` scope, binds `CommandContext`, `CommandInput` and `CommandOutput`, and closes the scope in `finally`. List, help and unknown-command handling do not create a command scope; direct calls to `CommandInterface::run()` outside `CliKernel` do not create one either.
 
 ## Running commands
 

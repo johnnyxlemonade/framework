@@ -91,8 +91,12 @@ active scope.
 
 `Kernel::run()` automatically creates a `Request` scope, binds the PSR-7 request only in that scope,
 and closes it in `finally`, including error and health-fast-path responses. HTTP middleware,
-dispatch and controller resolution use this active scope. CLI command and job/worker lifecycle
-integration remain separate follow-up work.
+dispatch and controller resolution use this active scope. `CliKernel` creates a `Command` scope
+only for a selected command, binding `CommandContext`, `CommandInput` and `CommandOutput`; list,
+help and unknown-command handling remain scope-free. Queue class-string handlers run in an
+isolated `Job` scope with `JobContext`, plus `QueuedMessage` for asynchronously dequeued work.
+Synchronous queue dispatch also creates its own Job scope instead of reusing an active Request
+scope. Legacy queue callables remain compatible, but are not resolved through the container.
 
 This replaces the older root-container request binding that was available before application
 providers registered. The replacement is intentionally breaking: `register()` and `boot()` must not
