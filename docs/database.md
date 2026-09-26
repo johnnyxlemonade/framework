@@ -72,7 +72,8 @@ context.
 
 ## Migrations
 
-Lemonade provides a small, one-way migration runner. Concrete migration classes stay in the application and are registered explicitly from an application service provider; the framework does not scan directories.
+Lemonade provides a small, one-way migration runner. Concrete migration classes stay in the
+application and are registered explicitly from an application service provider.
 
 ```php
 use Lemonade\Framework\Container\ContainerInterface;
@@ -84,6 +85,41 @@ public function register(ContainerInterface $container): void
     $container->get(MigrationRegistry::class)->register(CreateUsersTable::class);
 }
 ```
+
+### Explicit directory discovery
+
+For a conventional PSR-4 migration directory, use `MigrationDirectoryRegistrar`. Discovery is
+explicit: the caller supplies both one filesystem directory and its namespace prefix. The registrar
+recurses only below that directory; it never scans an application root, Composer metadata, or an
+implicit migration location.
+
+```php
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\BootableServiceProviderInterface;
+use Lemonade\Framework\Database\Migration\MigrationDirectoryRegistrar;
+use Lemonade\Framework\Database\Migration\MigrationRegistry;
+
+final class AppMigrationProvider implements BootableServiceProviderInterface
+{
+    public function boot(ContainerInterface $container): void
+    {
+        (new MigrationDirectoryRegistrar())->registerDirectory(
+            $container->get(MigrationRegistry::class),
+            __DIR__ . '/../Database/Migrations',
+            'App\\Database\\Migrations',
+        );
+    }
+}
+```
+
+Recursive paths map directly to PSR-4 namespaces: for example,
+`Database/Migrations/Feature/CreateTable.php` maps to
+`App\Database\Migrations\Feature\CreateTable`. Files are processed in sorted path order for
+deterministic diagnostics. Each derived class must autoload and implement `MigrationInterface`.
+
+The registrar only adds class strings to `MigrationRegistry`; it does not instantiate or run
+migrations, open a database connection, or register services. `MigrationRegistry` remains the
+single owner of identifier validation, identifier ordering, and duplicate-identifier guards.
 
 ```php
 namespace App\Database\Migrations;
