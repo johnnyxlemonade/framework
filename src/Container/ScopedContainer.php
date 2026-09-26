@@ -12,12 +12,18 @@ final class ScopedContainer implements ScopedContainerInterface
     /** @var array<string, mixed> */
     private array $instances = [];
 
+    /** @var array<string, object> */
+    private array $localInstances = [];
+
     private bool $closed = false;
 
     public function __construct(
         private readonly Container $root,
         private readonly ScopeKind $kind,
-    ) {}
+    ) {
+        $this->localInstances[ContainerInterface::class] = $this;
+        $this->localInstances[ScopedContainerInterface::class] = $this;
+    }
 
     public function kind(): ScopeKind
     {
@@ -27,7 +33,14 @@ final class ScopedContainer implements ScopedContainerInterface
     public function close(): void
     {
         $this->instances = [];
+        $this->localInstances = [];
         $this->closed = true;
+    }
+
+    public function bindScopedInstance(string $id, object $instance): void
+    {
+        $this->assertOpen();
+        $this->localInstances[$id] = $instance;
     }
 
     public function set(string $id, callable|object|string $concrete): void
@@ -76,17 +89,21 @@ final class ScopedContainer implements ScopedContainerInterface
 
     public function has(string $id): bool
     {
-        return $this->root->has($id);
+        return isset($this->localInstances[$id]) || $this->root->has($id);
     }
 
     public function isBound(string $id): bool
     {
-        return $this->root->isBound($id);
+        return isset($this->localInstances[$id]) || $this->root->isBound($id);
     }
 
     public function get(string $id): mixed
     {
         $this->assertOpen();
+
+        if (isset($this->localInstances[$id])) {
+            return $this->localInstances[$id];
+        }
 
         return $this->root->getInScope($this, $id);
     }

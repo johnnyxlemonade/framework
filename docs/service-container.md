@@ -44,12 +44,14 @@ job scope.
 ```php
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Container\ScopeKind;
+use Psr\Http\Message\ServerRequestInterface;
 
 $builder->scoped(CurrentRequestContext::class, CurrentRequestContext::class);
 
 $scope = $scopeFactory->beginScope(ScopeKind::Request);
 
 try {
+    $scope->bindScopedInstance(ServerRequestInterface::class, $request);
     $context = $scope->get(CurrentRequestContext::class);
 } finally {
     $scope->close();
@@ -64,6 +66,11 @@ root container across all scopes, while transient services are always rebuilt.
 `close()` discards the scope cache and is idempotent. A closed scope cannot resolve further
 services. Factories, callable decorators and contextual bindings receive the active runtime
 container, so a scoped dependency remains in the same scope throughout resolution.
+
+`ScopedContainerInterface::bindScopedInstance()` adds an object value only to the current scope.
+It takes precedence over root bindings and is discarded by `close()`. Each scope automatically
+binds itself under both `ContainerInterface::class` and `ScopedContainerInterface::class`, so
+runtime factories and services can retrieve the active scope without changing the root container.
 
 A singleton must never depend on a scoped service, directly or through a contextual binding or
 alias. The container rejects that resolution with a dedicated exception. Scoped services may depend

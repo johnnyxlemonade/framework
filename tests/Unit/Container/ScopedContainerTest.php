@@ -45,14 +45,72 @@ final class ScopedContainerTest extends TestCase
         $container = new Container();
         $container->scoped('scoped.service', ScopedTestDependency::class);
         $scope = $container->beginScope(ScopeKind::Job);
+        $scope->bindScopedInstance('scope.local', new ScopedLocalValue());
         $scope->get('scoped.service');
 
         $scope->close();
         $scope->close();
+
+        self::assertFalse($scope->has('scope.local'));
+        self::assertFalse($container->has('scope.local'));
 
         $this->expectException(ScopedContainerClosedException::class);
         $this->expectExceptionMessage('job');
         $scope->get('scoped.service');
+    }
+
+    public function testScopedInstanceIsVisibleOnlyToItsOwnScope(): void
+    {
+        $container = new Container();
+        $value = new ScopedLocalValue();
+        $firstScope = $container->beginScope(ScopeKind::Request);
+        $secondScope = $container->beginScope(ScopeKind::Command);
+        $firstScope->bindScopedInstance('scope.local', $value);
+
+        self::assertSame($value, $firstScope->get('scope.local'));
+        self::assertTrue($firstScope->has('scope.local'));
+        self::assertTrue($firstScope->isBound('scope.local'));
+        self::assertFalse($container->has('scope.local'));
+        self::assertFalse($container->isBound('scope.local'));
+        self::assertFalse($secondScope->has('scope.local'));
+        self::assertFalse($secondScope->isBound('scope.local'));
+    }
+
+    public function testScopedInstanceTakesPrecedenceOverRootBinding(): void
+    {
+        $container = new Container();
+        $rootValue = new ScopedLocalValue();
+        $scopeValue = new ScopedLocalValue();
+        $container->singleton('scope.local', $rootValue);
+        $scope = $container->beginScope(ScopeKind::Request);
+        $scope->bindScopedInstance('scope.local', $scopeValue);
+
+        self::assertSame($scopeValue, $scope->get('scope.local'));
+        self::assertSame($rootValue, $container->get('scope.local'));
+    }
+
+    public function testScopeBindsItselfWithoutChangingRootContainerBinding(): void
+    {
+        $container = new Container();
+        $container->singleton(ContainerInterface::class, $container);
+        $scope = $container->beginScope(ScopeKind::Request);
+
+        self::assertSame($scope, $scope->get(ContainerInterface::class));
+        self::assertSame($scope, $scope->get(\Lemonade\Framework\Container\ScopedContainerInterface::class));
+        self::assertSame($container, $container->get(ContainerInterface::class));
+    }
+
+    public function testRootSingletonDoesNotCaptureScopeLocalContainerBinding(): void
+    {
+        $container = new Container();
+        $container->singleton(ContainerInterface::class, $container);
+        $container->singleton('root.singleton', static fn(ContainerInterface $container): ContainerInterface => $container->get(ContainerInterface::class));
+        $singleton = $container->get('root.singleton');
+        $scope = $container->beginScope(ScopeKind::Request);
+
+        self::assertSame($container, $singleton);
+        self::assertSame($container, $scope->get('root.singleton'));
+        self::assertSame($scope, $scope->get(ContainerInterface::class));
     }
 
     public function testSingletonsRemainSharedAcrossScopes(): void
@@ -120,6 +178,31 @@ final class ScopedContainerTest extends TestCase
         self::assertSame($scope, $decoratorContainer);
         self::assertSame($first, $second);
         self::assertSame($first->inner, $first->dependency);
+    }
+
+    public function testScopedFactoryCanReadScopeLocalInstance(): void
+    {
+        $builder = new ContainerBuilder();
+        $builder->set('factory.service', static fn(ContainerInterface $container): mixed => $container->get('scope.local'));
+        $container = new Container($builder);
+        $scope = $container->beginScope(ScopeKind::Request);
+        $value = new ScopedLocalValue();
+        $scope->bindScopedInstance('scope.local', $value);
+
+        self::assertSame($value, $scope->get('factory.service'));
+    }
+
+    public function testScopedDecoratorCanReadScopeLocalInstance(): void
+    {
+        $builder = new ContainerBuilder();
+        $builder->set('decorated.service', static fn(): \stdClass => new \stdClass());
+        $builder->decorate('decorated.service', static fn(ContainerInterface $container, mixed $inner): mixed => $container->get('scope.local'));
+        $container = new Container($builder);
+        $scope = $container->beginScope(ScopeKind::Request);
+        $value = new ScopedLocalValue();
+        $scope->bindScopedInstance('scope.local', $value);
+
+        self::assertSame($value, $scope->get('decorated.service'));
     }
 
     public function testContextualScopedDependencyResolvesOnlyWithinScopeAndThroughAlias(): void
@@ -198,6 +281,8 @@ final class ScopedContainerTest extends TestCase
 interface ScopedTestContract {}
 
 final class ScopedTestDependency implements ScopedTestContract {}
+
+final class ScopedLocalValue {}
 
 final class ScopedDecoratedResult
 {

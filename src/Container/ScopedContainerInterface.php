@@ -8,5 +8,8 @@ interface ScopedContainerInterface extends ContainerInterface
 {
     public function kind(): ScopeKind;
 
+    /** @param class-string|non-empty-string $id */
+    public function bindScopedInstance(string $id, object $instance): void;
+
     public function close(): void;
 }
