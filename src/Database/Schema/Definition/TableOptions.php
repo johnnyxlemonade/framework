@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Schema\Definition;
 
-final class TableOptions
+final readonly class TableOptions
 {
     /**
      * @param array<string, int|string|bool|SqlExpression|null> $extra
      */
     public function __construct(
-        private readonly ?string $engine = null,
-        private readonly ?string $charset = null,
-        private readonly ?string $collation = null,
-        private readonly ?string $comment = null,
-        private readonly array $extra = [],
+        private ?string $engine = null,
+        private ?string $charset = null,
+        private ?string $collation = null,
+        private ?string $comment = null,
+        private array $extra = [],
     ) {}
 
     public static function make(): self

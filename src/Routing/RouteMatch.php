@@ -6,17 +6,17 @@ namespace Lemonade\Framework\Routing;
 
 use Psr\Http\Server\MiddlewareInterface;
 
-final class RouteMatch
+final readonly class RouteMatch
 {
     /**
      * @param array<string, string> $params
      * @param array<int, class-string<MiddlewareInterface>> $middleware
      */
     public function __construct(
-        private readonly string $controller,
-        private readonly string $action,
-        private readonly array $params = [],
-        private readonly array $middleware = [],
+        private string $controller,
+        private string $action,
+        private array $params = [],
+        private array $middleware = [],
     ) {}
 
     public function controller(): string

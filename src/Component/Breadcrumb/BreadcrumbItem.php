@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Breadcrumb;
 
-final class BreadcrumbItem
+final readonly class BreadcrumbItem
 {
     public function __construct(
-        private readonly string $label,
-        private readonly ?string $url = null,
-        private readonly bool $active = false,
+        private string $label,
+        private ?string $url = null,
+        private bool $active = false,
     ) {}
 
     public function label(): string

@@ -6,22 +6,22 @@ namespace Lemonade\Framework\Database\Schema\Definition;
 
 use Lemonade\Framework\Database\Schema\Enum\ColumnType;
 
-final class ColumnDefinition
+final readonly class ColumnDefinition
 {
     public function __construct(
-        private readonly string $name,
-        private readonly ColumnType|string $type,
-        private readonly int|string|null $length = null,
-        private readonly bool $unsigned = false,
-        private readonly bool $nullable = false,
-        private readonly bool $hasDefault = false,
-        private readonly mixed $default = null,
-        private readonly bool $autoIncrement = false,
-        private readonly ?string $comment = null,
-        private readonly ?string $after = null,
-        private readonly bool $first = false,
-        private readonly ?string $renameTo = null,
-        private readonly ?string $literal = null,
+        private string $name,
+        private ColumnType|string $type,
+        private int|string|null $length = null,
+        private bool $unsigned = false,
+        private bool $nullable = false,
+        private bool $hasDefault = false,
+        private mixed $default = null,
+        private bool $autoIncrement = false,
+        private ?string $comment = null,
+        private ?string $after = null,
+        private bool $first = false,
+        private ?string $renameTo = null,
+        private ?string $literal = null,
     ) {
         if (trim($name) === '') {
             throw new \InvalidArgumentException('Column name cannot be empty.');

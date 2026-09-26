@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation;
 
-final class ValidationFieldDefinition
+final readonly class ValidationFieldDefinition
 {
     /**
      * @param list<ValidationRuleDefinition> $rules
      */
     public function __construct(
-        private readonly string $name,
-        private readonly string $label,
-        private readonly array $rules,
+        private string $name,
+        private string $label,
+        private array $rules,
     ) {}
 
     public function name(): string

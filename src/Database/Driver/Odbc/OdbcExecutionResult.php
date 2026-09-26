@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Driver\Odbc;
 
-final class OdbcExecutionResult
+final readonly class OdbcExecutionResult
 {
     /**
      * @param list<array<string, mixed>> $rows
      * @param list<OdbcField> $fields
      */
     public function __construct(
-        private readonly bool $hasResultSet,
-        private readonly array $rows,
-        private readonly array $fields,
-        private readonly int $affectedRows,
-        private readonly int|string|null $insertId,
+        private bool $hasResultSet,
+        private array $rows,
+        private array $fields,
+        private int $affectedRows,
+        private int|string|null $insertId,
     ) {}
 
     public function hasResultSet(): bool

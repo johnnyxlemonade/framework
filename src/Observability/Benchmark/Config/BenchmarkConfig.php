@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Observability\Benchmark\Config;
 
-final class BenchmarkConfig
+final readonly class BenchmarkConfig
 {
     public function __construct(
-        public readonly bool $injectHtmlComment,
+        public bool $injectHtmlComment,
     ) {}
 }

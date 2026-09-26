@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload;
 
-final class ImageUploadOptions
+final readonly class ImageUploadOptions
 {
     /**
      * @param list<string> $allowedMimeTypes
      * @param list<string> $allowedExtensions
      */
     public function __construct(
-        private readonly string $targetDirectory,
-        private readonly string $targetRelativeDirectory,
-        private readonly int $maxBytes = 5_242_880,
-        private readonly array $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-        private readonly array $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-        private readonly bool $reencode = true,
-        private readonly ?int $minWidth = null,
-        private readonly ?int $maxWidth = null,
-        private readonly ?int $minHeight = null,
-        private readonly ?int $maxHeight = null,
+        private string $targetDirectory,
+        private string $targetRelativeDirectory,
+        private int $maxBytes = 5_242_880,
+        private array $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+        private array $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+        private bool $reencode = true,
+        private ?int $minWidth = null,
+        private ?int $maxWidth = null,
+        private ?int $minHeight = null,
+        private ?int $maxHeight = null,
     ) {}
 
     public function targetDirectory(): string

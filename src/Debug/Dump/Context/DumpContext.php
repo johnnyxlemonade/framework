@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Debug\Dump\Context;
 
-final class DumpContext
+final readonly class DumpContext
 {
     public function __construct(
-        private readonly DumpSourceLocation $sourceLocation,
-        private readonly bool $cli,
-        private readonly string $sapi,
+        private DumpSourceLocation $sourceLocation,
+        private bool $cli,
+        private string $sapi,
     ) {}
 
     public function sourceLocation(): DumpSourceLocation

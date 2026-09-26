@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Schema\Definition;
 
-final class SqlExpression
+final readonly class SqlExpression
 {
     public function __construct(
-        private readonly string $sql,
+        private string $sql,
     ) {
         if (trim($sql) === '') {
             throw new \InvalidArgumentException('SQL expression cannot be empty.');

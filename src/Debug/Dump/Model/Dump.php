@@ -6,14 +6,14 @@ namespace Lemonade\Framework\Debug\Dump\Model;
 
 use Lemonade\Framework\Debug\Dump\Context\DumpContext;
 
-final class Dump
+final readonly class Dump
 {
     /**
      * @param list<DumpItem> $items
      */
     public function __construct(
-        private readonly DumpContext $context,
-        private readonly array $items,
+        private DumpContext $context,
+        private array $items,
     ) {}
 
     public function context(): DumpContext

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Schema\Definition;
 
-final class TableDefinition
+final readonly class TableDefinition
 {
     /**
      * @param list<ColumnDefinition> $columns
@@ -16,16 +16,16 @@ final class TableDefinition
      * @param list<string> $droppedForeignKeys
      */
     public function __construct(
-        private readonly string $name,
-        private readonly array $columns = [],
-        private readonly array $modifiedColumns = [],
-        private readonly array $droppedColumns = [],
-        private readonly array $indexes = [],
-        private readonly array $droppedIndexes = [],
-        private readonly array $foreignKeys = [],
-        private readonly array $droppedForeignKeys = [],
-        private readonly bool $ifNotExists = false,
-        private readonly ?TableOptions $options = null,
+        private string $name,
+        private array $columns = [],
+        private array $modifiedColumns = [],
+        private array $droppedColumns = [],
+        private array $indexes = [],
+        private array $droppedIndexes = [],
+        private array $foreignKeys = [],
+        private array $droppedForeignKeys = [],
+        private bool $ifNotExists = false,
+        private ?TableOptions $options = null,
     ) {
         if (trim($name) === '') {
             throw new \InvalidArgumentException('Table name cannot be empty.');

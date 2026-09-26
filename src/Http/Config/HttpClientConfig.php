@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Config;
 
-final class HttpClientConfig
+final readonly class HttpClientConfig
 {
     public function __construct(
-        public readonly float $timeout,
-        public readonly float $connectTimeout,
-        public readonly bool $verifySsl,
+        public float $timeout,
+        public float $connectTimeout,
+        public bool $verifySsl,
     ) {}
 }

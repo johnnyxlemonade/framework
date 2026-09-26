@@ -6,17 +6,17 @@ namespace Lemonade\Framework\Cli;
 
 use InvalidArgumentException;
 
-final class CommandDefinition
+final readonly class CommandDefinition
 {
     /**
      * @param class-string<CommandInterface> $commandClass
      * @param list<string> $aliases
      */
     public function __construct(
-        public readonly string $name,
-        public readonly string $commandClass,
-        public readonly string $description,
-        public readonly array $aliases = [],
+        public string $name,
+        public string $commandClass,
+        public string $description,
+        public array $aliases = [],
     ) {
         if (trim($name) === '') {
             throw new InvalidArgumentException('CLI command definition must define a non-empty name.');

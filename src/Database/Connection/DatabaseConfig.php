@@ -6,26 +6,26 @@ namespace Lemonade\Framework\Database\Connection;
 
 use Lemonade\Framework\Database\Exception\DatabaseException;
 
-final class DatabaseConfig
+final readonly class DatabaseConfig
 {
     /**
      * @param array<int|string, mixed> $options
      */
     public function __construct(
-        private readonly Driver $driver,
-        private readonly string $host,
-        private readonly int $port,
-        private readonly string $database,
-        private readonly string $username,
-        private readonly string $password,
-        private readonly string $charset,
-        private readonly string $collation = '',
-        private readonly string $prefix = '',
-        private readonly bool $strict = true,
-        private readonly bool $persistent = false,
-        private readonly ?DatabaseDialect $dialect = null,
-        private readonly ?string $dsn = null,
-        private readonly array $options = [],
+        private Driver $driver,
+        private string $host,
+        private int $port,
+        private string $database,
+        private string $username,
+        private string $password,
+        private string $charset,
+        private string $collation = '',
+        private string $prefix = '',
+        private bool $strict = true,
+        private bool $persistent = false,
+        private ?DatabaseDialect $dialect = null,
+        private ?string $dsn = null,
+        private array $options = [],
     ) {}
 
     /**

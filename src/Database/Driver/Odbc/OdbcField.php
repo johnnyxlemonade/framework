@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Driver\Odbc;
 
-final class OdbcField
+final readonly class OdbcField
 {
     public function __construct(
-        private readonly string $name,
-        private readonly string $type,
-        private readonly int $maxLength,
-        private readonly bool $primaryKey = false,
-        private readonly mixed $default = null,
+        private string $name,
+        private string $type,
+        private int $maxLength,
+        private bool $primaryKey = false,
+        private mixed $default = null,
     ) {}
 
     public function name(): string

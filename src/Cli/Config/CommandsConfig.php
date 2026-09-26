@@ -7,14 +7,14 @@ namespace Lemonade\Framework\Cli\Config;
 use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandInterface;
 
-final class CommandsConfig
+final readonly class CommandsConfig
 {
     /**
      * @param list<CommandDefinition> $definitions
      * @param list<class-string<CommandInterface>> $legacyCommandClasses
      */
     public function __construct(
-        public readonly array $definitions,
-        public readonly array $legacyCommandClasses = [],
+        public array $definitions,
+        public array $legacyCommandClasses = [],
     ) {}
 }

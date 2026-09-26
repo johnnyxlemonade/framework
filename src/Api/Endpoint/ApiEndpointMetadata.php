@@ -6,7 +6,7 @@ namespace Lemonade\Framework\Api\Endpoint;
 
 use Lemonade\Framework\Http\HttpStatus;
 
-final class ApiEndpointMetadata
+final readonly class ApiEndpointMetadata
 {
     /**
      * @param list<non-empty-string> $tags
@@ -18,13 +18,13 @@ final class ApiEndpointMetadata
      * @param non-empty-string $responseContentType
      */
     public function __construct(
-        private readonly array $tags = [],
-        private readonly array $scopes = [],
-        private readonly array $parameters = [],
-        private readonly ?array $requestBodySchema = null,
-        private readonly ?array $responseSchema = null,
-        private readonly array $successStatusCodes = [HttpStatus::OK->value],
-        private readonly string $responseContentType = 'application/json',
+        private array $tags = [],
+        private array $scopes = [],
+        private array $parameters = [],
+        private ?array $requestBodySchema = null,
+        private ?array $responseSchema = null,
+        private array $successStatusCodes = [HttpStatus::OK->value],
+        private string $responseContentType = 'application/json',
     ) {
         $this->assertTags($tags);
         $this->assertScopes($scopes);

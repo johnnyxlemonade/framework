@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation;
 
-final class ValidationResult
+final readonly class ValidationResult
 {
     /**
      * @param array<string, string> $errors
@@ -13,11 +13,11 @@ final class ValidationResult
      * @param array<string, mixed> $input
      */
     public function __construct(
-        private readonly bool $valid,
-        private readonly array $errors,
-        private readonly array $validated,
-        private readonly array $failedRules = [],
-        private readonly array $input = [],
+        private bool $valid,
+        private array $errors,
+        private array $validated,
+        private array $failedRules = [],
+        private array $input = [],
     ) {}
 
     public function isValid(): bool

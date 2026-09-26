@@ -6,16 +6,16 @@ namespace Lemonade\Framework\Database\Schema\Definition;
 
 use Lemonade\Framework\Database\Schema\Enum\IndexType;
 
-final class IndexDefinition
+final readonly class IndexDefinition
 {
     /**
      * @param non-empty-list<string> $columns
      */
     public function __construct(
-        private readonly IndexType $type,
-        private readonly array $columns,
-        private readonly ?string $name = null,
-        private readonly bool $ifNotExists = false,
+        private IndexType $type,
+        private array $columns,
+        private ?string $name = null,
+        private bool $ifNotExists = false,
     ) {}
 
     /**

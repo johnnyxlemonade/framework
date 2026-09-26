@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Debug\Dump\Context;
 
-final class DumpSourceLocation
+final readonly class DumpSourceLocation
 {
     public function __construct(
-        private readonly string $file,
-        private readonly ?int $line,
+        private string $file,
+        private ?int $line,
     ) {}
 
     public function file(): string

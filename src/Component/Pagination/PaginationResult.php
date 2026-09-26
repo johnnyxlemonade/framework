@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Pagination;
 
-final class PaginationResult
+final readonly class PaginationResult
 {
     /**
      * @param list<array<string, mixed>> $items
      */
     public function __construct(
-        private readonly array $items,
-        private readonly PaginationState $state,
+        private array $items,
+        private PaginationState $state,
     ) {}
 
     /**
