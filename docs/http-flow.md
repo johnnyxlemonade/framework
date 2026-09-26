@@ -11,7 +11,8 @@ public/index.php
 -> Kernel::handle()
    -> create ServerRequest from globals when no request is provided
 -> Kernel::run()
-   -> bind the provided ServerRequestInterface into the container
+   -> create a Request scope
+   -> bind the provided ServerRequestInterface only in that scope
 -> Kernel::bootstrap()
    -> load conventional YAML application config files
    -> apply runtime app config
@@ -22,7 +23,7 @@ public/index.php
    -> load routes
    -> resolve tagged RouteRegistrarInterface services
    -> finalize and freeze routing
--> Framework::run()
+-> Framework::runInScope()
    -> start or continue benchmark run
    -> resolve global middleware stack
    -> execute PSR-15 middleware pipeline
@@ -32,7 +33,7 @@ public/index.php
       -> resolve route-specific middleware
       -> execute route middleware pipeline
       -> resolve controller
-      -> inject current ServerRequestInterface for this dispatch cycle
+      -> resolve the current scope-bound ServerRequestInterface
       -> resolve action arguments
       -> call controller action
       -> normalize result to PSR response
@@ -59,7 +60,16 @@ $kernel->handle();
 
 ## Notes
 
-When `run()` receives a request, that exact `ServerRequestInterface` is available from the container before application providers register. An explicit requestless `bootstrap()` does not synthesize or bind an HTTP request.
+Each `Kernel::run()` call creates a `Request` scope and binds its exact
+`ServerRequestInterface` only in that scope. Bootstrap and application-provider registration
+remain requestless: the root container never stores a request-specific binding. The scope is closed
+in a `finally` block after a normal response, a not-found response, or any middleware/controller
+exception. This also applies to the health fast path.
+
+Services resolved for the request pipeline, route middleware, dispatch handler and controller use
+the active scoped container. Therefore `ContainerInterface` injected into a request-scoped or
+transient runtime service resolves to that `ScopedContainerInterface`; root singletons remain shared
+and cannot consume request-local values.
 
 Bootstrap happens before request dispatch. Global middleware wraps route matching and controller execution. Route-specific middleware wraps the matched controller handler.
 

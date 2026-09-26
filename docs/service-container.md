@@ -77,8 +77,10 @@ alias. The container rejects that resolution with a dedicated exception. Scoped 
 on singletons, and transients may depend on scoped services only when they are resolved from an
 active scope.
 
-Automatic creation and closing of HTTP, CLI or job scopes is intentionally not part of this
-container step; kernel and worker lifecycle integration is a separate follow-up.
+`Kernel::run()` automatically creates a `Request` scope, binds the PSR-7 request only in that scope,
+and closes it in `finally`, including error and health-fast-path responses. HTTP middleware,
+dispatch and controller resolution use this active scope. CLI command and job/worker lifecycle
+integration remain separate follow-up work.
 
 ## Service aliases
 

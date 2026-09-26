@@ -102,6 +102,8 @@ final class ScopedContainer implements ScopedContainerInterface
         $this->assertOpen();
 
         if (isset($this->localInstances[$id])) {
+            $this->root->assertScopeLocalServiceCanResolve($id);
+
             return $this->localInstances[$id];
         }
 

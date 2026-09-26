@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopedContainerInterface;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigFileLoader;
 use Lemonade\Framework\Core\Config\CoreConfigurationServiceProvider;
@@ -260,8 +263,9 @@ final class Framework
      *
      * When no request is supplied, a server request is created from global PHP
      * state through the server request factory. Any deferred middleware
-     * configuration is applied before middleware is resolved, and the pipeline
-     * terminates in the dispatch request handler.
+     * configuration is applied before middleware is resolved. This convenience
+     * entrypoint creates and closes its own request scope; Kernel callers pass
+     * their already-active scope to {@see runInScope()} instead.
      */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
@@ -269,20 +273,45 @@ final class Framework
             ->get(ServerRequestFactory::class)
             ->fromGlobals();
 
+        if (!$this->container instanceof ScopeFactoryInterface) {
+            throw new RuntimeException(sprintf(
+                'Framework container must implement %s to run an HTTP request.',
+                ScopeFactoryInterface::class,
+            ));
+        }
+
+        $scope = $this->container->beginScope(ScopeKind::Request);
+        $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+
+        try {
+            return $this->runInScope($scope, $request);
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function runInScope(ScopedContainerInterface $scope, ServerRequestInterface $request): ResponseInterface
+    {
+        return $this->runWithContainer($scope, $request);
+    }
+
+    private function runWithContainer(ContainerInterface $runtimeContainer, ServerRequestInterface $request): ResponseInterface
+    {
+
         /** @var Benchmark $benchmark */
-        $benchmark = $this->container->get(Benchmark::class);
+        $benchmark = $runtimeContainer->get(Benchmark::class);
         $run = $benchmark->currentOrStart();
         $run->mark('request_received');
 
-        $stack = $this->container->get(MiddlewareStack::class);
+        $stack = $runtimeContainer->get(MiddlewareStack::class);
         $this->applyPendingMiddlewareConfiguration($stack);
-        $middleware = $this->container
+        $middleware = $runtimeContainer
             ->get(MiddlewareResolver::class)
             ->resolve($stack->all());
 
         $pipeline = MiddlewarePipeline::create(
             $middleware,
-            $this->container->get(DispatchRequestHandler::class),
+            $runtimeContainer->get(DispatchRequestHandler::class),
         );
 
         $run->mark('middleware_resolved');

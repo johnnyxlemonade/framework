@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopedContainerInterface;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config\ConfigLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
@@ -115,9 +118,13 @@ final class Kernel
         try {
             $this->ensureConfigurationLoaded();
 
-            if ($request !== null) {
-                $this->container->set(ServerRequestInterface::class, $request);
+            $request ??= $this->container
+                ->get(ServerRequestFactory::class)
+                ->fromGlobals();
+            $scope = $this->beginRequestScope();
+            $scope->bindScopedInstance(ServerRequestInterface::class, $request);
 
+            try {
                 $response = $this->healthFastPath->tryHandle(
                     $request,
                 );
@@ -125,11 +132,13 @@ final class Kernel
                 if ($response instanceof ResponseInterface) {
                     return $response;
                 }
+
+                $this->bootstrap();
+
+                return $this->framework->runInScope($scope, $request);
+            } finally {
+                $scope->close();
             }
-
-            $this->bootstrap();
-
-            return $this->framework->run($request);
         } catch (RouteNotFoundException $exception) {
             $this->benchmark->currentOrStart()->with('exception', $exception::class);
             $this->markBenchmark('kernel_exception');
@@ -212,6 +221,18 @@ final class Kernel
 
         $this->configurationLoaded = true;
         $this->markBenchmark('config_loaded');
+    }
+
+    private function beginRequestScope(): ScopedContainerInterface
+    {
+        if (!$this->container instanceof ScopeFactoryInterface) {
+            throw new \LogicException(sprintf(
+                'HTTP kernel container must implement %s to create request scopes.',
+                ScopeFactoryInterface::class,
+            ));
+        }
+
+        return $this->container->beginScope(ScopeKind::Request);
     }
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface

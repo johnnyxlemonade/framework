@@ -20,7 +20,7 @@ use RuntimeException;
  * Route-to-controller dispatcher for HTTP requests.
  *
  * The resolver obtains controller instances through the dependency injection
- * container, binds the current PSR-7 server request for the dispatch cycle,
+ * container, resolves the current scoped PSR-7 server request for the dispatch cycle,
  * resolves action parameters from the request and route parameters, performs
  * scalar conversion for builtin parameter types, invokes the controller
  * action, and normalizes the result to a PSR-7 response.
@@ -28,7 +28,7 @@ use RuntimeException;
 final class ControllerResolver
 {
     /**
-     * Accepts the container used for controller resolution, request binding,
+     * Accepts the scoped container used for controller resolution,
      * response factories, stream factories, and benchmark access.
      */
     public function __construct(
@@ -39,8 +39,8 @@ final class ControllerResolver
     /**
      * Dispatches the matched controller action and normalizes its result to a PSR-7 response.
      *
-     * The current request is first bound into the container for this dispatch
-     * cycle. The resolver then reads the controller class, action, and route
+     * The current request is already bound into the active scope by the kernel.
+     * The resolver then reads the controller class, action, and route
      * parameters from the route match, resolves the controller through the
      * container, initializes {@see AbstractController} context when applicable,
      * injects `ServerRequestInterface` action parameters directly, maps named
@@ -62,10 +62,6 @@ final class ControllerResolver
      */
     public function handle(RouteMatch $match, ServerRequestInterface $request): PsrResponseInterface
     {
-        // Bind the current request for this dispatch cycle so constructor DI
-        // resolves the live request instance instead of a stale previous one.
-        $this->container->set(ServerRequestInterface::class, $request);
-
         $controllerClass = $match->controller();
         $action = $match->action();
         $controllerClass = trim($controllerClass);

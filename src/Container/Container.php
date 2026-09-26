@@ -262,6 +262,21 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->resolveService($scope, $id);
     }
 
+    public function assertScopeLocalServiceCanResolve(string $id): void
+    {
+        if (!in_array(ServiceLifetime::Singleton, $this->serviceLifetimeStack, true)) {
+            return;
+        }
+
+        $chain = [...$this->serviceResolutionStack, $id];
+
+        throw new SingletonDependsOnScopedServiceException(sprintf(
+            'Singleton service resolution cannot depend on scope-local service "%s": %s',
+            $id,
+            implode(' -> ', $chain),
+        ));
+    }
+
     private function resolveService(ContainerInterface $runtimeContainer, string $id): mixed
     {
         $plan = $this->compiledPlan();
@@ -309,8 +324,11 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
                 return $this->build($canonicalId, $runtimeContainer);
             }
 
-            $resolved = $this->resolve($definition->target, $runtimeContainer);
-            $resolved = $this->applyDecorators($runtimeContainer, $plan->decorators($canonicalId), $resolved);
+            $resolutionContainer = $definition->lifetime === ServiceLifetime::Singleton
+                ? $this
+                : $runtimeContainer;
+            $resolved = $this->resolve($definition->target, $resolutionContainer);
+            $resolved = $this->applyDecorators($resolutionContainer, $plan->decorators($canonicalId), $resolved);
 
             if ($definition->lifetime === ServiceLifetime::Singleton) {
                 $this->instances[$canonicalId] = $resolved;
@@ -680,7 +698,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
             ));
         }
 
-        if ($kind === 'interface' && !$this->isBound($dependency)) {
+        if ($kind === 'interface' && !$runtimeContainer->isBound($dependency)) {
             if ($hasDefaultValue) {
                 return $defaultValue;
             }

@@ -59,7 +59,7 @@ final class CoreServiceProvider implements ServiceProviderInterface
         /*
          * Core framework utilities.
          */
-        $container->singleton(ControllerResolver::class, ControllerResolver::class);
+        $container->scoped(ControllerResolver::class, ControllerResolver::class);
         $container->singleton(BaseUrlResolver::class, BaseUrlResolver::class);
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);

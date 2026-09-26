@@ -174,16 +174,23 @@ final class ControllerResolverTest extends TestCase
         $container->singleton(ResponseFactoryInterface::class, $psr17);
         $container->singleton(StreamFactoryInterface::class, $psr17);
 
-        $resolver = new ControllerResolver($container, new Benchmark());
+        $firstRequest = $psr17->createServerRequest('GET', '/first');
+        $firstScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
+        $firstScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $firstRequest);
+        $firstResponse = (new ControllerResolver($firstScope, new Benchmark()))->handle(
+            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
+            $firstRequest,
+        );
+        $firstScope->close();
 
-        $firstResponse = $resolver->handle(
+        $secondRequest = $psr17->createServerRequest('GET', '/second');
+        $secondScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
+        $secondScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $secondRequest);
+        $secondResponse = (new ControllerResolver($secondScope, new Benchmark()))->handle(
             new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
-            $psr17->createServerRequest('GET', '/first'),
+            $secondRequest,
         );
-        $secondResponse = $resolver->handle(
-            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
-            $psr17->createServerRequest('GET', '/second'),
-        );
+        $secondScope->close();
 
         self::assertSame('/first', (string) $firstResponse->getBody());
         self::assertSame('/second', (string) $secondResponse->getBody());

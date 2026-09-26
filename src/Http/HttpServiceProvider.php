@@ -84,11 +84,11 @@ final class HttpServiceProvider implements ServiceProviderInterface
         $container->singleton(PoweredByMiddleware::class, PoweredByMiddleware::class);
         $container->singleton(RequestLoggingMiddleware::class, RequestLoggingMiddleware::class);
         $container->singleton(BenchmarkMiddleware::class, BenchmarkMiddleware::class);
-        $container->singleton(DispatchRequestHandler::class, DispatchRequestHandler::class);
+        $container->scoped(DispatchRequestHandler::class, DispatchRequestHandler::class);
         $container->singleton(CorsMiddleware::class, CorsMiddleware::class);
         $container->singleton(HtmlMinifyMiddleware::class, HtmlMinifyMiddleware::class);
         $container->singleton(OptionsMiddleware::class, OptionsMiddleware::class);
-        $container->singleton(MiddlewareResolver::class, MiddlewareResolver::class);
+        $container->scoped(MiddlewareResolver::class, MiddlewareResolver::class);
         $container->singleton(MiddlewareStack::class, static fn(): MiddlewareStack => new MiddlewareStack([
             RequestLoggingMiddleware::class,
             BenchmarkMiddleware::class,
