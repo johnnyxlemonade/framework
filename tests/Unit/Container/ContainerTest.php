@@ -328,6 +328,19 @@ final class ContainerTest extends TestCase
         self::assertNotSame($first, $second);
     }
 
+    public function testRebindingTaggedServicePreservesItsTag(): void
+    {
+        $container = new Container();
+        $container->singleton('tagged.service', static fn(): \stdClass => new \stdClass());
+        $container->tag('tagged.service', 'capability.example');
+        $container->set('tagged.service', static fn(): \stdClass => new \stdClass());
+
+        self::assertArrayHasKey(
+            'tagged.service',
+            $this->taggedServices($container->tagged('capability.example')),
+        );
+    }
+
     public function testGetForMissingServiceThrowsServiceNotFoundException(): void
     {
         $container = new Container();

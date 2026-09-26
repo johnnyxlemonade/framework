@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container;
 
-use Closure;
 use Lemonade\Framework\Container\Config\ContainerConfig;
+use Lemonade\Framework\Container\Definition\ClassTarget;
+use Lemonade\Framework\Container\Definition\DefinitionTarget;
+use Lemonade\Framework\Container\Definition\FactoryTarget;
+use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\ContainerException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -16,23 +19,13 @@ use ReflectionNamedType;
 
 final class Container implements ContainerInterface
 {
-    /**
-     * @var array<string, array{
-     *     concrete: callable(ContainerInterface):mixed|object|string,
-     *     singleton: bool
-     * }>
-     */
-    private array $bindings = [];
+    private ContainerBuilder $builder;
+    private ?CompiledContainerPlan $compiledPlan = null;
 
     /**
      * @var array<string, mixed>
      */
     private array $instances = [];
-
-    /**
-     * @var array<string, list<string>>
-     */
-    private array $tags = [];
 
     /**
      * @var array<string, true>
@@ -78,19 +71,19 @@ final class Container implements ContainerInterface
     private ?LoggerInterface $autowireFallbackLogger = null;
     private ?bool $autowireFallbackWarningEnabled = null;
 
+    public function __construct(?ContainerBuilder $builder = null)
+    {
+        $this->builder = $builder ?? new ContainerBuilder();
+    }
+
     /**
      * @param class-string|non-empty-string $id
      * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
      */
     public function set(string $id, callable|object|string $concrete): void
     {
-        $this->bindings[$id] = [
-            'concrete' => $concrete,
-            'singleton' => false,
-        ];
-
-        unset($this->instances[$id]);
-        $this->invalidateDiagnosticCacheFor($id);
+        $this->builder->set($id, $concrete);
+        $this->definitionChanged($id);
     }
 
     /**
@@ -99,13 +92,8 @@ final class Container implements ContainerInterface
      */
     public function singleton(string $id, callable|object|string $concrete): void
     {
-        $this->bindings[$id] = [
-            'concrete' => $concrete,
-            'singleton' => true,
-        ];
-
-        unset($this->instances[$id]);
-        $this->invalidateDiagnosticCacheFor($id);
+        $this->builder->singleton($id, $concrete);
+        $this->definitionChanged($id);
     }
 
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
@@ -119,32 +107,18 @@ final class Container implements ContainerInterface
 
     public function tag(string $serviceId, string $tag): void
     {
-        if (!$this->isBound($serviceId)) {
-            throw new ContainerException(sprintf(
-                'Tagged service "%s" must be explicitly bound before it can be tagged.',
-                $serviceId,
-            ));
-        }
-
-        $normalizedTag = $this->normalizeTag($tag);
-        $services = $this->tags[$normalizedTag] ?? [];
-
-        if (in_array($serviceId, $services, true)) {
-            throw new ContainerException(sprintf(
-                'Service "%s" is already tagged with "%s".',
-                $serviceId,
-                $normalizedTag,
-            ));
-        }
-
-        $services[] = $serviceId;
-        $this->tags[$normalizedTag] = $services;
+        $this->builder->tag($serviceId, $tag);
+        $this->compiledPlan = null;
     }
 
     public function tagged(string $tag): iterable
     {
-        $normalizedTag = $this->normalizeTag($tag);
-        $serviceIds = $this->tags[$normalizedTag] ?? [];
+        $normalizedTag = trim($tag);
+        if ($normalizedTag === '') {
+            throw new ContainerException('Service tag must not be empty.');
+        }
+
+        $serviceIds = $this->compiledPlan()->taggedServiceIds($normalizedTag);
 
         return $this->resolveTagged($normalizedTag, $serviceIds);
     }
@@ -168,7 +142,7 @@ final class Container implements ContainerInterface
      */
     public function isBound(string $id): bool
     {
-        return isset($this->instances[$id]) || isset($this->bindings[$id]);
+        return isset($this->instances[$id]) || $this->builder->hasDefinition($id);
     }
 
     /**
@@ -183,9 +157,9 @@ final class Container implements ContainerInterface
             return $this->instances[$id];
         }
 
-        $binding = $this->bindings[$id] ?? null;
+        $definition = $this->compiledPlan()->definition($id);
 
-        if ($binding === null) {
+        if ($definition === null) {
             if (!$this->classExists($id)) {
                 throw new ServiceNotFoundException(sprintf(
                     'Service "%s" was not found.',
@@ -198,9 +172,9 @@ final class Container implements ContainerInterface
             return $this->build($id);
         }
 
-        $resolved = $this->resolve($binding['concrete']);
+        $resolved = $this->resolve($definition->target);
 
-        if ($binding['singleton']) {
+        if ($definition->lifetime === ServiceLifetime::Singleton) {
             $this->instances[$id] = $resolved;
         }
 
@@ -330,9 +304,9 @@ final class Container implements ContainerInterface
             return $this->instances[ApplicationContext::class];
         }
 
-        $binding = $this->bindings[ApplicationContext::class]['concrete'] ?? null;
+        $instance = $this->boundInstance(ApplicationContext::class);
 
-        return $binding instanceof ApplicationContext ? $binding : null;
+        return $instance instanceof ApplicationContext ? $instance : null;
     }
 
     private function peekContainerConfig(): ?ContainerConfig
@@ -344,9 +318,9 @@ final class Container implements ContainerInterface
             return $this->instances[ContainerConfig::class];
         }
 
-        $binding = $this->bindings[ContainerConfig::class]['concrete'] ?? null;
+        $instance = $this->boundInstance(ContainerConfig::class);
 
-        return $binding instanceof ContainerConfig ? $binding : null;
+        return $instance instanceof ContainerConfig ? $instance : null;
     }
 
     private function peekLogger(): ?LoggerInterface
@@ -358,9 +332,9 @@ final class Container implements ContainerInterface
             return $this->instances[LoggerInterface::class];
         }
 
-        $binding = $this->bindings[LoggerInterface::class]['concrete'] ?? null;
+        $instance = $this->boundInstance(LoggerInterface::class);
 
-        return $binding instanceof LoggerInterface ? $binding : null;
+        return $instance instanceof LoggerInterface ? $instance : null;
     }
 
     private function autowireFallbackLogger(): ?LoggerInterface
@@ -374,31 +348,24 @@ final class Container implements ContainerInterface
         return $this->autowireFallbackLogger;
     }
 
-    /**
-     * @param callable(ContainerInterface):mixed|object|string $concrete
-     */
-    private function resolve(callable|object|string $concrete): mixed
+    private function resolve(DefinitionTarget $target): mixed
     {
-        if ($concrete instanceof Closure) {
-            return $concrete($this);
+        if ($target instanceof FactoryTarget) {
+            return ($target->factory)($this);
         }
 
-        if (is_callable($concrete) && !is_string($concrete)) {
-            return $concrete($this);
+        if ($target instanceof InstanceTarget) {
+            return $target->instance;
         }
 
-        if (is_object($concrete)) {
-            return $concrete;
-        }
-
-        if (!$this->classExists($concrete)) {
+        if (!$target instanceof ClassTarget || !$this->classExists($target->className)) {
             throw new ServiceNotFoundException(sprintf(
                 'Service "%s" was not found.',
-                $concrete,
+                $target instanceof ClassTarget ? $target->className : get_debug_type($target),
             ));
         }
 
-        return $this->build($concrete);
+        return $this->build($target->className);
     }
 
     private function build(string $className): object
@@ -599,6 +566,25 @@ final class Container implements ContainerInterface
         }
     }
 
+    private function definitionChanged(string $id): void
+    {
+        unset($this->instances[$id]);
+        $this->compiledPlan = null;
+        $this->invalidateDiagnosticCacheFor($id);
+    }
+
+    private function compiledPlan(): CompiledContainerPlan
+    {
+        return $this->compiledPlan ??= $this->builder->compile();
+    }
+
+    private function boundInstance(string $id): ?object
+    {
+        $target = $this->compiledPlan()->definition($id)?->target;
+
+        return $target instanceof InstanceTarget ? $target->instance : null;
+    }
+
     /**
      * @param list<string> $serviceIds
      * @return \Generator<string, object>
@@ -619,13 +605,4 @@ final class Container implements ContainerInterface
         }
     }
 
-    private function normalizeTag(string $tag): string
-    {
-        $normalizedTag = trim($tag);
-        if ($normalizedTag === '') {
-            throw new ContainerException('Service tag must not be empty.');
-        }
-
-        return $normalizedTag;
-    }
 }

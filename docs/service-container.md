@@ -24,6 +24,13 @@ $container->singleton(Bar::class, static function (ContainerInterface $container
 $container->singleton('custom.service', new CustomService());
 ```
 
+## Definition planning
+
+Explicit registrations are represented internally as immutable service definitions and compiled into
+a container plan before resolution. This preserves the existing `set()`, `singleton()`, `tag()` and
+`tagged()` API while separating registration metadata from lazy runtime resolution. The plan does
+not generate PHP code and does not change the singleton, transient, factory or autowiring contracts.
+
 ## Tagged services
 
 Tags declare an explicit service as a member of a collection capability. They are not filesystem
