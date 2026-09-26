@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Http\Middleware;
 
 use Lemonade\Framework\Http\Config\CorsConfig;
+use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -43,7 +44,7 @@ final class CorsMiddleware implements MiddlewareInterface
 
         if (!$originAllowed) {
             if ($preflight) {
-                return $this->withVaryOrigin($this->responseFactory->createResponse(403));
+                return $this->withVaryOrigin($this->responseFactory->createResponse(HttpStatus::FORBIDDEN->value));
             }
 
             return $handler->handle($request);
@@ -67,7 +68,7 @@ final class CorsMiddleware implements MiddlewareInterface
 
     private function buildPreflightResponse(string $origin, bool $allowCredentials): ResponseInterface
     {
-        $response = $this->responseFactory->createResponse(204);
+        $response = $this->responseFactory->createResponse(HttpStatus::NO_CONTENT->value);
 
         return $this->applyCorsResponseHeaders($response, $origin, $allowCredentials, true);
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\RouteMatch;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -260,7 +261,7 @@ final class ControllerResolver
             $streamFactory = $this->container->get(StreamFactoryInterface::class);
 
             $response = $responseFactory
-                ->createResponse(200)
+                ->createResponse(HttpStatus::OK->value)
                 ->withHeader('Content-Type', 'text/html; charset=UTF-8')
                 ->withBody($streamFactory->createStream((string) $result));
             $this->markBenchmark('response_created');

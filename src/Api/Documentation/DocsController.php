@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Api\Documentation;
 
 use Lemonade\Framework\Api\Config\ApiConfig;
+use Lemonade\Framework\Http\HttpStatus;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
@@ -48,7 +49,7 @@ final class DocsController
             . '</body></html>';
 
         return $this->psr17
-            ->createResponse(200)
+            ->createResponse(HttpStatus::OK->value)
             ->withHeader('Content-Type', 'text/html; charset=utf-8')
             ->withBody($this->psr17->createStream($html));
     }

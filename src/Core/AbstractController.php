@@ -12,6 +12,7 @@ use Lemonade\Framework\Core\Controller\ControllerResponses;
 use Lemonade\Framework\Core\Controller\ControllerServices;
 use Lemonade\Framework\Core\Http\RequestData;
 use Lemonade\Framework\Filesystem\Filesystem;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Request\HttpMethod;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\Router;
@@ -392,7 +393,7 @@ abstract class AbstractController
     /**
      * Creates a plain text response.
      */
-    protected function text(string $content, int $status = 200): ResponseInterface
+    protected function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->responses()->text($content, $status);
     }
@@ -400,7 +401,7 @@ abstract class AbstractController
     /**
      * Creates an HTML response.
      */
-    protected function html(string $content, int $status = 200): ResponseInterface
+    protected function html(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->responses()->html($content, $status);
     }
@@ -410,7 +411,7 @@ abstract class AbstractController
      *
      * @param array<string, mixed> $payload
      */
-    protected function json(array $payload, int $status = 200): ResponseInterface
+    protected function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->responses()->json($payload, $status);
     }
@@ -418,7 +419,7 @@ abstract class AbstractController
     /**
      * Creates a redirect response.
      */
-    protected function redirect(string $to, int $status = 302): ResponseInterface
+    protected function redirect(string $to, int $status = HttpStatus::FOUND->value): ResponseInterface
     {
         return $this->responses()->redirect($to, $status);
     }
@@ -439,7 +440,7 @@ abstract class AbstractController
      */
     protected function response(
         string $content = '',
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/html; charset=UTF-8',
     ): ResponseInterface {
         return $this->responses()->response($content, $status, $contentType);
@@ -453,7 +454,7 @@ abstract class AbstractController
      */
     protected function stream(
         callable $producer,
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/plain; charset=UTF-8',
         array $headers = [],
     ): ResponseInterface {

@@ -8,6 +8,7 @@ use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Http\Error\ErrorPageRenderer;
 use Lemonade\Framework\Http\Exception\NotFoundHttpException;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Logging\HttpLogContext;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -35,14 +36,14 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
             $this->logException($exception, $request);
 
             return $this->htmlResponse(
-                statusCode: 404,
+                statusCode: HttpStatus::NOT_FOUND->value,
                 body: $this->errorPageRenderer->notFound($exception),
             );
         } catch (Throwable $exception) {
             $this->logException($exception, $request);
 
             return $this->htmlResponse(
-                statusCode: 500,
+                statusCode: HttpStatus::INTERNAL_SERVER_ERROR->value,
                 body: $this->errorPageRenderer->internalServerError($exception),
             );
         }
@@ -67,7 +68,7 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
                 $this->logs->error()->notice($exception->getMessage(), [
                     'exception' => $exception::class,
                     'message' => $exception->getMessage(),
-                    'status' => 404,
+                    'status' => HttpStatus::NOT_FOUND->value,
                     'request' => $this->httpLogContext->request($request),
                 ]);
 

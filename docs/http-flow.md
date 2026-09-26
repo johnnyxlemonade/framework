@@ -84,3 +84,10 @@ The guard rejects command/job scopes, a missing local request binding, and a mis
 Bootstrap happens before request dispatch. Global middleware wraps route matching and controller execution. Route-specific middleware wraps the matched controller handler.
 
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
+
+## HTTP statuses
+
+Framework response paths use the general `Lemonade\Framework\Http\HttpStatus` backed enum
+for named HTTP statuses. PSR-7 response factories still receive the compatible integer through
+`HttpStatus::CASE->value`. The enum is a framework HTTP contract and does not contain
+application or administration-specific error codes.

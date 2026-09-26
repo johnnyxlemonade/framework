@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Http\Middleware;
 
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkResponseInjector;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
@@ -53,7 +54,7 @@ final class BenchmarkMiddleware implements MiddlewareInterface
             $run->with('status', $response->getStatusCode());
             $run->mark('response_ready');
         } catch (Throwable $exception) {
-            $run->with('status', 500);
+            $run->with('status', HttpStatus::INTERNAL_SERVER_ERROR->value);
             $run->with('exception_class', $exception::class);
             $run->with('exception_message', $exception->getMessage());
             $run->mark('exception');

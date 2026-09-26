@@ -13,6 +13,7 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\HttpServiceProvider;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
@@ -241,13 +242,13 @@ final class Kernel
     {
         if ($this->context->debug()) {
             return $this->textResponse(
-                statusCode: 404,
+                statusCode: HttpStatus::NOT_FOUND->value,
                 body: '404 Not Found' . PHP_EOL . $exception->getMessage(),
             );
         }
 
         return $this->textResponse(
-            statusCode: 404,
+            statusCode: HttpStatus::NOT_FOUND->value,
             body: '404 Not Found',
         );
     }
@@ -256,7 +257,7 @@ final class Kernel
     {
         if ($this->context->debug()) {
             return $this->textResponse(
-                statusCode: 500,
+                statusCode: HttpStatus::INTERNAL_SERVER_ERROR->value,
                 body: sprintf(
                     "500 Internal Server Error\n\n%s: %s\n\n%s",
                     $exception::class,
@@ -267,7 +268,7 @@ final class Kernel
         }
 
         return $this->textResponse(
-            statusCode: 500,
+            statusCode: HttpStatus::INTERNAL_SERVER_ERROR->value,
             body: '500 Internal Server Error',
         );
     }

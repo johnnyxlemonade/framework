@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Discovery\Robots;
 
 use Lemonade\Framework\Core\AbstractController;
+use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Message\ResponseInterface;
 
 final class RobotsController extends AbstractController
@@ -17,7 +18,7 @@ final class RobotsController extends AbstractController
     {
         return $this->response(
             $this->generator->generate(),
-            200,
+            HttpStatus::OK->value,
             'text/plain; charset=UTF-8',
         );
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Http;
 
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Psr\CallbackStream;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -16,12 +17,12 @@ final class ResponseBuilder
         private readonly StreamFactoryInterface $streamFactory,
     ) {}
 
-    public function text(string $content, int $status = 200): ResponseInterface
+    public function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->response($content, $status, 'text/plain; charset=UTF-8');
     }
 
-    public function html(string $content, int $status = 200): ResponseInterface
+    public function html(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->response($content, $status, 'text/html; charset=UTF-8');
     }
@@ -29,7 +30,7 @@ final class ResponseBuilder
     /**
      * @param array<string, mixed> $payload
      */
-    public function json(array $payload, int $status = 200): ResponseInterface
+    public function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
     {
         $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $content = $encoded !== false ? $encoded : '{}';
@@ -37,7 +38,7 @@ final class ResponseBuilder
         return $this->response($content, $status, 'application/json; charset=UTF-8');
     }
 
-    public function redirect(string $to, int $status = 302): ResponseInterface
+    public function redirect(string $to, int $status = HttpStatus::FOUND->value): ResponseInterface
     {
         return $this->responseFactory
             ->createResponse($status)
@@ -53,7 +54,7 @@ final class ResponseBuilder
         $size = @filesize($filePath);
 
         $response = $this->responseFactory
-            ->createResponse(200)
+            ->createResponse(HttpStatus::OK->value)
             ->withHeader('Content-Type', $contentType)
             ->withHeader('Content-Disposition', 'attachment; filename="' . addslashes($name) . '"')
             ->withHeader('Content-Transfer-Encoding', 'binary')
@@ -68,7 +69,7 @@ final class ResponseBuilder
 
     public function response(
         string $content = '',
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/html; charset=UTF-8',
     ): ResponseInterface {
         $response = $this->responseFactory
@@ -90,7 +91,7 @@ final class ResponseBuilder
      */
     public function stream(
         callable $producer,
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/plain; charset=UTF-8',
         array $headers = [],
     ): ResponseInterface {

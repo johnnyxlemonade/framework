@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Routing\Router;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -36,7 +37,7 @@ final class OptionsMiddleware implements MiddlewareInterface
         }
 
         return $this->responseFactory
-            ->createResponse(204)
+            ->createResponse(HttpStatus::NO_CONTENT->value)
             ->withHeader('Allow', implode(', ', $allowedMethods));
     }
 }

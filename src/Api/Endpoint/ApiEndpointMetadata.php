@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Endpoint;
 
+use Lemonade\Framework\Http\HttpStatus;
+
 final class ApiEndpointMetadata
 {
     /**
@@ -21,7 +23,7 @@ final class ApiEndpointMetadata
         private readonly array $parameters = [],
         private readonly ?array $requestBodySchema = null,
         private readonly ?array $responseSchema = null,
-        private readonly array $successStatusCodes = [200],
+        private readonly array $successStatusCodes = [HttpStatus::OK->value],
         private readonly string $responseContentType = 'application/json',
     ) {
         $this->assertTags($tags);

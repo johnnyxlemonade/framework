@@ -10,6 +10,7 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpoint;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\FrameworkInfo;
+use Lemonade\Framework\Http\HttpStatus;
 
 final class OpenApiGenerator
 {
@@ -116,7 +117,7 @@ final class OpenApiGenerator
         }
 
         if ($endpoint->access() !== ApiAccess::Public) {
-            $responses['401'] = [
+            $responses[(string) HttpStatus::UNAUTHORIZED->value] = [
                 'description' => 'Unauthenticated',
                 'content' => [
                     'application/problem+json' => [
@@ -127,7 +128,7 @@ final class OpenApiGenerator
                 ],
             ];
 
-            $responses['403'] = [
+            $responses[(string) HttpStatus::FORBIDDEN->value] = [
                 'description' => 'Forbidden',
                 'content' => [
                     'application/problem+json' => [
@@ -139,7 +140,7 @@ final class OpenApiGenerator
             ];
         }
 
-        $responses['404'] = [
+        $responses[(string) HttpStatus::NOT_FOUND->value] = [
             'description' => 'Not Found',
             'content' => [
                 'application/problem+json' => [

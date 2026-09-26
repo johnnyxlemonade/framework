@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core\Controller;
 
 use Lemonade\Framework\Core\Http\ResponseBuilder;
+use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Message\ResponseInterface;
 
 final class ControllerResponses
@@ -13,12 +14,12 @@ final class ControllerResponses
         private readonly ResponseBuilder $builder,
     ) {}
 
-    public function text(string $content, int $status = 200): ResponseInterface
+    public function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->builder->text($content, $status);
     }
 
-    public function html(string $content, int $status = 200): ResponseInterface
+    public function html(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->builder->html($content, $status);
     }
@@ -26,12 +27,12 @@ final class ControllerResponses
     /**
      * @param array<string, mixed> $payload
      */
-    public function json(array $payload, int $status = 200): ResponseInterface
+    public function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->builder->json($payload, $status);
     }
 
-    public function redirect(string $to, int $status = 302): ResponseInterface
+    public function redirect(string $to, int $status = HttpStatus::FOUND->value): ResponseInterface
     {
         return $this->builder->redirect($to, $status);
     }
@@ -46,7 +47,7 @@ final class ControllerResponses
 
     public function response(
         string $content = '',
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/html; charset=UTF-8',
     ): ResponseInterface {
         return $this->builder->response($content, $status, $contentType);
@@ -58,7 +59,7 @@ final class ControllerResponses
      */
     public function stream(
         callable $producer,
-        int $status = 200,
+        int $status = HttpStatus::OK->value,
         string $contentType = 'text/plain; charset=UTF-8',
         array $headers = [],
     ): ResponseInterface {
