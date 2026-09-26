@@ -32,6 +32,18 @@ HTTP request
 -> PSR-7 response
 ```
 
+## Error responses
+
+An API error response is selected only for a request that resolves to a registered
+`ApiEndpointRegistry` endpoint under the configured API prefix. A generic `/api` path and an
+`Accept: application/json` header alone do not change the normal HTTP HTML error policy.
+
+For a registered endpoint, authentication and authorization failures, not-found exceptions and
+unexpected handler failures use `application/problem+json`. An unexpected API failure always has a
+generic Problem Details body, including in debug mode; exception details remain available through
+the framework error log. HTML applications and non-registered requests keep the standard HTML error
+responses.
+
 ## Framework endpoints
 
 ```text

@@ -13,6 +13,7 @@ use Lemonade\Framework\Api\Documentation\OpenApiGenerator;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistrar;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
 use Lemonade\Framework\Api\Framework\Health\HealthController;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
@@ -44,6 +45,7 @@ final class ApiServiceProvider implements ServiceProviderInterface
 
         $container->singleton(ApiEndpointRegistry::class, ApiEndpointRegistry::class);
         $container->singleton(ApiEndpointRegistrar::class, ApiEndpointRegistrar::class);
+        $container->singleton(ApiEndpointRequestResolver::class, ApiEndpointRequestResolver::class);
         $container->singleton(ApiAuthenticatorInterface::class, static function (ContainerInterface $container): ApiAuthenticatorInterface {
             $config = $container->get(ApiConfig::class);
 

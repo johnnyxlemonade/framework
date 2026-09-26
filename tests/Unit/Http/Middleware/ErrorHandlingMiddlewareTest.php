@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
+use Lemonade\Framework\Api\Config\ApiConfig;
+use Lemonade\Framework\Api\Config\ApiEndpointConfig;
+use Lemonade\Framework\Api\Config\ApiSecurityConfig;
+use Lemonade\Framework\Api\Config\FrameworkApiConfig;
+use Lemonade\Framework\Api\Config\StaticBearerConfig;
+use Lemonade\Framework\Api\Endpoint\ApiAccess;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
+use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
@@ -149,6 +158,52 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         self::assertNotSame('', $records[0]['context']['trace'] ?? '');
     }
 
+    public function testRegisteredApiEndpointExceptionReturnsGenericProblemDetails(): void
+    {
+        $endpoints = new ApiEndpointRegistry();
+        $endpoints->get('/broken', 'ApiController@broken', 'api.broken', 'Broken', 'Broken', ApiAccess::Public);
+        $middleware = $this->middleware(
+            container: new TrackingViewContainer(new View($this->viewsPath())),
+            errorLogNotFound: false,
+            endpoints: $endpoints,
+        );
+
+        $response = $middleware->process(
+            (new Psr17Factory())->createServerRequest('GET', '/api/broken'),
+            new ErrorMiddlewareThrowableHandler(new RuntimeException('Internal exception detail.')),
+        );
+
+        $body = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame('application/problem+json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+        self::assertIsArray($body);
+        self::assertSame('Internal Server Error', $body['title'] ?? null);
+        self::assertSame(500, $body['status'] ?? null);
+        self::assertSame('/api/broken', $body['instance'] ?? null);
+        $detail = $body['detail'] ?? null;
+        self::assertIsString($detail);
+        self::assertStringNotContainsString('Internal exception detail.', $detail);
+    }
+
+    public function testJsonAcceptDoesNotChangeHtmlErrorPolicyForNonApiRequest(): void
+    {
+        $middleware = $this->middleware(
+            container: new TrackingViewContainer(new View($this->viewsPath())),
+            errorLogNotFound: false,
+        );
+
+        $response = $middleware->process(
+            (new Psr17Factory())
+                ->createServerRequest('GET', '/broken')
+                ->withHeader('Accept', 'application/json'),
+            new ErrorMiddlewareThrowableHandler(new RuntimeException('Unexpected failure.')),
+        );
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame('text/html; charset=utf-8', $response->getHeaderLine('Content-Type'));
+    }
+
     public function testHtml404UsesErrorPageRendererTemplateFlow(): void
     {
         $factory = new Psr17Factory();
@@ -175,6 +230,7 @@ final class ErrorHandlingMiddlewareTest extends TestCase
     private function middleware(
         TrackingViewContainer $container,
         bool $errorLogNotFound,
+        ?ApiEndpointRegistry $endpoints = null,
     ): ErrorHandlingMiddleware {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -209,6 +265,27 @@ final class ErrorHandlingMiddlewareTest extends TestCase
                 context: $context,
                 config: new ErrorConfig('errors/404', 'errors/500'),
                 container: $container,
+            ),
+            apiEndpointResolver: new ApiEndpointRequestResolver(
+                $endpoints ?? new ApiEndpointRegistry(),
+                $this->apiConfig(),
+            ),
+            problems: new ProblemDetailsFactory(new Psr17Factory()),
+        );
+    }
+
+    private function apiConfig(): ApiConfig
+    {
+        return new ApiConfig(
+            enabled: true,
+            prefix: '/api',
+            endpointProviders: [],
+            security: new ApiSecurityConfig(new StaticBearerConfig('token', ['api:admin'])),
+            framework: new FrameworkApiConfig(
+                enabled: true,
+                health: new ApiEndpointConfig(true, '/framework/health', ApiAccess::Public),
+                openapi: new ApiEndpointConfig(true, '/framework/openapi.json', ApiAccess::Protected, ['openapi:read']),
+                docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
             ),
         );
     }

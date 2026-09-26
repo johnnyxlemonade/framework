@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Http\Middleware;
 
-use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
-use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
 use Lemonade\Framework\Api\Security\ScopeVoter;
@@ -19,25 +18,16 @@ use Psr\Http\Server\RequestHandlerInterface;
 final class ApiAuthorizationMiddleware implements MiddlewareInterface
 {
     public function __construct(
-        private readonly ApiEndpointRegistry $endpoints,
+        private readonly ApiEndpointRequestResolver $endpointResolver,
         private readonly ApiAuthenticatorInterface $authenticator,
         private readonly ScopeVoter $scopeVoter,
         private readonly ProblemDetailsFactory $problems,
-        private readonly ApiConfig $apiConfig,
         private readonly AppConfig $appConfig,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $resolvedPath = $this->resolveRegistryPath($request->getUri()->getPath());
-        if ($resolvedPath === null) {
-            return $handler->handle($request);
-        }
-
-        $endpoint = $this->endpoints->findByRequest(
-            method: $request->getMethod(),
-            path: $resolvedPath,
-        );
+        $endpoint = $this->endpointResolver->resolve($request);
 
         if ($endpoint === null) {
             return $handler->handle($request);
@@ -69,29 +59,5 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
     private function isDebug(): bool
     {
         return $this->appConfig->debug;
-    }
-
-    private function resolveRegistryPath(string $requestPath): ?string
-    {
-        $normalizedPath = '/' . trim($requestPath, '/');
-        $normalizedPath = $normalizedPath === '/' ? '/' : rtrim($normalizedPath, '/');
-
-        $normalizedPrefix = $this->apiConfig->prefix;
-
-        if ($normalizedPrefix === '') {
-            return $normalizedPath;
-        }
-
-        if ($normalizedPath === $normalizedPrefix) {
-            return '/';
-        }
-
-        if (!str_starts_with($normalizedPath, $normalizedPrefix . '/')) {
-            return null;
-        }
-
-        $suffix = substr($normalizedPath, strlen($normalizedPrefix));
-
-        return $suffix === '' ? '/' : $suffix;
     }
 }

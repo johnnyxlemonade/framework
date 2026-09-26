@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
+use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Http\Error\ErrorPageRenderer;
@@ -26,6 +28,8 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
         private readonly LogManager $logs,
         private readonly HttpLogContext $httpLogContext,
         private readonly ErrorPageRenderer $errorPageRenderer,
+        private readonly ApiEndpointRequestResolver $apiEndpointResolver,
+        private readonly ProblemDetailsFactory $problems,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -35,12 +39,20 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
         } catch (RouteNotFoundException|NotFoundHttpException $exception) {
             $this->logException($exception, $request);
 
+            if ($this->apiEndpointResolver->resolve($request) !== null) {
+                return $this->problems->notFound($request);
+            }
+
             return $this->htmlResponse(
                 statusCode: HttpStatus::NOT_FOUND->value,
                 body: $this->errorPageRenderer->notFound($exception),
             );
         } catch (Throwable $exception) {
             $this->logException($exception, $request);
+
+            if ($this->apiEndpointResolver->resolve($request) !== null) {
+                return $this->problems->internalServerError($request);
+            }
 
             return $this->htmlResponse(
                 statusCode: HttpStatus::INTERNAL_SERVER_ERROR->value,

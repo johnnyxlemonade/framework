@@ -80,4 +80,15 @@ final class ProblemDetailsFactory
             type: 'https://lemonade.dev/problems/not-found',
         );
     }
+
+    public function internalServerError(ServerRequestInterface $request): ResponseInterface
+    {
+        return $this->create(
+            status: HttpStatus::INTERNAL_SERVER_ERROR->value,
+            title: 'Internal Server Error',
+            detail: 'An unexpected error occurred while processing this API request.',
+            request: $request,
+            type: 'https://lemonade.dev/problems/internal-server-error',
+        );
+    }
 }
