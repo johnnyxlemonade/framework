@@ -14,7 +14,7 @@ use const FILTER_VALIDATE_IP;
 
 final class HttpRequestInspector
 {
-    private const UNKNOWN = 'UNKNOWN';
+    private const string UNKNOWN = 'UNKNOWN';
 
     public function clientIp(ServerRequestInterface $request): ?string
     {

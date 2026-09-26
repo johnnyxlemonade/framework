@@ -18,7 +18,7 @@ use RuntimeException;
  */
 final class MigrationStateRepository
 {
-    private const TABLE = 'migrations';
+    private const string TABLE = 'migrations';
 
     public function __construct(
         private readonly DatabaseDriverInterface $driver,

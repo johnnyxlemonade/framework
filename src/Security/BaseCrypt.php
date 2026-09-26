@@ -6,8 +6,8 @@ namespace Lemonade\Framework\Security;
 
 final class BaseCrypt
 {
-    private const ALGO = PASSWORD_BCRYPT;
-    private const COST = 10;
+    private const string ALGO = PASSWORD_BCRYPT;
+    private const int COST = 10;
 
     public static function getSalt(): string
     {

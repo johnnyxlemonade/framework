@@ -8,7 +8,7 @@ use RuntimeException;
 
 final class FileSessionStorage implements SessionStorageInterface
 {
-    private const COOKIE_NAME = 'LEMONADE_SESSION';
+    private const string COOKIE_NAME = 'LEMONADE_SESSION';
 
     private bool $started = false;
 

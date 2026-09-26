@@ -14,9 +14,9 @@ use Psr\Http\Client\ClientInterface;
 
 final class SymfonyHttpClientServiceProvider implements ServiceProviderInterface
 {
-    private const SYMFONY_PSR18_CLIENT_CLASS = 'Symfony\\Component\\HttpClient\\Psr18Client';
-    private const SYMFONY_HTTP_CLIENT_CLASS = 'Symfony\\Component\\HttpClient\\HttpClient';
-    private const SYMFONY_HTTP_CLIENT_INTERFACE = 'Symfony\\Contracts\\HttpClient\\HttpClientInterface';
+    private const string SYMFONY_PSR18_CLIENT_CLASS = 'Symfony\\Component\\HttpClient\\Psr18Client';
+    private const string SYMFONY_HTTP_CLIENT_CLASS = 'Symfony\\Component\\HttpClient\\HttpClient';
+    private const string SYMFONY_HTTP_CLIENT_INTERFACE = 'Symfony\\Contracts\\HttpClient\\HttpClientInterface';
 
     public function register(ContainerInterface $container): void
     {

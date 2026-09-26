@@ -12,7 +12,7 @@ use RuntimeException;
 
 final class ConfigFileLoader
 {
-    private const CONFIG_MAP_FILE = 'ConfigMap.php';
+    private const string CONFIG_MAP_FILE = 'ConfigMap.php';
 
     /**
      * @var array<string, YamlDefinitionClassMap>
