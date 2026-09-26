@@ -17,6 +17,7 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Config\FrameworkDefaultsLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
+use Lemonade\Framework\Core\Exception\InvalidRequestScopeException;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
@@ -290,8 +291,43 @@ final class Framework
         }
     }
 
+    /**
+     * Runs an HTTP request in an already-active request scope.
+     *
+     * The scope must be {@see ScopeKind::Request}, must hold a scope-local
+     * {@see ServerRequestInterface} binding, and that binding must be the same
+     * object as the request argument. Kernel owns this integration boundary.
+     *
+     * @throws InvalidRequestScopeException When the supplied scope does not satisfy the request contract.
+     */
     public function runInScope(ScopedContainerInterface $scope, ServerRequestInterface $request): ResponseInterface
     {
+        if ($scope->kind() !== ScopeKind::Request) {
+            throw new InvalidRequestScopeException(sprintf(
+                '%s requires a %s scope; received %s.',
+                __METHOD__,
+                ScopeKind::Request->value,
+                $scope->kind()->value,
+            ));
+        }
+
+        if (!$scope->hasScopedBinding(ServerRequestInterface::class)) {
+            throw new InvalidRequestScopeException(sprintf(
+                '%s requires %s to be bound locally in the request scope.',
+                __METHOD__,
+                ServerRequestInterface::class,
+            ));
+        }
+
+        $scopeRequest = $scope->get(ServerRequestInterface::class);
+        if (!$scopeRequest instanceof ServerRequestInterface || $scopeRequest !== $request) {
+            throw new InvalidRequestScopeException(sprintf(
+                '%s requires the request scope binding for %s to be the same object as the request argument.',
+                __METHOD__,
+                ServerRequestInterface::class,
+            ));
+        }
+
         return $this->runWithContainer($scope, $request);
     }
 

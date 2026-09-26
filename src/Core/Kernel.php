@@ -104,11 +104,13 @@ final class Kernel
     /**
      * Boots the kernel and runs the request through the framework runtime.
      *
-     * When no request is provided, request creation is delegated to
-     * {@see Framework::run()}. Route-not-found failures are converted to a 404
-     * text response and all other throwables are converted to a 500 text
-     * response. Captured exceptions are recorded in the benchmark and logged,
-     * and debug mode may include exception details in the response body.
+     * When no request is provided, the kernel creates one from global PHP state.
+     * It then creates a {@see ScopeKind::Request} scope, binds the exact request
+     * only in that scope, and delegates dispatch to {@see Framework::runInScope()}.
+     * The scope is closed in a finally block. Route-not-found failures are converted
+     * to a 404 text response and all other throwables are converted to a 500 text
+     * response. Captured exceptions are recorded in the benchmark and logged, and
+     * debug mode may include exception details in the response body.
      *
      * The method does not propagate exceptions because it converts them to
      * responses.

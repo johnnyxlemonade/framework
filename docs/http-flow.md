@@ -71,6 +71,16 @@ the active scoped container. Therefore `ContainerInterface` injected into a requ
 transient runtime service resolves to that `ScopedContainerInterface`; root singletons remain shared
 and cannot consume request-local values.
 
+This is a breaking change from older versions that bound `ServerRequestInterface` into the root
+container before provider registration. Providers must not inspect the current request in
+`register()` or `boot()`; use middleware, a scoped service, or a controller for request-dependent
+decisions. Applications using the former provider-request pattern must migrate that composition
+logic separately; the framework provides no root-binding compatibility shim.
+
+`Framework::runInScope()` is the kernel integration API. It accepts only a `Request` scope whose
+scope-local `ServerRequestInterface` binding is the identical object passed as its request argument.
+The guard rejects command/job scopes, a missing local request binding, and a mismatched request.
+
 Bootstrap happens before request dispatch. Global middleware wraps route matching and controller execution. Route-specific middleware wraps the matched controller handler.
 
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.

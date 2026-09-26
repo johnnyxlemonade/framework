@@ -71,6 +71,8 @@ container, so a scoped dependency remains in the same scope throughout resolutio
 It takes precedence over root bindings and is discarded by `close()`. Each scope automatically
 binds itself under both `ContainerInterface::class` and `ScopedContainerInterface::class`, so
 runtime factories and services can retrieve the active scope without changing the root container.
+`hasScopedBinding()` distinguishes this scope-local overlay from a root binding when an integration
+must enforce a request-local contract.
 
 A singleton must never depend on a scoped service, directly or through a contextual binding or
 alias. The container rejects that resolution with a dedicated exception. Scoped services may depend
@@ -81,6 +83,12 @@ active scope.
 and closes it in `finally`, including error and health-fast-path responses. HTTP middleware,
 dispatch and controller resolution use this active scope. CLI command and job/worker lifecycle
 integration remain separate follow-up work.
+
+This replaces the older root-container request binding that was available before application
+providers registered. The replacement is intentionally breaking: `register()` and `boot()` must not
+read a current request. Put request-dependent decisions in middleware, a scoped service, or a
+controller instead. The root container must never contain a request-specific
+`ServerRequestInterface` binding.
 
 ## Service aliases
 

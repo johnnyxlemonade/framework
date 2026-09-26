@@ -30,6 +30,11 @@ final class ScopedContainer implements ScopedContainerInterface
         return $this->kind;
     }
 
+    public function hasScopedBinding(string $id): bool
+    {
+        return isset($this->localInstances[$id]);
+    }
+
     public function close(): void
     {
         $this->instances = [];

@@ -119,6 +119,18 @@ that scope for middleware and dispatch. Providers must therefore not read or ret
 request during `register()` or `boot()`; request-dependent work belongs in a scoped runtime service.
 Calling `Kernel::bootstrap()` directly remains requestless and does not create an HTTP request.
 
+### Breaking migration: request-aware providers
+
+Older framework versions exposed the current `ServerRequestInterface` as a root-container binding
+before application providers registered. That pattern has been removed: a request-specific value in
+the root container can leak into a singleton or a later request. It is a breaking change for a
+provider that called `isBound(ServerRequestInterface::class)` or `get(ServerRequestInterface::class)`
+during `register()` or `boot()`.
+
+Do not restore this pattern. Move request-dependent decisions to runtime middleware, a scoped
+service, or a controller. `ServerRequestInterface` is available only from the active `Request`
+scope; provider registration and boot remain requestless composition phases.
+
 ## Translation resources
 
 Providers may contribute file translation resources without copying them into the application
