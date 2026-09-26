@@ -238,6 +238,31 @@ final class ControllerResolverTest extends TestCase
         $resolver->handle(new RouteMatch(LegacyHelperController::class, 'missing'), $this->request());
     }
 
+    public function testLegacyControllerContextIsInitializedOnlyAfterActionIsValid(): void
+    {
+        LegacyContextInspectionController::$lastInstance = null;
+        $resolver = $this->resolver();
+
+        try {
+            $resolver->handle(new RouteMatch(LegacyContextInspectionController::class, 'missing'), $this->request());
+            self::fail('Expected missing action to throw.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('not found', $exception->getMessage());
+        }
+
+        self::assertInstanceOf(LegacyContextInspectionController::class, LegacyContextInspectionController::$lastInstance);
+        self::assertFalse(LegacyContextInspectionController::$lastInstance->contextIsInitialized());
+
+        $response = $resolver->handle(
+            new RouteMatch(LegacyContextInspectionController::class, 'index'),
+            $this->request(),
+        );
+
+        self::assertSame('/', (string) $response->getBody());
+        self::assertInstanceOf(LegacyContextInspectionController::class, LegacyContextInspectionController::$lastInstance);
+        self::assertTrue(LegacyContextInspectionController::$lastInstance->contextIsInitialized());
+    }
+
     /**
      * @dataProvider nonPublicActionProvider
      */
@@ -416,6 +441,32 @@ final class LegacyHelperController extends AbstractController
     public function index(): ResponseInterface
     {
         return $this->html('<h1>Hello</h1>');
+    }
+}
+
+final class LegacyContextInspectionController extends AbstractController
+{
+    public static ?self $lastInstance = null;
+
+    public function __construct()
+    {
+        self::$lastInstance = $this;
+    }
+
+    public function index(): string
+    {
+        return $this->request()->getUri()->getPath();
+    }
+
+    public function contextIsInitialized(): bool
+    {
+        try {
+            $this->request();
+
+            return true;
+        } catch (RuntimeException) {
+            return false;
+        }
     }
 }
 
