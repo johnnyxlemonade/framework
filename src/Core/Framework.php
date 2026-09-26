@@ -43,6 +43,7 @@ use RuntimeException;
 final class Framework
 {
     private readonly Router $router;
+    private readonly ServiceProviderLifecycle $providerLifecycle;
     /**
      * @var list<callable(MiddlewareStack):void>
      */
@@ -58,6 +59,7 @@ final class Framework
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
     ) {
+        $this->providerLifecycle = new ServiceProviderLifecycle($this->container);
         $this->router = new Router();
 
         $this->registerCoreServices();
@@ -106,13 +108,19 @@ final class Framework
      *
      * @return $this Returns the same framework instance for fluent chaining.
      */
-    public function register(ServiceProviderInterface ...$providers): self
+    public function register(object ...$providers): self
     {
-        foreach ($providers as $provider) {
-            $provider->register($this->container);
-        }
+        $this->providerLifecycle->register(...$providers);
 
         return $this;
+    }
+
+    /**
+     * Compiles definitions and invokes bootable providers in registration order.
+     */
+    public function bootProviders(): void
+    {
+        $this->providerLifecycle->boot();
     }
 
     /**

@@ -2,6 +2,48 @@
 
 Service providers are the main composition mechanism for framework and application services.
 
+## Provider lifecycle
+
+New providers should separate service definitions from runtime side effects. A
+`DefinitionServiceProviderInterface` receives `ContainerBuilderInterface` in `register()` and
+should only declare bindings and tags. It cannot resolve services through that contract.
+
+```php
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Core\DefinitionServiceProviderInterface;
+
+final class BillingProvider implements DefinitionServiceProviderInterface
+{
+    public function register(ContainerBuilderInterface $builder): void
+    {
+        $builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+    }
+}
+```
+
+Providers that need a fully registered runtime container implement
+`BootableServiceProviderInterface`. Their `boot()` method runs after all core, framework and
+application providers have registered, in provider declaration order. Use it for routes, commands,
+migrations, listeners and other runtime registry side effects.
+
+```php
+use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\BootableServiceProviderInterface;
+
+final class BillingRoutesProvider implements BootableServiceProviderInterface
+{
+    public function boot(ContainerInterface $container): void
+    {
+        $container->get(BillingRouteRegistry::class)->registerRoutes();
+    }
+}
+```
+
+The existing `ServiceProviderInterface::register(ContainerInterface $container)` remains fully
+supported for compatibility. Legacy providers may continue to use the container exactly as before,
+including immediate resolution where their established behavior requires it. New code should keep
+`register()` definition-only and move runtime side effects to `boot()`.
+
 A service provider implements `ServiceProviderInterface` and receives the framework container through its `register()` method. Inside that method it can register transient bindings, singleton bindings, factories, concrete objects or string aliases.
 
 ## Provider example

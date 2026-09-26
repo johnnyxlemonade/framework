@@ -11,7 +11,7 @@ use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\ContainerException;
 
-final class ContainerBuilder
+final class ContainerBuilder implements ContainerBuilderInterface
 {
     /** @var array<string, ServiceDefinition> */
     private array $definitions = [];

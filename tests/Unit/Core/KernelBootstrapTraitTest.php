@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\FrameworkConfigDefinition;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Core\DefinitionServiceProviderInterface;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\KernelBootstrapTrait;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -54,6 +56,17 @@ final class KernelBootstrapTraitTest extends TestCase
 
         self::assertSame([ValidServiceProvider::class], $subject->commonProviderClasses());
     }
+
+    public function testDefinitionProviderClassPassesValidation(): void
+    {
+        $container = new Container();
+        $subject = new KernelBootstrapTraitHarness($container);
+        $subject->framework->config(
+            FrameworkConfigDefinition::create()->providers([ValidDefinitionServiceProvider::class]),
+        );
+
+        self::assertSame([ValidDefinitionServiceProvider::class], $subject->commonProviderClasses());
+    }
 }
 
 final class KernelBootstrapTraitHarness
@@ -77,7 +90,7 @@ final class KernelBootstrapTraitHarness
     }
 
     /**
-     * @return list<class-string<ServiceProviderInterface>>
+     * @return list<class-string>
      */
     public function commonProviderClasses(): array
     {
@@ -90,4 +103,9 @@ final class NotAServiceProvider {}
 final class ValidServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerInterface $container): void {}
+}
+
+final class ValidDefinitionServiceProvider implements DefinitionServiceProviderInterface
+{
+    public function register(ContainerBuilderInterface $builder): void {}
 }

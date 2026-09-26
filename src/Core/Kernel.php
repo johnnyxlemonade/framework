@@ -85,6 +85,9 @@ final class Kernel
         $this->registerConfiguredProviders();
         $this->markBenchmark('app_providers_registered');
 
+        $this->framework->bootProviders();
+        $this->markBenchmark('providers_booted');
+
         $this->framework
             ->routesFromFile($this->context->configPath('Routing.php'));
         $this->framework->finalizeRoutes();

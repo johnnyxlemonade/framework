@@ -218,6 +218,24 @@ final class KernelTest extends TestCase
         self::assertFalse($kernel->container()->isBound(ServerRequestInterface::class));
     }
 
+    public function testBootstrapRunsBootableProviderAfterAllConfiguredProvidersRegister(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\n  - Providers\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'Providers.yaml',
+            "module: providers\nconfig:\n  providers:\n    - Lemonade\\Framework\\Tests\\Unit\\Core\\KernelBootDependencyProvider\n    - Lemonade\\Framework\\Tests\\Unit\\Core\\KernelBootObserverProvider\n",
+        );
+        KernelBootObserverProvider::$resolved = false;
+
+        $kernel = $this->kernel(false);
+        $kernel->bootstrap();
+
+        self::assertTrue(KernelBootObserverProvider::$resolved);
+    }
+
     public function testBootstrapExecutesProviderRouteRegistrarsAfterApplicationRoutesAndFreezesRouting(): void
     {
         $this->writeConfigFile(
@@ -611,6 +629,26 @@ final class KernelRequestProbeProvider implements \Lemonade\Framework\Core\Servi
         self::$request = $container->get(\Psr\Http\Message\ServerRequestInterface::class);
     }
 }
+
+final class KernelBootDependencyProvider implements \Lemonade\Framework\Core\DefinitionServiceProviderInterface
+{
+    public function register(\Lemonade\Framework\Container\ContainerBuilderInterface $builder): void
+    {
+        $builder->singleton(KernelBootDependency::class, KernelBootDependency::class);
+    }
+}
+
+final class KernelBootObserverProvider implements \Lemonade\Framework\Core\BootableServiceProviderInterface
+{
+    public static bool $resolved = false;
+
+    public function boot(\Lemonade\Framework\Container\ContainerInterface $container): void
+    {
+        self::$resolved = $container->get(KernelBootDependency::class) instanceof KernelBootDependency;
+    }
+}
+
+final class KernelBootDependency {}
 
 final class KernelRouteRegistrar implements \Lemonade\Framework\Routing\RouteRegistrarInterface
 {

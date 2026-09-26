@@ -17,7 +17,7 @@ use Psr\Log\NullLogger;
 use ReflectionClass;
 use ReflectionNamedType;
 
-final class Container implements ContainerInterface
+final class Container implements ContainerInterface, ContainerBuilderInterface
 {
     private ContainerBuilder $builder;
     private ?CompiledContainerPlan $compiledPlan = null;
@@ -89,6 +89,22 @@ final class Container implements ContainerInterface
     {
         $this->builder->singleton($id, $concrete);
         $this->definitionChanged($id);
+    }
+
+    public function transient(string $id, callable|object|string $concrete): void
+    {
+        $this->set($id, $concrete);
+    }
+
+    public function instance(string $id, object $instance): void
+    {
+        $this->builder->instance($id, $instance);
+        $this->definitionChanged($id);
+    }
+
+    public function compile(): CompiledContainerPlan
+    {
+        return $this->compiledPlan();
     }
 
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void

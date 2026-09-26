@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Lemonade\Framework\Container;
+
+interface ContainerBuilderInterface
+{
+    /**
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function set(string $id, callable|object|string $concrete): void;
+
+    /**
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function singleton(string $id, callable|object|string $concrete): void;
+
+    /**
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
+     */
+    public function transient(string $id, callable|object|string $concrete): void;
+
+    /** @param class-string|non-empty-string $id */
+    public function instance(string $id, object $instance): void;
+
+    /**
+     * @param class-string|non-empty-string $serviceId
+     * @param non-empty-string $tag
+     */
+    public function tag(string $serviceId, string $tag): void;
+
+    public function compile(): CompiledContainerPlan;
+}

@@ -31,6 +31,10 @@ a container plan before resolution. This preserves the existing `set()`, `single
 `tagged()` API while separating registration metadata from lazy runtime resolution. The plan does
 not generate PHP code and does not change the singleton, transient, factory or autowiring contracts.
 
+Definition-based service providers receive `ContainerBuilderInterface`, which exposes only
+definition registration and compilation. Runtime resolution and side effects belong in a bootable
+provider's `boot(ContainerInterface $container)` phase after all providers have registered.
+
 ## Tagged services
 
 Tags declare an explicit service as a member of a collection capability. They are not filesystem

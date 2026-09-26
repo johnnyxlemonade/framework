@@ -52,7 +52,7 @@ trait KernelBootstrapTrait
     }
 
     /**
-     * @return list<class-string<ServiceProviderInterface>>
+     * @return list<class-string>
      */
     private function commonFrameworkProviderClasses(): array
     {
