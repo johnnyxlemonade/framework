@@ -439,7 +439,7 @@ final class ContainerTest extends TestCase
         $container->get(CircularDependencyA::class);
     }
 
-    public function testAppServiceAutowireFallbackWarningIsLogged(): void
+    public function testAutowireFallbackWarningUsesNeutralProviderGuidance(): void
     {
         $logger = new ContainerDiagnosticLogger();
         $container = $this->diagnosticContainer($logger);
@@ -450,10 +450,11 @@ final class ContainerTest extends TestCase
         self::assertSame('warning', $logger->records[0]['level']);
         self::assertSame(\App\Services\ContainerAutowireFallbackService::class, $logger->records[0]['context']['service']);
         self::assertSame('container.autowire_fallback', $logger->records[0]['context']['source']);
-        self::assertStringContainsString('App\\Providers\\AppServiceProvider', $logger->records[0]['message']);
+        self::assertStringContainsString('appropriate ServiceProvider', $logger->records[0]['message']);
+        self::assertStringNotContainsString('App\\Providers\\AppServiceProvider', $logger->records[0]['message']);
     }
 
-    public function testFrameworkManagerAutowireFallbackWarningIsLogged(): void
+    public function testFrameworkClassAutowireFallbackWarningIsLogged(): void
     {
         $logger = new ContainerDiagnosticLogger();
         $container = $this->diagnosticContainer($logger);
@@ -462,7 +463,7 @@ final class ContainerTest extends TestCase
 
         self::assertCount(1, $logger->records);
         self::assertSame(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticManager::class, $logger->records[0]['context']['service']);
-        self::assertStringContainsString('appropriate framework ServiceProvider', $logger->records[0]['message']);
+        self::assertStringContainsString('appropriate ServiceProvider', $logger->records[0]['message']);
     }
 
     public function testFrameworkRegistryAutowireFallbackWarningIsLogged(): void
@@ -476,24 +477,24 @@ final class ContainerTest extends TestCase
         self::assertSame(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticRegistry::class, $logger->records[0]['context']['service']);
     }
 
-    public function testFrameworkFactoryAutowireFallbackDoesNotWarn(): void
+    public function testFrameworkFactoryAutowireFallbackWarningIsLogged(): void
     {
         $logger = new ContainerDiagnosticLogger();
         $container = $this->diagnosticContainer($logger);
 
         $container->get(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticFactory::class);
 
-        self::assertSame([], $logger->records);
+        self::assertCount(1, $logger->records);
     }
 
-    public function testFrameworkResolverAutowireFallbackDoesNotWarn(): void
+    public function testFrameworkResolverAutowireFallbackWarningIsLogged(): void
     {
         $logger = new ContainerDiagnosticLogger();
         $container = $this->diagnosticContainer($logger);
 
         $container->get(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticResolver::class);
 
-        self::assertSame([], $logger->records);
+        self::assertCount(1, $logger->records);
     }
 
     public function testFrameworkMiddlewareAutowireFallbackWarningIsLogged(): void
@@ -507,24 +508,24 @@ final class ContainerTest extends TestCase
         self::assertSame(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticMiddleware::class, $logger->records[0]['context']['service']);
     }
 
-    public function testVendorMiddlewareAutowireFallbackDoesNotWarn(): void
+    public function testVendorMiddlewareAutowireFallbackWarningIsLogged(): void
     {
         $logger = new ContainerDiagnosticLogger();
         $container = $this->diagnosticContainer($logger);
 
         $container->get(\Vendor\Package\ContainerExternalMiddleware::class);
 
-        self::assertSame([], $logger->records);
+        self::assertCount(1, $logger->records);
     }
 
-    public function testVendorClassAutowireFallbackDoesNotWarn(): void
+    public function testVendorClassAutowireFallbackWarningIsLogged(): void
     {
         $logger = new ContainerDiagnosticLogger();
         $container = $this->diagnosticContainer($logger);
 
         $container->get(\Vendor\Package\ContainerExternalService::class);
 
-        self::assertSame([], $logger->records);
+        self::assertCount(1, $logger->records);
     }
 
     public function testAutowireFallbackWarningIsLoggedOnlyOncePerServiceId(): void
@@ -561,28 +562,6 @@ final class ContainerTest extends TestCase
         $container->get(\App\Services\ContainerAutowireFallbackService::class);
 
         self::assertSame([], $logger->records);
-    }
-
-    public function testProductionFallbackSkipsReportabilityWorkWhenWarningsAreDisabled(): void
-    {
-        $container = new Container();
-        $container->singleton(ContainerConfig::class, new ContainerConfig(false));
-
-        $container->get(\App\Services\ContainerAutowireFallbackService::class);
-
-        self::assertSame([], $this->autowireFallbackReportable($container));
-    }
-
-    public function testDevelopmentFallbackCachesReportabilityDecision(): void
-    {
-        $container = $this->diagnosticContainer(new ContainerDiagnosticLogger());
-
-        $container->get(\App\Services\ContainerAutowireFallbackService::class);
-
-        $reportable = $this->autowireFallbackReportable($container);
-
-        self::assertArrayHasKey(\App\Services\ContainerAutowireFallbackService::class, $reportable);
-        self::assertTrue($reportable[\App\Services\ContainerAutowireFallbackService::class]);
     }
 
     public function testMissingClassLookupCachesNegativeExistenceResult(): void
@@ -640,21 +619,6 @@ final class ContainerTest extends TestCase
 
         self::assertTrue($classCache[PlainConcreteClass::class]);
         self::assertTrue($interfaceCache[TestContractInterface::class]);
-    }
-
-    public function testAutowireFallbackReportabilityCachesFalseDecision(): void
-    {
-        $container = new Container();
-        $method = new \ReflectionMethod($container, 'shouldReportAutowireFallback');
-
-        self::assertFalse($method->invoke($container, \Vendor\Package\ContainerExternalService::class));
-
-        $cache = $this->autowireFallbackReportable($container);
-
-        self::assertArrayHasKey(\Vendor\Package\ContainerExternalService::class, $cache);
-        self::assertFalse($cache[\Vendor\Package\ContainerExternalService::class]);
-        self::assertFalse($method->invoke($container, \Vendor\Package\ContainerExternalService::class));
-        self::assertSame($cache, $this->autowireFallbackReportable($container));
     }
 
     public function testAutowireFallbackUsesErrorLogOnlyWhenLoggerIsUnavailable(): void
@@ -738,19 +702,6 @@ final class ContainerTest extends TestCase
         $plans = $property->getValue($container);
 
         return $plans;
-    }
-
-    /**
-     * @return array<string, bool>
-     */
-    private function autowireFallbackReportable(Container $container): array
-    {
-        $property = new \ReflectionProperty($container, 'autowireFallbackReportable');
-
-        /** @var array<string, bool> $reportable */
-        $reportable = $property->getValue($container);
-
-        return $reportable;
     }
 
     /**

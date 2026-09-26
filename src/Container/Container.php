@@ -35,11 +35,6 @@ final class Container implements ContainerInterface
     /**
      * @var array<string, bool>
      */
-    private array $autowireFallbackReportable = [];
-
-    /**
-     * @var array<string, bool>
-     */
     private array $classExistenceCache = [];
 
     /**
@@ -187,10 +182,6 @@ final class Container implements ContainerInterface
             return;
         }
 
-        if (!$this->shouldReportAutowireFallback($id)) {
-            return;
-        }
-
         if (isset($this->reportedAutowireFallbacks[$id])) {
             return;
         }
@@ -198,21 +189,9 @@ final class Container implements ContainerInterface
         $this->reportedAutowireFallbacks[$id] = true;
 
         $message = sprintf(
-            'Autowiring fallback used for "%s". Register this service explicitly in the appropriate ServiceProvider (for app services usually App\\Providers\\AppServiceProvider).',
+            'Autowiring fallback used for "%s". Register this service explicitly in an appropriate ServiceProvider.',
             $id,
         );
-
-        if (str_starts_with($id, 'App\\')) {
-            $message = sprintf(
-                'Autowiring fallback used for "%s". Register this service explicitly in App\\Providers\\AppServiceProvider or another application ServiceProvider.',
-                $id,
-            );
-        } elseif (str_starts_with($id, 'Lemonade\\Framework\\')) {
-            $message = sprintf(
-                'Autowiring fallback used for "%s". Register this service explicitly in the appropriate framework ServiceProvider.',
-                $id,
-            );
-        }
 
         $logger = $this->autowireFallbackLogger();
         if ($logger !== null && !$logger instanceof NullLogger) {
@@ -225,47 +204,6 @@ final class Container implements ContainerInterface
         }
 
         error_log('[Lemonade][Container] ' . $message);
-    }
-
-    private function shouldReportAutowireFallback(string $id): bool
-    {
-        if (array_key_exists($id, $this->autowireFallbackReportable)) {
-            return $this->autowireFallbackReportable[$id];
-        }
-
-        $shouldReport = false;
-
-        if (str_starts_with($id, 'App\\')) {
-            $shouldReport = $this->shouldReportApplicationAutowireFallback($id);
-        } elseif (str_starts_with($id, 'Lemonade\\Framework\\')) {
-            $shouldReport = $this->shouldReportFrameworkAutowireFallback($id);
-        }
-
-        $this->autowireFallbackReportable[$id] = $shouldReport;
-
-        return $shouldReport;
-    }
-
-    private function shouldReportApplicationAutowireFallback(string $id): bool
-    {
-        return str_contains($id, '\\Services\\')
-            || str_contains($id, '\\Models\\')
-            || str_contains($id, '\\Documentation\\')
-            || str_contains($id, '\\Auth\\')
-            || str_contains($id, '\\Routing\\')
-            || str_ends_with($id, 'Service')
-            || str_ends_with($id, 'Model')
-            || str_ends_with($id, 'Catalog')
-            || str_ends_with($id, 'Authenticator');
-    }
-
-    private function shouldReportFrameworkAutowireFallback(string $id): bool
-    {
-        return str_ends_with($id, 'Service')
-            || str_ends_with($id, 'Manager')
-            || str_ends_with($id, 'Registry')
-            || str_ends_with($id, 'Compiler')
-            || str_ends_with($id, 'Middleware');
     }
 
     private function isAutowireFallbackWarningEnabled(): bool

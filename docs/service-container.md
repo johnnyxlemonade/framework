@@ -98,6 +98,11 @@ Autowiring is available for concrete classes, but it is intentionally limited:
 - non-instantiable classes fail early
 - missing services fail with a service-not-found exception
 
-The container may report autowiring fallback usage for selected application and framework services when diagnostics are enabled. This encourages explicit service registration without removing the convenience of resolving simple concrete classes.
+The container may report concrete-class autowiring fallback usage when diagnostics are enabled. This encourages explicit service registration without removing the convenience of resolving simple concrete classes.
+
+Fallback reporting is an explicit diagnostics policy, not a naming convention: when enabled, the
+container reports every concrete-class autowiring fallback once per service ID. It never infers
+reportability from a namespace, directory or class-name suffix. Applications can disable reporting
+through the existing `container.autowire_fallback_warning` typed configuration.
 
 This keeps the container useful for small object graphs while making important service wiring visible in service providers.
