@@ -77,12 +77,14 @@ final class Kernel
         $this->registerCoreProvidersWithDiagnostics();
         $this->markBenchmark('core_providers_registered');
 
-        $this->framework
-            ->register(new HttpServiceProvider());
+        $providers = [
+            new HttpServiceProvider(),
+            ...$this->commonFrameworkProviders(),
+            ...$this->configuredProviders(),
+        ];
+        $this->framework->register(...$providers);
         $this->markBenchmark('http_provider_registered');
-        $this->registerCommonFrameworkProviders();
-
-        $this->registerConfiguredProviders();
+        $this->markBenchmark('common_provider_registration_finished');
         $this->markBenchmark('app_providers_registered');
 
         $this->framework->bootProviders();

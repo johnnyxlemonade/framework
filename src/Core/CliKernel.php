@@ -138,11 +138,13 @@ final class CliKernel
         $this->registerCoreProvidersWithDiagnostics();
         $this->markBenchmark('core_logger_ready');
 
-        $this->framework->register(new ConsoleServiceProvider());
-        $this->registerCommonFrameworkProviders();
+        $providers = [
+            new ConsoleServiceProvider(),
+            ...$this->commonFrameworkProviders(),
+            ...$this->configuredProviders(),
+        ];
+        $this->framework->register(...$providers);
         $this->markBenchmark('framework_providers_registered');
-
-        $this->registerConfiguredProviders();
         $this->markBenchmark('app_providers_registered');
         $this->markBenchmark('providers_registered');
         $this->framework->bootProviders();

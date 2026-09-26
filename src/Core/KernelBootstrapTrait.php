@@ -39,16 +39,13 @@ trait KernelBootstrapTrait
         $this->container->setDiagnosticLogger($logger);
     }
 
-    private function registerCommonFrameworkProviders(): void
+    /** @return list<object> */
+    private function commonFrameworkProviders(): array
     {
         $providerClasses = $this->commonFrameworkProviderClasses();
         $this->markBenchmark('framework_config_runtime_resolved');
 
-        foreach ($providerClasses as $providerClass) {
-            $this->framework->register(new $providerClass());
-        }
-
-        $this->markBenchmark('common_provider_registration_finished');
+        return $this->providerInstances($providerClasses);
     }
 
     /**
@@ -59,15 +56,28 @@ trait KernelBootstrapTrait
         return $this->container->get(FrameworkConfig::class)->providers;
     }
 
-    private function registerConfiguredProviders(): void
+    /** @return list<object> */
+    private function configuredProviders(): array
     {
         $providerClasses = $this->container->get(ProvidersConfig::class)->providers;
         $this->markBenchmark('app_provider_config_resolved');
 
+        return $this->providerInstances($providerClasses);
+    }
+
+    /**
+     * @param list<class-string> $providerClasses
+     * @return list<object>
+     */
+    private function providerInstances(array $providerClasses): array
+    {
+        $providers = [];
+
         foreach ($providerClasses as $providerClass) {
-            $provider = new $providerClass();
-            $this->framework->register($provider);
+            $providers[] = new $providerClass();
         }
+
+        return $providers;
     }
 
     private function markBenchmark(string $name): void

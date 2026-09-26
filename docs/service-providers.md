@@ -44,6 +44,30 @@ supported for compatibility. Legacy providers may continue to use the container 
 including immediate resolution where their established behavior requires it. New code should keep
 `register()` definition-only and move runtime side effects to `boot()`.
 
+## Provider dependencies
+
+A provider can implement `DependentServiceProviderInterface` to declare provider classes that must
+run first. Dependencies are sorted before either `register()` or `boot()` runs. The sorter preserves
+the configured order for providers that are otherwise independent, and boot uses the same resolved
+order as registration.
+
+```php
+use Lemonade\Framework\Core\DependentServiceProviderInterface;
+
+final class BillingRoutesProvider implements DependentServiceProviderInterface
+{
+    /** @return list<class-string> */
+    public static function requires(): array
+    {
+        return [BillingProvider::class];
+    }
+}
+```
+
+Every dependency must be a supported provider class and must be included in the same configured
+provider list. Missing, invalid and cyclic dependencies fail during bootstrap with a descriptive
+exception. Provider priorities and automatic discovery are intentionally not part of this model.
+
 A service provider implements `ServiceProviderInterface` and receives the framework container through its `register()` method. Inside that method it can register transient bindings, singleton bindings, factories, concrete objects or string aliases.
 
 ## Provider example

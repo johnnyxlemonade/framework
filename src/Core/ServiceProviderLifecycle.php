@@ -22,7 +22,7 @@ final class ServiceProviderLifecycle
 
     public function register(object ...$providers): void
     {
-        foreach ($providers as $provider) {
+        foreach ((new ProviderDependencyResolver())->sort(array_values($providers)) as $provider) {
             if (!self::supports($provider)) {
                 throw new LogicException(sprintf(
                     'Service provider "%s" must implement %s, %s or %s.',
