@@ -68,7 +68,6 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
             );
         });
 
-        $container->singleton(GenerateSitemapCommand::class, GenerateSitemapCommand::class);
         $container->singleton(RobotsController::class, RobotsController::class);
         $container->singleton(SitemapController::class, SitemapController::class);
 

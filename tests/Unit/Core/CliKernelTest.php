@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Cli\CommandInterface;
+use Lemonade\Framework\Cli\CommandContext;
+use Lemonade\Framework\Cli\CommandInput;
+use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Core\CliKernel;
 use Lemonade\Framework\Core\CliKernelFactory;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -30,6 +33,7 @@ final class CliKernelTest extends TestCase
         CliKernelApiConfigProbeCommand::$lastPrefix = null;
         CliKernelLazyAlphaCommand::reset();
         CliKernelLazyZuluCommand::reset();
+        CliKernelScopedCommand::reset();
         $this->writeConfigFile(
             'Config.yaml',
             "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
@@ -96,6 +100,27 @@ final class CliKernelTest extends TestCase
         self::assertSame(1, CliKernelLazyAlphaCommand::$instances);
         self::assertSame(1, CliKernelLazyAlphaCommand::$runCount);
         self::assertSame(0, CliKernelLazyZuluCommand::$instances);
+    }
+
+    public function testKnownCommandRunsInCommandScopeWithKernelStreams(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: scope:kernel\n      class: " . CliKernelScopedCommand::class . "\n      description: Scoped kernel command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(29, $kernel->handle(['bin/lemonade', 'scope:kernel', 'first']));
+        self::assertSame('scope:kernel', CliKernelScopedCommand::$context?->commandName);
+        self::assertSame('first', CliKernelScopedCommand::$input?->argument(0));
+        self::assertStringContainsString("scoped stdout\n", $this->stdoutContents());
+        self::assertStringContainsString("scoped stderr\n", $this->stderrContents());
+    }
+
+    public function testUnknownCommandDoesNotInstantiateDefinitionCommand(): void
+    {
+        $this->writeConfigFile('Commands.yaml', "module: commands\nconfig:\n  commands:\n    - name: lazy:alpha\n      class: " . CliKernelLazyAlphaCommand::class . "\n      description: Lazy alpha command\n");
+        $kernel = $this->kernel();
+
+        self::assertSame(1, $kernel->handle(['bin/lemonade', 'unknown']));
+        self::assertSame(0, CliKernelLazyAlphaCommand::$instances);
     }
 
     public function testHandleHelpPrintsListAndReturnsZero(): void
@@ -576,5 +601,45 @@ final class CliKernelLazyZuluCommand implements CommandInterface
     public function run(array $args): int
     {
         return 0;
+    }
+}
+
+final class CliKernelScopedCommand implements CommandInterface
+{
+    public static ?CommandContext $context = null;
+    public static ?CommandInput $input = null;
+
+    public static function reset(): void
+    {
+        self::$context = null;
+        self::$input = null;
+    }
+
+    public function __construct(
+        CommandContext $context,
+        CommandInput $input,
+        private readonly CommandOutput $output,
+    ) {
+        self::$context = $context;
+        self::$input = $input;
+    }
+
+    public function name(): string
+    {
+        return 'scope:kernel';
+    }
+
+    public function description(): string
+    {
+        return 'Scoped kernel command';
+    }
+
+    public function run(array $args): int
+    {
+        unset($args);
+        $this->output->writeln('scoped stdout');
+        $this->output->errorln('scoped stderr');
+
+        return 29;
     }
 }

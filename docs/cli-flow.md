@@ -26,7 +26,9 @@ bin/lemonade
    -> default to "list" when no command is provided
    -> print command list from definition metadata for list, --help or -h
    -> return 1 for unknown commands
--> resolve only the selected command class from the root container
+-> begin isolated Command scope for the selected command
+   -> bind CommandContext, CommandInput and CommandOutput
+   -> resolve only the selected command class from that scope
 -> CommandInterface::run($args)
 -> integer exit code
 ```

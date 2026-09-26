@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
+use Lemonade\Framework\Cli\CommandInvoker;
+use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Cli\Config\CommandsConfig;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
@@ -103,7 +105,14 @@ final class CliKernel
                 return 1;
             }
 
-            return $registry->get($commandName)->run($args);
+            return $this->container
+                ->get(CommandInvoker::class)
+                ->invoke(
+                    definition: $registry->definition($commandName),
+                    argv: $argv,
+                    args: $args,
+                    output: new CommandOutput($this->stdout, $this->stderr),
+                );
         } catch (Throwable $exception) {
             $this->logException($exception);
 

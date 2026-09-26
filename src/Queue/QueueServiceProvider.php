@@ -109,9 +109,6 @@ final class QueueServiceProvider implements ServiceProviderInterface
         });
 
         $container->singleton('queue', QueueBusInterface::class);
-        $container->singleton(QueueInstallCommand::class, QueueInstallCommand::class);
-        $container->singleton(QueueWorkCommand::class, QueueWorkCommand::class);
-
         if ($container->isBound(CommandRegistry::class)) {
             $commands = $container->get(CommandRegistry::class);
             $commands->registerDefinition(new CommandDefinition(

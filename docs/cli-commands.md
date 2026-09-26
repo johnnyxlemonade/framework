@@ -26,7 +26,13 @@ commands:
   - App\Console\ImportProductsCommand
 ```
 
-It requires command instantiation during registration to read `name()` and `description()`. Use the definition mapping for lazy registration. Command scope is a future lifecycle step; this metadata model intentionally does not create one yet.
+It requires command instantiation during registration to read `name()` and `description()`. Use the definition mapping for lazy registration.
+
+## Command scope
+
+When `CliKernel` runs a known command, it creates an isolated `Command` scope. The command class is resolved from that scope and can inject `CommandContext`, `CommandInput` and `CommandOutput`. `CommandContext` contains the command name, complete argv and command arguments; `CommandInput` provides small positional argument helpers; `CommandOutput` writes to the kernel's configured stdout and stderr streams.
+
+`CommandInterface::run(array $args): int` remains unchanged. Direct calls to `run()` remain supported but do not create a framework command scope. List, help and unknown-command handling do not create a command scope or instantiate a command.
 
 ## Command class
 

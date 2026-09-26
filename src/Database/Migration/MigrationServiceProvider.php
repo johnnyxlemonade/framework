@@ -35,9 +35,6 @@ final class MigrationServiceProvider implements ServiceProviderInterface
             $container->get(MigrationStateRepository::class),
             $container->get(Schema::class),
         ));
-        $container->singleton(MigrateCommand::class, MigrateCommand::class);
-        $container->singleton(MigrationStatusCommand::class, MigrationStatusCommand::class);
-
         if (!$container->isBound(CommandRegistry::class)) {
             return;
         }
