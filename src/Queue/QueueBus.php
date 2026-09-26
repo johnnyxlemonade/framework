@@ -5,22 +5,37 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Queue;
 
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Queue\Exception\QueueHandlerFailureException;
 
 final class QueueBus implements QueueBusInterface
 {
     private readonly JobHandlerRegistry $handlers;
+    private readonly JobHandlerInvoker $invoker;
 
     /**
      * @param array<string, QueueTransportInterface> $transports
      */
     public function __construct(
-        private readonly ContainerInterface $container,
+        ContainerInterface $container,
         private readonly array $transports,
         private readonly string $defaultTransport = 'sync',
         ?JobHandlerRegistry $handlers = null,
+        ?JobHandlerInvoker $invoker = null,
     ) {
         $this->handlers = $handlers ?? new JobHandlerRegistry();
+        if ($invoker === null) {
+            if (!$container instanceof ScopeFactoryInterface) {
+                throw new \LogicException(sprintf(
+                    'QueueBus container must implement %s to invoke handlers.',
+                    ScopeFactoryInterface::class,
+                ));
+            }
+
+            $invoker = new JobHandlerInvoker($this->handlers, $container);
+        }
+
+        $this->invoker = $invoker;
     }
 
     public function dispatch(object $message, ?string $transport = null, string $queue = 'default', int $delaySeconds = 0): void
@@ -29,7 +44,7 @@ final class QueueBus implements QueueBusInterface
         $resolved = $this->transport($transportName);
 
         if ($transportName === 'sync') {
-            $this->handle(new QueuedMessage($message, $queue), $transportName);
+            $this->handle(new QueuedMessage($message, $queue), $transportName, bindQueuedMessage: false);
 
             return;
         }
@@ -56,7 +71,7 @@ final class QueueBus implements QueueBusInterface
         }
 
         try {
-            $this->handle($item, $transportName);
+            $this->handle($item, $transportName, bindQueuedMessage: true);
         } catch (\Throwable $handlerException) {
             try {
                 $resolved->fail($item, $handlerException->getMessage());
@@ -72,41 +87,10 @@ final class QueueBus implements QueueBusInterface
         return true;
     }
 
-    private function handle(QueuedMessage $item, string $transport): void
+    private function handle(QueuedMessage $item, string $transport, bool $bindQueuedMessage): void
     {
         $context = JobContext::fromQueuedMessage($item, $transport);
-        $handler = $this->handlers->handlerFor($context->message);
-        $resolved = $this->resolveCallable($handler);
-        $resolved($context->message);
-    }
-
-    /**
-     * @param (callable(object): void)|string $handler
-     * @return callable(object):void
-     */
-    private function resolveCallable(callable|string $handler): callable
-    {
-        if (is_callable($handler)) {
-            return static function (object $message) use ($handler): void {
-                $handler($message);
-            };
-        }
-
-        $resolved = $this->container->get($handler);
-
-        if (is_callable($resolved)) {
-            return static function (object $message) use ($resolved): void {
-                $resolved($message);
-            };
-        }
-
-        if (is_object($resolved) && method_exists($resolved, '__invoke')) {
-            return static function (object $message) use ($resolved): void {
-                $resolved($message);
-            };
-        }
-
-        throw new \RuntimeException(sprintf('Queue handler "%s" is not callable.', $handler));
+        $this->invoker->invoke($context, $bindQueuedMessage ? $item : null);
     }
 
     private function transport(string $name): QueueTransportInterface

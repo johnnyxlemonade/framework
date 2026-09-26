@@ -75,8 +75,11 @@ remain application or operations concerns.
 For an asynchronously dequeued message, a successful handler is acknowledged only after it returns.
 When a handler throws, the transport's `fail()` operation runs and the original handler error remains
 the primary failure. An `ack()` error is a transport-confirmation error and does not invoke `fail()`.
-A future Job scope will make an immutable `JobContext` available to handlers; this release does not
-create that scope yet.
+Every handler invocation runs in an isolated `Job` scope. Class-string handlers can inject the
+scope-local `JobContext`; asynchronously dequeued handlers can also inject `QueuedMessage`.
+Synchronous dispatch receives its own Job scope and does not reuse an active HTTP request scope.
+Legacy callables remain supported, but are not container-resolved and therefore cannot receive these
+values through constructor injection.
 
 ## Outbound HTTP Clients
 

@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Queue;
 use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
@@ -33,6 +34,19 @@ final class QueueServiceProvider implements ServiceProviderInterface
         });
         $container->singleton(MessageSerializer::class, MessageSerializer::class);
         $container->singleton(JobHandlerRegistry::class, JobHandlerRegistry::class);
+        $container->singleton(JobHandlerInvoker::class, static function (ContainerInterface $container): JobHandlerInvoker {
+            if (!$container instanceof ScopeFactoryInterface) {
+                throw new \LogicException(sprintf(
+                    'Queue handler invocation requires a container implementing %s.',
+                    ScopeFactoryInterface::class,
+                ));
+            }
+
+            return new JobHandlerInvoker(
+                handlers: $container->get(JobHandlerRegistry::class),
+                scopeFactory: $container,
+            );
+        });
         $container->singleton(SyncQueueTransport::class, SyncQueueTransport::class);
         $container->singleton(DatabaseQueueTransport::class, static function (ContainerInterface $container): DatabaseQueueTransport {
             $config = $container->get(QueueConfig::class);
@@ -68,6 +82,7 @@ final class QueueServiceProvider implements ServiceProviderInterface
                 transports: $transports,
                 defaultTransport: $default,
                 handlers: $container->get(JobHandlerRegistry::class),
+                invoker: $container->get(JobHandlerInvoker::class),
             );
 
             foreach ($handlers as $messageClass => $handler) {
