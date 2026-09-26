@@ -375,13 +375,25 @@ final class ControllerTest extends TestCase
             $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
             $this->registerViewHelpers($container);
 
-            $controller = $this->controller(
-                $this->request(uri: 'https://example.test/current'),
+            $previousRequest = $this->request(uri: 'https://example.test/previous');
+            $previousController = $this->controller(
+                $previousRequest,
                 $container,
             );
+            $previousRender = $previousController->exposedView()->render('current');
 
-            self::assertSame('/current', $controller->exposedView()->render('current'));
-            self::assertSame('/current', $controller->exposedView()->render('current'));
+            $currentRequest = $this->request(uri: 'https://example.test/current');
+            $controller = $this->controller(
+                $currentRequest,
+                $container,
+            );
+            $firstRender = $controller->exposedView()->render('current');
+            $secondRender = $controller->exposedView()->render('current');
+
+            self::assertSame($previousRequest->getUri()->getPath(), $previousRender);
+            self::assertSame($currentRequest->getUri()->getPath(), $firstRender);
+            self::assertSame($firstRender, $secondRender);
+            self::assertNotSame($previousRender, $firstRender);
         } finally {
             @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
             @rmdir($viewsPath);
