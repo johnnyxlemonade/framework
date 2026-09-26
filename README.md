@@ -5,7 +5,7 @@
 [![Lint](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Lemonade Framework is a modular PHP 8.1+ application framework for maintainable web applications, administration systems, CMS projects and integration-oriented services.
+Lemonade Framework is a modular PHP 8.3+ application framework for maintainable web applications, administration systems, CMS projects and integration-oriented services.
 
 It combines a PSR-based HTTP runtime, a PSR-11 compatible service container, provider-based bootstrap, routing, a CLI kernel and reusable infrastructure for long-lived application development.
 
@@ -63,9 +63,11 @@ composer install
 
 Required platform requirements:
 
-- PHP `>= 8.1`
+- PHP `>= 8.3 < 8.6`
 - `ext-fileinfo`
 - `ext-mbstring`
+
+Official support covers PHP 8.3, 8.4 and 8.5. The syntax and runtime target is PHP 8.3: new framework source and generated PHP source must remain PHP 8.3 compatible, even when development or CI runs on PHP 8.4 or 8.5.
 
 Composer installs the required PSR and Nyholm packages automatically.
 

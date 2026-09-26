@@ -29,13 +29,8 @@ permissions:
 
 jobs:
   phpstan:
-    name: PHPStan (PHP ${{ matrix.php }})
+    name: PHPStan (PHP 8.3)
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ['8.5', '8.4', '8.3', '8.2', '8.1']
 
     steps:
       - name: Checkout
@@ -53,7 +48,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '8.3'
           coverage: none
           tools: composer:v2
           extensions: fileinfo, mbstring
@@ -69,9 +64,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ runner.os }}-php-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          key: composer-${{ runner.os }}-php-8.3-${{ hashFiles('composer.lock') }}
           restore-keys: |
-            composer-${{ runner.os }}-php-${{ matrix.php }}-
+            composer-${{ runner.os }}-php-8.3-
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
