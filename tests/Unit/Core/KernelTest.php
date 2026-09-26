@@ -28,6 +28,7 @@ use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\RouteRegistrarRegistry;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
@@ -473,7 +474,19 @@ final class KernelTest extends TestCase
 
         self::assertSame(200, $firstResponse->getStatusCode());
         self::assertSame(200, $secondResponse->getStatusCode());
-        self::assertSame([$firstRequest, $secondRequest], \App\Controllers\RequestScopeKernelController::$requests);
+        self::assertCount(2, \App\Controllers\RequestScopeKernelController::$requests);
+        self::assertNotSame($firstRequest, \App\Controllers\RequestScopeKernelController::$requests[0]);
+        self::assertNotSame($secondRequest, \App\Controllers\RequestScopeKernelController::$requests[1]);
+        self::assertSame('first', \App\Controllers\RequestScopeKernelController::$requests[0]->getQueryParams()['request']);
+        self::assertSame('second', \App\Controllers\RequestScopeKernelController::$requests[1]->getQueryParams()['request']);
+        self::assertInstanceOf(
+            \Lemonade\Framework\Routing\RouteMatch::class,
+            \App\Controllers\RequestScopeKernelController::$requests[0]->getAttribute(RouteRequestAttributes::MATCH),
+        );
+        self::assertInstanceOf(
+            \Lemonade\Framework\Routing\RouteMatch::class,
+            \App\Controllers\RequestScopeKernelController::$requests[1]->getAttribute(RouteRequestAttributes::MATCH),
+        );
         self::assertCount(2, \App\Controllers\RequestScopeKernelController::$containers);
         self::assertInstanceOf(ScopedContainerInterface::class, \App\Controllers\RequestScopeKernelController::$containers[0]);
         self::assertNotSame(\App\Controllers\RequestScopeKernelController::$containers[0], \App\Controllers\RequestScopeKernelController::$containers[1]);

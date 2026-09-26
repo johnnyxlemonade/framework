@@ -31,6 +31,7 @@ public/index.php
    -> execute PSR-15 middleware pipeline
    -> DispatchRequestHandler
       -> match route
+      -> attach immutable RouteMatch to the request
       -> create controller request handler
       -> resolve route-specific middleware
       -> execute route middleware pipeline
@@ -89,6 +90,12 @@ scope-local `ServerRequestInterface` binding is the identical object passed as i
 The guard rejects command/job scopes, a missing local request binding, and a mismatched request.
 
 Bootstrap happens before request dispatch. Global middleware wraps route matching and controller execution. Route-specific middleware wraps the matched controller handler.
+
+After a successful match, `DispatchRequestHandler` adds the immutable `RouteMatch` as the
+`Lemonade\Framework\Routing\RouteRequestAttributes::MATCH` PSR-7 request attribute. Route
+middleware and the controller action receive that same request instance. Global middleware runs
+before routing and therefore must treat this attribute as absent. A non-matched request never
+receives a route-match attribute.
 
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
 

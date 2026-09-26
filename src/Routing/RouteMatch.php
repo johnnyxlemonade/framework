@@ -17,6 +17,7 @@ final readonly class RouteMatch
         private string $action,
         private array $params = [],
         private array $middleware = [],
+        private ?string $name = null,
     ) {}
 
     public function controller(): string
@@ -27,6 +28,11 @@ final readonly class RouteMatch
     public function action(): string
     {
         return $this->action;
+    }
+
+    public function name(): ?string
+    {
+        return $this->name;
     }
 
     /**

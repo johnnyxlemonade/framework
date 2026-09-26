@@ -35,6 +35,11 @@ The controller resolver creates the controller in the Request scope. A request-l
 dependency may be injected through the constructor, or supplied as an action parameter
 when that better expresses that it belongs only to that action.
 
+For a matched route, an action receiving `ServerRequestInterface` gets the same request instance
+that route middleware received. Its `RouteRequestAttributes::MATCH` attribute contains the
+immutable `RouteMatch` with the matched controller, action, parameters and, for named explicit
+routes, route name.
+
 ```php
 use Psr\Http\Message\ServerRequestInterface;
 

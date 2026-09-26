@@ -46,6 +46,11 @@ final class Route
         return $this->action;
     }
 
+    public function routeName(): ?string
+    {
+        return $this->name;
+    }
+
     public function name(?string $name = null): self|string|null
     {
         if ($name === null) {
