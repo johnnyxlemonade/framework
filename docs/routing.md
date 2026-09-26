@@ -132,7 +132,10 @@ In views, use the explicit shared helper object:
 </a>
 ```
 
-Legacy global helper resolving remains available for existing applications, but new code should prefer controller services, constructor DI, or `$helpers` in views.
+Legacy global helper resolving remains available for existing applications, but new code
+should prefer constructor DI or `$helpers` in views. Controller service helpers are
+convenience APIs for `AbstractController`-based controllers, not a general replacement
+for explicit dependencies.
 
 Result:
 

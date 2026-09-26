@@ -1,53 +1,39 @@
 # Controllers
 
-Controllers extend `Lemonade\Framework\Core\AbstractController`.
+New controllers should normally be plain, `final` classes with explicit constructor
+dependencies. The framework resolves a controller from the active Request scope, so
+request-local services can be injected safely without binding them into the root
+container.
 
-A controller action may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
+Controller actions may return a PSR response directly. Scalar, stringable and `null`
+return values are normalized into HTML responses.
 
-## Basic controller
+## Preferred controller style
+
+Use constructor injection for application and framework dependencies. Keep only the
+methods intended for HTTP dispatch public.
 
 ```php
 <?php
 
 namespace App\Controllers;
 
-use Lemonade\Framework\Core\AbstractController;
-use Psr\Http\Message\ResponseInterface;
-
-final class HomeController extends AbstractController
+final class HomeController
 {
-    public function index(): ResponseInterface
+    public function __construct(
+        private readonly HomePage $homePage,
+    ) {}
+
+    public function index(): string
     {
-        return $this->html('<h1>Hello</h1>');
+        return $this->homePage->render();
     }
 }
 ```
 
-## Scalar return values
-
-```php
-public function index(): string
-{
-    return 'Hello';
-}
-```
-
-## Route parameters
-
-Route parameters are injected by parameter name and cast to scalar types when possible.
-
-```php
-public function detail(int $id): ResponseInterface
-{
-    return $this->json([
-        'id' => $id,
-    ]);
-}
-```
-
-## Current request injection
-
-The current PSR server request can be injected into an action:
+The controller resolver creates the controller in the Request scope. A request-local
+dependency may be injected through the constructor, or supplied as an action parameter
+when that better expresses that it belongs only to that action.
 
 ```php
 use Psr\Http\Message\ServerRequestInterface;
@@ -58,9 +44,47 @@ public function store(ServerRequestInterface $request): ResponseInterface
 }
 ```
 
-## Request and response helpers
+## Action visibility
 
-The base controller provides helpers for common request and response tasks:
+An action method must be `public`. The resolver rejects `protected` and `private`
+methods before invocation. This applies both to explicit `Controller@action` route
+mappings and to convention-based action resolution.
+
+Route parameters are injected by parameter name and cast to scalar types when possible.
+
+```php
+public function detail(int $id): ResponseInterface
+{
+    // ...
+}
+```
+
+## `AbstractController` convenience facade
+
+`Lemonade\Framework\Core\AbstractController` remains available as a convenience facade,
+especially for quick server-rendered controllers that benefit from its request, response,
+view, validation and similar helpers. It is not the required or preferred base type for
+new controllers.
+
+The facade receives a mutable runtime `ControllerContext` during dispatch. Do not bind a
+controller extending `AbstractController` as a singleton, and do not reuse an instance
+between requests. Use the default transient resolution or an explicit scoped binding for
+controllers that need request-local state.
+
+```php
+use Lemonade\Framework\Core\AbstractController;
+use Psr\Http\Message\ResponseInterface;
+
+final class LegacyPageController extends AbstractController
+{
+    public function index(): ResponseInterface
+    {
+        return $this->html('<h1>Hello</h1>');
+    }
+}
+```
+
+The facade provides helpers for common request and response tasks:
 
 ```php
 $this->query('page', 1);
@@ -76,9 +100,7 @@ $this->download($path);
 $this->stream($producer);
 ```
 
-## Framework service helpers
-
-Controllers can access commonly used framework services:
+It also exposes common framework helpers:
 
 ```php
 $this->url();
@@ -90,9 +112,15 @@ $this->flash();
 $this->breadcrumb();
 ```
 
-These helpers are convenience methods around configured framework services. They do not replace constructor injection for application services.
+## Service lookup
 
-`controllerService()` is intentionally narrower than constructor DI. Use it in application base controllers for infrastructure or request context services only. Concrete action controllers should receive their business dependencies through the constructor.
+`controllerService()` and the facade service helpers are convenience APIs around the
+active controller context. In particular, `controllerService()` is a generic service
+lookup and should be treated as a legacy/convenience escape hatch, not as a normal
+application architecture pattern. Prefer explicit constructor DI for application
+services and for dependencies that make an action's requirements clearer.
+
+An application base controller can still collect genuinely shared rendering helpers:
 
 ```php
 use Lemonade\Framework\Core\AbstractController;
@@ -111,7 +139,11 @@ abstract class AppController extends AbstractController
         );
     }
 }
+```
 
+Concrete controllers should still declare their business dependencies explicitly:
+
+```php
 final class DocumentationController extends AppController
 {
     public function __construct(

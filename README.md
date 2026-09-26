@@ -172,26 +172,32 @@ return static function (Router $router): void {
 
 ### Controller
 
-Controllers extend `Lemonade\Framework\Core\AbstractController`.
+New controllers are plain `final` classes with explicit constructor dependencies. The
+framework resolves them in the active Request scope, and action methods must be `public`.
 
 ```php
 <?php
 
 namespace App\Controllers;
 
-use Lemonade\Framework\Core\AbstractController;
-use Psr\Http\Message\ResponseInterface;
-
-final class HomeController extends AbstractController
+final class HomeController
 {
-    public function index(): ResponseInterface
+    public function __construct(
+        private readonly HomePage $homePage,
+    ) {}
+
+    public function index(): string
     {
-        return $this->html('<h1>Hello</h1>');
+        return $this->homePage->render();
     }
 }
 ```
 
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
+
+`AbstractController` remains available as a convenience facade for server-rendered
+controllers, but it holds mutable runtime context and must not be registered as a
+singleton. See the [controller documentation](docs/controllers.md).
 
 ### Service Provider
 

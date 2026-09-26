@@ -230,7 +230,7 @@ IDs. A string service ID is not a service alias; explicit aliases use
 $container->singleton('custom.service', new CustomService());
 ```
 
-New application and framework code should resolve services through constructor DI, service provider factories, explicit view data, or `$helpers` / `$requestHelpers` in views. Controller service helpers are for controller infrastructure and common framework services; they are not a replacement for constructor DI in action controllers.
+New application and framework code should resolve services through constructor DI, service provider factories, explicit view data, or `$helpers` / `$requestHelpers` in views. Controller service helpers are `AbstractController` convenience APIs; `controllerService()` is a generic lookup escape hatch, not a replacement for constructor DI in action controllers.
 
 For example, use controller services instead of resolving common services globally:
 
