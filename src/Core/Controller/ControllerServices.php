@@ -26,6 +26,8 @@ final class ControllerServices
     /** @var array<class-string, object> */
     private array $services = [];
 
+    private ?View $requestView = null;
+
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly ServerRequestInterface $request,
@@ -73,7 +75,7 @@ final class ControllerServices
 
     public function view(): View
     {
-        $view = $this->service(View::class, 'View service is not available.');
+        $view = $this->requestView ??= clone $this->service(View::class, 'View service is not available.');
         $view->shareOnce(
             'helpers',
             $this->service(ViewHelpers::class, 'ViewHelpers service is not available.'),

@@ -337,6 +337,57 @@ final class ControllerTest extends TestCase
         }
     }
 
+    public function testViewHelperDoesNotLeakWhenThePreviousRequestDoesNotRender(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents($viewsPath . DIRECTORY_SEPARATOR . 'current.php', '<?= $requestHelpers?->currentPath() ?? "missing" ?>');
+
+        try {
+            $container = new Container();
+            $view = new View($viewsPath);
+            $container->singleton(View::class, $view);
+            $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+            $this->registerViewHelpers($container);
+
+            $requestA = $this->controller(
+                $this->request(uri: 'https://example.test/request-a'),
+                $container,
+            );
+            $requestA->exposedView();
+
+            self::assertSame('missing', $view->render('current'));
+        } finally {
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
+    public function testViewHelperRemainsAvailableForRepeatedRendersInTheSameRequest(): void
+    {
+        $viewsPath = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-controller-view-' . uniqid('', true);
+        mkdir($viewsPath, 0775, true);
+        file_put_contents($viewsPath . DIRECTORY_SEPARATOR . 'current.php', '<?= $requestHelpers->currentPath() ?>');
+
+        try {
+            $container = new Container();
+            $container->singleton(View::class, new View($viewsPath));
+            $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
+            $this->registerViewHelpers($container);
+
+            $controller = $this->controller(
+                $this->request(uri: 'https://example.test/current'),
+                $container,
+            );
+
+            self::assertSame('/current', $controller->exposedView()->render('current'));
+            self::assertSame('/current', $controller->exposedView()->render('current'));
+        } finally {
+            @unlink($viewsPath . DIRECTORY_SEPARATOR . 'current.php');
+            @rmdir($viewsPath);
+        }
+    }
+
     public function testSetControllerContextResetsRequestDataAndResponseBuilder(): void
     {
         $controller = $this->controller(
