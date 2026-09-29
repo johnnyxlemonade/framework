@@ -23,7 +23,8 @@ final class MigrationStateRepository
     public function __construct(
         private readonly DatabaseDriverInterface $driver,
         private readonly Schema $schema,
-    ) {}
+    ) {
+    }
 
     /**
      * Creates the migrations state table when it does not already exist.

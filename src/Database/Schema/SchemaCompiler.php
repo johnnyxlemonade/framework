@@ -12,7 +12,8 @@ final class SchemaCompiler
 {
     public function __construct(
         private readonly SchemaGrammarInterface $grammar,
-    ) {}
+    ) {
+    }
 
     /**
      * @param Closure(TableBlueprint):void $definition

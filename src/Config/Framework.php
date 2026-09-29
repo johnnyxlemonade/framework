@@ -14,7 +14,9 @@ use Lemonade\Framework\Database\Migration\MigrationServiceProvider;
 use Lemonade\Framework\Debug\DebugServiceProvider;
 use Lemonade\Framework\Discovery\DiscoveryServiceProvider;
 use Lemonade\Framework\Event\EventServiceProvider;
+use Lemonade\Framework\Image\ImageServiceProvider;
 use Lemonade\Framework\Localization\LocalizationServiceProvider;
+use Lemonade\Framework\Mime\MimeServiceProvider;
 use Lemonade\Framework\Queue\QueueServiceProvider;
 use Lemonade\Framework\Routing\RoutingServiceProvider;
 use Lemonade\Framework\Security\SecurityServiceProvider;
@@ -39,6 +41,8 @@ return FrameworkConfigDefinition::create()
         SessionServiceProvider::class,
         ComponentServiceProvider::class,
         ValidationServiceProvider::class,
+        ImageServiceProvider::class,
+        MimeServiceProvider::class,
         UploadServiceProvider::class,
         DebugServiceProvider::class,
         ViewServiceProvider::class,

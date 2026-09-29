@@ -8,7 +8,8 @@ final readonly class DebugMode
 {
     public function __construct(
         private bool $enabled,
-    ) {}
+    ) {
+    }
 
     public static function enabled(): self
     {

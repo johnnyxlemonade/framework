@@ -11,5 +11,6 @@ final readonly class FrameworkApiConfig
         public ApiEndpointConfig $health,
         public ApiEndpointConfig $openapi,
         public ApiEndpointConfig $docs,
-    ) {}
+    ) {
+    }
 }

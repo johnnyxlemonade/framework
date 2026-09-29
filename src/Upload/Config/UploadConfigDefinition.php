@@ -6,28 +6,39 @@ namespace Lemonade\Framework\Upload\Config;
 
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
 
+/**
+ * Defines immutable source values for named generic-file and image upload profiles.
+ */
 final class UploadConfigDefinition extends AbstractConfigDefinition
 {
+    /**
+     * Starts an upload configuration definition for framework upload profiles
+     */
     public static function create(): self
     {
         return new self();
     }
 
+    /**
+     * Provides the configuration namespace consumed by the upload subsystem
+     */
     public static function moduleKey(): string
     {
         return 'upload';
     }
 
     /**
-     * @param list<string> $allowedMimeTypes
+     * Defines one generic-file profile whose extension policy is always required for acceptance
+     *
      * @param list<string> $allowedExtensions
+     * @param list<string> $allowedMimeTypes
      */
     public function fileProfile(
         string $profile,
         string $targetDirectory,
         int $maxBytes,
-        array $allowedMimeTypes,
         array $allowedExtensions = [],
+        array $allowedMimeTypes = [],
     ): self {
         return $this
             ->set("files.{$profile}.target_directory", $targetDirectory)
@@ -37,15 +48,17 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
     }
 
     /**
-     * @param list<string> $allowedMimeTypes
+     * Defines one image profile with optional MIME narrowing after extension and byte validation
+     *
      * @param list<string> $allowedExtensions
+     * @param list<string> $allowedMimeTypes
      */
     public function imageProfile(
         string $profile,
         string $targetDirectory,
         int $maxBytes,
-        array $allowedMimeTypes,
         array $allowedExtensions = [],
+        array $allowedMimeTypes = [],
         bool $reencode = true,
         ?int $minWidth = null,
         ?int $maxWidth = null,
@@ -62,12 +75,15 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
         if ($minWidth !== null) {
             $this->set("images.{$profile}.min_width", $minWidth);
         }
+
         if ($maxWidth !== null) {
             $this->set("images.{$profile}.max_width", $maxWidth);
         }
+
         if ($minHeight !== null) {
             $this->set("images.{$profile}.min_height", $minHeight);
         }
+
         if ($maxHeight !== null) {
             $this->set("images.{$profile}.max_height", $maxHeight);
         }

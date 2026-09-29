@@ -6,4 +6,6 @@ namespace Lemonade\Framework\Upload\Exception;
 
 use RuntimeException;
 
-class UploadException extends RuntimeException {}
+class UploadException extends RuntimeException
+{
+}

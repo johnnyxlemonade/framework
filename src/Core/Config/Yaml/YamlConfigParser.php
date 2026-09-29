@@ -11,7 +11,8 @@ final class YamlConfigParser
 {
     public function __construct(
         private readonly string $parserClass = \Symfony\Component\Yaml\Yaml::class,
-    ) {}
+    ) {
+    }
 
     public function parseFile(string $file): mixed
     {

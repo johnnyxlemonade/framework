@@ -12,7 +12,8 @@ class UploadedFile
         private readonly string $storedRelativePath,
         private readonly string $mimeType,
         private readonly int $sizeBytes,
-    ) {}
+    ) {
+    }
 
     public function storedFilename(): string
     {

@@ -18,7 +18,8 @@ final class ContextualBindingBuilder
         private readonly ContainerBuilder $builder,
         private readonly string $consumer,
         private readonly ?Closure $onChange = null,
-    ) {}
+    ) {
+    }
 
     /** @param class-string|string $dependency */
     public function needs(string $dependency): self

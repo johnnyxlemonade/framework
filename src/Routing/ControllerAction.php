@@ -14,7 +14,8 @@ final readonly class ControllerAction
     private function __construct(
         private string $controllerClass,
         private string $method,
-    ) {}
+    ) {
+    }
 
     public static function for(string $controllerClass, string $method): self
     {

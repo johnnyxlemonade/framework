@@ -14,7 +14,8 @@ final class CacheManager
 {
     public function __construct(
         private readonly CacheItemPoolInterface $pool,
-    ) {}
+    ) {
+    }
 
     public function pool(): CacheItemPoolInterface
     {

@@ -23,7 +23,8 @@ final class FrameworkHealthConfigSnapshotLoader
 {
     public function __construct(
         private readonly ConfigDefinitionRegistry $definitions,
-    ) {}
+    ) {
+    }
 
     public function load(): ?FrameworkHealthConfigSnapshot
     {

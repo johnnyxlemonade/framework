@@ -15,7 +15,8 @@ final class RobotsTxtGenerator
         private readonly RobotsConfig $config,
         private readonly BaseUrlResolver $baseUrlResolver,
         private readonly ClockInterface $clock,
-    ) {}
+    ) {
+    }
 
     public function generate(): string
     {

@@ -17,7 +17,8 @@ final class DatabaseQueueTransport implements QueueTransportInterface
         private readonly MessageSerializer $serializer,
         private readonly string $table = 'system_queue_job',
         private readonly string $failedTable = 'system_queue_failed_job',
-    ) {}
+    ) {
+    }
 
     public function enqueue(QueuedMessage $message, int $delaySeconds = 0): void
     {

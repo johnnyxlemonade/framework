@@ -23,7 +23,8 @@ final class FileSessionStorage implements SessionStorageInterface
         private readonly string $directory,
         private readonly int $lifetimeSeconds = 7200,
         private readonly string $cookieName = self::COOKIE_NAME,
-    ) {}
+    ) {
+    }
 
     public function start(): void
     {

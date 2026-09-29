@@ -20,7 +20,8 @@ final class OdbcSchemaGrammar implements SchemaGrammarInterface
     public function __construct(
         private readonly OdbcSqlEscaper $escaper,
         private readonly DatabaseConfig $config,
-    ) {}
+    ) {
+    }
 
     public function compileCreateDatabase(string $database): string
     {

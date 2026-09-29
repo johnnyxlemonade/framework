@@ -8,5 +8,6 @@ final readonly class InstanceTarget implements DefinitionTarget
 {
     public function __construct(
         public object $instance,
-    ) {}
+    ) {
+    }
 }

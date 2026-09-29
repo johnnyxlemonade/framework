@@ -11,7 +11,8 @@ abstract class AbstractMetaEntity implements MetaEntityInterface
 {
     public function __construct(
         protected readonly MetaData $data,
-    ) {}
+    ) {
+    }
 
     /**
      * @param TagInterface[] $tags

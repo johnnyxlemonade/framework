@@ -12,7 +12,8 @@ final readonly class OdbcField
         private int $maxLength,
         private bool $primaryKey = false,
         private mixed $default = null,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {

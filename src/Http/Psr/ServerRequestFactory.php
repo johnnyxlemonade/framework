@@ -12,7 +12,8 @@ final class ServerRequestFactory
 {
     public function __construct(
         private readonly Psr17Factory $psr17Factory,
-    ) {}
+    ) {
+    }
 
     public function fromGlobals(): ServerRequestInterface
     {

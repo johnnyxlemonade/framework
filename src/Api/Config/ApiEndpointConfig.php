@@ -16,5 +16,6 @@ final readonly class ApiEndpointConfig
         public string $route,
         public ApiAccess $access,
         public array $scopes = [],
-    ) {}
+    ) {
+    }
 }

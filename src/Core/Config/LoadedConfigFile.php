@@ -16,7 +16,8 @@ final readonly class LoadedConfigFile
         private ConfigDefinitionInterface $definition,
         private array $envKeys = [],
         private array $sourceFiles = [],
-    ) {}
+    ) {
+    }
 
     public function definition(): ConfigDefinitionInterface
     {

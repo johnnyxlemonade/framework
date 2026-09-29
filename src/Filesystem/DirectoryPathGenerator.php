@@ -6,72 +6,35 @@ namespace Lemonade\Framework\Filesystem;
 
 use InvalidArgumentException;
 
-use function floor;
 use function hash;
-use function hash_algos;
-use function in_array;
-use function max;
-use function min;
-use function rtrim;
-use function sprintf;
+use function implode;
 use function strlen;
 use function substr;
 
-final class DirectoryPathGenerator
+/**
+ * Derives deterministic bounded-fan-out directory paths from identifiers.
+ *
+ * It does not create directories or own storage-root policy.
+ */
+final readonly class DirectoryPathGenerator
 {
-    public function __construct(
-        private readonly string $rootPath = '',
-        private readonly string $algo = 'sha256',
-    ) {
-        if (!in_array($this->algo, hash_algos(), true)) {
-            throw new InvalidArgumentException(sprintf(
-                'Unsupported hash algorithm "%s".',
-                $this->algo,
-            ));
-        }
-    }
-
-    public function generate(
-        int $module,
-        int $type = 0,
-        string|int|null $id = null,
-        ?int $depth = null,
-    ): string {
-        $path = rtrim($this->rootPath, '/');
-
-        if ($path !== '') {
-            $path .= '/';
-        }
-
-        $path .= $module;
-
-        if ($id === null) {
-            return $path . '/';
-        }
-
-        $hash = hash($this->algo, (string) $id);
+    /**
+     * Maps an arbitrary key into deterministic two-hex-character directory buckets.
+     *
+     * It calculates a path only; callers retain ownership of directory creation and storage policy.
+     */
+    public function shard(string|int $key, ?int $depth = null): string
+    {
+        $hash = hash('sha256', (string) $key);
         $length = strlen($hash);
-
-        $depth ??= max(4, min(8, (int) floor($length / 8)));
-
-        if ($depth < 1 || $depth > 255) {
-            throw new InvalidArgumentException('Depth must be between 1 and 255.');
+        $depth ??= 8;
+        if ($depth < 1 || $depth > intdiv($length, 2)) {
+            throw new InvalidArgumentException('Depth must be between 1 and 32 for SHA-256 sharding.');
         }
-
-        $position = 0;
-        $path .= '/' . $type;
-
-        for ($i = 0; $i < $depth; $i++) {
-            if ($position >= $length) {
-                $position = 0;
-            }
-
-            $chunk = substr($hash, $position, 2);
-            $position += 2;
-
-            $path .= '/' . $chunk;
+        $segments = [];
+        for ($position = 0, $i = 0; $i < $depth; $i++, $position += 2) {
+            $segments[] = substr($hash, $position, 2);
         }
-
-        return rtrim($path, '/') . '/';
+        return implode('/', $segments) . '/';
     }
 }

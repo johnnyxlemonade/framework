@@ -20,7 +20,8 @@ final class SitemapFileGenerator
         private readonly ApplicationContext $context,
         private readonly DirectoryManagerInterface $directories,
         private readonly ?LoggerInterface $logger = null,
-    ) {}
+    ) {
+    }
 
     public function generate(): SitemapGenerationResult
     {

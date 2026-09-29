@@ -20,7 +20,8 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
     public function __construct(
         private readonly SqliteSqlEscaper $escaper,
         private readonly DatabaseConfig $config,
-    ) {}
+    ) {
+    }
 
     public function compileCreateDatabase(string $database): string
     {

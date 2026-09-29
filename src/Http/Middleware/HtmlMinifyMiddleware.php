@@ -17,7 +17,8 @@ final class HtmlMinifyMiddleware implements MiddlewareInterface
     public function __construct(
         private readonly HtmlMinifier $minifier,
         private readonly HtmlMinifyConfig $config,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

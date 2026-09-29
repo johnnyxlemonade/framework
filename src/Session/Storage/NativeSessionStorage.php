@@ -12,7 +12,8 @@ final class NativeSessionStorage implements SessionStorageInterface
         private readonly string $cookieName = 'LEMONADE_SESSION',
         private readonly int $lifetimeSeconds = 7200,
         private readonly ?string $savePath = null,
-    ) {}
+    ) {
+    }
 
     public function start(): void
     {

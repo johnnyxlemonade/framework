@@ -12,5 +12,6 @@ final readonly class MetaConfig
         public string $viewport,
         public string $rating,
         public string $titleSeparator,
-    ) {}
+    ) {
+    }
 }

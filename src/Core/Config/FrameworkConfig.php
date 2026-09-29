@@ -9,5 +9,6 @@ final readonly class FrameworkConfig
     /** @param list<class-string> $providers */
     public function __construct(
         public array $providers,
-    ) {}
+    ) {
+    }
 }

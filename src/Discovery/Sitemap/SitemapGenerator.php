@@ -16,7 +16,8 @@ final class SitemapGenerator
         private readonly BaseUrlResolver $baseUrlResolver,
         private readonly SitemapConfig $config,
         private readonly ?LoggerInterface $logger = null,
-    ) {}
+    ) {
+    }
 
     /**
      * @return iterable<SitemapUrl>

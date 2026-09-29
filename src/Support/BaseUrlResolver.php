@@ -11,7 +11,8 @@ final class BaseUrlResolver
 {
     public function __construct(
         private readonly AppConfig $config,
-    ) {}
+    ) {
+    }
 
     public function __invoke(string $path = ''): string
     {

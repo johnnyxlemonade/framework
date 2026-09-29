@@ -9,7 +9,8 @@ final readonly class DumpItem
     public function __construct(
         private int $index,
         private DumpNode $value,
-    ) {}
+    ) {
+    }
 
     public function index(): int
     {

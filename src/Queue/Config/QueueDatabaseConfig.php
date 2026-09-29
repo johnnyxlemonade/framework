@@ -9,5 +9,6 @@ final readonly class QueueDatabaseConfig
     public function __construct(
         public string $table,
         public string $failedTable,
-    ) {}
+    ) {
+    }
 }

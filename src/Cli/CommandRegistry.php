@@ -17,7 +17,8 @@ final class CommandRegistry
 
     public function __construct(
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+    }
 
     /**
      * Legacy registration for commands whose metadata is only available from

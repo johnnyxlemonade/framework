@@ -6,4 +6,6 @@ namespace Lemonade\Framework\Database\Migration\Exception;
 
 use InvalidArgumentException;
 
-final class MigrationDiscoveryException extends InvalidArgumentException {}
+final class MigrationDiscoveryException extends InvalidArgumentException
+{
+}

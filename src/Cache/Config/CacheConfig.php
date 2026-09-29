@@ -9,5 +9,6 @@ final readonly class CacheConfig
     public function __construct(
         public string $defaultStore,
         public CacheFileStoreConfig $fileStore,
-    ) {}
+    ) {
+    }
 }

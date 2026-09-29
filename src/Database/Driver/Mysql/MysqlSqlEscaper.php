@@ -10,7 +10,8 @@ final class MysqlSqlEscaper
 {
     public function __construct(
         private readonly MysqlIdentifierEscaper $identifierEscaper,
-    ) {}
+    ) {
+    }
 
     public function value(mixed $value): string
     {

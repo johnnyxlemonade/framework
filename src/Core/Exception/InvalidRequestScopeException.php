@@ -6,4 +6,6 @@ namespace Lemonade\Framework\Core\Exception;
 
 use LogicException;
 
-final class InvalidRequestScopeException extends LogicException {}
+final class InvalidRequestScopeException extends LogicException
+{
+}

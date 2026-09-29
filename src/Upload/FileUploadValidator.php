@@ -5,17 +5,34 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Upload;
 
 use Lemonade\Framework\Localization\TranslatorInterface;
+use Lemonade\Framework\Mime\MimeType;
+use Lemonade\Framework\Mime\MimeTypeCatalog;
+use Lemonade\Framework\Mime\MimeTypeDetectorInterface;
 use Lemonade\Framework\Upload\Exception\UploadValidationException;
 use Psr\Http\Message\UploadedFileInterface;
 
-final class FileUploadValidator
+/**
+ * Validates generic uploads against transport, size, extension, and detected-content constraints.
+ */
+final readonly class FileUploadValidator
 {
+    /**
+     * Creates validation backed by translated failures and shared server-side MIME detection
+     */
     public function __construct(
         private readonly TranslatorInterface $translator,
-    ) {}
+        private readonly MimeTypeDetectorInterface $detector,
+        private readonly MimeTypeCatalog $catalog,
+    ) {
+    }
 
-    public function validate(?UploadedFileInterface $file, FileUploadOptions $options): void
-    {
+    /**
+     * Validates one generic upload and returns its server-detected MIME value
+     */
+    public function validate(
+        ?UploadedFileInterface $file,
+        FileUploadOptions $options,
+    ): MimeType {
         if ($file === null) {
             throw new UploadValidationException($this->translator->get('upload.payload_missing'));
         }
@@ -36,43 +53,55 @@ final class FileUploadValidator
             throw new UploadValidationException($this->translator->get('upload.file_too_large'));
         }
 
-        $mime = $this->detectMimeType($tmpPath);
+        $mime = $this->detector->detect($tmpPath);
 
         $allowedMimeTypes = $this->normalizeMimeTypes($options->allowedMimeTypes());
-        if ($allowedMimeTypes !== [] && !in_array($mime, $allowedMimeTypes, true)) {
-            throw new UploadValidationException($this->translator->get('upload.mime_not_allowed', ['mime' => $mime]));
+
+        if ($allowedMimeTypes !== [] && !in_array($mime->value(), $allowedMimeTypes, true)) {
+            throw new UploadValidationException($this->translator->get(
+                'upload.mime_not_allowed',
+                ['mime' => $mime->value()],
+            ));
         }
 
         $extension = $this->clientExtension($file);
         $allowedExtensions = $this->normalizeExtensions($options->allowedExtensions());
 
-        if ($allowedExtensions !== [] && ($extension === '' || !in_array($extension, $allowedExtensions, true))) {
-            throw new UploadValidationException($this->translator->get('upload.extension_not_allowed', ['extension' => $extension]));
+        if ($allowedExtensions === [] || $extension === '' || !in_array($extension, $allowedExtensions, true)) {
+            throw new UploadValidationException($this->translator->get(
+                'upload.extension_not_allowed',
+                ['extension' => $extension],
+            ));
         }
+
+        if (!$this->catalog->matches($extension, $mime)) {
+            throw new UploadValidationException($this->translator->get(
+                'upload.mime_not_allowed',
+                ['mime' => $mime->value()],
+            ));
+        }
+
+        return $mime;
     }
 
+    /**
+     * Resolves the readable temporary path exposed by the upload stream
+     */
     public function resolvePath(UploadedFileInterface $file): string
     {
         $stream = $file->getStream();
         $meta = $stream->getMetadata();
-        $uri = is_array($meta) ? ($meta['uri'] ?? null) : null;
+        $uri = null;
+
+        if (is_array($meta)) {
+            $uri = $meta['uri'] ?? null;
+        }
 
         if (!is_string($uri) || $uri === '' || !is_file($uri)) {
             throw new UploadValidationException($this->translator->get('upload.tmp_not_valid'));
         }
 
         return $uri;
-    }
-
-    private function detectMimeType(string $path): string
-    {
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path);
-
-        if (!is_string($mime) || $mime === '') {
-            throw new UploadValidationException($this->translator->get('upload.mime_not_detected'));
-        }
-
-        return strtolower($mime);
     }
 
     private function clientExtension(UploadedFileInterface $file): string

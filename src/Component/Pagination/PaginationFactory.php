@@ -13,7 +13,8 @@ final class PaginationFactory
         private readonly ServerRequestInterface $request,
         private readonly int $defaultPerPage = 20,
         private readonly int $maxPerPage = 200,
-    ) {}
+    ) {
+    }
 
     /**
      * @param list<array<string, mixed>> $items

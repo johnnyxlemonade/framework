@@ -4,4 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container\Exception;
 
-final class AliasTargetNotFoundException extends ServiceNotFoundException {}
+final class AliasTargetNotFoundException extends ServiceNotFoundException
+{
+}

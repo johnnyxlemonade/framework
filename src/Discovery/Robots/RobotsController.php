@@ -13,7 +13,8 @@ final class RobotsController
     public function __construct(
         private readonly RobotsTxtGenerator $generator,
         private readonly Responses $responses,
-    ) {}
+    ) {
+    }
 
     public function index(): ResponseInterface
     {

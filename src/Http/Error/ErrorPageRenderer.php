@@ -16,7 +16,8 @@ final class ErrorPageRenderer
         private readonly ApplicationContext $context,
         private readonly ErrorConfig $config,
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+    }
 
     public function notFound(Throwable $exception): string
     {

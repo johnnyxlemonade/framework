@@ -11,7 +11,8 @@ final class SystemClock implements ClockInterface
 {
     public function __construct(
         private readonly ?DateTimeZone $timezone = null,
-    ) {}
+    ) {
+    }
 
     public function now(): DateTimeImmutable
     {

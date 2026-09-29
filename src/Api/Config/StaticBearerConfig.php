@@ -12,5 +12,6 @@ final readonly class StaticBearerConfig
     public function __construct(
         public string $token,
         public array $scopes,
-    ) {}
+    ) {
+    }
 }

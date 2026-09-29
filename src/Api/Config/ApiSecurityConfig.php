@@ -8,5 +8,6 @@ final readonly class ApiSecurityConfig
 {
     public function __construct(
         public ?StaticBearerConfig $staticBearer,
-    ) {}
+    ) {
+    }
 }

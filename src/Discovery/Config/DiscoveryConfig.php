@@ -9,5 +9,6 @@ final class DiscoveryConfig
     public function __construct(
         public RobotsConfig $robots,
         public SitemapConfig $sitemap,
-    ) {}
+    ) {
+    }
 }

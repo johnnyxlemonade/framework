@@ -16,12 +16,16 @@ use Lemonade\Framework\Filesystem\Manager\LockManager;
 
 final class FilesystemServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers shared filesystem contracts and their legacy container aliases
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(DirectoryManagerInterface::class, DirectoryManager::class);
         $container->singleton(FileManagerInterface::class, FileManager::class);
         $container->singleton(LockManagerInterface::class, LockManager::class);
         $container->singleton(Filesystem::class, Filesystem::class);
+        $container->singleton(DirectoryPathGenerator::class, DirectoryPathGenerator::class);
 
         $container->singleton('filesystem', static function (ContainerInterface $container): Filesystem {
             return $container->get(Filesystem::class);

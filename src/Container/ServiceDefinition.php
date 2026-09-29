@@ -19,7 +19,8 @@ final readonly class ServiceDefinition
         public DefinitionTarget $target,
         public array $tags = [],
         public array $decorators = [],
-    ) {}
+    ) {
+    }
 
     public function withTag(string $tag): self
     {

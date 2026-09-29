@@ -13,7 +13,8 @@ final readonly class Responses
 {
     public function __construct(
         private ResponseBuilder $builder,
-    ) {}
+    ) {
+    }
 
     public function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {

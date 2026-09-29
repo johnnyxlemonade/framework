@@ -13,7 +13,8 @@ final class ValidRowIdRule implements ValidationRuleInterface
 
     public function __construct(
         private readonly Database $database,
-    ) {}
+    ) {
+    }
 
     public function validate(mixed $value, ?string $param, array $data): bool
     {

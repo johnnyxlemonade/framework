@@ -13,5 +13,6 @@ final readonly class UploadConfig
     public function __construct(
         public array $files,
         public array $images,
-    ) {}
+    ) {
+    }
 }

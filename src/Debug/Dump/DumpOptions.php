@@ -14,7 +14,8 @@ final readonly class DumpOptions
         private bool $showProtectedProperties = true,
         private bool $showObjectIds = true,
         private bool $includeHtmlStyles = true,
-    ) {}
+    ) {
+    }
 
     public static function defaults(): self
     {

@@ -15,5 +15,6 @@ final readonly class BreadcrumbsConfig
         public string $adminRootLabel,
         public string $adminRootUrl,
         public array $classes,
-    ) {}
+    ) {
+    }
 }

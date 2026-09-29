@@ -14,5 +14,6 @@ final readonly class DatabaseRuntimeConfig
     public function __construct(
         public ?string $defaultConnection,
         public array $connections,
-    ) {}
+    ) {
+    }
 }

@@ -10,5 +10,6 @@ final class RobotsHeaderConfig
         public bool $enabled,
         public string $generator,
         public string $dateFormat,
-    ) {}
+    ) {
+    }
 }

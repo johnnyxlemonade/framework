@@ -28,7 +28,8 @@ final class MysqlDatabaseDriver implements DatabaseDriverInterface
         private readonly DatabaseConfig $config,
         private readonly IdentifierEscaperInterface $identifierEscaper,
         private readonly IdentifierProtector $identifierProtector,
-    ) {}
+    ) {
+    }
 
     public function initialize(): bool
     {

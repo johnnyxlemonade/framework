@@ -17,7 +17,8 @@ final class OptionsMiddleware implements MiddlewareInterface
     public function __construct(
         private readonly Router $router,
         private readonly ResponseFactoryInterface $responseFactory,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

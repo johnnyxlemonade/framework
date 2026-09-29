@@ -40,7 +40,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     public function __construct(
         private readonly string $directory,
         private readonly DirectoryManagerInterface $directoryManager,
-    ) {}
+    ) {
+    }
 
     /**
      * @throws InvalidCacheKeyException

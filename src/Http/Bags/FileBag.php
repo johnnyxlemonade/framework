@@ -9,7 +9,9 @@ final class FileBag
     /**
      * @param array<string, mixed> $files
      */
-    public function __construct(private readonly array $files = []) {}
+    public function __construct(private readonly array $files = [])
+    {
+    }
 
     /**
      * @return array<string, mixed>

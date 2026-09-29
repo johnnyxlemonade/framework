@@ -20,7 +20,8 @@ final class LocaleResolver implements LocaleResolverInterface
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly LocalizationConfig $config,
-    ) {}
+    ) {
+    }
 
     public function resolve(): string
     {

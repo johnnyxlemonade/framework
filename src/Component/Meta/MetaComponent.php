@@ -10,7 +10,8 @@ final class MetaComponent
 {
     public function __construct(
         private readonly MetaConfig $config,
-    ) {}
+    ) {
+    }
 
     public function make(MetaData $data): MetaFactory
     {

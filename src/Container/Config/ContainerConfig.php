@@ -8,5 +8,6 @@ final readonly class ContainerConfig
 {
     public function __construct(
         public bool $autowireFallbackWarning,
-    ) {}
+    ) {
+    }
 }

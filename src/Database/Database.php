@@ -11,7 +11,8 @@ final class Database
     public function __construct(
         private readonly ConnectionInterface $connection,
         private readonly DatabaseDriverInterface $driver,
-    ) {}
+    ) {
+    }
 
     public function connection(): ConnectionInterface
     {

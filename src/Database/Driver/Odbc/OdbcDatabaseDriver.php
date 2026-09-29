@@ -25,7 +25,8 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         private readonly OdbcConnection $connection,
         private readonly IdentifierEscaperInterface $identifierEscaper,
         private readonly IdentifierProtector $identifierProtector,
-    ) {}
+    ) {
+    }
 
     public function initialize(): bool
     {

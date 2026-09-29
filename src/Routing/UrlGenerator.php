@@ -17,7 +17,8 @@ final class UrlGenerator
         private readonly Router $router,
         private readonly ?LocaleResolverInterface $localeResolver = null,
         private readonly ?LocaleUrlStrategyInterface $localeUrlStrategy = null,
-    ) {}
+    ) {
+    }
 
     /**
      * @param array<string, scalar|null> $params

@@ -33,7 +33,8 @@ final class KernelFactory
     public function __construct(
         private readonly ?ContainerInterface $container = null,
         private readonly ?ResponseEmitter $emitter = null,
-    ) {}
+    ) {
+    }
 
     /**
      * Creates a new HTTP kernel for the provided application context.

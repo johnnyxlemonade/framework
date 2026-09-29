@@ -15,5 +15,6 @@ final readonly class FileUploadProfileConfig
         public int $maxBytes,
         public array $allowedMimeTypes,
         public array $allowedExtensions,
-    ) {}
+    ) {
+    }
 }

@@ -8,5 +8,6 @@ final readonly class BenchmarkConfig
 {
     public function __construct(
         public bool $injectHtmlComment,
-    ) {}
+    ) {
+    }
 }

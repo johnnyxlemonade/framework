@@ -26,7 +26,8 @@ final readonly class DatabaseConfig
         private ?DatabaseDialect $dialect = null,
         private ?string $dsn = null,
         private array $options = [],
-    ) {}
+    ) {
+    }
 
     /**
      * @param array<string, mixed> $config

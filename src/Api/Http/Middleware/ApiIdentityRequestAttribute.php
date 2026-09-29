@@ -8,5 +8,7 @@ final class ApiIdentityRequestAttribute
 {
     public const NAME = 'api.identity';
 
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 }

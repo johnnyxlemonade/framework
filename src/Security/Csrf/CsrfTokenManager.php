@@ -12,7 +12,8 @@ final class CsrfTokenManager
 
     public function __construct(
         private readonly SessionInterface $session,
-    ) {}
+    ) {
+    }
 
     public function token(string $name = 'default'): string
     {

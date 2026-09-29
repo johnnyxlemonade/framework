@@ -15,7 +15,8 @@ final class SitemapGenerationResult
         private readonly SitemapFile $indexFile,
         private readonly bool $gzip,
         private readonly string $outputPath,
-    ) {}
+    ) {
+    }
 
     public function urlCount(): int
     {

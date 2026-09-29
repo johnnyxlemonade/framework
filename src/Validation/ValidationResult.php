@@ -18,7 +18,8 @@ final readonly class ValidationResult
         private array $validated,
         private array $failedRules = [],
         private array $input = [],
-    ) {}
+    ) {
+    }
 
     public function isValid(): bool
     {

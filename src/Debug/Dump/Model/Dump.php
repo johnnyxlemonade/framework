@@ -14,7 +14,8 @@ final readonly class Dump
     public function __construct(
         private DumpContext $context,
         private array $items,
-    ) {}
+    ) {
+    }
 
     public function context(): DumpContext
     {

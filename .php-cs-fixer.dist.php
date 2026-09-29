@@ -59,6 +59,7 @@ return (new PhpCsFixer\Config())
         'blank_line_after_namespace' => true,
         'single_blank_line_at_eof' => true,
         'no_extra_blank_lines' => true,
+        'single_line_empty_body' => false,
 
         'no_superfluous_phpdoc_tags' => [
             'allow_mixed' => true,

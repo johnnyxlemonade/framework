@@ -93,7 +93,9 @@ final class ValidationRuleName
     public const RECAPTCHA = 'recaptcha';
     public const NO_HTML = 'no_html';
 
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 
     /**
      * Built-in framework validation rule names.

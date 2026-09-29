@@ -17,7 +17,8 @@ final class ValidationRuleResolver
     public function __construct(
         private readonly RuleRegistry $registry,
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+    }
 
     public function has(string $name): bool
     {

@@ -15,5 +15,6 @@ final readonly class EventsConfig
         public array $listeners,
         /** @var list<EventListenerDefinition> */
         public array $definitions = [],
-    ) {}
+    ) {
+    }
 }

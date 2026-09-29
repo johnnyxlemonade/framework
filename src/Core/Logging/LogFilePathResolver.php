@@ -10,7 +10,8 @@ final class LogFilePathResolver
 {
     public function __construct(
         private readonly ApplicationContext $context,
-    ) {}
+    ) {
+    }
 
     public function resolve(string $path, string $fallback): string
     {

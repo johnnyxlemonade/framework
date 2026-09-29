@@ -26,6 +26,9 @@ use function mime_content_type;
 
 use const FILEINFO_MIME_TYPE;
 
+/**
+ * Reads file metadata and contents while normalizing unavailable or unreadable paths to filesystem exceptions.
+ */
 final class FileManager implements FileManagerInterface
 {
     /**

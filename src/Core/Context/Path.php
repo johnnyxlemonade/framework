@@ -9,7 +9,8 @@ final readonly class Path
     public function __construct(
         private string $basePath,
         private ?string $publicPath = null,
-    ) {}
+    ) {
+    }
 
     public function base(): string
     {

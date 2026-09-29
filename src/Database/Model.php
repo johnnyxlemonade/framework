@@ -99,7 +99,8 @@ abstract class Model
 
     public function __construct(
         protected readonly DatabaseDriverInterface $db,
-    ) {}
+    ) {
+    }
 
     /**
      * @return list<array<string, mixed>>

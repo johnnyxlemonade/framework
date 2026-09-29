@@ -10,7 +10,8 @@ final class ValidationFieldBuilder
         private readonly ValidationSchema $schema,
         private readonly string $field,
         private readonly ?FormValidation $validator = null,
-    ) {}
+    ) {
+    }
 
     public function field(string $name, ?string $label = null): self
     {

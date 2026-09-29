@@ -14,7 +14,8 @@ final class RobotsRule
         private readonly string $userAgent,
         private readonly array $allow = [],
         private readonly array $disallow = [],
-    ) {}
+    ) {
+    }
 
     public function userAgent(): string
     {

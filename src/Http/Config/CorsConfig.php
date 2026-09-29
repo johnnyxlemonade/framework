@@ -20,5 +20,6 @@ final readonly class CorsConfig
         public array $exposedHeaders,
         public bool $allowCredentials,
         public ?int $maxAge,
-    ) {}
+    ) {
+    }
 }

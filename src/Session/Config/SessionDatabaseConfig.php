@@ -8,5 +8,6 @@ final readonly class SessionDatabaseConfig
 {
     public function __construct(
         public string $table,
-    ) {}
+    ) {
+    }
 }

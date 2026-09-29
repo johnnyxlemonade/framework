@@ -24,7 +24,8 @@ final class PdoConnection implements ConnectionInterface
         private readonly DatabaseConfig $config,
         private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
-    ) {}
+    ) {
+    }
 
     public function pdo(): PDO
     {

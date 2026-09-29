@@ -16,7 +16,8 @@ final readonly class PaginationState
         private string $pageName,
         private string $basePath,
         private array $query = [],
-    ) {}
+    ) {
+    }
 
     public function currentPage(): int
     {

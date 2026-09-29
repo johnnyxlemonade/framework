@@ -10,5 +10,6 @@ final readonly class CacheFileStoreConfig
         public string $path,
         public string $prefix,
         public int $ttl,
-    ) {}
+    ) {
+    }
 }

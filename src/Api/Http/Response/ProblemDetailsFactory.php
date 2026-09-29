@@ -14,7 +14,8 @@ final class ProblemDetailsFactory
 {
     public function __construct(
         private readonly Psr17Factory $responseFactory,
-    ) {}
+    ) {
+    }
 
     /**
      * @param array<string, mixed> $extensions

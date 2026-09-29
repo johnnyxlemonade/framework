@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload\Config;
 
-final class UploadConfigResolver
+/**
+ * Resolves layered upload definitions into the profile data consumed by upload factories.
+ */
+final readonly class UploadConfigResolver
 {
+    /**
+     * Merges configured profile definitions while preserving an empty optional MIME restriction
+     */
     public function resolve(UploadConfigDefinition ...$definitions): UploadConfig
     {
         $files = [];
@@ -59,7 +65,7 @@ final class UploadConfigResolver
             $current[trim($name)] = new ImageUploadProfileConfig(
                 targetDirectory: $this->stringOr($profile['target_directory'] ?? '', ''),
                 maxBytes: max(1, $this->intOr($profile['max_bytes'] ?? 5_242_880, 5_242_880)),
-                allowedMimeTypes: $this->stringList($profile['allowed_mime_types'] ?? ['image/jpeg', 'image/png', 'image/webp']),
+                allowedMimeTypes: $this->stringList($profile['allowed_mime_types'] ?? []),
                 allowedExtensions: $this->stringList($profile['allowed_extensions'] ?? ['jpg', 'jpeg', 'png', 'webp']),
                 reencode: $this->toBool($profile['reencode'] ?? true, true),
                 minWidth: $this->nullableInt($profile['min_width'] ?? null),

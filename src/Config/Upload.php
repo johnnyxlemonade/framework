@@ -9,18 +9,12 @@ return UploadConfigDefinition::create()
         profile: 'default',
         targetDirectory: 'files',
         maxBytes: 2 * 1024 * 1024,
-        allowedMimeTypes: [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'text/plain',
-        ],
+        allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
     )
     ->imageProfile(
         profile: 'default',
         targetDirectory: 'images',
         maxBytes: 2 * 1024 * 1024,
-        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
         reencode: true,
     );

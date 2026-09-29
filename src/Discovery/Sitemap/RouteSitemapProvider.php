@@ -14,7 +14,8 @@ final class RouteSitemapProvider implements SitemapProviderInterface
     public function __construct(
         private readonly SitemapConfig $config,
         private readonly UrlGenerator $urlGenerator,
-    ) {}
+    ) {
+    }
 
     public function urls(): iterable
     {

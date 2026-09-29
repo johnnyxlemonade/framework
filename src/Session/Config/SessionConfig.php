@@ -14,5 +14,6 @@ final readonly class SessionConfig
         public SessionFileConfig $file,
         public SessionDatabaseConfig $database,
         public SessionRedisConfig $redis,
-    ) {}
+    ) {
+    }
 }

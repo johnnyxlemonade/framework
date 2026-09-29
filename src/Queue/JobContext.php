@@ -18,7 +18,8 @@ final class JobContext
         public readonly ?int $jobId,
         public readonly int $attempt,
         public readonly string $transport,
-    ) {}
+    ) {
+    }
 
     public static function fromQueuedMessage(QueuedMessage $message, string $transport): self
     {

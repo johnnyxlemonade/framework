@@ -13,7 +13,8 @@ final readonly class CommandInput
     public function __construct(
         private array $argv,
         private array $args,
-    ) {}
+    ) {
+    }
 
     /** @return list<string> */
     public function argv(): array

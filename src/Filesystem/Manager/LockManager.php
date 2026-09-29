@@ -19,11 +19,15 @@ use function is_dir;
 use const LOCK_EX;
 use const LOCK_UN;
 
+/**
+ * Executes callbacks under an exclusive local file lock and preserves callback failures as filesystem causes.
+ */
 final class LockManager implements LockManagerInterface
 {
     public function __construct(
         private readonly DirectoryManagerInterface $directoryManager,
-    ) {}
+    ) {
+    }
 
     /**
      * @template T

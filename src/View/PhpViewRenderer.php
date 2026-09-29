@@ -12,7 +12,8 @@ final class PhpViewRenderer implements ViewRendererInterface
     public function __construct(
         private readonly View $view,
         private readonly ResponseBuilder $responses,
-    ) {}
+    ) {
+    }
 
     /**
      * @param array<string, mixed> $data

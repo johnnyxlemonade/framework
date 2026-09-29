@@ -9,7 +9,8 @@ final class BreadcrumbComponent
     public function __construct(
         private readonly BreadcrumbFactory $factory,
         private readonly BreadcrumbRenderer $renderer,
-    ) {}
+    ) {
+    }
 
     public function frontend(string $currentLabel, ?string $currentUrl = null): BreadcrumbTrail
     {

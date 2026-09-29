@@ -17,5 +17,6 @@ final readonly class ApiConfig
         public array $endpointProviders,
         public ApiSecurityConfig $security,
         public FrameworkApiConfig $framework,
-    ) {}
+    ) {
+    }
 }

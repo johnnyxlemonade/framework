@@ -14,5 +14,6 @@ final readonly class LocalizationConfig
         public string $fallbackLocale,
         public array $supportedLocales,
         public LocalizationUrlConfig $url,
-    ) {}
+    ) {
+    }
 }

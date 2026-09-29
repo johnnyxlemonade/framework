@@ -16,5 +16,6 @@ final readonly class FrameworkHealthConfigSnapshot
         public AppConfig $app,
         public ?CorsConfig $cors,
         public BenchmarkConfig $benchmark,
-    ) {}
+    ) {
+    }
 }

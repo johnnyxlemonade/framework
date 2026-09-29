@@ -13,7 +13,8 @@ final class ApiResponseFactory
 {
     public function __construct(
         private readonly Psr17Factory $responseFactory,
-    ) {}
+    ) {
+    }
 
     /**
      * @param array<string, mixed> $meta

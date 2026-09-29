@@ -20,7 +20,8 @@ final class RequestData
     public function __construct(
         private readonly ServerRequestInterface $request,
         private readonly HttpRequestInspector $inspector = new HttpRequestInspector(),
-    ) {}
+    ) {
+    }
 
     public function request(): ServerRequestInterface
     {

@@ -8,5 +8,6 @@ final readonly class HtmlMinifyConfig
 {
     public function __construct(
         public bool $enabled,
-    ) {}
+    ) {
+    }
 }

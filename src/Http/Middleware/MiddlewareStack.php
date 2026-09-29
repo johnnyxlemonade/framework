@@ -11,7 +11,8 @@ final class MiddlewareStack
      */
     public function __construct(
         private array $middlewares = [],
-    ) {}
+    ) {
+    }
 
     /**
      * @param class-string $middleware

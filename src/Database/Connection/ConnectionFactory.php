@@ -14,7 +14,8 @@ final class ConnectionFactory
     public function __construct(
         private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
-    ) {}
+    ) {
+    }
 
     public function create(DatabaseConfig $config): ConnectionInterface
     {

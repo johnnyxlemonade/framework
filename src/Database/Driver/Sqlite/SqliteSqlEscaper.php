@@ -10,7 +10,8 @@ final class SqliteSqlEscaper
 {
     public function __construct(
         private readonly SqliteIdentifierEscaper $identifierEscaper,
-    ) {}
+    ) {
+    }
 
     public function value(mixed $value): string
     {

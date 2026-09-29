@@ -13,7 +13,8 @@ final readonly class ValidationFieldDefinition
         private string $name,
         private string $label,
         private array $rules,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {

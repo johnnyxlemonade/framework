@@ -14,5 +14,7 @@ final class RouteRequestAttributes
      */
     public const MATCH = 'lemonade.route_match';
 
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 }

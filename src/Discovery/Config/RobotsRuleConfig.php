@@ -14,5 +14,6 @@ final class RobotsRuleConfig
         public string $agent,
         public array $allow,
         public array $disallow,
-    ) {}
+    ) {
+    }
 }

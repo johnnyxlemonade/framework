@@ -24,7 +24,8 @@ final class UploadFactory
         private readonly ServerRequestInterface $request,
         private readonly TranslatorInterface $translator,
         private readonly ApplicationContext $context,
-    ) {}
+    ) {
+    }
 
     public function file(string $profile = 'default'): ConfiguredFileUploader
     {

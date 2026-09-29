@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Filesystem\Exception;
 
 use RuntimeException;
 
+/**
+ * Identifies a filesystem boundary failure and retains its operation category through stable error codes.
+ */
 final class FilesystemException extends RuntimeException
 {
     // Directory operations

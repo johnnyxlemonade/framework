@@ -10,5 +10,6 @@ final readonly class HttpClientConfig
         public float $timeout,
         public float $connectTimeout,
         public bool $verifySsl,
-    ) {}
+    ) {
+    }
 }

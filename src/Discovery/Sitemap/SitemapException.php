@@ -6,4 +6,6 @@ namespace Lemonade\Framework\Discovery\Sitemap;
 
 use RuntimeException;
 
-final class SitemapException extends RuntimeException {}
+final class SitemapException extends RuntimeException
+{
+}

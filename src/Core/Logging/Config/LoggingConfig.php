@@ -13,5 +13,6 @@ final readonly class LoggingConfig
         public LoggingChannelConfig $benchmark,
         public int $requestMinStatus,
         public bool $errorLogNotFound,
-    ) {}
+    ) {
+    }
 }

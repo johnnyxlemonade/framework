@@ -18,7 +18,8 @@ final readonly class DumpNode
         private array $meta = [],
         private bool $truncated = false,
         private bool $circular = false,
-    ) {}
+    ) {
+    }
 
     public function type(): string
     {

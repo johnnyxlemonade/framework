@@ -20,5 +20,6 @@ final readonly class ImageUploadProfileConfig
         public ?int $maxWidth,
         public ?int $minHeight,
         public ?int $maxHeight,
-    ) {}
+    ) {
+    }
 }

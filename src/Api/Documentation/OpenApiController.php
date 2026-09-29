@@ -13,7 +13,8 @@ final class OpenApiController
     public function __construct(
         private readonly OpenApiGenerator $generator,
         private readonly Psr17Factory $psr17,
-    ) {}
+    ) {
+    }
 
     public function show(): ResponseInterface
     {

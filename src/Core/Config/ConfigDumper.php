@@ -24,7 +24,8 @@ final class ConfigDumper
 
     public function __construct(
         private readonly Config $config,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, mixed>

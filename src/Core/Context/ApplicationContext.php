@@ -10,7 +10,8 @@ final class ApplicationContext
         private readonly Environment $environment,
         private readonly Path $paths,
         private readonly DebugMode $debug,
-    ) {}
+    ) {
+    }
 
     public function environment(): Environment
     {

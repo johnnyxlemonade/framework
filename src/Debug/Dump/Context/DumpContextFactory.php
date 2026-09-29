@@ -11,7 +11,8 @@ final class DumpContextFactory
      */
     public function __construct(
         private readonly array $ignoredFunctions = ['dump', 'dd', '_Vd', 'dumper'],
-    ) {}
+    ) {
+    }
 
     public function create(): DumpContext
     {

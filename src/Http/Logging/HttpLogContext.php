@@ -12,7 +12,8 @@ final class HttpLogContext
 {
     public function __construct(
         private readonly HttpRequestInspector $inspector,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array{

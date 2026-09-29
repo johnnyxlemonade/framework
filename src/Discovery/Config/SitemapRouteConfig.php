@@ -15,5 +15,6 @@ final class SitemapRouteConfig
         public string|\DateTimeInterface|null $lastmod,
         public ?string $changefreq,
         public ?float $priority,
-    ) {}
+    ) {
+    }
 }

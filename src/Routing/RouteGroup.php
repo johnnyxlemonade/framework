@@ -13,7 +13,8 @@ class RouteGroup
      */
     public function __construct(
         private readonly array $routes,
-    ) {}
+    ) {
+    }
 
     /**
      * @param class-string<MiddlewareInterface> ...$middleware

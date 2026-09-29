@@ -16,7 +16,8 @@ final class HtmlDumpRenderer implements DumpRendererInterface
 
     public function __construct(
         private readonly DumpOptions $options,
-    ) {}
+    ) {
+    }
 
     public function supports(DumpContext $context): bool
     {

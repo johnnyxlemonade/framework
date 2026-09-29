@@ -13,7 +13,8 @@ abstract class AbstractTag implements TagInterface
     public function __construct(
         protected string $key,
         protected ?string $content,
-    ) {}
+    ) {
+    }
 
     abstract protected function template(): string;
 

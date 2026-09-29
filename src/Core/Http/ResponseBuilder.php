@@ -16,7 +16,8 @@ final class ResponseBuilder
     public function __construct(
         private readonly ResponseFactoryInterface $responseFactory,
         private readonly StreamFactoryInterface $streamFactory,
-    ) {}
+    ) {
+    }
 
     public function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {

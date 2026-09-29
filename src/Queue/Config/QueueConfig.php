@@ -15,5 +15,6 @@ final readonly class QueueConfig
         public array $transports,
         public array $handlers,
         public QueueDatabaseConfig $database,
-    ) {}
+    ) {
+    }
 }

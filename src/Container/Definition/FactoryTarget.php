@@ -11,5 +11,6 @@ final readonly class FactoryTarget implements DefinitionTarget
     /** @param Closure(\Lemonade\Framework\Container\ContainerInterface):mixed $factory */
     public function __construct(
         public Closure $factory,
-    ) {}
+    ) {
+    }
 }

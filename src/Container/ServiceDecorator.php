@@ -13,5 +13,6 @@ final readonly class ServiceDecorator
         public Closure|string $decorator,
         public int $priority,
         public int $order,
-    ) {}
+    ) {
+    }
 }

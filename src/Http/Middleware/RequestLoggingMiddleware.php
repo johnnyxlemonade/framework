@@ -19,7 +19,8 @@ final class RequestLoggingMiddleware implements MiddlewareInterface
         private readonly LoggingConfig $config,
         private readonly LogManager $logs,
         private readonly HttpLogContext $context,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

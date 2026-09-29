@@ -15,7 +15,8 @@ final readonly class TableOptions
         private ?string $collation = null,
         private ?string $comment = null,
         private array $extra = [],
-    ) {}
+    ) {
+    }
 
     public static function make(): self
     {

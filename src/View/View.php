@@ -31,7 +31,8 @@ final class View
     public function __construct(
         private readonly string $basePath = 'app/views',
         private readonly ?ViewResourceRegistry $resources = null,
-    ) {}
+    ) {
+    }
 
     public function __clone(): void
     {

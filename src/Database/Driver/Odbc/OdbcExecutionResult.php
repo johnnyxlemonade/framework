@@ -16,7 +16,8 @@ final readonly class OdbcExecutionResult
         private array $fields,
         private int $affectedRows,
         private int|string|null $insertId,
-    ) {}
+    ) {
+    }
 
     public function hasResultSet(): bool
     {

@@ -11,7 +11,8 @@ final class MiddlewareResolver
 {
     public function __construct(
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+    }
 
     /**
      * @param list<class-string> $middlewareClasses

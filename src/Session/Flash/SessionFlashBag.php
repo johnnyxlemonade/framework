@@ -12,7 +12,8 @@ final class SessionFlashBag implements FlashBagInterface
 
     public function __construct(
         private readonly SessionInterface $session,
-    ) {}
+    ) {
+    }
 
     public function set(string $key, mixed $value): void
     {

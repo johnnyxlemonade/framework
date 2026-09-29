@@ -23,7 +23,8 @@ final class OdbcConnection implements ConnectionInterface
         private readonly DatabaseConfig $config,
         private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
-    ) {}
+    ) {
+    }
 
     /**
      * @return resource

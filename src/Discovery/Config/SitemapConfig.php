@@ -28,5 +28,6 @@ final class SitemapConfig
         public int $maxUncompressedBytes,
         public bool $deduplicate,
         public string $onInvalidUrl,
-    ) {}
+    ) {
+    }
 }

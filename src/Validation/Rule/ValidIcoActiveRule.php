@@ -19,7 +19,8 @@ final class ValidIcoActiveRule implements ValidationRuleInterface
         private readonly RequestFactoryInterface $requestFactory,
         private readonly StreamFactoryInterface $streamFactory,
         private readonly ValidationEndpointProviderInterface $endpointProvider,
-    ) {}
+    ) {
+    }
 
     public function validate(mixed $value, ?string $param, array $data): bool
     {

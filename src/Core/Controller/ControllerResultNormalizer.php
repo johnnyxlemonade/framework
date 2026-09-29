@@ -12,7 +12,8 @@ final class ControllerResultNormalizer
 {
     public function __construct(
         private readonly Responses $responses,
-    ) {}
+    ) {
+    }
 
     public function normalize(
         mixed $result,

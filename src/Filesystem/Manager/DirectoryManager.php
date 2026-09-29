@@ -24,9 +24,13 @@ use function is_dir;
 use function is_file;
 use function is_link;
 use function mkdir;
+use function rename;
 use function rmdir;
 use function stream_copy_to_stream;
 
+/**
+ * Performs local directory and file-tree operations while translating native failures to filesystem contracts.
+ */
 final class DirectoryManager implements DirectoryManagerInterface
 {
     /**
@@ -173,6 +177,19 @@ final class DirectoryManager implements DirectoryManagerInterface
     /**
      * {@inheritdoc}
      */
+    public function move(string $source, string $target): void
+    {
+        if (!@rename($source, $target)) {
+            throw new FilesystemException(
+                "Unable to move file '{$source}' to '{$target}'.",
+                FilesystemException::CODE_FILE_WRITE_FAILED,
+            );
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function delete(string $path): void
     {
         if (is_file($path) || is_link($path)) {
@@ -199,7 +216,7 @@ final class DirectoryManager implements DirectoryManagerInterface
     }
 
     /**
-     * Vrací lazy seznam položek adresáře (název => absolutní cesta).
+     * Lazily yields entries as filename-to-absolute-path pairs without materializing the directory tree.
      *
      * @return Generator<string, string>
      * @throws FilesystemException
@@ -235,7 +252,7 @@ final class DirectoryManager implements DirectoryManagerInterface
     }
 
     /**
-     * Prochází adresář (rekurzivně nebo jen první úroveň) a vrací SplFileInfo objekty.
+     * Lazily yields filesystem metadata for either direct entries or the complete subtree.
      *
      * @return Generator<int, SplFileInfo>
      * @throws FilesystemException
@@ -274,7 +291,7 @@ final class DirectoryManager implements DirectoryManagerInterface
     }
 
     /**
-     * Vyhledá soubory podle vzoru v daném adresáři (neprobíhá rekurze).
+     * Lazily yields direct directory entries matching the supplied glob pattern.
      *
      * @return Generator<int, string>
      * @throws FilesystemException

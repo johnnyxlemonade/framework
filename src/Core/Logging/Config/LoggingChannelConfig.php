@@ -11,5 +11,6 @@ final readonly class LoggingChannelConfig
         public string $path,
         public string $level,
         public int $days,
-    ) {}
+    ) {
+    }
 }

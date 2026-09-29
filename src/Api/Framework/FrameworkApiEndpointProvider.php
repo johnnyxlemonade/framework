@@ -17,7 +17,8 @@ final class FrameworkApiEndpointProvider implements ApiEndpointProviderInterface
 {
     public function __construct(
         private readonly ApiConfig $config,
-    ) {}
+    ) {
+    }
 
     public function register(ApiEndpointRegistry $registry): void
     {

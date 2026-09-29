@@ -11,6 +11,7 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Image\ImageViewHelper;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\UrlGenerator;
@@ -68,6 +69,7 @@ final class ViewServiceProvider implements ServiceProviderInterface
             csrf: $container->get(CsrfViewHelper::class),
             translator: $container->get(TranslatorInterface::class),
             config: $container->get(LocalizationConfig::class),
+            images: $container->has(ImageViewHelper::class) ? $container->get(ImageViewHelper::class) : null,
         ));
 
         $container->singleton(View::class, static function (ContainerInterface $container): View {

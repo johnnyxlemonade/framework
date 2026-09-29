@@ -16,7 +16,8 @@ final class PaginationRenderer
         private readonly ?TranslatorInterface $translator = null,
         private readonly int $visiblePages = 5,
         private readonly bool $showFirstLast = true,
-    ) {}
+    ) {
+    }
 
     public function render(?PaginationState $state): string
     {

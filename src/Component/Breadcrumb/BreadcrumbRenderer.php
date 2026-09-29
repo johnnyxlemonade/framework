@@ -16,7 +16,8 @@ final class BreadcrumbRenderer
             'a' => 'breadcrumb-link-anchor',
             'span' => 'breadcrumb-link-name',
         ],
-    ) {}
+    ) {
+    }
 
     public function render(?BreadcrumbTrail $trail): string
     {

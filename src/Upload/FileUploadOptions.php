@@ -16,7 +16,8 @@ final readonly class FileUploadOptions
         private int $maxBytes = 10_485_760,
         private array $allowedMimeTypes = [],
         private array $allowedExtensions = [],
-    ) {}
+    ) {
+    }
 
     public function targetDirectory(): string
     {

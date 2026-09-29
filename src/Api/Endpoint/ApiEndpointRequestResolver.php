@@ -13,7 +13,8 @@ final class ApiEndpointRequestResolver
         private readonly ApiEndpointRegistry $endpoints,
         private readonly ApiConfig $config,
         private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
-    ) {}
+    ) {
+    }
 
     public function resolve(ServerRequestInterface $request): ?ApiEndpoint
     {

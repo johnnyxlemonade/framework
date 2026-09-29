@@ -18,7 +18,8 @@ final class MigrationStatus
         private readonly array $registered,
         private readonly array $orphaned,
         private readonly bool $databaseAvailable = true,
-    ) {}
+    ) {
+    }
 
     /**
      * Returns the registered migrations and their current states.

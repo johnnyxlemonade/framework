@@ -16,5 +16,6 @@ final class RobotsConfig
         public RobotsHeaderConfig $header,
         public array $rules,
         public array $sitemaps,
-    ) {}
+    ) {
+    }
 }

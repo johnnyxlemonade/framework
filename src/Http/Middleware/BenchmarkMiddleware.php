@@ -25,7 +25,8 @@ final class BenchmarkMiddleware implements MiddlewareInterface
         private readonly LoggingConfig $config,
         private readonly LogManager $logs,
         private readonly BenchmarkResponseInjector $injector,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

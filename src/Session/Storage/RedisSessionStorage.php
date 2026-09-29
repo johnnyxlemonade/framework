@@ -27,7 +27,8 @@ final class RedisSessionStorage implements SessionStorageInterface
         private readonly int $lifetimeSeconds = 7200,
         private readonly string $cookieName = 'LEMONADE_SESSION',
         private readonly float $timeout = 2.5,
-    ) {}
+    ) {
+    }
 
     public function start(): void
     {

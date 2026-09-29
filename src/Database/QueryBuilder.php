@@ -62,7 +62,8 @@ final class QueryBuilder
     private function __construct(
         private readonly DatabaseDriverInterface $db,
         private array $set = [],
-    ) {}
+    ) {
+    }
 
     public static function make(DatabaseDriverInterface $db): self
     {

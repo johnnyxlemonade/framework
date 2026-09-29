@@ -16,9 +16,13 @@ use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
 use Lemonade\Framework\Upload\Config\UploadConfigResolver;
 use Lemonade\Framework\Upload\FileUploadValidator;
-use Lemonade\Framework\Upload\Image\GdImageProcessor;
+use Lemonade\Framework\Image\FilesystemImageFileWriter;
+use Lemonade\Framework\Image\Gd\GdCapabilities;
+use Lemonade\Framework\Image\Gd\GdImageEncoder;
+use Lemonade\Framework\Image\Gd\GdImageProcessor;
 use Lemonade\Framework\Upload\ImageUploadValidator;
-use Lemonade\Framework\Upload\Mime\MimeTypeDetector;
+use Lemonade\Framework\Mime\MimeTypeCatalog;
+use Lemonade\Framework\Mime\MimeTypeDetector;
 use Lemonade\Framework\Upload\Storage\UploadStorage;
 use Lemonade\Framework\Upload\UploadFactory;
 use Lemonade\Framework\Upload\UploadService;
@@ -27,6 +31,43 @@ use PHPUnit\Framework\TestCase;
 
 final class UploadFactoryTest extends TestCase
 {
+    public function testDefaultProfilesUseExtensionPoliciesWithoutMimeDuplication(): void
+    {
+        $definition = require dirname(__DIR__, 3) . '/src/Config/Upload.php';
+
+        self::assertInstanceOf(UploadConfigDefinition::class, $definition);
+
+        $config = (new UploadConfigResolver())->resolve($definition);
+
+        self::assertSame(['pdf', 'doc', 'docx', 'txt'], $config->files['default']->allowedExtensions);
+        self::assertSame([], $config->files['default']->allowedMimeTypes);
+        self::assertSame(['jpg', 'jpeg', 'png', 'webp'], $config->images['default']->allowedExtensions);
+        self::assertSame([], $config->images['default']->allowedMimeTypes);
+    }
+
+    public function testResolverPreservesExplicitMimeRestrictionsAndEmptyMimePolicies(): void
+    {
+        $config = (new UploadConfigResolver())->resolve(
+            UploadConfigDefinition::create()
+                ->fileProfile(
+                    profile: 'empty',
+                    targetDirectory: 'files',
+                    maxBytes: 1024,
+                    allowedExtensions: ['pdf'],
+                )
+                ->imageProfile(
+                    profile: 'restricted',
+                    targetDirectory: 'images',
+                    maxBytes: 1024,
+                    allowedExtensions: ['png'],
+                    allowedMimeTypes: ['image/png'],
+                ),
+        );
+
+        self::assertSame([], $config->files['empty']->allowedMimeTypes);
+        self::assertSame(['image/png'], $config->images['restricted']->allowedMimeTypes);
+    }
+
     public function testFileOptionsUseResolvedPublicUploadsDirectoryInSeparatedWebrootMode(): void
     {
         $context = new ApplicationContext(
@@ -68,8 +109,18 @@ final class UploadFactoryTest extends TestCase
             ),
         );
         $translator = new UploadFactoryTranslatorStub();
-        $fileValidator = new FileUploadValidator($translator);
+        $fileValidator = new FileUploadValidator(
+            $translator,
+            new MimeTypeDetector(),
+            MimeTypeCatalog::default(),
+        );
         $directoryManager = new DirectoryManager();
+
+        $filesystem = new Filesystem(
+            $directoryManager,
+            new FileManager(),
+            new LockManager($directoryManager),
+        );
 
         return new UploadFactory(
             config: $config,
@@ -78,14 +129,11 @@ final class UploadFactoryTest extends TestCase
                 new ImageUploadValidator($fileValidator, $translator),
                 new UploadStorage(
                     $translator,
-                    new Filesystem(
-                        $directoryManager,
-                        new FileManager(),
-                        new LockManager($directoryManager),
-                    ),
+                    $filesystem,
                 ),
-                new MimeTypeDetector($translator),
-                new GdImageProcessor($translator),
+                new GdImageProcessor(new GdCapabilities()),
+                new GdImageEncoder(new GdCapabilities()),
+                new FilesystemImageFileWriter($filesystem),
             ),
             request: new ServerRequest('POST', '/upload'),
             translator: $translator,

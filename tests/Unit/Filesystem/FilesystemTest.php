@@ -24,6 +24,7 @@ final class FilesystemTest extends TestCase
         $filesystem->delete('/tmp/a');
         $filesystem->copy('/tmp/src', '/tmp/dst', true);
         $filesystem->write('/tmp/f.txt', 'x', 0644);
+        $filesystem->move('/tmp/temporary', '/tmp/final');
         iterator_to_array($filesystem->stream('/tmp', true));
         iterator_to_array($filesystem->find('*.txt', '/tmp'));
         iterator_to_array($filesystem->tree('/tmp', false));
@@ -35,9 +36,10 @@ final class FilesystemTest extends TestCase
         self::assertSame('delete:/tmp/a', $directory->calls[1]);
         self::assertSame('copy:/tmp/src:/tmp/dst:1', $directory->calls[2]);
         self::assertSame('write:/tmp/f.txt:x:420', $directory->calls[3]);
-        self::assertSame('stream:/tmp:1', $directory->calls[4]);
-        self::assertSame('find:*.txt:/tmp', $directory->calls[5]);
-        self::assertSame('tree:/tmp:0', $directory->calls[6]);
+        self::assertSame('move:/tmp/temporary:/tmp/final', $directory->calls[4]);
+        self::assertSame('stream:/tmp:1', $directory->calls[5]);
+        self::assertSame('find:*.txt:/tmp', $directory->calls[6]);
+        self::assertSame('tree:/tmp:0', $directory->calls[7]);
     }
 
     public function testFacadeDelegatesFileOperations(): void
@@ -99,6 +101,11 @@ final class DirectoryManagerSpy implements DirectoryManagerInterface
     public function write(string $file, string $data, ?int $mode = 0666): void
     {
         $this->calls[] = sprintf('write:%s:%s:%d', $file, $data, $mode ?? -1);
+    }
+
+    public function move(string $source, string $target): void
+    {
+        $this->calls[] = sprintf('move:%s:%s', $source, $target);
     }
 
     public function stream(string $path, bool $recursive = true): Generator

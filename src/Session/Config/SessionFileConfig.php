@@ -8,5 +8,6 @@ final readonly class SessionFileConfig
 {
     public function __construct(
         public string $path,
-    ) {}
+    ) {
+    }
 }

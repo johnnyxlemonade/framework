@@ -14,7 +14,8 @@ final class DatabaseFactory
         private readonly ConnectionFactory $connectionFactory,
         private readonly DatabaseDriverRegistry $registry,
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+    }
 
     public function create(DatabaseConfig $config): Database
     {

@@ -12,5 +12,6 @@ final readonly class ContextualBinding
         public string $kind,
         public string $key,
         public ContextualBindingValue $value,
-    ) {}
+    ) {
+    }
 }

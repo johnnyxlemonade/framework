@@ -16,5 +16,6 @@ final readonly class AppConfig
         public string $appPath,
         public string $configPath,
         public string $storagePath,
-    ) {}
+    ) {
+    }
 }

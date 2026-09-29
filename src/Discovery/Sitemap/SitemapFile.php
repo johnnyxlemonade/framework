@@ -12,7 +12,8 @@ final class SitemapFile
         private readonly string $path,
         private readonly string $publicUrl,
         private readonly DateTimeInterface|string|null $lastmod = null,
-    ) {}
+    ) {
+    }
 
     public function path(): string
     {

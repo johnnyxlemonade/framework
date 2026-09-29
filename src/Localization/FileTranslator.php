@@ -19,7 +19,8 @@ final class FileTranslator implements TranslatorInterface
         private readonly ApplicationContext $context,
         private readonly LocalizationConfig $config,
         private readonly ?TranslationResourceRegistry $resources = null,
-    ) {}
+    ) {
+    }
 
     public function setLocale(?string $locale): self
     {

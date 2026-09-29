@@ -12,7 +12,8 @@ final class TitleTag implements TagInterface
 
     public function __construct(
         private readonly ?string $title,
-    ) {}
+    ) {
+    }
 
     public function render(): string
     {

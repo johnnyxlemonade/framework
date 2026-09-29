@@ -26,7 +26,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         private readonly DatabaseConfig $config,
         private readonly Benchmark $benchmark,
         private readonly bool $captureQueryDetails = false,
-    ) {}
+    ) {
+    }
 
     public function mysqli(): mysqli
     {

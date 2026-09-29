@@ -6,4 +6,6 @@ namespace Lemonade\Framework\Core\Exception;
 
 use LogicException;
 
-final class InvalidProviderDependencyException extends LogicException {}
+final class InvalidProviderDependencyException extends LogicException
+{
+}

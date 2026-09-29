@@ -15,7 +15,8 @@ final class ControllerRequestHandler implements RequestHandlerInterface
     public function __construct(
         private readonly ControllerResolver $resolver,
         private readonly RouteMatch $match,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

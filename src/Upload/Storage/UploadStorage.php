@@ -14,7 +14,8 @@ final class UploadStorage
     public function __construct(
         private readonly TranslatorInterface $translator,
         private readonly Filesystem $filesystem,
-    ) {}
+    ) {
+    }
 
     public function ensureTargetDirectory(string $targetDirectory): string
     {

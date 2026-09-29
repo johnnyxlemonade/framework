@@ -8,7 +8,9 @@ use Lemonade\Framework\Container\ContainerInterface;
 
 final readonly class EventListenerInvoker
 {
-    public function __construct(private ContainerInterface $container) {}
+    public function __construct(private ContainerInterface $container)
+    {
+    }
     public function invoke(EventListenerDefinition $definition, object $event): void
     {
         $listener = $this->container->get($definition->listenerClass);

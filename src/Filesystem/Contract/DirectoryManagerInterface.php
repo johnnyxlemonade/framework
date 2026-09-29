@@ -8,6 +8,9 @@ use Generator;
 use Lemonade\Framework\Filesystem\Exception\FilesystemException;
 use SplFileInfo;
 
+/**
+ * Defines filesystem mutations and lazy directory traversal with typed failures instead of native warnings.
+ */
 interface DirectoryManagerInterface
 {
     /**
@@ -51,6 +54,13 @@ interface DirectoryManagerInterface
      * @throws FilesystemException If writing the file or changing permissions fails.
      */
     public function write(string $file, string $data, ?int $mode = 0666): void;
+
+    /**
+     * Atomically publishes a fully written file at its final path.
+     *
+     * @throws FilesystemException If the source cannot be renamed to the target.
+     */
+    public function move(string $source, string $target): void;
 
     /**
      * Returns a lazy list of directory entries.

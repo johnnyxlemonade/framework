@@ -38,7 +38,8 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
     public function __construct(
         private readonly MysqlSqlEscaper $escaper,
         private readonly DatabaseConfig $config,
-    ) {}
+    ) {
+    }
 
     public function compileCreateDatabase(string $database): string
     {

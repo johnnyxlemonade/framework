@@ -11,7 +11,8 @@ final class MysqlResult extends DatabaseResult
 {
     private function __construct(
         private readonly mysqli_result $result,
-    ) {}
+    ) {
+    }
 
     public static function fromMysqliResult(mysqli_result $result): self
     {

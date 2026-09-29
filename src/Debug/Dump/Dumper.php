@@ -20,7 +20,8 @@ final class Dumper implements DumperInterface
         private readonly DumpRendererResolver $rendererResolver,
         private readonly DumpOutputInterface $output,
         private readonly DumpOptions $options,
-    ) {}
+    ) {
+    }
 
     public function dump(mixed ...$values): void
     {

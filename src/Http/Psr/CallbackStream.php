@@ -16,7 +16,8 @@ final class CallbackStream implements StreamInterface
      */
     public function __construct(
         private readonly \Closure $producer,
-    ) {}
+    ) {
+    }
 
     /**
      * @param callable(): void $producer
@@ -40,7 +41,9 @@ final class CallbackStream implements StreamInterface
         return (string) ob_get_clean();
     }
 
-    public function close(): void {}
+    public function close(): void
+    {
+    }
 
     public function detach()
     {

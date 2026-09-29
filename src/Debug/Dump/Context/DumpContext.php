@@ -10,7 +10,8 @@ final readonly class DumpContext
         private DumpSourceLocation $sourceLocation,
         private bool $cli,
         private string $sapi,
-    ) {}
+    ) {
+    }
 
     public function sourceLocation(): DumpSourceLocation
     {

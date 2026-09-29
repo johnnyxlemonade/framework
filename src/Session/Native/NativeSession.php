@@ -11,7 +11,8 @@ final class NativeSession implements SessionInterface
 {
     public function __construct(
         private readonly SessionStorageInterface $storage,
-    ) {}
+    ) {
+    }
 
     public function start(): void
     {

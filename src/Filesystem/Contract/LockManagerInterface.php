@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Filesystem\Contract;
 
 use Lemonade\Framework\Filesystem\Exception\FilesystemException;
 
+/**
+ * Defines exclusive callback execution keyed by a lock-file path.
+ */
 interface LockManagerInterface
 {
     /**

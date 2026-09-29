@@ -12,7 +12,8 @@ final readonly class ContextualBindingValue
     private function __construct(
         public string $kind,
         public mixed $value,
-    ) {}
+    ) {
+    }
 
     public static function service(string $id): self
     {

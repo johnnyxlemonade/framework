@@ -18,7 +18,8 @@ final class MiddlewarePipeline implements RequestHandlerInterface
         private readonly array $stack,
         private readonly RequestHandlerInterface $fallback,
         private readonly int $index = 0,
-    ) {}
+    ) {
+    }
 
     /**
      * @param array<int, MiddlewareInterface> $stack

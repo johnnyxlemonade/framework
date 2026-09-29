@@ -8,7 +8,8 @@ final class CsrfViewHelper
 {
     public function __construct(
         private readonly CsrfTokenManager $tokens,
-    ) {}
+    ) {
+    }
 
     public function token(string $name = 'default'): string
     {

@@ -55,7 +55,7 @@
     "phpunit/phpunit": "^10.5 || ^11.0"
   },
   "suggest": {
-    "ext-gd": "Required for image upload re-encoding.",
+    "ext-gd": "Required for bitmap image decoding, transformation, and encoding.",
     "ext-pdo": "Required for the PDO database driver.",
     "ext-mysqli": "Required for the MySQLi database driver.",
     "ext-odbc": "Required for the ODBC database driver.",

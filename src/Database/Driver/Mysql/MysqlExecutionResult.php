@@ -12,7 +12,8 @@ final class MysqlExecutionResult
         private readonly mysqli_result|bool $result,
         private readonly int $affectedRows,
         private readonly int|string $insertId,
-    ) {}
+    ) {
+    }
 
     public function result(): mysqli_result|bool
     {

@@ -19,7 +19,8 @@ final class RotatingFileLogger extends AbstractLogger
         private readonly string $file,
         private readonly DirectoryManagerInterface $directoryManager,
         private readonly int $retentionDays = 7,
-    ) {}
+    ) {
+    }
 
     public function log($level, Stringable|string $message, array $context = []): void
     {

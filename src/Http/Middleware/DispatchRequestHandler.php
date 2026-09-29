@@ -21,7 +21,8 @@ final class DispatchRequestHandler implements RequestHandlerInterface
         private readonly MiddlewareResolver $middlewareResolver,
         private readonly Benchmark $benchmark,
         private readonly ?ScopedContainerInterface $scope = null,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

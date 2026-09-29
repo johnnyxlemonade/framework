@@ -17,7 +17,8 @@ final class ConfiguredImageUploader
         private readonly UploadService $service,
         private readonly ImageUploadOptions $options,
         private readonly UploadedFileResolver $uploadedFileResolver = new UploadedFileResolver(),
-    ) {}
+    ) {
+    }
 
     public function upload(?UploadedFileInterface $file): UploadedImage
     {

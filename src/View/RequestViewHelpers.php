@@ -16,7 +16,8 @@ final class RequestViewHelpers
         private readonly UrlGenerator $urlGenerator,
         private readonly ?FlashBagInterface $flash = null,
         private readonly ?SessionInterface $session = null,
-    ) {}
+    ) {
+    }
 
     public function old(string $key, mixed $default = ''): mixed
     {

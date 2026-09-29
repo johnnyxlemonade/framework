@@ -4,4 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation\Endpoint;
 
-final class ValidationEndpointNotConfiguredException extends \RuntimeException {}
+final class ValidationEndpointNotConfiguredException extends \RuntimeException
+{
+}

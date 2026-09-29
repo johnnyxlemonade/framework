@@ -23,7 +23,8 @@ final class Route
         private ?string $name = null,
         private readonly ?\Closure $assertMutable = null,
         private readonly ?\Closure $registerName = null,
-    ) {}
+    ) {
+    }
 
     public function method(): string
     {

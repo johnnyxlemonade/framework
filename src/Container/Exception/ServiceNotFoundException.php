@@ -6,4 +6,6 @@ namespace Lemonade\Framework\Container\Exception;
 
 use Psr\Container\NotFoundExceptionInterface;
 
-class ServiceNotFoundException extends ContainerException implements NotFoundExceptionInterface {}
+class ServiceNotFoundException extends ContainerException implements NotFoundExceptionInterface
+{
+}

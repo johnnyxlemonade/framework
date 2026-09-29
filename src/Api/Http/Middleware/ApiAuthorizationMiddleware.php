@@ -23,7 +23,8 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
         private readonly ScopeVoter $scopeVoter,
         private readonly ProblemDetailsFactory $problems,
         private readonly AppConfig $appConfig,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

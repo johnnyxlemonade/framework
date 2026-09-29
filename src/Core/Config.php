@@ -23,7 +23,8 @@ final class Config
      */
     public function __construct(
         private array $items = [],
-    ) {}
+    ) {
+    }
 
     /**
      * Returns the complete current configuration state.

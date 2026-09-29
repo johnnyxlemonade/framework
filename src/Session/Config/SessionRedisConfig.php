@@ -13,5 +13,6 @@ final readonly class SessionRedisConfig
         public ?string $password,
         public string $prefix,
         public float $timeout,
-    ) {}
+    ) {
+    }
 }

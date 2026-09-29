@@ -14,5 +14,6 @@ final readonly class CommandContext
         public string $commandName,
         public array $argv,
         public array $args,
-    ) {}
+    ) {
+    }
 }

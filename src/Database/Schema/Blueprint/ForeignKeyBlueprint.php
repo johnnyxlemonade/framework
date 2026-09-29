@@ -20,7 +20,8 @@ final class ForeignKeyBlueprint
         private ?string $name = null,
         private ?ForeignKeyAction $onUpdate = null,
         private ?ForeignKeyAction $onDelete = null,
-    ) {}
+    ) {
+    }
 
     /**
      * @param string|non-empty-list<string> $columns

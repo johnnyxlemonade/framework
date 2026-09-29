@@ -16,7 +16,8 @@ final readonly class IndexDefinition
         private array $columns,
         private ?string $name = null,
         private bool $ifNotExists = false,
-    ) {}
+    ) {
+    }
 
     /**
      * @param string|non-empty-list<string> $columns

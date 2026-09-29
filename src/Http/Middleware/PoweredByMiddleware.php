@@ -14,7 +14,8 @@ final class PoweredByMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private readonly FrameworkInfo $frameworkInfo,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

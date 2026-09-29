@@ -38,7 +38,8 @@ final class ApplicationBootstrapper
         private readonly ContainerInterface $container,
         private readonly Framework $framework,
         private readonly Benchmark $benchmark,
-    ) {}
+    ) {
+    }
 
     /**
      * Loads configuration definitions for one entrypoint at most once.

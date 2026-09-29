@@ -11,7 +11,8 @@ final class PaginationComponent
     public function __construct(
         private readonly PaginationFactory $factory,
         private readonly PaginationRenderer $renderer,
-    ) {}
+    ) {
+    }
 
     /**
      * @param list<array<string, mixed>> $items

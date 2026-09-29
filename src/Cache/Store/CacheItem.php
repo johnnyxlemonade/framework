@@ -19,7 +19,8 @@ final class CacheItem implements CacheItemInterface
         private mixed $value = null,
         private readonly bool $hit = false,
         private ?DateTimeImmutable $expiresAt = null,
-    ) {}
+    ) {
+    }
 
     public function getKey(): string
     {

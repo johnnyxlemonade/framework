@@ -468,6 +468,13 @@ final class ErrorMiddlewareDirectoryManager implements DirectoryManagerInterface
         file_put_contents($file, '');
     }
 
+    public function move(string $source, string $target): void
+    {
+        if (!rename($source, $target)) {
+            throw new \RuntimeException('Move failed.');
+        }
+    }
+
     public function stream(string $path, bool $recursive = true): \Generator
     {
         unset($path, $recursive);

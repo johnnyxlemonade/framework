@@ -13,7 +13,8 @@ final class SitemapProviderRegistry
         private readonly ContainerInterface $container,
         private readonly SitemapConfig $config,
         private readonly RouteSitemapProvider $routeProvider,
-    ) {}
+    ) {
+    }
 
     /**
      * @return iterable<SitemapProviderInterface>

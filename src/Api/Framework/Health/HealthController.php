@@ -15,7 +15,8 @@ final class HealthController
         private readonly ApiResponseFactory $responses,
         private readonly ClockInterface $clock,
         private readonly FrameworkInfo $frameworkInfo,
-    ) {}
+    ) {
+    }
 
     public function show(): ResponseInterface
     {

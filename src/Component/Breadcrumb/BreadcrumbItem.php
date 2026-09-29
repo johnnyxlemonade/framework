@@ -10,7 +10,8 @@ final readonly class BreadcrumbItem
         private string $label,
         private ?string $url = null,
         private bool $active = false,
-    ) {}
+    ) {
+    }
 
     public function label(): string
     {

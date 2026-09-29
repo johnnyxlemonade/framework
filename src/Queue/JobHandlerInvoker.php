@@ -13,7 +13,8 @@ final class JobHandlerInvoker
     public function __construct(
         private readonly JobHandlerRegistry $handlers,
         private readonly ScopeFactoryInterface $scopeFactory,
-    ) {}
+    ) {
+    }
 
     public function invoke(JobContext $context, ?QueuedMessage $queuedMessage = null): void
     {

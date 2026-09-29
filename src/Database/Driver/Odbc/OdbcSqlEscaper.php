@@ -10,7 +10,8 @@ final class OdbcSqlEscaper
 {
     public function __construct(
         private readonly OdbcIdentifierEscaper $identifierEscaper,
-    ) {}
+    ) {
+    }
 
     public function value(mixed $value): string
     {

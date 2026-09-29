@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\View;
 
+use Lemonade\Framework\Image\ImageViewHelper;
+use Lemonade\Framework\Image\ImageViewOptions;
+use Lemonade\Framework\Image\Value\ImageReference;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\UrlGenerator;
@@ -18,11 +21,21 @@ final class ViewHelpers
         private readonly CsrfViewHelper $csrf,
         private readonly TranslatorInterface $translator,
         private readonly LocalizationConfig $config,
-    ) {}
+        private readonly ?ImageViewHelper $images = null,
+    ) {
+    }
 
     public function asset(string $path): string
     {
         return $this->baseUrl->baseUrl($path);
+    }
+
+    public function image(?ImageReference $reference, ?ImageViewOptions $options = null): string
+    {
+        if ($this->images === null) {
+            throw new \LogicException('Image view helper is not configured.');
+        }
+        return $this->images->image($reference, $options);
     }
 
     /**

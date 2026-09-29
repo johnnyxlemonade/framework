@@ -15,7 +15,8 @@ final class DumpRendererResolver
      */
     public function __construct(
         private readonly array $renderers,
-    ) {}
+    ) {
+    }
 
     public function resolve(DumpContext $context): DumpRendererInterface
     {

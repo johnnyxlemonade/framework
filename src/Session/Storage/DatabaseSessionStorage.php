@@ -23,7 +23,8 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         private readonly string $table = 'sessions',
         private readonly int $lifetimeSeconds = 7200,
         private readonly string $cookieName = 'LEMONADE_SESSION',
-    ) {}
+    ) {
+    }
 
     public function start(): void
     {

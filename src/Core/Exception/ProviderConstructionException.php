@@ -6,4 +6,6 @@ namespace Lemonade\Framework\Core\Exception;
 
 use LogicException;
 
-final class ProviderConstructionException extends LogicException {}
+final class ProviderConstructionException extends LogicException
+{
+}

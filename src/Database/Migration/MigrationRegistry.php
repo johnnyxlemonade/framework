@@ -22,7 +22,8 @@ final class MigrationRegistry
 
     public function __construct(
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+    }
 
     /**
      * Registers a migration class without instantiating it.

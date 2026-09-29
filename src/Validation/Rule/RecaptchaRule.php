@@ -20,7 +20,8 @@ final class RecaptchaRule implements ValidationRuleInterface
         private readonly RequestFactoryInterface $requestFactory,
         private readonly StreamFactoryInterface $streamFactory,
         private readonly RecaptchaEndpointProviderInterface $endpointProvider,
-    ) {}
+    ) {
+    }
 
     public function validate(mixed $value, ?string $param, array $data): bool
     {

@@ -21,7 +21,8 @@ final class LogManager
         private readonly LoggingConfig $config,
         private readonly LogFilePathResolver $pathResolver,
         private readonly DirectoryManagerInterface $directoryManager,
-    ) {}
+    ) {
+    }
 
     public function error(): LoggerInterface
     {

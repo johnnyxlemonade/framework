@@ -17,7 +17,8 @@ final class SitemapController
         private readonly SitemapGenerator $generator,
         private readonly ApplicationContext $context,
         private readonly Responses $responses,
-    ) {}
+    ) {
+    }
 
     public function index(): ResponseInterface
     {

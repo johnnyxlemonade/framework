@@ -18,7 +18,8 @@ final class MigrationRunner
         private readonly MigrationRegistry $registry,
         private readonly MigrationStateRepository $state,
         private readonly Schema $schema,
-    ) {}
+    ) {
+    }
 
     /**
      * Runs pending migrations in deterministic identifier order.

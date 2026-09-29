@@ -12,7 +12,8 @@ final class BenchmarkResponseInjector
 {
     public function __construct(
         private readonly BenchmarkConfig $config,
-    ) {}
+    ) {
+    }
 
     public function inject(ResponseInterface $response, BenchmarkRun $run): ResponseInterface
     {

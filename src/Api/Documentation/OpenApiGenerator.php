@@ -19,7 +19,8 @@ final class OpenApiGenerator
         private readonly ApiConfig $apiConfig,
         private readonly AppConfig $appConfig,
         private readonly FrameworkInfo $frameworkInfo,
-    ) {}
+    ) {
+    }
 
     /**
      * @return array<string, mixed>

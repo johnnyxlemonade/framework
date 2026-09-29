@@ -11,7 +11,8 @@ final class CommandInvoker
 {
     public function __construct(
         private readonly ScopeFactoryInterface $scopeFactory,
-    ) {}
+    ) {
+    }
 
     /**
      * @param list<string> $argv

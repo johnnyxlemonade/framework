@@ -9,5 +9,6 @@ final readonly class ErrorConfig
     public function __construct(
         public string $notFoundView,
         public string $internalServerErrorView,
-    ) {}
+    ) {
+    }
 }

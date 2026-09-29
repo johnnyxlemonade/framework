@@ -8,5 +8,6 @@ final readonly class SessionNativeConfig
 {
     public function __construct(
         public string $path,
-    ) {}
+    ) {
+    }
 }

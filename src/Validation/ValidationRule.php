@@ -8,7 +8,9 @@ use InvalidArgumentException;
 
 final class ValidationRule
 {
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 
     // Required / conditional rules.
 

@@ -16,5 +16,6 @@ final readonly class CommandsConfig
     public function __construct(
         public array $definitions,
         public array $legacyCommandClasses = [],
-    ) {}
+    ) {
+    }
 }

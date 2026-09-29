@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Filesystem\Contract;
 
 use Lemonade\Framework\Filesystem\Exception\FilesystemException;
 
+/**
+ * Defines read-only file access whose failures are reported through one typed filesystem boundary.
+ */
 interface FileManagerInterface
 {
     /**

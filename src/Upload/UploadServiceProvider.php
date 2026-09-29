@@ -12,25 +12,32 @@ use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Upload\Config\UploadConfig;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
 use Lemonade\Framework\Upload\Config\UploadConfigResolver;
-use Lemonade\Framework\Upload\Image\GdImageProcessor;
-use Lemonade\Framework\Upload\Mime\MimeTypeDetector;
 use Lemonade\Framework\Upload\Storage\UploadStorage;
 
-final class UploadServiceProvider implements ServiceProviderInterface
+/**
+ * Registers the request-scoped upload API and its shared validation dependencies.
+ */
+final readonly class UploadServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers upload configuration, validation, storage, and public factory services
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $builder = ProviderContainerAssertions::builder($container, self::class, 'request-scoped services');
 
         $container->singleton(UploadConfigResolver::class, UploadConfigResolver::class);
         $container->singleton(UploadConfig::class, static function (ContainerInterface $container): UploadConfig {
-            return $container
-                ->get(UploadConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    UploadConfigDefinition::moduleKey(),
-                    UploadConfigDefinition::class,
-                ));
+            $resolver = $container->get(UploadConfigResolver::class);
+            $registry = $container->get(ConfigDefinitionRegistry::class);
+            $entries = $registry->typedEntriesFor(
+                UploadConfigDefinition::moduleKey(),
+                UploadConfigDefinition::class,
+            );
+
+            return $resolver->resolve(...$entries);
         });
+
         /*
          * Upload validation.
          */
@@ -41,8 +48,6 @@ final class UploadServiceProvider implements ServiceProviderInterface
          * Upload infrastructure.
          */
         $container->singleton(UploadStorage::class, UploadStorage::class);
-        $container->singleton(MimeTypeDetector::class, MimeTypeDetector::class);
-        $container->singleton(GdImageProcessor::class, GdImageProcessor::class);
 
         /*
          * Upload public API.
@@ -50,5 +55,4 @@ final class UploadServiceProvider implements ServiceProviderInterface
         $container->singleton(UploadService::class, UploadService::class);
         $builder->scoped(UploadFactory::class, UploadFactory::class);
     }
-
 }

@@ -12,7 +12,8 @@ final class ApiEndpointRegistrar
         private readonly Router $router,
         private readonly ApiEndpointRegistry $registry,
         private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
-    ) {}
+    ) {
+    }
 
     public function registerRoutes(string $prefix): void
     {

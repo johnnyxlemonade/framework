@@ -27,7 +27,8 @@ final readonly class MetaData
         private array $custom = [],
         private array $extraParams = [],
         private array $alternates = [],
-    ) {}
+    ) {
+    }
 
     public function withParam(string $key, ?string $value): self
     {

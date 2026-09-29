@@ -8,5 +8,6 @@ final readonly class ViewConfig
 {
     public function __construct(
         public string $basePath,
-    ) {}
+    ) {
+    }
 }

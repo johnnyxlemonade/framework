@@ -11,13 +11,17 @@ use Lemonade\Framework\Filesystem\Contract\FileManagerInterface;
 use Lemonade\Framework\Filesystem\Contract\LockManagerInterface;
 use SplFileInfo;
 
-final class Filesystem
+/**
+ * Exposes the framework's filesystem collaborators through one facade while retaining their typed failure contracts.
+ */
+final readonly class Filesystem
 {
     public function __construct(
         private readonly DirectoryManagerInterface $directoryManager,
         private readonly FileManagerInterface $fileManager,
         private readonly LockManagerInterface $lockManager,
-    ) {}
+    ) {
+    }
 
     public function getDirectoryManager(): DirectoryManagerInterface
     {
@@ -52,6 +56,11 @@ final class Filesystem
     public function write(string $file, string $data, ?int $mode = 0666): void
     {
         $this->directoryManager->write($file, $data, $mode);
+    }
+
+    public function move(string $source, string $target): void
+    {
+        $this->directoryManager->move($source, $target);
     }
 
     /**

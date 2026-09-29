@@ -15,5 +15,6 @@ final readonly class PaginationConfig
         public int $visiblePages,
         public bool $showFirstLast,
         public array $classes,
-    ) {}
+    ) {
+    }
 }

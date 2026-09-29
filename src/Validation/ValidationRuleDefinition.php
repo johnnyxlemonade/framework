@@ -12,7 +12,8 @@ final readonly class ValidationRuleDefinition
         private string $name,
         private ?string $param = null,
         private ?string $message = null,
-    ) {}
+    ) {
+    }
 
     public static function create(string $name, ?string $param = null, ?string $message = null): self
     {

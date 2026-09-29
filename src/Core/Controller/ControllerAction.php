@@ -13,7 +13,8 @@ final readonly class ControllerAction
         private ReflectionMethod $method,
         private string $controllerClass,
         private string $name,
-    ) {}
+    ) {
+    }
 
     public function controller(): object
     {

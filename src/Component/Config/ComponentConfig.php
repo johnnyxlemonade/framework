@@ -11,5 +11,6 @@ final readonly class ComponentConfig
      */
     public function __construct(
         public array $components,
-    ) {}
+    ) {
+    }
 }

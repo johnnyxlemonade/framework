@@ -36,7 +36,9 @@ use Lemonade\Framework\Http\Config\HtmlMinifyConfig;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
+use Lemonade\Framework\Image\ImageServiceProvider;
 use Lemonade\Framework\Localization\LocalizationServiceProvider;
+use Lemonade\Framework\Mime\MimeServiceProvider;
 use Lemonade\Framework\Queue\QueueServiceProvider;
 use Lemonade\Framework\Routing\RoutingServiceProvider;
 use Lemonade\Framework\Security\SecurityServiceProvider;
@@ -73,6 +75,8 @@ final class FrameworkTest extends TestCase
             SessionServiceProvider::class,
             ComponentServiceProvider::class,
             ValidationServiceProvider::class,
+            ImageServiceProvider::class,
+            MimeServiceProvider::class,
             UploadServiceProvider::class,
             DebugServiceProvider::class,
             ViewServiceProvider::class,

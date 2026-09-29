@@ -12,7 +12,8 @@ final readonly class MysqlField
         private int $maxLength,
         private bool $primaryKey,
         private mixed $default,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {

@@ -19,5 +19,7 @@ final class DumpType
     public const DEPTH_LIMIT = 'depth_limit';
     public const UNKNOWN = 'unknown';
 
-    private function __construct() {}
+    private function __construct()
+    {
+    }
 }

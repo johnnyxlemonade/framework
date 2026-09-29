@@ -9,7 +9,8 @@ final class QuotedIdentifierEscaper implements IdentifierEscaperInterface
     public function __construct(
         private readonly string $prefix,
         private readonly string $quote,
-    ) {}
+    ) {
+    }
 
     public function identifier(string $identifier): string
     {

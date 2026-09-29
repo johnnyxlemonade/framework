@@ -31,7 +31,8 @@ final class FrameworkHealthFastPath
         private readonly ConfigDefinitionRegistry $definitions,
         private readonly Benchmark $benchmark,
         private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
-    ) {}
+    ) {
+    }
 
     public function tryHandle(ServerRequestInterface $request): ?ResponseInterface
     {
@@ -76,7 +77,8 @@ final class FrameworkHealthFastPath
                 new class ($response) implements RequestHandlerInterface {
                     public function __construct(
                         private readonly ResponseInterface $response,
-                    ) {}
+                    ) {
+                    }
 
                     public function handle(ServerRequestInterface $request): ResponseInterface
                     {

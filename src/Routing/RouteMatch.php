@@ -17,7 +17,8 @@ final readonly class RouteMatch
         private array $params = [],
         private array $middleware = [],
         private ?string $name = null,
-    ) {}
+    ) {
+    }
 
     public function controller(): string
     {

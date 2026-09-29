@@ -14,7 +14,8 @@ final class Schema
     public function __construct(
         private readonly SchemaCompiler $compiler,
         private readonly DatabaseDriverInterface $db,
-    ) {}
+    ) {
+    }
 
     /**
      * @param Closure(TableBlueprint):void $definition

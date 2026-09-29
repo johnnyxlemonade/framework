@@ -17,7 +17,8 @@ final class DocsController
     public function __construct(
         private readonly ApiConfig $config,
         private readonly Psr17Factory $psr17,
-    ) {}
+    ) {
+    }
 
     public function show(): ResponseInterface
     {

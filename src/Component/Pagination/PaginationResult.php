@@ -12,7 +12,8 @@ final readonly class PaginationResult
     public function __construct(
         private array $items,
         private PaginationState $state,
-    ) {}
+    ) {
+    }
 
     /**
      * @return list<array<string, mixed>>

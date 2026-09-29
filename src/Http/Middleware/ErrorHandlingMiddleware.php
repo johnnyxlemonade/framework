@@ -30,7 +30,8 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
         private readonly ErrorPageRenderer $errorPageRenderer,
         private readonly ApiEndpointRequestResolver $apiEndpointResolver,
         private readonly ProblemDetailsFactory $problems,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

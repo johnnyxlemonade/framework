@@ -11,7 +11,8 @@ final class QueuedMessage
         private readonly string $queue = 'default',
         private readonly ?int $id = null,
         private readonly int $attempts = 0,
-    ) {}
+    ) {
+    }
 
     public function message(): object
     {

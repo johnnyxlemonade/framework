@@ -11,7 +11,8 @@ final class CharsetTag implements TagInterface
 {
     public function __construct(
         private readonly ?string $charset,
-    ) {}
+    ) {
+    }
 
     public function render(): string
     {

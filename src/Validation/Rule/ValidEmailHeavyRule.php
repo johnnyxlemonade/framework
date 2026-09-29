@@ -32,7 +32,8 @@ final class ValidEmailHeavyRule implements ValidationRuleInterface, ValidationRu
         private readonly RequestFactoryInterface $requestFactory,
         private readonly StreamFactoryInterface $streamFactory,
         private readonly ValidationEndpointProviderInterface $endpointProvider,
-    ) {}
+    ) {
+    }
 
     public function validate(mixed $value, ?string $param, array $data): bool
     {

@@ -9,7 +9,8 @@ final readonly class DumpSourceLocation
     public function __construct(
         private string $file,
         private ?int $line,
-    ) {}
+    ) {
+    }
 
     public function file(): string
     {

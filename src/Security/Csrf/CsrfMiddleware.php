@@ -25,7 +25,8 @@ final class CsrfMiddleware implements MiddlewareInterface
     public function __construct(
         private readonly CsrfTokenManager $tokens,
         private readonly Psr17Factory $responseFactory,
-    ) {}
+    ) {
+    }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

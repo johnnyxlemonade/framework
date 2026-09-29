@@ -17,7 +17,8 @@ final class YamlDefinitionLoader
     public function __construct(
         private readonly YamlConfigParser $parser = new YamlConfigParser(),
         private readonly YamlEnvValueResolver $envValueResolver = new YamlEnvValueResolver(),
-    ) {}
+    ) {
+    }
 
     public function load(
         string $file,

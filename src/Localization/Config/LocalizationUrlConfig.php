@@ -12,5 +12,6 @@ final readonly class LocalizationUrlConfig
         public string $routePrefix,
         public string $localeParameter,
         public bool $includeDefaultLocale,
-    ) {}
+    ) {
+    }
 }

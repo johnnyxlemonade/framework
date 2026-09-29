@@ -9,7 +9,9 @@ final class InputBag
     /**
      * @param array<string, mixed> $items
      */
-    public function __construct(private readonly array $items = []) {}
+    public function __construct(private readonly array $items = [])
+    {
+    }
 
     /**
      * @return array<string, mixed>

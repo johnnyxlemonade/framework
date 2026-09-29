@@ -11,7 +11,8 @@ final class BreadcrumbFactory
         private readonly string $frontendRootUrl = '/',
         private readonly string $adminRootLabel = 'Admin',
         private readonly string $adminRootUrl = '/admin',
-    ) {}
+    ) {
+    }
 
     public function createFrontend(string $currentLabel, ?string $currentUrl = null): BreadcrumbTrail
     {

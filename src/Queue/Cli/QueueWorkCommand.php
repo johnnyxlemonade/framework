@@ -13,7 +13,8 @@ final class QueueWorkCommand implements CommandInterface
     public function __construct(
         private readonly QueueBusInterface $queue,
         private readonly QueueConfig $config,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {

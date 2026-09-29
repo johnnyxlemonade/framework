@@ -8,7 +8,8 @@ final class IdentifierProtector
 {
     public function __construct(
         private readonly IdentifierEscaperInterface $escaper,
-    ) {}
+    ) {
+    }
 
     public function protect(
         string $item,

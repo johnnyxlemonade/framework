@@ -13,7 +13,8 @@ final class ConfigLocaleUrlStrategy implements LocaleUrlStrategyInterface
 {
     public function __construct(
         private readonly LocalizationConfig $config,
-    ) {}
+    ) {
+    }
 
     public function enabled(): bool
     {

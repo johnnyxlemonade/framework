@@ -17,7 +17,8 @@ final class ExceptionLogger
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
-    ) {}
+    ) {
+    }
 
     public function log(Throwable $exception, string $source): void
     {

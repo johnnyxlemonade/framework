@@ -16,7 +16,8 @@ final class ComponentRegistry
 
     public function __construct(
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+    }
 
     /**
      * @param class-string $componentClass
