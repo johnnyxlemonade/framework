@@ -12,15 +12,20 @@ use Lemonade\Framework\Image\Exception\ImageTransformException;
 use Lemonade\Framework\Image\Exception\ImageValidationException;
 use Lemonade\Framework\Image\Exception\UnsupportedImageFormatException;
 use Lemonade\Framework\Image\Value\EncodedImage;
+use Lemonade\Framework\Image\Value\ImageBackground;
+use Lemonade\Framework\Image\Value\ImageBackgroundMode;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageOriginalReference;
+use Lemonade\Framework\Image\Value\ImageScalePolicy;
 use Lemonade\Framework\Image\Value\ImageSource;
 use Lemonade\Framework\Image\Value\ImageVariantDefinition;
+use Lemonade\Framework\Image\Value\ImageVariantMode;
 
 /**
- * Produces a center-cover variant directly from a source file in one GD decode and resample pass.
+ * Produces a derived variant directly from a source file in one GD decode and resample pass.
  *
+ * Center cover crops to fill when upscaling is allowed; contain preserves the full source.
  * It keeps source and target resources private and releases both before returning encoded bytes.
  */
 final readonly class GdImageVariantRenderer implements ImageVariantRendererInterface
@@ -33,7 +38,7 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
     }
 
     /**
-     * Decodes, center-crops, and encodes one variant while releasing GD resources before returning
+     * Decodes, transforms, and encodes one variant while releasing GD resources before returning
      */
     public function render(
         ImageSource $source,
@@ -88,39 +93,17 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
             ) {
                 throw new ImageValidationException('Image dimensions exceed allowed limits.');
             }
-            $scale = max($targetDimensions->width / $sourceDimensions->width, $targetDimensions->height / $sourceDimensions->height);
-            $cropWidth = (int) floor($targetDimensions->width / $scale);
-            $cropHeight = (int) floor($targetDimensions->height / $scale);
-            $sourceX = (int) floor(($sourceDimensions->width - $cropWidth) / 2);
-            $sourceY = (int) floor(($sourceDimensions->height - $cropHeight) / 2);
-            $target = @imagecreatetruecolor(
-                max(1, $targetDimensions->width),
-                max(1, $targetDimensions->height),
-            );
-            if (!$target instanceof GdImage) {
-                throw new ImageTransformException('Image canvas cannot be created.');
-            }
+            $target = $this->createTarget($definition);
             try {
-                $transparent = @imagecolorallocatealpha($target, 0, 0, 0, 127);
-                $transformed = @imagealphablending($target, false) === true
-                    && @imagesavealpha($target, true) === true
-                    && $transparent !== false
-                    && @imagefill($target, 0, 0, $transparent)
-                    && @imagecopyresampled(
-                        $target,
-                        $input,
-                        0,
-                        0,
-                        $sourceX,
-                        $sourceY,
-                        $targetDimensions->width,
-                        $targetDimensions->height,
-                        $cropWidth,
-                        $cropHeight,
-                    );
-                if (!$transformed) {
-                    throw new ImageTransformException('Image variant cannot be transformed.');
-                }
+                $this->transform(
+                    $input,
+                    $target,
+                    $sourceDimensions,
+                    $targetDimensions,
+                    $definition->mode(),
+                    $definition->scalePolicy(),
+                );
+
                 return $this->encode($target, $definition);
             } finally {
                 imagedestroy($target);
@@ -130,64 +113,190 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
         }
     }
 
+    /**
+     * Creates the single target canvas with the output format's explicit background policy.
+     */
+    private function createTarget(ImageVariantDefinition $definition): GdImage
+    {
+        $dimensions = $definition->dimensions();
+        $target = @imagecreatetruecolor(
+            max(1, $dimensions->width),
+            max(1, $dimensions->height),
+        );
+        if (!$target instanceof GdImage) {
+            throw new ImageTransformException('Image canvas cannot be created.');
+        }
+
+        $background = $definition->background();
+        $prepared = match ($background->mode()) {
+            ImageBackgroundMode::Transparent => $this->fillTransparentBackground($target),
+            ImageBackgroundMode::Color => $this->fillColorBackground($target, $background),
+        };
+        if ($prepared) {
+            return $target;
+        }
+
+        imagedestroy($target);
+        throw new ImageTransformException('Image canvas background cannot be prepared.');
+    }
+
+    /**
+     * Draws the source according to the definition's geometry policy.
+     */
+    private function transform(
+        GdImage $source,
+        GdImage $target,
+        ImageDimensions $sourceDimensions,
+        ImageDimensions $targetDimensions,
+        ImageVariantMode $mode,
+        ImageScalePolicy $scalePolicy,
+    ): void {
+        $transformed = match ($mode) {
+            ImageVariantMode::CenterCover => $this->centerCover(
+                $source,
+                $target,
+                $sourceDimensions,
+                $targetDimensions,
+                $scalePolicy,
+            ),
+            ImageVariantMode::Contain => $this->contain(
+                $source,
+                $target,
+                $sourceDimensions,
+                $targetDimensions,
+                $scalePolicy,
+            ),
+        };
+        if (!$transformed) {
+            throw new ImageTransformException('Image variant cannot be transformed.');
+        }
+    }
+
+    /**
+     * Fills the target canvas by cropping equal excess area from opposite source edges.
+     *
+     * With downscale-only policy, a source that would need enlargement stays native-sized
+     * and is centered on the already prepared target background.
+     */
+    private function centerCover(
+        GdImage $source,
+        GdImage $target,
+        ImageDimensions $sourceDimensions,
+        ImageDimensions $targetDimensions,
+        ImageScalePolicy $scalePolicy,
+    ): bool {
+        $scale = max(
+            $targetDimensions->width / $sourceDimensions->width,
+            $targetDimensions->height / $sourceDimensions->height,
+        );
+        if ($scalePolicy === ImageScalePolicy::DownscaleOnly) {
+            $scale = min(1, $scale);
+        }
+        $cropWidth = (int) floor($targetDimensions->width / $scale);
+        $cropHeight = (int) floor($targetDimensions->height / $scale);
+        $cropWidth = min($sourceDimensions->width, $cropWidth);
+        $cropHeight = min($sourceDimensions->height, $cropHeight);
+        $width = min($targetDimensions->width, max(1, (int) round($cropWidth * $scale)));
+        $height = min($targetDimensions->height, max(1, (int) round($cropHeight * $scale)));
+
+        return @imagecopyresampled(
+            $target,
+            $source,
+            (int) floor(($targetDimensions->width - $width) / 2),
+            (int) floor(($targetDimensions->height - $height) / 2),
+            (int) floor(($sourceDimensions->width - $cropWidth) / 2),
+            (int) floor(($sourceDimensions->height - $cropHeight) / 2),
+            $width,
+            $height,
+            $cropWidth,
+            $cropHeight,
+        );
+    }
+
+    /**
+     * Preserves the entire source within the target canvas while maintaining its aspect ratio.
+     */
+    private function contain(
+        GdImage $source,
+        GdImage $target,
+        ImageDimensions $sourceDimensions,
+        ImageDimensions $targetDimensions,
+        ImageScalePolicy $scalePolicy,
+    ): bool {
+        $scale = min(
+            $targetDimensions->width / $sourceDimensions->width,
+            $targetDimensions->height / $sourceDimensions->height,
+        );
+        if ($scalePolicy === ImageScalePolicy::DownscaleOnly) {
+            $scale = min(1, $scale);
+        }
+        $width = max(1, (int) round($sourceDimensions->width * $scale));
+        $height = max(1, (int) round($sourceDimensions->height * $scale));
+
+        return @imagecopyresampled(
+            $target,
+            $source,
+            (int) floor(($targetDimensions->width - $width) / 2),
+            (int) floor(($targetDimensions->height - $height) / 2),
+            0,
+            0,
+            $width,
+            $height,
+            $sourceDimensions->width,
+            $sourceDimensions->height,
+        );
+    }
+
+    /**
+     * Fills a target with an opaque configured color before source pixels are composited onto it.
+     */
+    private function fillColorBackground(GdImage $target, ImageBackground $background): bool
+    {
+        $hex = ltrim($background->colorValue() ?? '', '#');
+        $color = @imagecolorallocate(
+            $target,
+            min(255, max(0, (int) hexdec(substr($hex, 0, 2)))),
+            min(255, max(0, (int) hexdec(substr($hex, 2, 2)))),
+            min(255, max(0, (int) hexdec(substr($hex, 4, 2)))),
+        );
+
+        return $color !== false
+            && @imagealphablending($target, true) === true
+            && @imagefill($target, 0, 0, $color);
+    }
+
+    /**
+     * Fills a PNG or WebP target with transparent pixels and preserves alpha during encoding.
+     */
+    private function fillTransparentBackground(GdImage $target): bool
+    {
+        $transparent = @imagecolorallocatealpha($target, 0, 0, 0, 127);
+
+        return @imagealphablending($target, false) === true
+            && @imagesavealpha($target, true) === true
+            && $transparent !== false
+            && @imagefill($target, 0, 0, $transparent);
+    }
+
     private function encode(GdImage $image, ImageVariantDefinition $definition): EncodedImage
     {
-        $output = $image;
-        if ($definition->format() === ImageFormat::Jpeg) {
-            $output = @imagecreatetruecolor(
-                max(1, $definition->dimensions()->width),
-                max(1, $definition->dimensions()->height),
-            );
-            if (!$output instanceof GdImage) {
-                throw new ImageEncodeException('JPEG background canvas cannot be created.');
-            }
-            $hex = ltrim($definition->jpegBackground(), '#');
-            $background = @imagecolorallocate(
-                $output,
-                min(255, max(0, (int) hexdec(substr($hex, 0, 2)))),
-                min(255, max(0, (int) hexdec(substr($hex, 2, 2)))),
-                min(255, max(0, (int) hexdec(substr($hex, 4, 2)))),
-            );
-            $composited = $background !== false
-                && @imagealphablending($output, true) === true
-                && @imagefill($output, 0, 0, $background)
-                && @imagecopy(
-                    $output,
-                    $image,
-                    0,
-                    0,
-                    0,
-                    0,
-                    $definition->dimensions()->width,
-                    $definition->dimensions()->height,
-                );
-            if (!$composited) {
-                imagedestroy($output);
-                throw new ImageEncodeException('JPEG background cannot be composited.');
-            }
+        if (!ob_start()) {
+            throw new ImageEncodeException('Image output buffer cannot be started.');
         }
-        try {
-            if (!ob_start()) {
-                throw new ImageEncodeException('Image output buffer cannot be started.');
-            }
-            $success = match ($definition->format()) {
-                ImageFormat::Jpeg => @imagejpeg($output, null, $definition->quality()->value),
-                ImageFormat::Png => @imagepng(
-                    $output,
-                    null,
-                    (int) round((100 - $definition->quality()->value) * 9 / 100),
-                ),
-                ImageFormat::Webp => @imagewebp($output, null, $definition->quality()->value),
-            };
-            $contents = ob_get_clean();
-            if ($success !== true || !is_string($contents) || $contents === '') {
-                throw new ImageEncodeException('Image encoding failed.');
-            }
-            return new EncodedImage($contents, $definition->format(), $definition->dimensions());
-        } finally {
-            if ($output !== $image) {
-                imagedestroy($output);
-            }
+        $success = match ($definition->format()) {
+            ImageFormat::Jpeg => @imagejpeg($image, null, $definition->quality()->value),
+            ImageFormat::Png => @imagepng(
+                $image,
+                null,
+                (int) round((100 - $definition->quality()->value) * 9 / 100),
+            ),
+            ImageFormat::Webp => @imagewebp($image, null, $definition->quality()->value),
+        };
+        $contents = ob_get_clean();
+        if ($success !== true || !is_string($contents) || $contents === '') {
+            throw new ImageEncodeException('Image encoding failed.');
         }
+
+        return new EncodedImage($contents, $definition->format(), $definition->dimensions());
     }
 }

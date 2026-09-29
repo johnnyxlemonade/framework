@@ -7,27 +7,42 @@ namespace Lemonade\Framework\Image\Value;
 use Lemonade\Framework\Image\Exception\ImageValidationException;
 
 /**
- * Defines the complete normalized center-cover rendering contract for one derived image
+ * Defines the complete immutable rendering contract for one derived image.
+ *
+ * Center cover fills the target by cropping when scaling permits it, while contain
+ * keeps the full source visible. A smaller downscale-only source exposes this
+ * definition's explicit background on the unused target canvas.
  */
 final readonly class ImageVariantDefinition
 {
+    private ImageBackground $background;
+
     /**
-     * Creates a normalized rendering definition with validated JPEG background and pipeline version
+     * Creates a rendering definition whose complete output contract contributes to cache identity.
+     *
+     * A missing background selects transparent canvas pixels. JPEG cannot encode that
+     * policy and therefore requires an explicit color background.
      */
     public function __construct(
         private ImageDimensions $dimensions,
         private ImageFormat $format,
         private ImageQuality $quality,
-        private string $jpegBackground = '#ffffff',
+        ?ImageBackground $background = null,
         private int $pipelineVersion = 1,
+        private ImageVariantMode $mode = ImageVariantMode::CenterCover,
+        private ImageScalePolicy $scalePolicy = ImageScalePolicy::DownscaleOnly,
     ) {
-        if (preg_match('/^#[0-9a-fA-F]{6}$/', $jpegBackground) !== 1 || $pipelineVersion < 1) {
+        $this->background = $background ?? ImageBackground::transparent();
+        if (
+            $pipelineVersion < 1
+            || ($format === ImageFormat::Jpeg && $this->background->mode() === ImageBackgroundMode::Transparent)
+        ) {
             throw new ImageValidationException('Image variant definition is invalid.');
         }
     }
 
     /**
-     * Returns the target geometry enforced by variant rendering
+     * Returns the exact canvas geometry produced by this variant.
      */
     public function dimensions(): ImageDimensions
     {
@@ -35,7 +50,7 @@ final readonly class ImageVariantDefinition
     }
 
     /**
-     * Returns the output format selected for the derived variant
+     * Returns the encoded format selected for the derived image.
      */
     public function format(): ImageFormat
     {
@@ -43,7 +58,7 @@ final readonly class ImageVariantDefinition
     }
 
     /**
-     * Returns the encoder quality included in the variant identity
+     * Returns the encoder quality that contributes to this variant's identity.
      */
     public function quality(): ImageQuality
     {
@@ -51,15 +66,31 @@ final readonly class ImageVariantDefinition
     }
 
     /**
-     * Returns the normalized opaque background used when encoding JPEG output
+     * Returns the geometry policy used to place the source on the target canvas.
      */
-    public function jpegBackground(): string
+    public function mode(): ImageVariantMode
     {
-        return strtolower($this->jpegBackground);
+        return $this->mode;
     }
 
     /**
-     * Returns the pipeline revision that invalidates prior variant identities
+     * Returns whether the geometry policy may enlarge smaller source images.
+     */
+    public function scalePolicy(): ImageScalePolicy
+    {
+        return $this->scalePolicy;
+    }
+
+    /**
+     * Returns the explicit canvas policy used wherever the source leaves target pixels unused.
+     */
+    public function background(): ImageBackground
+    {
+        return $this->background;
+    }
+
+    /**
+     * Returns the pipeline revision used to invalidate older variant identities.
      */
     public function pipelineVersion(): int
     {
@@ -74,12 +105,13 @@ final readonly class ImageVariantDefinition
     public function canonical(): array
     {
         return [
-            'operation' => 'center-cover-thumbnail',
+            'mode' => $this->mode->value,
+            'scale_policy' => $this->scalePolicy->value,
+            'background' => $this->background->canonical(),
             'width' => $this->dimensions->width,
             'height' => $this->dimensions->height,
             'format' => $this->format->value,
             'quality' => $this->quality->value,
-            'jpeg_background' => $this->jpegBackground(),
             'pipeline' => $this->pipelineVersion,
         ];
     }
