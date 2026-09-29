@@ -4,32 +4,25 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Controller;
 
-use Lemonade\Framework\Core\Http\ResponseBuilder;
-use Psr\Http\Message\ResponseFactoryInterface;
+use Lemonade\Framework\Http\Response\Responses;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\StreamFactoryInterface;
 use RuntimeException;
 
 final class ControllerResultNormalizer
 {
-    /**
-     * @param callable():ResponseFactoryInterface $responseFactoryResolver
-     * @param callable():StreamFactoryInterface $streamFactoryResolver
-     */
+    public function __construct(
+        private readonly Responses $responses,
+    ) {}
+
     public function normalize(
         mixed $result,
-        callable $responseFactoryResolver,
-        callable $streamFactoryResolver,
     ): ResponseInterface {
         if ($result instanceof ResponseInterface) {
             return $result;
         }
 
         if (is_scalar($result) || $result === null || $result instanceof \Stringable) {
-            return (new ResponseBuilder(
-                $responseFactoryResolver(),
-                $streamFactoryResolver(),
-            ))->html((string) $result);
+            return $this->responses->html((string) $result);
         }
 
         throw new RuntimeException(sprintf(

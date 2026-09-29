@@ -10,6 +10,7 @@ use Lemonade\Framework\Cache\Config\CacheConfigResolver;
 use Lemonade\Framework\Cache\Store\ArrayCacheItemPool;
 use Lemonade\Framework\Cache\Store\FileCacheItemPool;
 use Lemonade\Framework\Cache\Store\NullCacheItemPool;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -22,7 +23,7 @@ use function sprintf;
 
 final class CacheServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(CacheConfigResolver::class, CacheConfigResolver::class);
         $container->singleton(CacheConfig::class, static function (ContainerInterface $container): CacheConfig {

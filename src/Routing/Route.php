@@ -17,8 +17,7 @@ final class Route
     public function __construct(
         private readonly string $method,
         private readonly string $path,
-        private readonly string $controller,
-        private readonly string $action,
+        private readonly ControllerAction $controllerAction,
         private array $middleware = [],
         private array $parameterConstraints = [],
         private ?string $name = null,
@@ -38,12 +37,17 @@ final class Route
 
     public function controller(): string
     {
-        return $this->controller;
+        return $this->controllerAction->controllerClass();
     }
 
     public function action(): string
     {
-        return $this->action;
+        return $this->controllerAction->method();
+    }
+
+    public function controllerAction(): ControllerAction
+    {
+        return $this->controllerAction;
     }
 
     public function routeName(): ?string

@@ -83,7 +83,7 @@ final class ProviderFactory
             ));
         }
 
-        if (!$this->container->isBound($dependency)) {
+        if (!$this->container instanceof ContainerBuilderInterface || !$this->container->isBound($dependency)) {
             if ($parameter->isDefaultValueAvailable()) {
                 return $parameter->getDefaultValue();
             }

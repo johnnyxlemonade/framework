@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Driver\Sqlite;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 
 final class SqliteDatabaseServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(SqliteIdentifierEscaper::class, static function (ContainerInterface $container): SqliteIdentifierEscaper {
             $config = $container->get(DatabaseConfig::class);

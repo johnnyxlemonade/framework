@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Cache\CacheServiceProvider;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
+use Lemonade\Framework\Container\ContainerDiagnosticsInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigLoader;
@@ -72,18 +73,15 @@ final class ApplicationBootstrapper
 
         $this->loadConfiguration($entrypoint);
         $this->applyRuntimeAppConfig();
-        $this->registerCoreProvidersWithDiagnostics();
+        $plan = $this->providerPlan($entrypoint);
+        $this->framework->registerPlan($plan);
+        $this->configureDiagnostics();
         $this->markBenchmark(
             $entrypoint === BootstrapEntrypoint::Http
                 ? 'core_providers_registered'
                 : 'core_logger_ready',
         );
 
-        $this->framework->register(
-            $this->primaryProvider($entrypoint),
-            ...$this->commonFrameworkProviders(),
-            ...$this->configuredProviders(),
-        );
         $this->markProviderRegistration($entrypoint);
 
         $this->framework->bootProviders();
@@ -111,15 +109,30 @@ final class ApplicationBootstrapper
         );
     }
 
-    private function registerCoreProvidersWithDiagnostics(): void
+    private function configureDiagnostics(): void
     {
-        $this->framework->register(new CoreServiceProvider());
-        $this->framework->register(new FilesystemServiceProvider());
-        $this->framework->register(new CacheServiceProvider());
-        $this->framework->register(new LoggingServiceProvider());
-
         $logger = $this->container->get(LoggerInterface::class);
+        if (!$this->container instanceof ContainerDiagnosticsInterface) {
+            throw new \LogicException(sprintf(
+                'Bootstrap diagnostics require a container implementing %s.',
+                ContainerDiagnosticsInterface::class,
+            ));
+        }
+
         $this->container->setDiagnosticLogger($logger);
+    }
+
+    private function providerPlan(BootstrapEntrypoint $entrypoint): ProviderLifecyclePlan
+    {
+        return new ProviderLifecyclePlan([
+            new CoreServiceProvider(),
+            new FilesystemServiceProvider(),
+            new CacheServiceProvider(),
+            new LoggingServiceProvider(),
+            $this->primaryProvider($entrypoint),
+            ...$this->commonFrameworkProviders(),
+            ...$this->configuredProviders(),
+        ]);
     }
 
     private function primaryProvider(BootstrapEntrypoint $entrypoint): object

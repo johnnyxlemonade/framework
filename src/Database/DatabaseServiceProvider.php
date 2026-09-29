@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -22,7 +23,7 @@ use Lemonade\Framework\Observability\Benchmark\Benchmark;
 
 final class DatabaseServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(ConnectionFactory::class, static function (ContainerInterface $container): ConnectionFactory {
             return new ConnectionFactory(

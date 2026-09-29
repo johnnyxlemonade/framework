@@ -24,6 +24,7 @@ use Lemonade\Framework\Api\Security\NullApiAuthenticator;
 use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
 use Lemonade\Framework\Cli\CommandRegistry;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -31,7 +32,7 @@ use LogicException;
 
 final class ApiServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(ApiConfigResolver::class, ApiConfigResolver::class);
         $container->singleton(ApiConfig::class, static function (ContainerInterface $container): ApiConfig {
@@ -109,7 +110,7 @@ final class ApiServiceProvider implements ServiceProviderInterface
 
     private function isCliRuntime(ContainerInterface $container): bool
     {
-        return $container->isBound(CommandRegistry::class);
+        return $container->has(CommandRegistry::class);
     }
 
     /**

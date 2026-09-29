@@ -2,7 +2,8 @@
 
 Routes are registered through the router, usually in `app/Config/Routing.php`.
 
-The router maps HTTP methods and paths to controller actions using the `Controller@action` format.
+The router maps HTTP methods and paths to explicit `ControllerAction` values. String
+`Controller@action` handlers and URL-derived convention routing are not supported.
 
 ## Provider-owned route registrars
 
@@ -15,6 +16,7 @@ central application route file:
 
 use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\ControllerAction;
 
 final class ArticlesRouteRegistrar implements RouteRegistrarInterface
 {
@@ -31,7 +33,7 @@ final class ArticlesRouteRegistrar implements RouteRegistrarInterface
     public function registerRoutes(Router $router): void
     {
         $router->group('/admin/articles', static function (Router $router): void {
-            $router->getNamed('admin.articles.import', '/import', 'ArticlesImportController@form');
+            $router->getNamed('admin.articles.import', '/import', ControllerAction::for(ArticlesImportController::class, 'form'));
         });
     }
 }
@@ -95,17 +97,19 @@ ambiguous dynamic routes.
 <?php
 
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\ControllerAction;
 
 return static function (Router $router): void {
-    $router->getNamed('home', '/', 'HomeController@index');
+    $router->getNamed('home', '/', ControllerAction::for(HomeController::class, 'index'));
 
     $router
-        ->get('/articles/{id}', 'ArticleController@detail')
+        ->get('/articles/{id}', ControllerAction::for(ArticleController::class, 'detail'))
         ->name('article.detail');
 };
 ```
 
-Controller names are resolved against the application controller namespace unless a fully qualified class name is used.
+`ControllerAction::for()` requires both a controller class and public method name. The router never
+guesses either from a URL. Named routes continue to work with `url()` / `UrlGenerator`.
 
 ## Matched route request context
 
@@ -154,9 +158,7 @@ In views, use the explicit shared helper object:
 ```
 
 Legacy global helper resolving remains available for existing applications, but new code
-should prefer constructor DI or `$helpers` in views. Controller service helpers are
-convenience APIs for `AbstractController`-based controllers, not a general replacement
-for explicit dependencies.
+should prefer constructor DI or `$helpers` in views.
 
 Result:
 
@@ -168,7 +170,7 @@ Result:
 
 ```php
 $router->group('/admin', static function (Router $router): void {
-    $router->getNamed('dashboard', '/dashboard', 'Admin\DashboardController@index');
+    $router->getNamed('dashboard', '/dashboard', ControllerAction::for(Admin\DashboardController::class, 'index'));
 });
 ```
 
@@ -176,7 +178,7 @@ $router->group('/admin', static function (Router $router): void {
 
 ```php
 $router->localizedGroup(static function (Router $router): void {
-    $router->getNamed('home', '/', 'HomeController@index');
+    $router->getNamed('home', '/', ControllerAction::for(HomeController::class, 'index'));
 });
 ```
 

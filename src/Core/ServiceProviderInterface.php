@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
-use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 
 /**
  * Defines the contract for framework service providers.
@@ -17,7 +17,7 @@ interface ServiceProviderInterface
     /**
      * Registers the provider's services in the application container.
      *
-     * @param ContainerInterface $container Container used by the framework runtime.
+     * @param ContainerBuilderInterface $container Container definition builder.
      */
-    public function register(ContainerInterface $container): void;
+    public function register(ContainerBuilderInterface $container): void;
 }

@@ -5,30 +5,21 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core\Controller;
 
 use Lemonade\Framework\Core\Controller\ControllerResultNormalizer;
+use Lemonade\Framework\Core\Http\ResponseBuilder;
+use Lemonade\Framework\Http\Response\Responses;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 
 final class ControllerResultNormalizerTest extends TestCase
 {
-    public function testKeepsPsrResponseUnchangedWithoutResolvingFactories(): void
+    public function testKeepsPsrResponseUnchanged(): void
     {
         $factory = new Psr17Factory();
         $response = $factory->createResponse(202);
-        $factoryResolutions = 0;
 
-        $normalized = (new ControllerResultNormalizer())->normalize(
-            $response,
-            static function () use (&$factoryResolutions): never {
-                $factoryResolutions++;
-                throw new \LogicException('Factory must not be resolved.');
-            },
-            static function (): never {
-                throw new \LogicException('Factory must not be resolved.');
-            },
-        );
+        $normalized = $this->normalizer($factory)->normalize($response);
 
         self::assertSame($response, $normalized);
-        self::assertSame(0, $factoryResolutions);
     }
 
     /**
@@ -38,11 +29,7 @@ final class ControllerResultNormalizerTest extends TestCase
     {
         $factory = new Psr17Factory();
 
-        $response = (new ControllerResultNormalizer())->normalize(
-            $result,
-            static fn(): Psr17Factory => $factory,
-            static fn(): Psr17Factory => $factory,
-        );
+        $response = $this->normalizer($factory)->normalize($result);
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('text/html; charset=UTF-8', $response->getHeaderLine('Content-Type'));
@@ -62,5 +49,12 @@ final class ControllerResultNormalizerTest extends TestCase
                 return 'stringable';
             }
         }, 'stringable'];
+    }
+
+    private function normalizer(Psr17Factory $factory): ControllerResultNormalizer
+    {
+        return new ControllerResultNormalizer(
+            new Responses(new ResponseBuilder($factory, $factory)),
+        );
     }
 }

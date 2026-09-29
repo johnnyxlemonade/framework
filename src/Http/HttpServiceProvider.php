@@ -10,6 +10,7 @@ use Lemonade\Framework\Api\Config\ApiConfigResolver;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
 use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
 use Lemonade\Framework\Api\Security\NullApiAuthenticator;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ProviderContainerAssertions;
@@ -40,9 +41,9 @@ use Lemonade\Framework\Http\Response\HtmlMinifier;
 
 final class HttpServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
-        $builder = ProviderContainerAssertions::builder($container, self::class, 'scoped HTTP services');
+        $builder = ProviderContainerAssertions::builder($container, self::class, 'HTTP services');
 
         $container->singleton(ErrorPageRenderer::class, ErrorPageRenderer::class);
         $container->singleton(ApiAuthenticatorInterface::class, static fn(): ApiAuthenticatorInterface => new NullApiAuthenticator());

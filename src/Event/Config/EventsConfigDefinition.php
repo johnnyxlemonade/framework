@@ -19,10 +19,10 @@ final class EventsConfigDefinition extends AbstractConfigDefinition
     }
 
     /**
-     * @param (callable(object): void)|string $listener
+     * @param class-string $listener
      */
-    public function listener(string $eventClass, callable|string $listener): self
+    public function listener(string $eventClass, string $listener, string $method = '__invoke', int $priority = 0): self
     {
-        return $this->append("listeners.{$eventClass}", $listener);
+        return $this->append("listeners.{$eventClass}", ['listener' => $listener, 'method' => $method, 'priority' => $priority]);
     }
 }

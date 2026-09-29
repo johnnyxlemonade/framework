@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Queue;
 
 use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandRegistry;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
@@ -21,7 +22,7 @@ use Lemonade\Framework\Queue\Transport\SyncQueueTransport;
 
 final class QueueServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(QueueConfigResolver::class, QueueConfigResolver::class);
         $container->singleton(QueueConfig::class, static function (ContainerInterface $container): QueueConfig {

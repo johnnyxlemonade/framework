@@ -94,6 +94,8 @@ Applications can explicitly make OpenAPI/docs public for local development.
 ## Endpoint provider example
 
 Application endpoints are not added by editing framework routes. They are registered through endpoint providers.
+Each endpoint declares a `ControllerAction` explicitly, using the same action model as HTTP
+routing. String handlers such as `Controller@action` are not supported.
 
 ```php
 <?php
@@ -106,6 +108,7 @@ use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Routing\ControllerAction;
 
 final class AppApiEndpointProvider implements ApiEndpointProviderInterface
 {
@@ -113,7 +116,7 @@ final class AppApiEndpointProvider implements ApiEndpointProviderInterface
     {
         $registry->get(
             path: '/app/ping',
-            handler: AppPingController::class . '@show',
+            controllerAction: ControllerAction::for(AppPingController::class, 'show'),
             name: 'app.ping',
             summary: 'App ping',
             description: 'Returns basic app API availability status.',
@@ -142,7 +145,7 @@ The endpoint will be available under `GET /api/app/ping` and will also appear in
 ```php
 $registry->get(
     path: '/app/private-status',
-    handler: AppPrivateStatusController::class . '@show',
+    controllerAction: ControllerAction::for(AppPrivateStatusController::class, 'show'),
     name: 'app.private_status',
     summary: 'Private app status',
     description: 'Returns protected app status information.',

@@ -27,25 +27,28 @@ available for integrations that need native cache items.
 
 ## Events
 
-`EventDispatcherInterface` is backed by `InMemoryEventDispatcher`. Listeners can be configured by
-event class or registered programmatically. Listener classes are resolved through the container and
-callable listeners are supported.
+`EventDispatcherInterface` is a scoped runtime service backed by `ScopedEventDispatcher`.
+`EventListenerRegistry` stores immutable `EventListenerDefinition` values assembled during
+bootstrap, and `EventListenerInvoker` resolves each listener class from the active runtime scope.
+Listener dependencies can therefore use Request, Command or Job scoped services as appropriate.
 
-Events are currently not scope-aware: listener resolution does not provide a request, command or
-job scope contract. `EventListenerRegistry` plus a scoped dispatcher/invoker is future P2 work,
-not a current framework feature.
+Listeners are configured as listener classes with an optional method and priority. Callable
+listeners and runtime `addListener()` registration are not supported.
 
 ```yaml
 module: events
 config:
   listeners:
     App\Event\InvoicePaid:
-      - App\Listener\SendInvoiceReceipt
+      - listener: App\Listener\SendInvoiceReceipt
+        method: __invoke
+        priority: 0
 ```
 
-Programmatic `addListener()` also accepts a priority. Dispatch includes listeners registered for the
-concrete event class, its parents and implemented interfaces. The package does not prescribe event
-names, transports or application event-sourcing policy.
+Dispatch invokes listeners registered for the concrete event class, its parents and implemented
+interfaces. `EventDispatcherInterface::dispatch()` is intended for an active Request, Command or
+Job scope; resolving it from the root container is not a normal runtime model. The package does
+not prescribe event names, transports or application event-sourcing policy.
 
 ## Queues
 

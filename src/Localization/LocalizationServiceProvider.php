@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Localization;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -13,7 +14,7 @@ use Lemonade\Framework\Localization\Config\LocalizationConfigResolver;
 
 final class LocalizationServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(LocalizationConfigResolver::class, LocalizationConfigResolver::class);
         $container->singleton(LocalizationConfig::class, static function (ContainerInterface $container): LocalizationConfig {

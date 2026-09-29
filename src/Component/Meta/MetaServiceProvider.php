@@ -7,13 +7,14 @@ namespace Lemonade\Framework\Component\Meta;
 use Lemonade\Framework\Component\Meta\Config\MetaConfig;
 use Lemonade\Framework\Component\Meta\Config\MetaConfigDefinition;
 use Lemonade\Framework\Component\Meta\Config\MetaConfigResolver;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
 final class MetaServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(MetaConfigResolver::class, MetaConfigResolver::class);
         $container->singleton(MetaConfig::class, static function (ContainerInterface $container): MetaConfig {

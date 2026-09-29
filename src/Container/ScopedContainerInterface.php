@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container;
 
-interface ScopedContainerInterface extends ContainerInterface
+interface ScopedContainerInterface extends ContainerInterface, TaggedServicesInterface
 {
     public function kind(): ScopeKind;
 

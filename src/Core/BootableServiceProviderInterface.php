@@ -7,7 +7,7 @@ namespace Lemonade\Framework\Core;
 use Lemonade\Framework\Container\ContainerInterface;
 
 /**
- * Performs runtime registry registration after all providers are registered.
+ * Performs runtime registry registration after the definition plan is frozen.
  */
 interface BootableServiceProviderInterface
 {

@@ -135,7 +135,7 @@ final class ProviderDependencyResolverTest extends TestCase
 
 final class GraphFirstProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -143,7 +143,7 @@ final class GraphFirstProvider implements ServiceProviderInterface
 
 final class GraphSecondProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -151,7 +151,7 @@ final class GraphSecondProvider implements ServiceProviderInterface
 
 final class GraphThirdProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -159,7 +159,7 @@ final class GraphThirdProvider implements ServiceProviderInterface
 
 final class GraphLegacyProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -173,7 +173,7 @@ final class GraphLegacyDependentProvider implements ServiceProviderInterface, De
         return [GraphLegacyProvider::class];
     }
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -267,7 +267,7 @@ final class GraphMissingDependencyProvider implements ServiceProviderInterface, 
         return [GraphLegacyProvider::class];
     }
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -281,7 +281,7 @@ final class GraphCycleFirstProvider implements ServiceProviderInterface, Depende
         return [GraphCycleSecondProvider::class];
     }
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -295,7 +295,7 @@ final class GraphCycleSecondProvider implements ServiceProviderInterface, Depend
         return [GraphCycleThirdProvider::class];
     }
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -309,7 +309,7 @@ final class GraphCycleThirdProvider implements ServiceProviderInterface, Depende
         return [GraphCycleFirstProvider::class];
     }
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -323,7 +323,7 @@ final class GraphInvalidDependencyProvider implements ServiceProviderInterface, 
         return [GraphNotAProvider::class];
     }
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         unset($container);
     }

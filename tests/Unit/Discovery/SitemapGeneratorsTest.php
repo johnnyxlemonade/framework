@@ -23,7 +23,7 @@ final class SitemapGeneratorsTest extends TestCase
     public function testSitemapGeneratorWritesUrlsetUsingXmlStreamWriter(): void
     {
         $router = new Router();
-        $router->getNamed('home', '/', 'HomeController@index');
+        $router->getNamed('home', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         $baseUrl = 'https://example.com';
         $config = $this->sitemapConfig(routes: [new SitemapRouteConfig('home', [], null, null, null)]);
         $registry = new SitemapProviderRegistry(new Container(), $config, new RouteSitemapProvider($config, new UrlGenerator($router)));

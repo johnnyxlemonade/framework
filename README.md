@@ -92,12 +92,12 @@ The framework source is organized into focused modules under `src/`. Application
 - `Core` — application context, HTTP and CLI kernels, provider bootstrap, controller dispatch and response normalization; each HTTP run uses an isolated Request scope
 - `Http` — PSR-7 request and response handling, PSR-15 middleware pipeline, response emitting, `HttpStatus` enum and Nyholm PSR-17 integration
 - HTTP middleware for errors, CORS, `OPTIONS`, request logging, benchmarks, HTML minification and response headers
-- `Routing` — normalized route paths, route collections, named routes and URL generation, route groups, localized routes and convention-based fallback routing
+- `Routing` — explicit controller actions, normalized route paths, route collections, named routes and URL generation, route groups and localized routes
 - `Api` — configurable endpoint registry, health endpoint, OpenAPI and HTML documentation, Problem Details responses, and bearer-token scope authorization
 
 ### Container, Providers and Configuration
 
-- `Container` — PSR-11 compatible, definition-based dependency injection with transient, singleton and scoped lifetimes; aliases, decorators, contextual bindings and conservative autowiring
+- `Container` — PSR-11 runtime resolution with a separate frozen definition builder; transient, singleton and scoped lifetimes; aliases, decorators, contextual bindings and conservative autowiring
 - `ServiceProviderInterface` — explicit registration and composition of framework, application and integration services, with bootstrap-safe provider constructor DI and dependency ordering
 - `Config` — YAML application configuration mapped to typed definitions and runtime DTOs, environment values and production config caching
 - package extension points for application providers, API endpoint providers, event listeners, sitemap providers, views and components
@@ -113,7 +113,7 @@ The framework source is organized into focused modules under `src/`. Application
 - `Database` — PDO, MySQLi and ODBC drivers, schema tools, migrations and explicit migration-directory discovery; no ORM is required
 - `Cache` — PSR-6 cache pools with file, array and null stores
 - `Filesystem` and `Session` — storage and session services
-- `Event` — in-memory event dispatcher with registered listeners and priorities
+- `Event` — scoped event dispatch with immutable listener definitions, class listeners and priorities
 - `Queue` — synchronous and database-backed transports, message serialization, delayed jobs and worker commands; class-string handlers run in isolated Job scopes
 - optional PSR-18 HTTP client providers for Guzzle, Symfony HTTP Client and PHP-HTTP cURL transport
 
@@ -160,12 +160,13 @@ Routes are usually defined in `app/Config/Routing.php`.
 <?php
 
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\ControllerAction;
 
 return static function (Router $router): void {
-    $router->getNamed('home', '/', 'HomeController@index');
+    $router->getNamed('home', '/', ControllerAction::for(HomeController::class, 'index'));
 
     $router
-        ->get('/articles/{id}', 'ArticleController@detail')
+        ->get('/articles/{id}', ControllerAction::for(ArticleController::class, 'detail'))
         ->name('article.detail');
 };
 ```
@@ -195,9 +196,8 @@ final class HomeController
 
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
 
-`AbstractController` remains available as a convenience facade for server-rendered
-controllers, but it holds mutable runtime context and must not be registered as a
-singleton. See the [controller documentation](docs/controllers.md).
+Controllers use constructor injection for services and action arguments for request and route
+data. See the [controller documentation](docs/controllers.md).
 
 ### Service Provider
 
@@ -212,14 +212,14 @@ New providers can separate definition registration from runtime initialization t
 namespace App\Providers;
 
 use App\Services\InvoiceImporter;
-use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
 final class AppServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $builder): void
     {
-        $container->singleton(InvoiceImporter::class, InvoiceImporter::class);
+        $builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
     }
 }
 ```

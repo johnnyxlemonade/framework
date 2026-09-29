@@ -38,8 +38,8 @@ final class RequestViewHelpersTest extends TestCase
     public function testActiveUrlAndRouteHelpersUseCurrentRequest(): void
     {
         $router = new Router();
-        $router->getNamed('articles.show', '/articles/{id}', 'ArticleController@show');
-        $router->getNamed('articles.index', '/articles', 'ArticleController@index');
+        $router->getNamed('articles.show', '/articles/{id}', \Lemonade\Framework\Routing\ControllerAction::for('ArticleController', 'show'));
+        $router->getNamed('articles.index', '/articles', \Lemonade\Framework\Routing\ControllerAction::for('ArticleController', 'index'));
 
         $helpers = $this->helpers(
             new ServerRequest('GET', 'https://example.test/articles/15?preview=1'),

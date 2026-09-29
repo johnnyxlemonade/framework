@@ -9,6 +9,7 @@ use Lemonade\Framework\Api\Config\ApiConfigResolver;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Routing\ControllerAction;
 use PHPUnit\Framework\TestCase;
 
 final class ApiConfigResolverTest extends TestCase
@@ -115,7 +116,7 @@ final class TestApiEndpointProviderOne implements ApiEndpointProviderInterface
 {
     public function register(ApiEndpointRegistry $registry): void
     {
-        $registry->get('/one', 'One@show', 'one', 'One', 'One', metadata: new ApiEndpointMetadata());
+        $registry->get('/one', ControllerAction::for(OneController::class, 'show'), 'one', 'One', 'One', metadata: new ApiEndpointMetadata());
     }
 }
 
@@ -123,8 +124,18 @@ final class TestApiEndpointProviderTwo implements ApiEndpointProviderInterface
 {
     public function register(ApiEndpointRegistry $registry): void
     {
-        $registry->get('/two', 'Two@show', 'two', 'Two', 'Two', metadata: new ApiEndpointMetadata());
+        $registry->get('/two', ControllerAction::for(TwoController::class, 'show'), 'two', 'Two', 'Two', metadata: new ApiEndpointMetadata());
     }
 }
 
 final class TestInvalidApiEndpointProvider {}
+
+final class OneController
+{
+    public function show(): void {}
+}
+
+final class TwoController
+{
+    public function show(): void {}
+}

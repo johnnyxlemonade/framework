@@ -6,7 +6,6 @@ namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ScopeKind;
-use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
@@ -37,7 +36,7 @@ final class DispatchRequestHandlerTest extends TestCase
     {
         $container = $this->buildContainer();
         $router = new Router();
-        $router->get('/demo', DispatchTestController::class . '@index')
+        $router->get('/demo', \Lemonade\Framework\Routing\ControllerAction::for(DispatchTestController::class, 'index'))
             ->middleware(DispatchMiddlewareOne::class, DispatchMiddlewareTwo::class);
 
         $handler = $this->buildHandler($router, $container);
@@ -53,7 +52,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $container->set(DispatchMiddlewareOne::class, new \stdClass());
 
         $router = new Router();
-        $router->get('/demo', DispatchTestController::class . '@index')
+        $router->get('/demo', \Lemonade\Framework\Routing\ControllerAction::for(DispatchTestController::class, 'index'))
             ->middleware(DispatchMiddlewareOne::class);
 
         $handler = $this->buildHandler($router, $container);
@@ -70,7 +69,7 @@ final class DispatchRequestHandlerTest extends TestCase
     {
         $container = $this->buildContainer();
         $router = new Router();
-        $router->get('/demo', DispatchTestController::class . '@index');
+        $router->get('/demo', \Lemonade\Framework\Routing\ControllerAction::for(DispatchTestController::class, 'index'));
 
         $handler = $this->buildHandler($router, $container);
         $response = $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
@@ -86,7 +85,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $container->singleton(Benchmark::class, $benchmark);
 
         $router = new Router();
-        $router->get('/demo', DispatchTestController::class . '@index');
+        $router->get('/demo', \Lemonade\Framework\Routing\ControllerAction::for(DispatchTestController::class, 'index'));
 
         $handler = $this->buildHandler($router, $container);
         $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
@@ -104,7 +103,7 @@ final class DispatchRequestHandlerTest extends TestCase
     {
         $container = $this->buildContainer();
         $router = new Router();
-        $router->getNamed('dispatch.context', '/context/{id}', DispatchContextController::class . '@show')
+        $router->getNamed('dispatch.context', '/context/{id}', \Lemonade\Framework\Routing\ControllerAction::for(DispatchContextController::class, 'show'))
             ->middleware(DispatchRouteContextMiddleware::class);
 
         $response = MiddlewarePipeline::create(
@@ -145,7 +144,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $container->singleton(Benchmark::class, $benchmark);
 
         $router = new Router();
-        $router->getNamed('dispatch.context', '/context/{id}', DispatchContextController::class . '@show');
+        $router->getNamed('dispatch.context', '/context/{id}', \Lemonade\Framework\Routing\ControllerAction::for(DispatchContextController::class, 'show'));
 
         $this->buildHandler($router, $container)
             ->handle((new Psr17Factory())->createServerRequest('GET', '/context/42'));
@@ -165,7 +164,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $scope->bindScopedInstance(ServerRequestInterface::class, $originalRequest);
 
         $router = new Router();
-        $router->get('/context/{id}', DispatchContextController::class . '@show');
+        $router->get('/context/{id}', \Lemonade\Framework\Routing\ControllerAction::for(DispatchContextController::class, 'show'));
         $benchmark = $container->get(Benchmark::class);
         $handler = new DispatchRequestHandler(
             router: $router,
@@ -188,7 +187,7 @@ final class DispatchRequestHandlerTest extends TestCase
     public function testExplicitRouteDispatchesPublicAction(): void
     {
         $router = new Router();
-        $router->get('/visibility/show', DispatchVisibilityController::class . '@show');
+        $router->get('/visibility/show', \Lemonade\Framework\Routing\ControllerAction::for(DispatchVisibilityController::class, 'show'));
 
         $response = $this->buildHandler($router, $this->buildContainer())
             ->handle((new Psr17Factory())->createServerRequest('GET', '/visibility/show'));
@@ -199,11 +198,11 @@ final class DispatchRequestHandlerTest extends TestCase
     /**
      * @dataProvider nonPublicExplicitActionProvider
      */
-    public function testExplicitRouteRejectsNonPublicActionBeforeInvocation(string $action): void
+    public function testExplicitRouteRejectsNonPublicActionBeforeInvocationWithDispatch(string $action): void
     {
         DispatchVisibilityController::$invoked = false;
         $router = new Router();
-        $router->get('/visibility/' . $action, DispatchVisibilityController::class . '@' . $action);
+        $router->get('/visibility/' . $action, \Lemonade\Framework\Routing\ControllerAction::for(DispatchVisibilityController::class, $action));
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('must be public');
@@ -223,25 +222,23 @@ final class DispatchRequestHandlerTest extends TestCase
         yield 'private action' => ['secret'];
     }
 
-    public function testConventionRouteDispatchesPublicAction(): void
+    public function testUnregisteredConventionPathDoesNotDispatch(): void
     {
         $router = new Router();
-        $router->setControllerNamespace(__NAMESPACE__);
 
-        $response = $this->buildHandler($router, $this->buildContainer())
+        $this->expectException(\Lemonade\Framework\Routing\Exception\RouteNotFoundException::class);
+        $this->buildHandler($router, $this->buildContainer())
             ->handle((new Psr17Factory())->createServerRequest('GET', '/dispatch-visibility/show'));
-
-        self::assertSame('public', (string) $response->getBody());
     }
 
     /**
      * @dataProvider nonPublicConventionActionProvider
      */
-    public function testConventionRouteRejectsNonPublicActionBeforeInvocation(string $action): void
+    public function testExplicitRouteRejectsNonPublicActionBeforeInvocation(string $action): void
     {
         DispatchVisibilityController::$invoked = false;
         $router = new Router();
-        $router->setControllerNamespace(__NAMESPACE__);
+        $router->get('/dispatch-visibility/' . $action, \Lemonade\Framework\Routing\ControllerAction::for(DispatchVisibilityController::class, $action));
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('must be public');
@@ -315,7 +312,7 @@ final class DispatchMiddlewareTwo implements MiddlewareInterface
     }
 }
 
-final class DispatchTestController extends AbstractController
+final class DispatchTestController
 {
     public function index(): ResponseInterface
     {

@@ -5,24 +5,53 @@ declare(strict_types=1);
 namespace Lemonade\Framework\View;
 
 use Lemonade\Framework\Component\ComponentRegistry;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
+use Lemonade\Framework\Session\Contract\SessionInterface;
+use Lemonade\Framework\Session\Flash\FlashBagInterface;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\Config\ViewConfig;
 use Lemonade\Framework\View\Config\ViewConfigDefinition;
 use Lemonade\Framework\View\Config\ViewConfigResolver;
+use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 
 final class ViewServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(ViewResourceRegistry::class, ViewResourceRegistry::class);
+        $container->scoped(ViewRendererInterface::class, static function (ContainerInterface $container): ViewRendererInterface {
+            $view = clone $container->get(View::class);
+            $flash = $container->has(FlashBagInterface::class) ? $container->get(FlashBagInterface::class) : null;
+            $session = $container->has(SessionInterface::class) ? $container->get(SessionInterface::class) : null;
+
+            $view->share('helpers', $container->get(ViewHelpers::class));
+            $view->share('requestHelpers', new RequestViewHelpers(
+                request: $container->get(ServerRequestInterface::class),
+                urlGenerator: $container->get(UrlGenerator::class),
+                flash: $flash instanceof FlashBagInterface ? $flash : null,
+                session: $session instanceof SessionInterface ? $session : null,
+            ));
+            $view->share('component', $container->get(ComponentRegistry::class));
+
+            return new PhpViewRenderer(
+                $view,
+                new ResponseBuilder(
+                    $container->get(ResponseFactoryInterface::class),
+                    $container->get(StreamFactoryInterface::class),
+                ),
+            );
+        });
         $container->singleton(ViewConfigResolver::class, ViewConfigResolver::class);
         $container->singleton(ViewConfig::class, static function (ContainerInterface $container): ViewConfig {
             return $container
@@ -45,7 +74,7 @@ final class ViewServiceProvider implements ServiceProviderInterface
             $configuredBasePath = $container->get(ViewConfig::class)->basePath;
             $resolvedBasePath = $configuredBasePath;
 
-            if ($container->isBound(ApplicationContext::class)) {
+            if ($container->has(ApplicationContext::class)) {
                 $resolvedBasePath = $container
                     ->get(ApplicationContext::class)
                     ->path($configuredBasePath);

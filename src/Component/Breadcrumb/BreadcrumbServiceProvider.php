@@ -8,13 +8,14 @@ use Lemonade\Framework\Component\Breadcrumb\Config\BreadcrumbsConfig;
 use Lemonade\Framework\Component\Breadcrumb\Config\BreadcrumbsConfigDefinition;
 use Lemonade\Framework\Component\Breadcrumb\Config\BreadcrumbsConfigResolver;
 use Lemonade\Framework\Component\Support\ComponentConfig;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
 final class BreadcrumbServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(BreadcrumbsConfigResolver::class, BreadcrumbsConfigResolver::class);
         $container->singleton(BreadcrumbsConfig::class, static function (ContainerInterface $container): BreadcrumbsConfig {

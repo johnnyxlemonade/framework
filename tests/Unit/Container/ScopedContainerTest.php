@@ -10,7 +10,6 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Container\Exception\ContainerException;
 use Lemonade\Framework\Container\Exception\ScopedContainerClosedException;
-use Lemonade\Framework\Container\Exception\ScopedContainerMutationException;
 use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
 use Lemonade\Framework\Container\Exception\SingletonDependsOnScopedServiceException;
 use Lemonade\Framework\Container\ScopeKind;
@@ -71,11 +70,8 @@ final class ScopedContainerTest extends TestCase
 
         self::assertSame($value, $firstScope->get('scope.local'));
         self::assertTrue($firstScope->has('scope.local'));
-        self::assertTrue($firstScope->isBound('scope.local'));
         self::assertFalse($container->has('scope.local'));
-        self::assertFalse($container->isBound('scope.local'));
         self::assertFalse($secondScope->has('scope.local'));
-        self::assertFalse($secondScope->isBound('scope.local'));
     }
 
     public function testScopedInstanceTakesPrecedenceOverRootBinding(): void
@@ -91,42 +87,14 @@ final class ScopedContainerTest extends TestCase
         self::assertSame($rootValue, $container->get('scope.local'));
     }
 
-    /**
-     * @dataProvider rootMutationProvider
-     * @param callable(ScopedContainerInterface):void $mutate
-     */
-    public function testScopedContainerRejectsRootDefinitionMutations(callable $mutate): void
+    public function testScopedContainerExposesNoRootDefinitionMutators(): void
     {
         $container = new Container();
-        $rootValue = new \stdClass();
-        $container->singleton('root.service', $rootValue);
         $scope = $container->beginScope(ScopeKind::Request);
 
-        try {
-            $mutate($scope);
-            self::fail('Expected scoped mutation to be rejected.');
-        } catch (ScopedContainerMutationException $exception) {
-            self::assertSame(
-                'Cannot register services from a scoped runtime container. Register services during bootstrap/provider registration, or use bindScopedInstance() for scope-local values.',
-                $exception->getMessage(),
-            );
+        foreach (['set', 'singleton', 'singletonTagged', 'tag', 'setDiagnosticLogger', 'isBound'] as $method) {
+            self::assertFalse(method_exists($scope, $method));
         }
-
-        self::assertFalse($container->has('runtime.service'));
-        self::assertSame([], iterator_to_array($container->tagged('runtime.tag')));
-        self::assertSame($rootValue, $scope->get('root.service'));
-    }
-
-    /**
-     * @return iterable<string, array{callable(ScopedContainerInterface):void}>
-     */
-    public static function rootMutationProvider(): iterable
-    {
-        yield 'set' => [static fn(ScopedContainerInterface $scope): null => $scope->set('runtime.service', new \stdClass())];
-        yield 'singleton' => [static fn(ScopedContainerInterface $scope): null => $scope->singleton('runtime.service', new \stdClass())];
-        yield 'singleton tagged' => [static fn(ScopedContainerInterface $scope): null => $scope->singletonTagged('runtime.service', new \stdClass(), 'runtime.tag')];
-        yield 'tag' => [static fn(ScopedContainerInterface $scope): null => $scope->tag('root.service', 'runtime.tag')];
-        yield 'diagnostic logger' => [static fn(ScopedContainerInterface $scope): null => $scope->setDiagnosticLogger(null)];
     }
 
     /**

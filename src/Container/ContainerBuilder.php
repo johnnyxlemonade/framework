@@ -10,6 +10,7 @@ use Lemonade\Framework\Container\Definition\DefinitionTarget;
 use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\ContainerException;
+use Lemonade\Framework\Container\Exception\ContainerFrozenException;
 use Lemonade\Framework\Container\Exception\DecorationTargetNotFoundException;
 use Lemonade\Framework\Container\Exception\DuplicateServiceAliasException;
 use Lemonade\Framework\Container\Exception\InvalidContextualBindingException;
@@ -27,6 +28,8 @@ final class ContainerBuilder implements ContainerBuilderInterface
 
     private int $decoratorOrder = 0;
 
+    private bool $frozen = false;
+
     /** @var array<string, array{'dependency': array<string, ContextualBinding>, 'parameter': array<string, ContextualBinding>}> */
     private array $contextualBindings = [];
 
@@ -36,6 +39,7 @@ final class ContainerBuilder implements ContainerBuilderInterface
      */
     public function set(string $id, callable|object|string $concrete): void
     {
+        $this->assertMutable();
         $this->define($id, $concrete, ServiceLifetime::Transient);
     }
 
@@ -69,6 +73,7 @@ final class ContainerBuilder implements ContainerBuilderInterface
     /** @param class-string|string $id */
     public function instance(string $id, object $instance): void
     {
+        $this->assertMutable();
         if (isset($this->aliases[$id])) {
             throw new DuplicateServiceAliasException(sprintf(
                 'Service definition "%s" conflicts with an existing service alias.',
@@ -90,8 +95,27 @@ final class ContainerBuilder implements ContainerBuilderInterface
         return isset($this->definitions[$id]);
     }
 
+    public function has(string $id): bool
+    {
+        return $this->hasDefinition($this->canonicalDefinitionId($id));
+    }
+
+    public function get(string $id): mixed
+    {
+        throw new \LogicException(sprintf(
+            'ContainerBuilder cannot resolve "%s" without its runtime container.',
+            $id,
+        ));
+    }
+
+    public function isBound(string $id): bool
+    {
+        return $this->hasDefinition($id) || isset($this->aliases[$id]);
+    }
+
     public function tag(string $serviceId, string $tag): void
     {
+        $this->assertMutable();
         $definition = $this->definitions[$serviceId] ?? null;
         if ($definition === null) {
             throw new ContainerException(sprintf(
@@ -114,6 +138,7 @@ final class ContainerBuilder implements ContainerBuilderInterface
 
     public function alias(string $alias, string $target): void
     {
+        $this->assertMutable();
         $alias = $this->normalizeAliasPart($alias, 'Alias');
         $target = $this->normalizeAliasPart($target, 'Alias target');
 
@@ -143,6 +168,7 @@ final class ContainerBuilder implements ContainerBuilderInterface
 
     public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void
     {
+        $this->assertMutable();
         $canonicalId = $this->canonicalDefinitionId($serviceId);
         $definition = $this->definitions[$canonicalId] ?? null;
         if ($definition === null) {
@@ -162,12 +188,14 @@ final class ContainerBuilder implements ContainerBuilderInterface
 
     public function when(string $consumer): ContextualBindingBuilder
     {
+        $this->assertMutable();
         return $this->contextualBindingBuilder($consumer);
     }
 
     /** @param \Closure():void|null $onChange */
     public function contextualBindingBuilder(string $consumer, ?Closure $onChange = null): ContextualBindingBuilder
     {
+        $this->assertMutable();
         $consumer = $this->assertConsumerExists($consumer);
 
         return new ContextualBindingBuilder($this, $consumer, $onChange);
@@ -175,6 +203,7 @@ final class ContainerBuilder implements ContainerBuilderInterface
 
     public function addContextualBinding(ContextualBinding $binding): void
     {
+        $this->assertMutable();
         $this->contextualBindings[$binding->consumer] ??= [
             'dependency' => [],
             'parameter' => [],
@@ -193,6 +222,28 @@ final class ContainerBuilder implements ContainerBuilderInterface
         }
 
         return new CompiledContainerPlan($this->definitions, $tags, $this->aliases, $this->contextualBindings);
+    }
+
+    public function freeze(): CompiledContainerPlan
+    {
+        $plan = $this->compile();
+        $this->frozen = true;
+
+        return $plan;
+    }
+
+    public function isFrozen(): bool
+    {
+        return $this->frozen;
+    }
+
+    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
+    {
+        $this->singleton($id, $concrete);
+
+        foreach ($tags as $tag) {
+            $this->tag($id, $tag);
+        }
     }
 
     /**
@@ -217,6 +268,13 @@ final class ContainerBuilder implements ContainerBuilderInterface
             tags: $this->definitions[$id]->tags ?? [],
             decorators: $this->definitions[$id]->decorators ?? [],
         );
+    }
+
+    private function assertMutable(): void
+    {
+        if ($this->frozen) {
+            throw new ContainerFrozenException('Container definitions are frozen after bootstrap and cannot be changed.');
+        }
     }
 
     /** @param callable(ContainerInterface):mixed|object|string $concrete */

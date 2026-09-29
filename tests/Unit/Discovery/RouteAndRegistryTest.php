@@ -20,8 +20,8 @@ final class RouteAndRegistryTest extends TestCase
     public function testRouteProviderBuildsNamedRoutesWithAndWithoutParams(): void
     {
         $router = new Router();
-        $router->getNamed('home', '/', 'HomeController@index');
-        $router->getNamed('page.detail', '/page/{slug}', 'PageController@detail');
+        $router->getNamed('home', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+        $router->getNamed('page.detail', '/page/{slug}', \Lemonade\Framework\Routing\ControllerAction::for('PageController', 'detail'));
 
         $config = $this->sitemapConfig(
             routes: [

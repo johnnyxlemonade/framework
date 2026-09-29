@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Filesystem;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
@@ -15,7 +16,7 @@ use Lemonade\Framework\Filesystem\Manager\LockManager;
 
 final class FilesystemServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(DirectoryManagerInterface::class, DirectoryManager::class);
         $container->singleton(FileManagerInterface::class, FileManager::class);

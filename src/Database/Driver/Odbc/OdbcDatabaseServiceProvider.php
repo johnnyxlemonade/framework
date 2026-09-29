@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Driver\Odbc;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
@@ -16,7 +17,7 @@ use Lemonade\Framework\Database\Sql\IdentifierProtector;
 
 final class OdbcDatabaseServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(OdbcConnection::class, static function (ContainerInterface $container): OdbcConnection {
             $connection = $container->get(ConnectionInterface::class);

@@ -13,8 +13,7 @@ final readonly class RouteMatch
      * @param array<int, class-string<MiddlewareInterface>> $middleware
      */
     public function __construct(
-        private string $controller,
-        private string $action,
+        private ControllerAction $controllerAction,
         private array $params = [],
         private array $middleware = [],
         private ?string $name = null,
@@ -22,12 +21,17 @@ final readonly class RouteMatch
 
     public function controller(): string
     {
-        return $this->controller;
+        return $this->controllerAction->controllerClass();
     }
 
     public function action(): string
     {
-        return $this->action;
+        return $this->controllerAction->method();
+    }
+
+    public function controllerAction(): ControllerAction
+    {
+        return $this->controllerAction;
     }
 
     public function name(): ?string

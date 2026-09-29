@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Tests\Unit\Database\Migration;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
@@ -350,7 +351,7 @@ final class DuplicateIdentifierMigration implements MigrationInterface { public 
 
 final class TestApplicationMigrationProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->get(MigrationRegistry::class)->register(TestMigration::class);
     }

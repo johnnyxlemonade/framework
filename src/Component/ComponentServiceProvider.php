@@ -13,6 +13,7 @@ use Lemonade\Framework\Component\Meta\MetaComponent;
 use Lemonade\Framework\Component\Meta\MetaServiceProvider;
 use Lemonade\Framework\Component\Pagination\PaginationComponent;
 use Lemonade\Framework\Component\Pagination\PaginationServiceProvider;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -28,7 +29,7 @@ final class ComponentServiceProvider implements ServiceProviderInterface
         'meta' => MetaComponent::class,
     ];
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(ComponentConfigResolver::class, ComponentConfigResolver::class);
         $container->singleton(ComponentConfig::class, static function (ContainerInterface $container): ComponentConfig {
@@ -46,22 +47,22 @@ final class ComponentServiceProvider implements ServiceProviderInterface
         $this->registerRegistry($container);
     }
 
-    private function registerBreadcrumb(ContainerInterface $container): void
+    private function registerBreadcrumb(ContainerBuilderInterface $container): void
     {
         (new BreadcrumbServiceProvider())->register($container);
     }
 
-    private function registerPagination(ContainerInterface $container): void
+    private function registerPagination(ContainerBuilderInterface $container): void
     {
         (new PaginationServiceProvider())->register($container);
     }
 
-    private function registerMeta(ContainerInterface $container): void
+    private function registerMeta(ContainerBuilderInterface $container): void
     {
         (new MetaServiceProvider())->register($container);
     }
 
-    private function registerRegistry(ContainerInterface $container): void
+    private function registerRegistry(ContainerBuilderInterface $container): void
     {
         $container->set(ComponentRegistry::class, function (ContainerInterface $container): ComponentRegistry {
             $registry = new ComponentRegistry($container);

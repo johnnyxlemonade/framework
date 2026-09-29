@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ProviderContainerAssertions;
@@ -17,7 +18,7 @@ use Lemonade\Framework\Upload\Storage\UploadStorage;
 
 final class UploadServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $builder = ProviderContainerAssertions::builder($container, self::class, 'request-scoped services');
 

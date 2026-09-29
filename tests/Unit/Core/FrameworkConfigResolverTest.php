@@ -86,7 +86,7 @@ final class NotAFrameworkServiceProvider {}
 
 final class ValidFrameworkServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class ValidFrameworkDefinitionServiceProvider implements DefinitionServiceProviderInterface

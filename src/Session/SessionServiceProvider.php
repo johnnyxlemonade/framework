@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -35,7 +36,7 @@ final class SessionServiceProvider implements ServiceProviderInterface
         'redis',
     ];
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(SessionConfigResolver::class, SessionConfigResolver::class);
         $container->singleton(SessionConfig::class, static function (ContainerInterface $container): SessionConfig {

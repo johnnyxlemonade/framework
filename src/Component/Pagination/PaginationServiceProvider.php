@@ -8,6 +8,7 @@ use Lemonade\Framework\Component\Pagination\Config\PaginationConfig;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfigDefinition;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfigResolver;
 use Lemonade\Framework\Component\Support\ComponentConfig;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ProviderContainerAssertions;
@@ -17,7 +18,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class PaginationServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $builder = ProviderContainerAssertions::builder($container, self::class, 'request-scoped services');
 

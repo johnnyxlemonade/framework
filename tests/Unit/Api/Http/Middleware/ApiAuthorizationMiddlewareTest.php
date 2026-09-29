@@ -20,6 +20,7 @@ use Lemonade\Framework\Api\Security\ApiIdentity;
 use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
 use Lemonade\Framework\Core\Config\AppConfig;
+use Lemonade\Framework\Routing\ControllerAction;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
@@ -45,7 +46,7 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
     public function testPublicEndpointPassesWithoutToken(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/public', 'X@y', 'public.index', 'Public', 'Public', ApiAccess::Public);
+        $registry->add('GET', '/public', ControllerAction::for('X', 'y'), 'public.index', 'Public', 'Public', ApiAccess::Public);
 
         $middleware = $this->middleware($registry, new StaticBearerTokenAuthenticator('token', ['api:admin']));
         $handler = new CapturingRequestHandler();
@@ -58,7 +59,7 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
     public function testProtectedEndpointWithoutTokenReturns401(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/protected', 'X@y', 'protected.index', 'Protected', 'Protected', ApiAccess::Protected);
+        $registry->add('GET', '/protected', ControllerAction::for('X', 'y'), 'protected.index', 'Protected', 'Protected', ApiAccess::Protected);
 
         $middleware = $this->middleware($registry, new StaticBearerTokenAuthenticator('token', ['api:admin']));
         $response = $middleware->process(new ServerRequest('GET', '/api/protected'), new CapturingRequestHandler());
@@ -69,7 +70,7 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
     public function testProtectedEndpointWithInvalidTokenReturns401(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/protected', 'X@y', 'protected.index', 'Protected', 'Protected', ApiAccess::Protected);
+        $registry->add('GET', '/protected', ControllerAction::for('X', 'y'), 'protected.index', 'Protected', 'Protected', ApiAccess::Protected);
 
         $middleware = $this->middleware($registry, new StaticBearerTokenAuthenticator('token', ['api:admin']));
         $request = (new ServerRequest('GET', '/api/protected'))->withHeader('Authorization', 'Bearer invalid');
@@ -84,7 +85,7 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
         $registry->add(
             'GET',
             '/protected',
-            'X@y',
+            ControllerAction::for('X', 'y'),
             'protected.index',
             'Protected',
             'Protected',
@@ -105,7 +106,7 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
         $registry->add(
             'GET',
             '/protected',
-            'X@y',
+            ControllerAction::for('X', 'y'),
             'protected.index',
             'Protected',
             'Protected',
@@ -128,7 +129,7 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
         $registry->add(
             'GET',
             '/protected',
-            'X@y',
+            ControllerAction::for('X', 'y'),
             'protected.index',
             'Protected',
             'Protected',

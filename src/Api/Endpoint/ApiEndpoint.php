@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Endpoint;
 
+use Lemonade\Framework\Routing\ControllerAction;
+
 final readonly class ApiEndpoint
 {
     /**
      * @param non-empty-string $method
      * @param non-empty-string $path
-     * @param non-empty-string $handler
      * @param non-empty-string $name
-     * @param non-empty-string $summary
      * @param non-empty-string $summary
      */
     public function __construct(
         private string $method,
         private string $path,
-        private string $handler,
+        private ControllerAction $controllerAction,
         private string $name,
         private string $summary,
         private string $description,
@@ -28,7 +28,6 @@ final readonly class ApiEndpoint
 
         $this->assertMethod($method);
         $this->assertPath($path);
-        $this->assertHandler($handler);
         $this->assertName($name);
         $this->assertSummary($summary);
     }
@@ -51,12 +50,9 @@ final readonly class ApiEndpoint
         return $this->path;
     }
 
-    /**
-     * @return non-empty-string
-     */
-    public function handler(): string
+    public function controllerAction(): ControllerAction
     {
-        return $this->handler;
+        return $this->controllerAction;
     }
 
     /**
@@ -161,13 +157,6 @@ final readonly class ApiEndpoint
     {
         if (trim($name) === '') {
             throw new \InvalidArgumentException('API endpoint name cannot be empty.');
-        }
-    }
-
-    private function assertHandler(string $handler): void
-    {
-        if (trim($handler) === '') {
-            throw new \InvalidArgumentException('API endpoint handler cannot be empty.');
         }
     }
 

@@ -30,7 +30,7 @@ final class ViewHelpersTest extends TestCase
     {
         $router = new Router();
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+            $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
         });
         $helpers = $this->helpers(router: $router);
 
@@ -75,7 +75,7 @@ final class ViewHelpersTest extends TestCase
     ): ViewHelpers {
         $config ??= new LocalizationConfig('en', 'en', ['en'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false));
         $router ??= new Router();
-        $router->getNamed('home', '/', 'HomeController@index');
+        $router->getNamed('home', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
 
         $session = new ViewHelpersSessionStub();
         $csrf = new CsrfViewHelper(new CsrfTokenManager($session));

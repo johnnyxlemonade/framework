@@ -161,7 +161,7 @@ final class ErrorHandlingMiddlewareTest extends TestCase
     public function testRegisteredApiEndpointExceptionReturnsGenericProblemDetails(): void
     {
         $endpoints = new ApiEndpointRegistry();
-        $endpoints->get('/broken', 'ApiController@broken', 'api.broken', 'Broken', 'Broken', ApiAccess::Public);
+        $endpoints->get('/broken', \Lemonade\Framework\Routing\ControllerAction::for('ApiController', 'show'), 'api.broken', 'Broken', 'Broken', ApiAccess::Public);
         $middleware = $this->middleware(
             container: new TrackingViewContainer(new View($this->viewsPath())),
             errorLogNotFound: false,
@@ -390,38 +390,6 @@ final class TrackingViewContainer implements ContainerInterface
     public function __construct(
         private readonly View $view,
     ) {}
-
-    public function set(string $id, callable|object|string $concrete): void
-    {
-        unset($id, $concrete);
-    }
-
-    public function singleton(string $id, callable|object|string $concrete): void
-    {
-        unset($id, $concrete);
-    }
-
-    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
-    {
-        unset($id, $concrete, $tags);
-    }
-
-    public function tag(string $serviceId, string $tag): void
-    {
-        unset($serviceId, $tag);
-    }
-
-    public function tagged(string $tag): iterable
-    {
-        unset($tag);
-
-        return [];
-    }
-
-    public function setDiagnosticLogger(?\Psr\Log\LoggerInterface $logger): void
-    {
-        unset($logger);
-    }
 
     public function has(string $id): bool
     {

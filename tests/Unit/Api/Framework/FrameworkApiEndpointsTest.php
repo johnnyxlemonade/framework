@@ -28,6 +28,7 @@ use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\ControllerAction;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
@@ -348,8 +349,8 @@ final class FrameworkApiEndpointsTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('application/json; charset=utf-8', $response->getHeaderLine('Content-Type'));
         self::assertSame('Lemonade Framework / 1.0.0', $response->getHeaderLine('X-Powered-Framework'));
-        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
-        self::assertFalse($kernel->container()->isBound(ApiConfig::class));
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(ApiConfig::class));
     }
 
     #[RunInSeparateProcess]
@@ -361,8 +362,8 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
-        self::assertFalse($kernel->container()->isBound(ApiConfig::class));
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(ApiConfig::class));
         self::assertFalse(class_exists(ApplicationConfigCache::class, false));
     }
 
@@ -378,7 +379,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(401, $response->getStatusCode());
-        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertTrue($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testTestingHealthFastPathRespectsCustomApiPrefix(): void
@@ -392,7 +393,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/internal/framework/health'));
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testTestingHealthFastPathRespectsCustomHealthRoute(): void
@@ -406,7 +407,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/status'));
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testTestingHealthFastPathRespectsCustomPrefixAndHealthRoute(): void
@@ -420,7 +421,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/internal/status'));
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testTestingHealthDisabledFallsBackToStandardLifecycle(): void
@@ -434,7 +435,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertTrue($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testTestingApiDisabledFallsBackToStandardLifecycle(): void
@@ -448,7 +449,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertTrue($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testTestingProtectedHealthFallsBackToStandardLifecycle(): void
@@ -462,7 +463,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(401, $response->getStatusCode());
-        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertTrue($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testTestingOldDefaultHealthUrlDoesNotHitFastPathAfterCustomConfiguration(): void
@@ -476,7 +477,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertTrue($kernel->container()->has(MiddlewareStack::class));
     }
 
     public function testProductionHealthFastPathRespectsCustomPrefixAndRouteWithWarmCache(): void
@@ -491,8 +492,8 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/internal/status'));
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
-        self::assertFalse($kernel->container()->isBound(ApiConfig::class));
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(ApiConfig::class));
     }
 
     public function testProductionOldDefaultHealthUrlDoesNotHitFastPathAfterCustomConfiguration(): void
@@ -507,7 +508,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertTrue($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertTrue($kernel->container()->has(MiddlewareStack::class));
     }
 
     private function kernel(): Kernel
@@ -641,7 +642,7 @@ final class TestAppApiEndpointProvider implements ApiEndpointProviderInterface
     {
         $registry->get(
             path: '/app/ping',
-            handler: 'AppPingController@show',
+            controllerAction: ControllerAction::for(AppPingController::class, 'show'),
             name: 'app.ping',
             summary: 'App ping',
             description: 'App ping endpoint',
@@ -654,3 +655,8 @@ final class TestAppApiEndpointProvider implements ApiEndpointProviderInterface
 }
 
 final class TestInvalidApiEndpointProvider {}
+
+final class AppPingController
+{
+    public function show(): void {}
+}

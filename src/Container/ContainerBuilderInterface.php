@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container;
 
-interface ContainerBuilderInterface
+interface ContainerBuilderInterface extends ContainerInterface
 {
     /**
      * @param class-string|non-empty-string $id
@@ -40,6 +40,15 @@ interface ContainerBuilderInterface
     public function tag(string $serviceId, string $tag): void;
 
     /**
+     * Registers a singleton service and declares one or more collection capability tags.
+     *
+     * @param class-string|non-empty-string $id
+     * @param callable(ContainerInterface):mixed|object|class-string $concrete
+     * @param non-empty-string ...$tags
+     */
+    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void;
+
+    /**
      * @param non-empty-string $alias
      * @param non-empty-string $target
      */
@@ -55,4 +64,13 @@ interface ContainerBuilderInterface
     public function when(string $consumer): ContextualBindingBuilder;
 
     public function compile(): CompiledContainerPlan;
+
+    /** Finalizes the registration plan and prohibits all further definition changes. */
+    public function freeze(): CompiledContainerPlan;
+
+    public function isFrozen(): bool;
+
+    /** Returns true only when the id is explicitly registered in the builder. */
+    public function isBound(string $id): bool;
+
 }

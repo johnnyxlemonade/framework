@@ -135,11 +135,11 @@ final class ContainerTest extends TestCase
         self::assertTrue($container->has('service.id'));
     }
 
-    public function testHasReturnsTrueForExistingConcreteClassViaAutowiring(): void
+    public function testHasReturnsFalseForAnUnregisteredAutowireCandidate(): void
     {
         $container = new Container();
 
-        self::assertTrue($container->has(PlainConcreteClass::class));
+        self::assertFalse($container->has(PlainConcreteClass::class));
     }
 
     public function testIsBoundReturnsFalseForExistingButUnboundConcreteClass(): void

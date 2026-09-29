@@ -9,12 +9,14 @@ The validator is registered in the container as `FormValidation::class` and as t
 
 ## Basic Controller Usage
 
-Use `$this->validator()` in controllers and define fields with typed fluent methods.
+Inject `FormValidation` and `Responses` into the controller constructor. Pass parsed request data
+to the validator as an action value; plain controllers do not have validation or response helper
+methods on `$this`.
 
 ```php
-$validator = $this->validator();
+$payload = is_array($request->getParsedBody()) ? $request->getParsedBody() : [];
 
-$result = $validator
+$result = $this->validator
     ->field('email', 'E-mail')
         ->required()
         ->email()
@@ -22,10 +24,10 @@ $result = $validator
     ->field('password', 'Password')
         ->required()
         ->minLength(8)
-    ->validate($this->post());
+    ->validate($payload);
 
 if (!$result->isValid()) {
-    return $this->json([
+    return $this->responses->json([
         'errors' => $result->errors(),
     ], 422);
 }
@@ -40,7 +42,7 @@ $data = $result->validated();
 A more realistic registration schema can combine required fields, conditional rules, cross-field rules and custom messages.
 
 ```php
-$result = $this->validator()
+$result = $this->validator
     ->field('email', 'E-mail')
         ->required('E-mail je povinný.')
         ->email('Zadejte platný e-mail.')
@@ -62,7 +64,7 @@ $result = $this->validator()
         ->phoneNumber('country')
     ->field('terms', 'Souhlas s podmínkami')
         ->required('Musíte souhlasit s podmínkami.')
-    ->validate($this->post());
+    ->validate($payload);
 ```
 
 ## Explicit Schema Usage
@@ -184,13 +186,13 @@ Built-in remote validation rules follow the same pattern. `valid_email_heavy` an
 
 ```php
 use App\Validation\ApplicationValidationEndpointProvider;
-use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Validation\Endpoint\ValidationEndpointProviderInterface;
 
 final class AppServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(
             ValidationEndpointProviderInterface::class,
@@ -199,6 +201,10 @@ final class AppServiceProvider implements ServiceProviderInterface
     }
 }
 ```
+
+Provider registration receives `ContainerBuilderInterface` and must register definitions before
+the builder freezes. Runtime `ContainerInterface` exposes only `get()` and `has()`; it cannot
+mutate service definitions after freeze.
 
 ```php
 use Lemonade\Framework\Validation\Endpoint\ValidationEndpointProviderInterface;
@@ -358,7 +364,7 @@ $container->singleton(
 ## Full Contact Form Example
 
 ```php
-$result = $this->validator()
+$result = $this->validator
     ->field('name', 'Jméno')
         ->required()
         ->maxLength(100)
@@ -381,10 +387,10 @@ $result = $this->validator()
     ->field('g-recaptcha-response', 'Captcha')
         ->required()
         ->recaptcha()
-    ->validate($this->post());
+    ->validate($payload);
 
 if (!$result->isValid()) {
-    return $this->json([
+    return $this->responses->json([
         'errors' => $result->errors(),
         'input' => $result->toArray()['input'],
     ], 422);

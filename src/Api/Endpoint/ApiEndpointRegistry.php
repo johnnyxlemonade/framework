@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Endpoint;
 
+use Lemonade\Framework\Routing\ControllerAction;
+
 final class ApiEndpointRegistry
 {
     /**
@@ -19,14 +21,13 @@ final class ApiEndpointRegistry
     /**
      * @param non-empty-string $method
      * @param non-empty-string $path
-     * @param non-empty-string $handler
      * @param non-empty-string $name
      * @param non-empty-string $summary
      */
     public function add(
         string $method,
         string $path,
-        string $handler,
+        ControllerAction $controllerAction,
         string $name,
         string $summary,
         string $description,
@@ -39,7 +40,7 @@ final class ApiEndpointRegistry
         $endpoint = new ApiEndpoint(
             method: $normalizedMethod,
             path: $normalizedPath,
-            handler: $handler,
+            controllerAction: $controllerAction,
             name: $name,
             summary: $summary,
             description: $description,
@@ -54,13 +55,12 @@ final class ApiEndpointRegistry
 
     /**
      * @param non-empty-string $path
-     * @param non-empty-string $handler
      * @param non-empty-string $name
      * @param non-empty-string $summary
      */
     public function get(
         string $path,
-        string $handler,
+        ControllerAction $controllerAction,
         string $name,
         string $summary,
         string $description,
@@ -70,7 +70,7 @@ final class ApiEndpointRegistry
         return $this->add(
             method: 'GET',
             path: $path,
-            handler: $handler,
+            controllerAction: $controllerAction,
             name: $name,
             summary: $summary,
             description: $description,
@@ -81,13 +81,12 @@ final class ApiEndpointRegistry
 
     /**
      * @param non-empty-string $path
-     * @param non-empty-string $handler
      * @param non-empty-string $name
      * @param non-empty-string $summary
      */
     public function post(
         string $path,
-        string $handler,
+        ControllerAction $controllerAction,
         string $name,
         string $summary,
         string $description,
@@ -97,7 +96,7 @@ final class ApiEndpointRegistry
         return $this->add(
             method: 'POST',
             path: $path,
-            handler: $handler,
+            controllerAction: $controllerAction,
             name: $name,
             summary: $summary,
             description: $description,
@@ -108,13 +107,12 @@ final class ApiEndpointRegistry
 
     /**
      * @param non-empty-string $path
-     * @param non-empty-string $handler
      * @param non-empty-string $name
      * @param non-empty-string $summary
      */
     public function put(
         string $path,
-        string $handler,
+        ControllerAction $controllerAction,
         string $name,
         string $summary,
         string $description,
@@ -124,7 +122,7 @@ final class ApiEndpointRegistry
         return $this->add(
             method: 'PUT',
             path: $path,
-            handler: $handler,
+            controllerAction: $controllerAction,
             name: $name,
             summary: $summary,
             description: $description,
@@ -135,13 +133,12 @@ final class ApiEndpointRegistry
 
     /**
      * @param non-empty-string $path
-     * @param non-empty-string $handler
      * @param non-empty-string $name
      * @param non-empty-string $summary
      */
     public function patch(
         string $path,
-        string $handler,
+        ControllerAction $controllerAction,
         string $name,
         string $summary,
         string $description,
@@ -151,7 +148,7 @@ final class ApiEndpointRegistry
         return $this->add(
             method: 'PATCH',
             path: $path,
-            handler: $handler,
+            controllerAction: $controllerAction,
             name: $name,
             summary: $summary,
             description: $description,
@@ -162,13 +159,12 @@ final class ApiEndpointRegistry
 
     /**
      * @param non-empty-string $path
-     * @param non-empty-string $handler
      * @param non-empty-string $name
      * @param non-empty-string $summary
      */
     public function delete(
         string $path,
-        string $handler,
+        ControllerAction $controllerAction,
         string $name,
         string $summary,
         string $description,
@@ -178,7 +174,7 @@ final class ApiEndpointRegistry
         return $this->add(
             method: 'DELETE',
             path: $path,
-            handler: $handler,
+            controllerAction: $controllerAction,
             name: $name,
             summary: $summary,
             description: $description,

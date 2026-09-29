@@ -11,6 +11,7 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Framework\Health\HealthController;
+use Lemonade\Framework\Routing\ControllerAction;
 
 final class FrameworkApiEndpointProvider implements ApiEndpointProviderInterface
 {
@@ -25,7 +26,7 @@ final class FrameworkApiEndpointProvider implements ApiEndpointProviderInterface
             $healthRoute = $this->config->framework->health->route;
             $registry->get(
                 path: $healthRoute,
-                handler: HealthController::class . '@show',
+                controllerAction: ControllerAction::for(HealthController::class, 'show'),
                 name: 'framework.health',
                 summary: 'Framework health check',
                 description: 'Returns basic framework runtime availability status.',
@@ -45,7 +46,7 @@ final class FrameworkApiEndpointProvider implements ApiEndpointProviderInterface
             $openApiRoute = $this->config->framework->openapi->route;
             $registry->get(
                 path: $openApiRoute,
-                handler: OpenApiController::class . '@show',
+                controllerAction: ControllerAction::for(OpenApiController::class, 'show'),
                 name: 'framework.openapi',
                 summary: 'OpenAPI specification',
                 description: 'Returns generated OpenAPI specification for registered API endpoints.',
@@ -62,7 +63,7 @@ final class FrameworkApiEndpointProvider implements ApiEndpointProviderInterface
             $docsRoute = $this->config->framework->docs->route;
             $registry->get(
                 path: $docsRoute,
-                handler: DocsController::class . '@show',
+                controllerAction: ControllerAction::for(DocsController::class, 'show'),
                 name: 'framework.docs',
                 summary: 'Framework API docs',
                 description: 'Returns simple human-readable API documentation.',

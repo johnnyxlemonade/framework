@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Routing;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\AbstractController;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\ControllerResolver;
+use Lemonade\Framework\Http\Response\Responses;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\RouteMatch;
+use Lemonade\Framework\View\ViewRendererInterface;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -23,7 +25,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(CastingController::class, 'intAction', ['id' => '123']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'intAction'), ['id' => '123']),
             $this->request(),
         );
 
@@ -36,7 +38,7 @@ final class ControllerResolverTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $resolver->handle(
-            new RouteMatch(CastingController::class, 'intAction', ['id' => 'abc']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'intAction'), ['id' => 'abc']),
             $this->request(),
         );
     }
@@ -45,7 +47,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(CastingController::class, 'floatAction', ['value' => '12.5']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'floatAction'), ['value' => '12.5']),
             $this->request(),
         );
 
@@ -58,7 +60,7 @@ final class ControllerResolverTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $resolver->handle(
-            new RouteMatch(CastingController::class, 'floatAction', ['value' => 'abc']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'floatAction'), ['value' => 'abc']),
             $this->request(),
         );
     }
@@ -67,7 +69,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(CastingController::class, 'boolAction', ['flag' => 'true']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'boolAction'), ['flag' => 'true']),
             $this->request(),
         );
 
@@ -78,7 +80,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(CastingController::class, 'boolAction', ['flag' => 'false']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'boolAction'), ['flag' => 'false']),
             $this->request(),
         );
 
@@ -89,7 +91,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(CastingController::class, 'boolAction', ['flag' => '1']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'boolAction'), ['flag' => '1']),
             $this->request(),
         );
 
@@ -100,7 +102,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(CastingController::class, 'boolAction', ['flag' => '0']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'boolAction'), ['flag' => '0']),
             $this->request(),
         );
 
@@ -113,7 +115,7 @@ final class ControllerResolverTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $resolver->handle(
-            new RouteMatch(CastingController::class, 'boolAction', ['flag' => 'yes']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'boolAction'), ['flag' => 'yes']),
             $this->request(),
         );
     }
@@ -122,7 +124,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(CastingController::class, 'stringAction', ['value' => 'hello']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(CastingController::class, 'stringAction'), ['value' => 'hello']),
             $this->request(),
         );
 
@@ -133,7 +135,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(PsrStyleController::class, 'show'),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PsrStyleController::class, 'show')),
             $this->request(),
         );
 
@@ -145,7 +147,7 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(PlainWithDependencyController::class, 'show'),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithDependencyController::class, 'show')),
             $this->request(),
         );
 
@@ -159,7 +161,7 @@ final class ControllerResolverTest extends TestCase
             ->withQueryParams(['q' => 'lemonade']);
 
         $response = $resolver->handle(
-            new RouteMatch(PlainWithRequestController::class, 'index'),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithRequestController::class, 'index')),
             $request,
         );
 
@@ -178,7 +180,7 @@ final class ControllerResolverTest extends TestCase
         $firstScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
         $firstScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $firstRequest);
         $firstResponse = (new ControllerResolver($firstScope, new Benchmark()))->handle(
-            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithConstructorRequestController::class, 'index')),
             $firstRequest,
         );
         $firstScope->close();
@@ -187,7 +189,7 @@ final class ControllerResolverTest extends TestCase
         $secondScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
         $secondScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $secondRequest);
         $secondResponse = (new ControllerResolver($secondScope, new Benchmark()))->handle(
-            new RouteMatch(PlainWithConstructorRequestController::class, 'index'),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithConstructorRequestController::class, 'index')),
             $secondRequest,
         );
         $secondScope->close();
@@ -200,18 +202,18 @@ final class ControllerResolverTest extends TestCase
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(PlainWithRouteParamController::class, 'show', ['id' => '42']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithRouteParamController::class, 'show'), ['id' => '42']),
             $this->request(),
         );
 
         self::assertSame('42', (string) $response->getBody());
     }
 
-    public function testLegacyControllerStillWorksWithControllerContextHelpers(): void
+    public function testPlainControllerCanInjectResponses(): void
     {
         $resolver = $this->resolver();
         $response = $resolver->handle(
-            new RouteMatch(LegacyHelperController::class, 'index'),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ResponsesController::class, 'index')),
             $this->request(),
         );
 
@@ -220,47 +222,47 @@ final class ControllerResolverTest extends TestCase
         self::assertSame('<h1>Hello</h1>', (string) $response->getBody());
     }
 
+    public function testPlainControllerCanInjectScopedViewRenderer(): void
+    {
+        $container = new Container();
+        $factory = new Psr17Factory();
+        $container->singleton(ResponseFactoryInterface::class, $factory);
+        $container->singleton(StreamFactoryInterface::class, $factory);
+        $container->scoped(
+            ViewRendererInterface::class,
+            static fn(): ViewRendererInterface => new ResolverViewRendererStub($factory),
+        );
+        $scope = $container->beginScope(ScopeKind::Request);
+
+        try {
+            $response = (new ControllerResolver($scope, new Benchmark()))->handle(
+                new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ViewRendererController::class, 'index')),
+                $factory->createServerRequest('GET', '/page'),
+            );
+
+            self::assertSame(207, $response->getStatusCode());
+            self::assertSame('rendered page', (string) $response->getBody());
+        } finally {
+            $scope->close();
+        }
+    }
+
     public function testMissingActionThrowsRuntimeExceptionForPlainController(): void
     {
         $resolver = $this->resolver();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Action "' . PlainWithDependencyController::class . '::missing" not found.');
-        $resolver->handle(new RouteMatch(PlainWithDependencyController::class, 'missing'), $this->request());
+        $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithDependencyController::class, 'missing')), $this->request());
     }
 
-    public function testMissingActionThrowsRuntimeExceptionForLegacyController(): void
+    public function testMissingActionThrowsRuntimeExceptionForResponsesController(): void
     {
         $resolver = $this->resolver();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Action "' . LegacyHelperController::class . '::missing" not found.');
-        $resolver->handle(new RouteMatch(LegacyHelperController::class, 'missing'), $this->request());
-    }
-
-    public function testLegacyControllerContextIsInitializedOnlyAfterActionIsValid(): void
-    {
-        LegacyContextInspectionController::$lastInstance = null;
-        $resolver = $this->resolver();
-
-        try {
-            $resolver->handle(new RouteMatch(LegacyContextInspectionController::class, 'missing'), $this->request());
-            self::fail('Expected missing action to throw.');
-        } catch (RuntimeException $exception) {
-            self::assertStringContainsString('not found', $exception->getMessage());
-        }
-
-        self::assertInstanceOf(LegacyContextInspectionController::class, LegacyContextInspectionController::$lastInstance);
-        self::assertFalse(LegacyContextInspectionController::$lastInstance->contextIsInitialized());
-
-        $response = $resolver->handle(
-            new RouteMatch(LegacyContextInspectionController::class, 'index'),
-            $this->request(),
-        );
-
-        self::assertSame('/', (string) $response->getBody());
-        self::assertInstanceOf(LegacyContextInspectionController::class, LegacyContextInspectionController::$lastInstance);
-        self::assertTrue(LegacyContextInspectionController::$lastInstance->contextIsInitialized());
+        $this->expectExceptionMessage('Action "' . ResponsesController::class . '::missing" not found.');
+        $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ResponsesController::class, 'missing')), $this->request());
     }
 
     /**
@@ -275,7 +277,7 @@ final class ControllerResolverTest extends TestCase
         $this->expectExceptionMessage('Controller action "' . NonPublicActionController::class . '::' . $action . '" must be public.');
 
         try {
-            $resolver->handle(new RouteMatch(NonPublicActionController::class, $action), $this->request());
+            $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(NonPublicActionController::class, $action)), $this->request());
         } finally {
             self::assertFalse(NonPublicActionController::$invoked);
         }
@@ -294,7 +296,7 @@ final class ControllerResolverTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Controller action result must be scalar|stringable|null or');
-        $resolver->handle(new RouteMatch(PlainInvalidReturnController::class, 'index'), $this->request());
+        $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainInvalidReturnController::class, 'index')), $this->request());
     }
 
     public function testInvalidReturnValueThrowsRuntimeExceptionForLegacyController(): void
@@ -303,7 +305,7 @@ final class ControllerResolverTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Controller action result must be scalar|stringable|null or');
-        $resolver->handle(new RouteMatch(LegacyInvalidReturnController::class, 'index'), $this->request());
+        $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(LegacyInvalidReturnController::class, 'index')), $this->request());
     }
 
     public function testBenchmarkMarksAreEmittedWhenBenchmarkServiceIsBound(): void
@@ -318,7 +320,7 @@ final class ControllerResolverTest extends TestCase
         $container->singleton(Benchmark::class, $benchmark);
 
         $resolver = new ControllerResolver($container, $benchmark);
-        $resolver->handle(new RouteMatch(PsrStyleController::class, 'show'), $this->request());
+        $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PsrStyleController::class, 'show')), $this->request());
 
         $run = $benchmark->current();
         self::assertNotNull($run);
@@ -348,7 +350,7 @@ final class ControllerResolverTest extends TestCase
     }
 }
 
-final class CastingController extends AbstractController
+final class CastingController
 {
     public function intAction(int $id): int
     {
@@ -436,37 +438,44 @@ final class PlainWithRouteParamController
     }
 }
 
-final class LegacyHelperController extends AbstractController
+final class ResponsesController
 {
+    public function __construct(
+        private readonly Responses $responses,
+    ) {}
+
     public function index(): ResponseInterface
     {
-        return $this->html('<h1>Hello</h1>');
+        return $this->responses->html('<h1>Hello</h1>');
     }
 }
 
-final class LegacyContextInspectionController extends AbstractController
+final class ViewRendererController
 {
-    public static ?self $lastInstance = null;
+    public function __construct(
+        private readonly ViewRendererInterface $views,
+    ) {}
 
-    public function __construct()
+    public function index(): ResponseInterface
     {
-        self::$lastInstance = $this;
+        return $this->views->render('page', status: 207);
+    }
+}
+
+final class ResolverViewRendererStub implements ViewRendererInterface
+{
+    public function __construct(
+        private readonly Psr17Factory $factory,
+    ) {}
+
+    public function render(string $template, array $data = [], int $status = 200): ResponseInterface
+    {
+        return $this->factory->createResponse($status)->withBody($this->factory->createStream($this->content($template, $data)));
     }
 
-    public function index(): string
+    public function content(string $template, array $data = []): string
     {
-        return $this->request()->getUri()->getPath();
-    }
-
-    public function contextIsInitialized(): bool
-    {
-        try {
-            $this->request();
-
-            return true;
-        } catch (RuntimeException) {
-            return false;
-        }
+        return 'rendered ' . $template;
     }
 }
 
@@ -481,7 +490,7 @@ final class PlainInvalidReturnController
     }
 }
 
-final class LegacyInvalidReturnController extends AbstractController
+final class LegacyInvalidReturnController
 {
     /**
      * @return array<string, string>

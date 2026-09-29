@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Discovery\Sitemap;
 
-use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Discovery\Config\SitemapConfig;
 use Lemonade\Framework\Http\HttpStatus;
+use Lemonade\Framework\Http\Response\Responses;
 use Psr\Http\Message\ResponseInterface;
 
-final class SitemapController extends AbstractController
+final class SitemapController
 {
     public function __construct(
         private readonly SitemapConfig $config,
         private readonly SitemapGenerator $generator,
         private readonly ApplicationContext $context,
+        private readonly Responses $responses,
     ) {}
 
     public function index(): ResponseInterface
@@ -26,7 +27,7 @@ final class SitemapController extends AbstractController
             $path = $this->context->basePath() . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $relativePath) . DIRECTORY_SEPARATOR . $indexFilename;
 
             if (!is_file($path)) {
-                return $this->response('', HttpStatus::NOT_FOUND->value, 'text/plain; charset=UTF-8');
+                return $this->responses->text('', HttpStatus::NOT_FOUND->value);
             }
 
             $contentType = str_ends_with($path, '.gz')
@@ -40,7 +41,7 @@ final class SitemapController extends AbstractController
 
             $headers = ['Last-Modified' => gmdate('D, d M Y H:i:s', $mtime) . ' GMT'];
 
-            return $this->stream(static function () use ($path): void {
+            return $this->responses->stream(static function () use ($path): void {
                 $handle = fopen($path, 'rb');
                 if (!is_resource($handle)) {
                     return;
@@ -56,7 +57,7 @@ final class SitemapController extends AbstractController
             }, HttpStatus::OK->value, $contentType, $headers);
         }
 
-        return $this->stream(function (): void {
+        return $this->responses->stream(function (): void {
             $stream = fopen('php://output', 'wb');
             if (!is_resource($stream)) {
                 return;

@@ -101,7 +101,7 @@ final class RouteRegistrarRegistryTest extends TestCase
         $container->singleton('route.registrar.articles', new RecordingRouteRegistrar('articles', 10, $log));
         $container->tag('route.registrar.articles', RouteRegistrarInterface::class);
         $framework->routes(static function (Router $router): void {
-            $router->get('/application', 'ApplicationController@index');
+            $router->get('/application', \Lemonade\Framework\Routing\ControllerAction::for('ApplicationController', 'index'));
         });
         $framework->finalizeRoutes();
 
@@ -111,11 +111,11 @@ final class RouteRegistrarRegistryTest extends TestCase
         self::assertTrue($registry->isFrozen());
         self::assertTrue($router->isFrozen());
         self::assertSame(
-            'App\\Controllers\\ApplicationController',
+            'ApplicationController',
             $router->match(new ServerRequest('GET', '/application'))->controller(),
         );
         self::assertSame(
-            'App\\Controllers\\ArticlesController',
+            'ArticlesController',
             $router->match(new ServerRequest('GET', '/provider/articles'))->controller(),
         );
     }
@@ -246,7 +246,7 @@ final class RecordingRouteRegistrar implements RouteRegistrarInterface
     public function registerRoutes(Router $router): void
     {
         $this->log->add($this->registrarId);
-        $router->get('/provider/' . $this->registrarId, 'ArticlesController@index');
+        $router->get('/provider/' . $this->registrarId, \Lemonade\Framework\Routing\ControllerAction::for('ArticlesController', 'index'));
     }
 }
 

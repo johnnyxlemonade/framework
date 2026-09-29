@@ -43,13 +43,31 @@ single-root behavior unchanged.
 
 ## Rendering from a controller
 
-```php
-$html = $this->view()->render('home/index', [
-    'title' => 'Homepage',
-]);
+New controllers should inject the request-scoped `ViewRendererInterface`. Its `render()` method
+returns an HTML PSR-7 response, while `content()` returns the rendered string when a controller
+needs to compose a response itself.
 
-return $this->html($html);
+```php
+use Lemonade\Framework\View\ViewRendererInterface;
+use Psr\Http\Message\ResponseInterface;
+
+final class HomeController
+{
+    public function __construct(
+        private readonly ViewRendererInterface $views,
+    ) {}
+
+    public function index(): ResponseInterface
+    {
+        return $this->views->render('home.index', ['title' => 'Homepage']);
+    }
+}
 ```
+
+The renderer owns a request-local clone of the legacy `View`. PHP templates therefore continue to
+receive `$this` as `View` and may use `extend()`, `partial()`, `start()`, `end()`, `section()` and
+`content()` unchanged. Request helpers and request-scoped components are isolated per renderer
+scope.
 
 ## Example view
 

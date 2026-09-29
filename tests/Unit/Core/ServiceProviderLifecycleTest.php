@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Tests\Unit\Core;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\Exception\ContainerFrozenException;
 use Lemonade\Framework\Core\BootableServiceProviderInterface;
 use Lemonade\Framework\Core\DefinitionServiceProviderInterface;
 use Lemonade\Framework\Core\Framework;
@@ -48,6 +49,18 @@ final class ServiceProviderLifecycleTest extends TestCase
         $framework->bootProviders();
 
         self::assertSame(['definition.register', 'boot.definition-service'], LifecycleEvents::$events);
+        $container = $framework->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $container);
+        self::assertTrue($container->isFrozen());
+    }
+
+    public function testProviderRegistrationIsClosedAfterBootFreezesTheBuilder(): void
+    {
+        $framework = $this->framework();
+        $framework->bootProviders();
+
+        $this->expectException(ContainerFrozenException::class);
+        $framework->register(new LifecycleDefinitionProvider());
     }
 
     public function testProviderImplementingDefinitionAndBootContractsWorks(): void
@@ -113,7 +126,7 @@ final class ServiceProviderLifecycleTest extends TestCase
 
 final class LifecycleLegacyProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(LifecycleLegacyService::class, LifecycleLegacyService::class);
     }

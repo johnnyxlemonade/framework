@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Database\Migration;
 
 use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandRegistry;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
@@ -21,7 +22,7 @@ use Lemonade\Framework\Database\Schema\Schema;
  */
 final class MigrationServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         if (!$container->isBound(MigrationRegistry::class)) {
             $container->singleton(MigrationRegistry::class, static fn(ContainerInterface $container): MigrationRegistry => new MigrationRegistry($container));

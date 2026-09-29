@@ -224,7 +224,7 @@ final class TestCustomConfigDefinition extends AbstractConfigDefinition
 
 final class TestProviderA implements \Lemonade\Framework\Core\ServiceProviderInterface
 {
-    public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
+    public function register(\Lemonade\Framework\Container\ContainerBuilderInterface $container): void
     {
         unset($container);
     }
@@ -232,7 +232,7 @@ final class TestProviderA implements \Lemonade\Framework\Core\ServiceProviderInt
 
 final class TestProviderB implements \Lemonade\Framework\Core\ServiceProviderInterface
 {
-    public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
+    public function register(\Lemonade\Framework\Container\ContainerBuilderInterface $container): void
     {
         unset($container);
     }

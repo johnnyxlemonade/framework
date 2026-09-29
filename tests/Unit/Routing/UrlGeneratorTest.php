@@ -17,7 +17,7 @@ final class UrlGeneratorTest extends TestCase
     public function testRouteReturnsUrlFromRouter(): void
     {
         $router = new Router();
-        $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+        $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
 
         $generator = new UrlGenerator($router);
 
@@ -28,7 +28,7 @@ final class UrlGeneratorTest extends TestCase
     {
         $router = new Router();
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+            $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
         });
         $resolver = new LocaleResolverSpy('en');
 
@@ -43,7 +43,7 @@ final class UrlGeneratorTest extends TestCase
     {
         $router = new Router();
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+            $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
         });
         $resolver = new LocaleResolverSpy('cs');
 
@@ -58,7 +58,7 @@ final class UrlGeneratorTest extends TestCase
     {
         $router = new Router();
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+            $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
         });
 
         $generator = new UrlGenerator($router, null, new StrategySpy());
@@ -74,7 +74,7 @@ final class UrlGeneratorTest extends TestCase
     {
         $router = new Router();
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+            $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
         });
         $resolver = new LocaleResolverSpy('en');
 
@@ -90,7 +90,7 @@ final class UrlGeneratorTest extends TestCase
     public function testNonLocalizedRouteStaysWithoutLocale(): void
     {
         $router = new Router();
-        $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+        $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
         $resolver = new LocaleResolverSpy('cs');
 
         $generator = new UrlGenerator($router, $resolver, new StrategySpy());
@@ -103,7 +103,7 @@ final class UrlGeneratorTest extends TestCase
     public function testLocalizedRouteFallsBackToBaseWhenLocalizedVariantIsMissing(): void
     {
         $router = new Router();
-        $router->getNamed('posts.show', '/posts/{id}', 'PostController@show');
+        $router->getNamed('posts.show', '/posts/{id}', \Lemonade\Framework\Routing\ControllerAction::for('PostController', 'show'));
         $resolver = new LocaleResolverSpy('cs');
 
         $generator = new UrlGenerator($router, $resolver, new StrategySpy());

@@ -18,7 +18,11 @@ final class ApiEndpointRegistrar
     {
         foreach ($this->registry->all() as $endpoint) {
             $this->router
-                ->map($endpoint->method(), $this->pathResolver->compose($prefix, $endpoint->path()), $endpoint->handler())
+                ->map(
+                    $endpoint->method(),
+                    $this->pathResolver->compose($prefix, $endpoint->path()),
+                    $endpoint->controllerAction(),
+                )
                 ->name($endpoint->name());
         }
     }

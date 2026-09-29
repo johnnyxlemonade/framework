@@ -16,11 +16,11 @@ final class RouterTest extends TestCase
     public function testGetRegistersRouteWithMethodPathControllerAndAction(): void
     {
         $router = new Router();
-        $route = $router->get('/users', 'UserController@index');
+        $route = $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         self::assertSame('GET', $route->method());
         self::assertSame('/users', $route->path());
-        self::assertSame('App\\Controllers\\UserController', $route->controller());
+        self::assertSame('UserController', $route->controller());
         self::assertSame('index', $route->action());
     }
 
@@ -28,59 +28,55 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
 
-        self::assertSame('POST', $router->post('/a', 'AController@store')->method());
-        self::assertSame('PUT', $router->put('/a', 'AController@update')->method());
-        self::assertSame('PATCH', $router->patch('/a', 'AController@patch')->method());
-        self::assertSame('DELETE', $router->delete('/a', 'AController@delete')->method());
+        self::assertSame('POST', $router->post('/a', \Lemonade\Framework\Routing\ControllerAction::for('AController', 'store'))->method());
+        self::assertSame('PUT', $router->put('/a', \Lemonade\Framework\Routing\ControllerAction::for('AController', 'update'))->method());
+        self::assertSame('PATCH', $router->patch('/a', \Lemonade\Framework\Routing\ControllerAction::for('AController', 'patch'))->method());
+        self::assertSame('DELETE', $router->delete('/a', \Lemonade\Framework\Routing\ControllerAction::for('AController', 'delete'))->method());
     }
 
     public function testHeadAndHeadNamedMapExpectedMethod(): void
     {
         $router = new Router();
 
-        self::assertSame('HEAD', $router->head('/health', 'HealthController@show')->method());
-        self::assertSame('HEAD', $router->headNamed('health.check', '/health-check', 'HealthController@show')->method());
+        self::assertSame('HEAD', $router->head('/health', \Lemonade\Framework\Routing\ControllerAction::for('HealthController', 'show'))->method());
+        self::assertSame('HEAD', $router->headNamed('health.check', '/health-check', \Lemonade\Framework\Routing\ControllerAction::for('HealthController', 'show'))->method());
         self::assertSame('/health-check', $router->url('health.check'));
     }
 
     public function testMapAcceptsHttpMethodEnumAndString(): void
     {
         $router = new Router();
-        $enumRoute = $router->map(HttpMethod::PATCH, '/enum', 'EnumController@patch');
-        $stringRoute = $router->map('options', '/string', 'StringController@options');
+        $enumRoute = $router->map(HttpMethod::PATCH, '/enum', \Lemonade\Framework\Routing\ControllerAction::for('EnumController', 'patch'));
+        $stringRoute = $router->map('options', '/string', \Lemonade\Framework\Routing\ControllerAction::for('StringController', 'options'));
 
         self::assertSame('PATCH', $enumRoute->method());
         self::assertSame('OPTIONS', $stringRoute->method());
     }
 
-    public function testHandlerWithoutAtThrowsInvalidArgumentException(): void
+    public function testStringHandlerIsRejected(): void
     {
         $router = new Router();
 
-        $this->expectException(InvalidArgumentException::class);
-        $router->get('/broken', 'BrokenHandler');
+        $this->expectException(\TypeError::class);
+        (new \ReflectionMethod($router, 'get'))->invoke($router, '/broken', 'UserController@index');
     }
 
-    public function testHandlerWithEmptyControllerThrowsInvalidArgumentException(): void
+    public function testControllerActionRequiresControllerClassAndMethod(): void
     {
-        $router = new Router();
-
         $this->expectException(InvalidArgumentException::class);
-        $router->get('/broken', '@index');
+        \Lemonade\Framework\Routing\ControllerAction::for('', 'show');
     }
 
-    public function testHandlerWithEmptyActionThrowsInvalidArgumentException(): void
+    public function testControllerActionRequiresMethod(): void
     {
-        $router = new Router();
-
         $this->expectException(InvalidArgumentException::class);
-        $router->get('/broken', 'UserController@');
+        \Lemonade\Framework\Routing\ControllerAction::for('ArticleController', '');
     }
 
     public function testNamedRouteCanBeGeneratedViaUrl(): void
     {
         $router = new Router();
-        $router->getNamed('users.index', '/users', 'UserController@index');
+        $router->getNamed('users.index', '/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         self::assertSame('/users', $router->url('users.index'));
     }
@@ -88,16 +84,16 @@ final class RouterTest extends TestCase
     public function testDuplicateNamedRouteThrowsLogicException(): void
     {
         $router = new Router();
-        $router->getNamed('users.index', '/users', 'UserController@index');
+        $router->getNamed('users.index', '/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         $this->expectException(\LogicException::class);
-        $router->getNamed('users.index', '/users/all', 'UserController@all');
+        $router->getNamed('users.index', '/users/all', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'all'));
     }
 
     public function testMapThenNameRegistersRouteForUrlGeneration(): void
     {
         $router = new Router();
-        $router->get('/users/{id}', 'UserController@show')->name('users.show');
+        $router->get('/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'))->name('users.show');
 
         self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
     }
@@ -105,27 +101,27 @@ final class RouterTest extends TestCase
     public function testMapThenNameRejectsDuplicateNamedRoute(): void
     {
         $router = new Router();
-        $router->getNamed('users.index', '/users', 'UserController@index');
+        $router->getNamed('users.index', '/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         $this->expectException(\LogicException::class);
-        $router->get('/users/all', 'UserController@all')->name('users.index');
+        $router->get('/users/all', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'all'))->name('users.index');
     }
 
     public function testExactNormalizedDuplicateRouteThrowsLogicException(): void
     {
         $router = new Router();
-        $router->get('/users/', 'UserController@index');
+        $router->get('/users/', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         $this->expectException(\LogicException::class);
-        $router->get('/users', 'UserController@all');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'all'));
     }
 
     public function testRouterFreezeRejectsRouteAndRouteMutation(): void
     {
         $router = new Router();
-        $route = $router->get('/users/{id}', 'UserController@show');
+        $route = $router->get('/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
         $group = $router->group('/admin', static function (Router $router): void {
-            $router->get('/users', 'UserController@index');
+            $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
         });
 
         $router->freeze();
@@ -134,10 +130,10 @@ final class RouterTest extends TestCase
         self::assertTrue($router->isFrozen());
 
         $this->assertFrozenRouterOperation(static function () use ($router): void {
-            $router->get('/settings', 'SettingsController@index');
+            $router->get('/settings', \Lemonade\Framework\Routing\ControllerAction::for('SettingsController', 'index'));
         });
         $this->assertFrozenRouterOperation(static function () use ($router): void {
-            $router->mapNamed('users.show', 'GET', '/users/{id}', 'UserController@show');
+            $router->mapNamed('users.show', 'GET', '/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
         });
         $this->assertFrozenRouterOperation(static function () use ($route): void {
             $route->name('users.show');
@@ -153,9 +149,6 @@ final class RouterTest extends TestCase
         });
         $this->assertFrozenRouterOperation(static function () use ($router): void {
             $router->configureLocalizedRoutes(localeParameter: 'lang');
-        });
-        $this->assertFrozenRouterOperation(static function () use ($router): void {
-            $router->setControllerNamespace('App\\AlternativeControllers');
         });
 
         $groupBuilderCalled = false;
@@ -178,12 +171,12 @@ final class RouterTest extends TestCase
     public function testRouterDispatchAndUrlGenerationWorkAfterFreeze(): void
     {
         $router = new Router();
-        $router->getNamed('users.show', '/users/{id}', 'UserController@show');
+        $router->getNamed('users.show', '/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
         $router->freeze();
 
         $match = $router->match(new ServerRequest('GET', '/users/15'));
 
-        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('UserController', $match->controller());
         self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
     }
 
@@ -203,7 +196,7 @@ final class RouterTest extends TestCase
     public function testUrlInjectsRouteParameters(): void
     {
         $router = new Router();
-        $router->getNamed('users.show', '/users/{id}', 'UserController@show');
+        $router->getNamed('users.show', '/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
     }
@@ -211,7 +204,7 @@ final class RouterTest extends TestCase
     public function testUrlAddsUnusedParamsAsQueryString(): void
     {
         $router = new Router();
-        $router->getNamed('users.show', '/users/{id}', 'UserController@show');
+        $router->getNamed('users.show', '/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         self::assertSame(
             '/users/15?tab=settings&sort=desc',
@@ -222,7 +215,7 @@ final class RouterTest extends TestCase
     public function testUrlThrowsOnMissingRouteParameter(): void
     {
         $router = new Router();
-        $router->getNamed('users.show', '/users/{id}', 'UserController@show');
+        $router->getNamed('users.show', '/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('users.show', []);
@@ -231,7 +224,7 @@ final class RouterTest extends TestCase
     public function testUrlThrowsOnNullRouteParameter(): void
     {
         $router = new Router();
-        $router->getNamed('users.show', '/users/{id}', 'UserController@show');
+        $router->getNamed('users.show', '/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('users.show', ['id' => null]);
@@ -241,8 +234,8 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->group('/admin', function (Router $router): void {
-            $router->get('/users', 'UserController@index');
-            $router->get('/settings', 'SettingsController@index');
+            $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
+            $router->get('/settings', \Lemonade\Framework\Routing\ControllerAction::for('SettingsController', 'index'));
         });
 
         $paths = array_map(
@@ -257,8 +250,8 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->group('/api', function (Router $router): void {
-            $router->get('/one', 'OneController@index');
-            $router->post('/two', 'TwoController@store');
+            $router->get('/one', \Lemonade\Framework\Routing\ControllerAction::for('OneController', 'index'));
+            $router->post('/two', \Lemonade\Framework\Routing\ControllerAction::for('TwoController', 'store'));
         });
 
         self::assertCount(2, $group->routes());
@@ -272,7 +265,7 @@ final class RouterTest extends TestCase
 
         try {
             $router->group('/admin', static function (Router $router): void {
-                $router->get('/users', 'UserController@index');
+                $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
                 throw new \RuntimeException('group failed');
             });
@@ -282,7 +275,7 @@ final class RouterTest extends TestCase
             self::assertSame('group failed', $exception->getMessage());
         }
 
-        $route = $router->getNamed('status.check', '/status', 'StatusController@show');
+        $route = $router->getNamed('status.check', '/status', \Lemonade\Framework\Routing\ControllerAction::for('StatusController', 'show'));
 
         self::assertSame('/status', $route->path());
         self::assertSame('status.check', $route->name());
@@ -290,7 +283,7 @@ final class RouterTest extends TestCase
 
         $match = $router->match(new ServerRequest('GET', '/status'));
 
-        self::assertSame('App\\Controllers\\StatusController', $match->controller());
+        self::assertSame('StatusController', $match->controller());
         self::assertSame('show', $match->action());
     }
 
@@ -298,8 +291,8 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
-            $router->getNamed('documentation.show', '/documentation/{slug}', 'DocumentationController@show');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+            $router->getNamed('documentation.show', '/documentation/{slug}', \Lemonade\Framework\Routing\ControllerAction::for('DocumentationController', 'show'));
         });
 
         self::assertCount(2, $group->plain()->routes());
@@ -321,7 +314,7 @@ final class RouterTest extends TestCase
                 $router->getNamed(
                     $invocations === 1 ? 'home.index' : 'localized.home.index',
                     '',
-                    'HomeController@index',
+                    \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'),
                 );
 
                 if ($invocations === 2) {
@@ -336,7 +329,7 @@ final class RouterTest extends TestCase
 
         self::assertSame(2, $invocations);
 
-        $route = $router->getNamed('status.check', '/status', 'StatusController@show');
+        $route = $router->getNamed('status.check', '/status', \Lemonade\Framework\Routing\ControllerAction::for('StatusController', 'show'));
 
         self::assertSame('status.check', $route->name());
         self::assertSame('/status', $route->path());
@@ -349,11 +342,11 @@ final class RouterTest extends TestCase
     public function testLocalizedGroupPlainAndLocalizedSubsetsExcludePreviouslyRegisteredRoutes(): void
     {
         $router = new Router();
-        $router->getNamed('status.check', '/status', 'StatusController@show');
+        $router->getNamed('status.check', '/status', \Lemonade\Framework\Routing\ControllerAction::for('StatusController', 'show'));
 
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
-            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+            $router->getNamed('contact.index', '/contact', \Lemonade\Framework\Routing\ControllerAction::for('ContactController', 'index'));
         });
 
         $plainNames = array_map(
@@ -386,7 +379,7 @@ final class RouterTest extends TestCase
         $router = new Router();
         $router->group('/front', static function (Router $router): void {
             $router->localizedGroup(static function (Router $router): void {
-                $router->getNamed('home.index', '', 'HomeController@index');
+                $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
             });
         });
 
@@ -398,7 +391,7 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         });
 
         $group->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
@@ -418,8 +411,8 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
-            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+            $router->getNamed('contact.index', '/contact', \Lemonade\Framework\Routing\ControllerAction::for('ContactController', 'index'));
         });
 
         $paths = array_map(
@@ -434,8 +427,8 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
-            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+            $router->getNamed('contact.index', '/contact', \Lemonade\Framework\Routing\ControllerAction::for('ContactController', 'index'));
         });
 
         $paths = array_map(
@@ -450,7 +443,7 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         });
 
         $group->localized()->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
@@ -466,7 +459,7 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         });
 
         $group->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
@@ -485,7 +478,7 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         });
 
         self::assertSame('/', $router->url('home.index'));
@@ -497,8 +490,8 @@ final class RouterTest extends TestCase
         $router = new Router();
         $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en', 'de']);
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
-            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+            $router->getNamed('contact.index', '/contact', \Lemonade\Framework\Routing\ControllerAction::for('ContactController', 'index'));
         });
 
         $this->expectException(RouteNotFoundException::class);
@@ -510,7 +503,7 @@ final class RouterTest extends TestCase
         $router = new Router();
         $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en', 'de']);
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+            $router->getNamed('contact.index', '/contact', \Lemonade\Framework\Routing\ControllerAction::for('ContactController', 'index'));
         });
 
         $this->expectException(RouteNotFoundException::class);
@@ -522,8 +515,8 @@ final class RouterTest extends TestCase
         $router = new Router();
         $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en', 'de']);
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
-            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+            $router->getNamed('contact.index', '/contact', \Lemonade\Framework\Routing\ControllerAction::for('ContactController', 'index'));
         });
 
         $home = $router->match(new ServerRequest('GET', '/en'));
@@ -538,7 +531,7 @@ final class RouterTest extends TestCase
         $router = new Router();
         $router->configureLocalizedRoutes(supportedLocales: ['cs', 'en']);
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('contact.index', '/contact', 'ContactController@index');
+            $router->getNamed('contact.index', '/contact', \Lemonade\Framework\Routing\ControllerAction::for('ContactController', 'index'));
         });
 
         self::assertSame([], $router->allowedMethodsForPath('/dsadsa/contact'));
@@ -550,7 +543,7 @@ final class RouterTest extends TestCase
         $router = new Router();
         $router->configureLocalizedRoutes(routeNamePrefix: 'i18n.');
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         });
 
         self::assertSame('/cs', $router->url('i18n.home.index', ['locale' => 'cs']));
@@ -561,7 +554,7 @@ final class RouterTest extends TestCase
         $router = new Router();
         $router->configureLocalizedRoutes(localeParameter: 'lang');
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('home.index', '', 'HomeController@index');
+            $router->getNamed('home.index', '', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         });
 
         self::assertSame('/cs', $router->url('localized.home.index', ['lang' => 'cs']));
@@ -578,7 +571,7 @@ final class RouterTest extends TestCase
         );
 
         $group = $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('docs.show', '/docs/{slug}', 'DocsController@show');
+            $router->getNamed('docs.show', '/docs/{slug}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'show'));
         });
 
         self::assertSame(['/docs/{slug}'], array_map(
@@ -595,7 +588,7 @@ final class RouterTest extends TestCase
 
         $match = $router->match(new ServerRequest('GET', '/content/cs/docs/intro'));
 
-        self::assertSame('App\\Controllers\\DocsController', $match->controller());
+        self::assertSame('DocsController', $match->controller());
         self::assertSame('show', $match->action());
         self::assertSame(['lang' => 'cs', 'slug' => 'intro'], $match->params());
     }
@@ -609,7 +602,7 @@ final class RouterTest extends TestCase
         );
 
         $router->localizedGroup(static function (Router $router): void {
-            $router->getNamed('docs.show', '/docs/{slug}', 'DocsController@show');
+            $router->getNamed('docs.show', '/docs/{slug}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'show'));
         });
 
         self::assertSame(
@@ -652,7 +645,7 @@ final class RouterTest extends TestCase
     {
         $router = new Router();
         $router->group('/admin', static function (Router $router): void {
-            $router->getNamed('admin.dashboard', '', 'AdminDashboardController@index');
+            $router->getNamed('admin.dashboard', '', \Lemonade\Framework\Routing\ControllerAction::for('AdminDashboardController', 'index'));
         });
 
         self::assertSame('/admin', $router->url('admin.dashboard'));
@@ -663,7 +656,7 @@ final class RouterTest extends TestCase
     public function testMapNamedIsPublicReturnsNamedRouteAndSupportsUrlGeneration(): void
     {
         $router = new Router();
-        $route = $router->mapNamed('users.show', HttpMethod::GET, '/users/{id}', 'UserController@show');
+        $route = $router->mapNamed('users.show', HttpMethod::GET, '/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         self::assertSame('GET', $route->method());
         self::assertSame('users.show', $route->name());
@@ -673,11 +666,11 @@ final class RouterTest extends TestCase
     public function testMatchFindsExactRoute(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         $match = $router->match(new ServerRequest('GET', '/users'));
 
-        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('UserController', $match->controller());
         self::assertSame('index', $match->action());
         self::assertSame([], $match->params());
     }
@@ -685,7 +678,7 @@ final class RouterTest extends TestCase
     public function testMatchExtractsSimplePathParameter(): void
     {
         $router = new Router();
-        $router->get('/users/{id}', 'UserController@show');
+        $router->get('/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         $match = $router->match(new ServerRequest('GET', '/users/99'));
 
@@ -695,7 +688,7 @@ final class RouterTest extends TestCase
     public function testMatchDecodesSimplePathParameterRoundTripRegressionCases(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $cases = [
             '@' => '/items/%40',
@@ -718,7 +711,7 @@ final class RouterTest extends TestCase
     public function testSimpleRouteParameterRoundTripRegressionCasesWithContractA(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $cases = [
             'a/b' => '/items/a%2Fb',
@@ -744,7 +737,7 @@ final class RouterTest extends TestCase
     public function testSimpleRouteParameterUrlGenerationRejectsEmptyString(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('items.show', ['value' => '']);
@@ -753,11 +746,11 @@ final class RouterTest extends TestCase
     public function testMatchDecodesEncodedSlashWithoutChangingSegmentBoundaries(): void
     {
         $router = new Router();
-        $router->get('/items/{value}/meta', 'ItemController@meta');
+        $router->get('/items/{value}/meta', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'meta'));
 
         $match = $router->match(new ServerRequest('GET', '/items/%2F/meta'));
 
-        self::assertSame('App\\Controllers\\ItemController', $match->controller());
+        self::assertSame('ItemController', $match->controller());
         self::assertSame('meta', $match->action());
         self::assertSame(['value' => '/'], $match->params());
     }
@@ -765,7 +758,7 @@ final class RouterTest extends TestCase
     public function testMatchExtractsWildcardParameter(): void
     {
         $router = new Router();
-        $router->get('/docs/{slug:any}', 'DocsController@show');
+        $router->get('/docs/{slug:any}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'show'));
 
         $match = $router->match(new ServerRequest('GET', '/docs/guides/install/windows'));
 
@@ -775,11 +768,11 @@ final class RouterTest extends TestCase
     public function testMatchWildcardParameterStillCapturesMultipleDecodedSegments(): void
     {
         $router = new Router();
-        $router->get('/docs/{slug:any}/edit', 'DocsController@edit');
+        $router->get('/docs/{slug:any}/edit', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'edit'));
 
         $match = $router->match(new ServerRequest('GET', '/docs/guides/%C4%8Desk%C3%BD/%2F/edit'));
 
-        self::assertSame('App\\Controllers\\DocsController', $match->controller());
+        self::assertSame('DocsController', $match->controller());
         self::assertSame('edit', $match->action());
         self::assertSame(['slug' => 'guides/český//'], $match->params());
     }
@@ -787,7 +780,7 @@ final class RouterTest extends TestCase
     public function testWildcardRouteParameterRoundTripRegressionCasesWithContractA(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $cases = [
             'a/b' => '/items/a/b',
@@ -811,7 +804,7 @@ final class RouterTest extends TestCase
     public function testWildcardRouteParameterUrlGenerationRejectsEmptyString(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('items.show', ['value' => '']);
@@ -820,7 +813,7 @@ final class RouterTest extends TestCase
     public function testWildcardRouteParameterUrlGenerationRejectsSlashOnlyValue(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('items.show', ['value' => '/']);
@@ -829,7 +822,7 @@ final class RouterTest extends TestCase
     public function testWildcardRouteParameterUrlGenerationRejectsLeadingSlash(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('items.show', ['value' => '/a']);
@@ -838,7 +831,7 @@ final class RouterTest extends TestCase
     public function testWildcardRouteParameterUrlGenerationRejectsTrailingSlash(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('items.show', ['value' => 'a/']);
@@ -847,7 +840,7 @@ final class RouterTest extends TestCase
     public function testWildcardRouteParameterUrlGenerationRejectsEmptyIntermediateSegment(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('items.show', ['value' => 'a//b']);
@@ -856,7 +849,7 @@ final class RouterTest extends TestCase
     public function testWildcardRouteParameterUrlGenerationRejectsDoubleSlashOnlyValue(): void
     {
         $router = new Router();
-        $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+        $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for('ItemController', 'show'));
 
         $this->expectException(InvalidArgumentException::class);
         $router->url('items.show', ['value' => '//']);
@@ -873,11 +866,11 @@ final class RouterTest extends TestCase
 
         foreach ($cases as $registeredPath => $requestPath) {
             $router = new Router();
-            $router->get($registeredPath, 'CatalogController@index');
+            $router->get($registeredPath, \Lemonade\Framework\Routing\ControllerAction::for('CatalogController', 'index'));
 
             $match = $router->match(new ServerRequest('GET', $requestPath));
 
-            self::assertSame('App\\Controllers\\CatalogController', $match->controller());
+            self::assertSame('CatalogController', $match->controller());
             self::assertSame('index', $match->action());
             self::assertSame([], $match->params());
         }
@@ -886,7 +879,7 @@ final class RouterTest extends TestCase
     public function testMatchThrowsRouteNotFoundExceptionWhenNoRouteMatches(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         $this->expectException(RouteNotFoundException::class);
         $router->match(new ServerRequest('GET', '/missing'));
@@ -895,111 +888,61 @@ final class RouterTest extends TestCase
     public function testMatchHeadFindsExplicitHeadRoute(): void
     {
         $router = new Router();
-        $router->head('/users', 'HeadUsersController@index');
+        $router->head('/users', \Lemonade\Framework\Routing\ControllerAction::for('HeadUsersController', 'index'));
 
         $match = $router->match(new ServerRequest('HEAD', '/users'));
 
-        self::assertSame('App\\Controllers\\HeadUsersController', $match->controller());
+        self::assertSame('HeadUsersController', $match->controller());
         self::assertSame('index', $match->action());
     }
 
     public function testMatchHeadFallsBackToGetRoute(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         $match = $router->match(new ServerRequest('HEAD', '/users'));
 
-        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('UserController', $match->controller());
         self::assertSame('index', $match->action());
     }
 
     public function testMatchHeadExplicitRouteHasPriorityOverGetFallback(): void
     {
         $router = new Router();
-        $router->get('/users', 'GetUsersController@index');
-        $router->head('/users', 'HeadUsersController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('GetUsersController', 'index'));
+        $router->head('/users', \Lemonade\Framework\Routing\ControllerAction::for('HeadUsersController', 'index'));
 
         $match = $router->match(new ServerRequest('HEAD', '/users'));
 
-        self::assertSame('App\\Controllers\\HeadUsersController', $match->controller());
+        self::assertSame('HeadUsersController', $match->controller());
         self::assertSame('index', $match->action());
     }
 
     public function testMatchHeadFallbackWorksForParameterizedGetRoute(): void
     {
         $router = new Router();
-        $router->get('/users/{id}', 'UserController@show');
+        $router->get('/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         $match = $router->match(new ServerRequest('HEAD', '/users/99'));
 
-        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('UserController', $match->controller());
         self::assertSame('show', $match->action());
         self::assertSame(['id' => '99'], $match->params());
     }
 
-    public function testMatchHeadUsesSameConventionRoutingAsGet(): void
+    public function testConventionFallbackDoesNotExist(): void
     {
         $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
 
-        $head = $router->match(new ServerRequest('HEAD', '/home'));
-        $get = $router->match(new ServerRequest('GET', '/home'));
-
-        self::assertSame($get->controller(), $head->controller());
-        self::assertSame($get->action(), $head->action());
-        self::assertSame($get->params(), $head->params());
-    }
-
-    public function testConventionRoutingResolvesTwoSegmentControllerActionPath(): void
-    {
-        $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
-
-        $match = $router->match(new ServerRequest('GET', '/users/show'));
-
-        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\UsersController', $match->controller());
-        self::assertSame('show', $match->action());
-        self::assertSame([], $match->params());
-    }
-
-    public function testConventionRoutingResolvesHyphenatedControllerSegment(): void
-    {
-        $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
-
-        $match = $router->match(new ServerRequest('GET', '/admin-users/show'));
-
-        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\AdminUsersController', $match->controller());
-        self::assertSame('show', $match->action());
-    }
-
-    public function testConventionRoutingResolvesUnderscoreControllerSegment(): void
-    {
-        $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
-
-        $match = $router->match(new ServerRequest('GET', '/admin_users/show'));
-
-        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\AdminUsersController', $match->controller());
-        self::assertSame('show', $match->action());
-    }
-
-    public function testConventionRoutingResolvesNestedControllerPath(): void
-    {
-        $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention');
-
-        $match = $router->match(new ServerRequest('GET', '/backoffice/users/show'));
-
-        self::assertSame('Lemonade\\Framework\\Tests\\Unit\\Routing\\Convention\\Backoffice\\UsersController', $match->controller());
-        self::assertSame('show', $match->action());
+        $this->expectException(RouteNotFoundException::class);
+        $router->match(new ServerRequest('GET', '/backoffice/users/show'));
     }
 
     public function testAllowedMethodsForPathIncludesHeadAndOptionsForGetRoute(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/users'));
     }
@@ -1007,7 +950,7 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathIncludesOptionsForPostOnlyRoute(): void
     {
         $router = new Router();
-        $router->post('/users', 'UserController@store');
+        $router->post('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'store'));
 
         self::assertSame(['POST', 'OPTIONS'], $router->allowedMethodsForPath('/users'));
     }
@@ -1015,7 +958,7 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathSupportsParameterizedRoute(): void
     {
         $router = new Router();
-        $router->patch('/users/{id}', 'UserController@update');
+        $router->patch('/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'update'));
 
         self::assertSame(['PATCH', 'OPTIONS'], $router->allowedMethodsForPath('/users/42'));
     }
@@ -1023,7 +966,7 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathSupportsWildcardParameterizedRoute(): void
     {
         $router = new Router();
-        $router->get('/docs/{slug:any}', 'DocsController@show');
+        $router->get('/docs/{slug:any}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'show'));
 
         self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/docs/guides/install/windows'));
     }
@@ -1031,8 +974,8 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathReturnsGetHeadPostOptionsForGetAndPostRoute(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
-        $router->post('/users', 'UserController@store');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
+        $router->post('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'store'));
 
         self::assertSame(['GET', 'HEAD', 'POST', 'OPTIONS'], $router->allowedMethodsForPath('/users'));
     }
@@ -1040,9 +983,9 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathDoesNotReturnDuplicateMethodsWhenMultipleRoutesMatchSamePath(): void
     {
         $router = new Router();
-        $router->get('/docs/{slug}', 'DocsController@show');
-        $router->get('/docs/{slug:any}', 'DocsController@showNested');
-        $router->post('/docs/{slug:any}', 'DocsController@storeNested');
+        $router->get('/docs/{slug}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'show'));
+        $router->get('/docs/{slug:any}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'showNested'));
+        $router->post('/docs/{slug:any}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'storeNested'));
 
         self::assertSame(['GET', 'HEAD', 'POST', 'OPTIONS'], $router->allowedMethodsForPath('/docs/intro'));
     }
@@ -1050,8 +993,8 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathDoesNotReturnDuplicateHeadWhenGetAndHeadRoutesMatchSamePath(): void
     {
         $router = new Router();
-        $router->get('/docs/{slug}', 'DocsController@show');
-        $router->head('/docs/{slug:any}', 'DocsController@headNested');
+        $router->get('/docs/{slug}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'show'));
+        $router->head('/docs/{slug:any}', \Lemonade\Framework\Routing\ControllerAction::for('DocsController', 'headNested'));
 
         self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/docs/intro'));
     }
@@ -1059,7 +1002,7 @@ final class RouterTest extends TestCase
     public function testAllowedMethodsForPathReturnsEmptyForMissingPath(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
 
         self::assertSame([], $router->allowedMethodsForPath('/missing'));
     }
@@ -1067,18 +1010,18 @@ final class RouterTest extends TestCase
     public function testMatchFindsExplicitOptionsRoute(): void
     {
         $router = new Router();
-        $router->options('/users', 'UserController@options');
+        $router->options('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'options'));
 
         $match = $router->match(new ServerRequest('OPTIONS', '/users'));
 
-        self::assertSame('App\\Controllers\\UserController', $match->controller());
+        self::assertSame('UserController', $match->controller());
         self::assertSame('options', $match->action());
     }
 
     public function testHasExplicitRouteForPathWorksForExactRoute(): void
     {
         $router = new Router();
-        $router->post('/users', 'UserController@store');
+        $router->post('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'store'));
 
         self::assertTrue($router->hasExplicitRouteForPath('POST', '/users'));
         self::assertFalse($router->hasExplicitRouteForPath('GET', '/users'));
@@ -1087,36 +1030,15 @@ final class RouterTest extends TestCase
     public function testHasExplicitRouteForPathWorksForParameterizedRoute(): void
     {
         $router = new Router();
-        $router->get('/users/{id}', 'UserController@show');
+        $router->get('/users/{id}', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'show'));
 
         self::assertTrue($router->hasExplicitRouteForPath('GET', '/users/42'));
         self::assertFalse($router->hasExplicitRouteForPath('GET', '/users'));
     }
 
-    public function testConventionRouteIsNotUsedForPost(): void
+    public function testAllowedMethodsForPathDoesNotUseConventionFallback(): void
     {
-        $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
-
-        $this->expectException(RouteNotFoundException::class);
-        $router->match(new ServerRequest('POST', '/home'));
-    }
-
-    public function testConventionRouteIsNotUsedForOptions(): void
-    {
-        $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
-
-        $this->expectException(RouteNotFoundException::class);
-        $router->match(new ServerRequest('OPTIONS', '/home'));
-    }
-
-    public function testAllowedMethodsForPathIncludesConventionGetHeadOptions(): void
-    {
-        $router = new Router();
-        $router->setControllerNamespace('Lemonade\\Framework\\Tests\\Unit\\Routing');
-
-        self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/home'));
+        self::assertSame([], (new Router())->allowedMethodsForPath('/home'));
     }
 }
 

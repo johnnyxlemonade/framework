@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Discovery;
 
 use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandRegistry;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -25,13 +26,14 @@ use Lemonade\Framework\Discovery\Sitemap\SitemapGenerator;
 use Lemonade\Framework\Discovery\Sitemap\SitemapIndexGenerator;
 use Lemonade\Framework\Discovery\Sitemap\SitemapProviderRegistry;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
+use Lemonade\Framework\Routing\ControllerAction;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Psr\Log\LoggerInterface;
 
 final class DiscoveryServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(DiscoveryConfigResolver::class, DiscoveryConfigResolver::class);
         $container->singleton(DiscoveryConfig::class, static function (ContainerInterface $container): DiscoveryConfig {
@@ -54,7 +56,7 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
                 $container->get(SitemapProviderRegistry::class),
                 $container->get(BaseUrlResolver::class),
                 $container->get(SitemapConfig::class),
-                $container->isBound(LoggerInterface::class) ? $container->get(LoggerInterface::class) : null,
+                $container->has(LoggerInterface::class) ? $container->get(LoggerInterface::class) : null,
             );
         });
         $container->singleton(SitemapFileGenerator::class, static function (ContainerInterface $container): SitemapFileGenerator {
@@ -64,7 +66,7 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
                 $container->get(SitemapConfig::class),
                 $container->get(ApplicationContext::class),
                 $container->get(DirectoryManagerInterface::class),
-                $container->isBound(LoggerInterface::class) ? $container->get(LoggerInterface::class) : null,
+                $container->has(LoggerInterface::class) ? $container->get(LoggerInterface::class) : null,
             );
         });
 
@@ -88,10 +90,10 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
         $router = $container->get(Router::class);
 
         if ($config->robots->enabled) {
-            $router->get($config->robots->route, RobotsController::class . '@index');
+            $router->get($config->robots->route, ControllerAction::for(RobotsController::class, 'index'));
         }
         if ($config->sitemap->enabled) {
-            $router->get($config->sitemap->route, SitemapController::class . '@index');
+            $router->get($config->sitemap->route, ControllerAction::for(SitemapController::class, 'index'));
         }
     }
 }

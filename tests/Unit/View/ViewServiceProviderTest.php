@@ -6,7 +6,9 @@ namespace Lemonade\Framework\Tests\Unit\View;
 
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
@@ -30,11 +32,15 @@ use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\Config\ViewConfigDefinition;
 use Lemonade\Framework\View\Config\ViewConfigResolver;
 use Lemonade\Framework\View\View;
+use Lemonade\Framework\View\ViewRendererInterface;
 use Lemonade\Framework\View\ViewResourceRegistry;
 use Lemonade\Framework\View\ViewHelpers;
 use Lemonade\Framework\View\ViewServiceProvider;
 use Nyholm\Psr7\ServerRequest;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 use RuntimeException;
 
 final class ViewServiceProviderTest extends TestCase
@@ -255,6 +261,67 @@ final class ViewServiceProviderTest extends TestCase
         self::assertFalse($this->hasContainerInstance($container, View::class));
     }
 
+    public function testViewRendererCannotBeResolvedFromRootContainer(): void
+    {
+        $container = $this->rendererContainer();
+
+        $this->expectException(ScopedServiceRequestedFromRootException::class);
+        $container->get(ViewRendererInterface::class);
+    }
+
+    public function testViewRendererRendersHtmlResponseAndPreservesTemplateViewContract(): void
+    {
+        $this->writeView('layouts.main', '[<?= $this instanceof \\Lemonade\\Framework\\View\\View ? "view" : "other" ?>|<?= $this->section("head") ?>|<?= $this->content() ?>]');
+        $this->writeView('partials.item', 'PARTIAL');
+        $this->writeView(
+            'pages.child',
+            '<?php $this->extend("layouts.main"); $this->start("head"); ?>HEAD<?php $this->end(); ?>CONTENT:<?= $this->partial("partials.item") ?>',
+        );
+        $this->writeView('plain', 'PLAIN');
+        $container = $this->rendererContainer();
+        $scope = $container->beginScope(ScopeKind::Request);
+
+        try {
+            $scope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, new ServerRequest('GET', '/renderer'));
+            $renderer = $scope->get(ViewRendererInterface::class);
+
+            self::assertSame($renderer, $scope->get(ViewRendererInterface::class));
+            self::assertSame('PLAIN', $renderer->content('plain'));
+
+            $response = $renderer->render('pages.child', status: 202);
+
+            self::assertSame(202, $response->getStatusCode());
+            self::assertSame('text/html; charset=UTF-8', $response->getHeaderLine('Content-Type'));
+            self::assertSame('[view|HEAD|CONTENT:PARTIAL]', (string) $response->getBody());
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testViewRenderersDoNotShareRequestDataOrLegacyTemporaryData(): void
+    {
+        $this->writeView('current', '<?= $requestHelpers->currentPath() ?>|<?= $temporary ?? "missing" ?>');
+        $container = $this->rendererContainer();
+        $container->get(View::class)->shareOnce('temporary', 'root-only');
+
+        $firstScope = $container->beginScope(ScopeKind::Request);
+        $firstScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, new ServerRequest('GET', '/first'));
+        $secondScope = $container->beginScope(ScopeKind::Request);
+        $secondScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, new ServerRequest('GET', '/second'));
+
+        try {
+            $firstRenderer = $firstScope->get(ViewRendererInterface::class);
+            $secondRenderer = $secondScope->get(ViewRendererInterface::class);
+
+            self::assertNotSame($firstRenderer, $secondRenderer);
+            self::assertSame('/first|missing', $firstRenderer->content('current'));
+            self::assertSame('/second|missing', $secondRenderer->content('current'));
+        } finally {
+            $firstScope->close();
+            $secondScope->close();
+        }
+    }
+
     private function buildContainer(?string $viewBasePath, string $baseUrl): Container
     {
         $container = new Container();
@@ -284,6 +351,17 @@ final class ViewServiceProviderTest extends TestCase
         $container->singleton(CsrfViewHelper::class, new CsrfViewHelper($container->get(CsrfTokenManager::class)));
         $container->singleton(TranslatorInterface::class, new ViewServiceProviderTranslatorStub());
         $container->singleton(LocalizationConfig::class, new LocalizationConfig('en', 'en', ['en'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false)));
+
+        return $container;
+    }
+
+    private function rendererContainer(): Container
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+        $factory = new Psr17Factory();
+        $container->singleton(ResponseFactoryInterface::class, $factory);
+        $container->singleton(StreamFactoryInterface::class, $factory);
+        (new ViewServiceProvider())->register($container);
 
         return $container;
     }

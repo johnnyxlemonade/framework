@@ -8,6 +8,7 @@ use Lemonade\Framework\Cli\CommandContext;
 use Lemonade\Framework\Cli\CommandInput;
 use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Exception\ProviderConstructionException;
 use Lemonade\Framework\Core\ProviderFactory;
@@ -110,7 +111,7 @@ final class ProviderFactoryTest extends TestCase
 
 final class NoConstructorProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class ProviderBootstrapDependency {}
@@ -121,7 +122,7 @@ final class BootstrapDependencyProvider implements ServiceProviderInterface
         public readonly ProviderBootstrapDependency $dependency,
     ) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class ProviderUnboundDependency {}
@@ -132,7 +133,7 @@ final class UnboundDependencyProvider implements ServiceProviderInterface
         public readonly ProviderUnboundDependency $dependency,
     ) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class ProviderScopedDependency {}
@@ -143,7 +144,7 @@ final class ScopedDependencyProvider implements ServiceProviderInterface
         public readonly ProviderScopedDependency $dependency,
     ) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class RequestDependencyProvider implements ServiceProviderInterface
@@ -152,7 +153,7 @@ final class RequestDependencyProvider implements ServiceProviderInterface
         public readonly ServerRequestInterface $request,
     ) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class ContainerDependencyProvider implements ServiceProviderInterface
@@ -161,40 +162,40 @@ final class ContainerDependencyProvider implements ServiceProviderInterface
         public readonly ContainerInterface $container,
     ) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class CommandContextDependencyProvider implements ServiceProviderInterface
 {
     public function __construct(public readonly CommandContext $context) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class CommandInputDependencyProvider implements ServiceProviderInterface
 {
     public function __construct(public readonly CommandInput $input) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class CommandOutputDependencyProvider implements ServiceProviderInterface
 {
     public function __construct(public readonly CommandOutput $output) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class JobContextDependencyProvider implements ServiceProviderInterface
 {
     public function __construct(public readonly JobContext $context) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }
 
 final class QueuedMessageDependencyProvider implements ServiceProviderInterface
 {
     public function __construct(public readonly QueuedMessage $message) {}
 
-    public function register(ContainerInterface $container): void {}
+    public function register(ContainerBuilderInterface $container): void {}
 }

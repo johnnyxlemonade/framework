@@ -26,7 +26,7 @@ final class ControllerArgumentBinderTest extends TestCase
 
         $args = (new ControllerArgumentBinder())->bind(
             $action,
-            new RouteMatch(ControllerArgumentBinderSubject::class, 'show', ['id' => '42']),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ControllerArgumentBinderSubject::class, 'show'), ['id' => '42']),
             $request,
         );
 
@@ -49,7 +49,7 @@ final class ControllerArgumentBinderTest extends TestCase
 
         (new ControllerArgumentBinder())->bind(
             $action,
-            new RouteMatch(ControllerArgumentBinderSubject::class, 'required'),
+            new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ControllerArgumentBinderSubject::class, 'required')),
             (new Psr17Factory())->createServerRequest('GET', '/articles'),
         );
     }

@@ -69,16 +69,17 @@ Missing `Accept` and `Accept: */*` alone return false.
 ```php
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
 
-if ($this->requestInspector->wantsJson($request)) {
+if ($requestInspector->wantsJson($request)) {
     // Return a JSON response.
 }
 
 // Return an HTML response or redirect.
 ```
 
-Controllers can use the equivalent protected `$this->wantsJson()` helper. This is distinct from
-the existing `expectsJson()` helper, which is intentionally broader and may also consider request
-body format or AJAX request characteristics.
+Controllers receive `HttpRequestInspector` through constructor injection and the request as an
+action argument; there is no controller helper for this check. This is distinct from
+`expectsJson()`, which is intentionally broader and may also consider request body format or AJAX
+request characteristics.
 
 ## CSRF response token contract
 

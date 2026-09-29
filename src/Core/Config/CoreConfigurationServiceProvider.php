@@ -10,6 +10,7 @@ use Lemonade\Framework\Cli\Config\CommandsConfigResolver;
 use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
 use Lemonade\Framework\Container\Config\ContainerConfigResolver;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
@@ -17,7 +18,7 @@ use Lemonade\Framework\Core\ServiceProviderInterface;
 
 final class CoreConfigurationServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(Config::class, new Config());
         $container->singleton(ConfigDefinitionRegistry::class, new ConfigDefinitionRegistry());

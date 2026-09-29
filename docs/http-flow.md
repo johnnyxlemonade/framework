@@ -79,6 +79,10 @@ the active scoped container. Therefore `ContainerInterface` injected into a requ
 transient runtime service resolves to that `ScopedContainerInterface`; root singletons remain shared
 and cannot consume request-local values.
 
+`Responses` is a root-safe singleton facade over the PSR-17 response and stream factories. Plain
+controllers can inject it for HTML, text, JSON, redirect, download and stream responses; view
+controllers can inject the request-scoped `ViewRendererInterface` for rendered HTML responses.
+
 This is a breaking change from older versions that bound `ServerRequestInterface` into the root
 container before provider registration. Providers must not inspect the current request in
 `register()` or `boot()`; use middleware, a scoped service, or a controller for request-dependent

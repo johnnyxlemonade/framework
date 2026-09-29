@@ -63,6 +63,20 @@ final class ViewTest extends TestCase
         self::assertSame('[L]CHILD[/L]', $view->render('pages.child'));
     }
 
+    public function testPhpTemplatesReceiveViewAsThisForRenderHelpers(): void
+    {
+        $this->writeView('layouts.main', '[<?= $this->section("head") ?>|<?= $this->content() ?>]');
+        $this->writeView('partials.item', 'PARTIAL');
+        $this->writeView(
+            'pages.child',
+            '<?php $this->extend("layouts.main"); $this->start("head"); ?>HEAD<?php $this->end(); ?>CONTENT:<?= $this->partial("partials.item") ?>',
+        );
+
+        $view = new View($this->viewsPath);
+
+        self::assertSame('[HEAD|CONTENT:PARTIAL]', $view->render('pages.child'));
+    }
+
     public function testSectionsStartEndAndDefaultAndEndWithoutStartThrows(): void
     {
         $this->writeView('layouts.section', 'H:<?= $this->section("head", "default-head") ?>|B:<?= $this->content() ?>');

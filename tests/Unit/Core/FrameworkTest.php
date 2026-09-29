@@ -8,6 +8,7 @@ use Lemonade\Framework\Api\ApiServiceProvider;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Component\ComponentServiceProvider;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config;
@@ -246,6 +247,7 @@ final class FrameworkTest extends TestCase
 
         $factory = new Psr17Factory();
         $container = $framework->container();
+        assert($container instanceof ContainerBuilderInterface);
         $container->singleton(FrameworkStackTraceMiddleware::class, FrameworkStackTraceMiddleware::class);
         $container->singleton(FrameworkStackTerminalMiddleware::class, FrameworkStackTerminalMiddleware::class);
 
@@ -322,7 +324,9 @@ final class FrameworkTest extends TestCase
     {
         $framework = $this->framework();
         $request = (new Psr17Factory())->createServerRequest('GET', '/');
-        $framework->container()->singleton(ServerRequestInterface::class, $request);
+        $container = $framework->container();
+        assert($container instanceof ContainerBuilderInterface);
+        $container->singleton(ServerRequestInterface::class, $request);
         $scope = $this->scopeFactory($framework)->beginScope(ScopeKind::Request);
 
         try {
@@ -338,7 +342,9 @@ final class FrameworkTest extends TestCase
     {
         $framework = $this->framework();
         $factory = new Psr17Factory();
-        $framework->container()->singleton(FrameworkQueuedTerminalMiddleware::class, FrameworkQueuedTerminalMiddleware::class);
+        $container = $framework->container();
+        assert($container instanceof ContainerBuilderInterface);
+        $container->singleton(FrameworkQueuedTerminalMiddleware::class, FrameworkQueuedTerminalMiddleware::class);
 
         $framework->middleware(static function (MiddlewareStack $stack): void {
             $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
@@ -364,7 +370,9 @@ final class FrameworkTest extends TestCase
     {
         $framework = $this->framework();
         $factory = new Psr17Factory();
-        $framework->container()->singleton(FrameworkQueuedTerminalMiddleware::class, FrameworkQueuedTerminalMiddleware::class);
+        $container = $framework->container();
+        assert($container instanceof ContainerBuilderInterface);
+        $container->singleton(FrameworkQueuedTerminalMiddleware::class, FrameworkQueuedTerminalMiddleware::class);
 
         $calls = 0;
         $framework->middleware(static function (MiddlewareStack $stack) use (&$calls): void {
@@ -393,6 +401,7 @@ final class FrameworkTest extends TestCase
         $framework->register(new HttpServiceProvider());
         $factory = new Psr17Factory();
         $container = $framework->container();
+        assert($container instanceof ContainerBuilderInterface);
         $container->singleton(FrameworkMutableTerminalMiddleware::class, FrameworkMutableTerminalMiddleware::class);
         $container->singleton(FrameworkMutableTraceMiddleware::class, FrameworkMutableTraceMiddleware::class);
 
@@ -425,6 +434,7 @@ final class FrameworkTest extends TestCase
         $framework->register(new HttpServiceProvider());
         $factory = new Psr17Factory();
         $container = $framework->container();
+        assert($container instanceof ContainerBuilderInterface);
         $container->singleton(FrameworkOrderStartMiddleware::class, FrameworkOrderStartMiddleware::class);
         $container->singleton(FrameworkOrderMiddleMiddleware::class, FrameworkOrderMiddleMiddleware::class);
         $container->singleton(FrameworkOrderEndMiddleware::class, FrameworkOrderEndMiddleware::class);
@@ -462,6 +472,7 @@ final class FrameworkTest extends TestCase
         $framework->register(new HttpServiceProvider());
         $factory = new Psr17Factory();
         $container = $framework->container();
+        assert($container instanceof ContainerBuilderInterface);
         $container->singleton(FrameworkCorsTerminalMiddleware::class, FrameworkCorsTerminalMiddleware::class);
 
         $framework->config(

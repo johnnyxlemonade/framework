@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Debug;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Debug\Dump\Context\DumpContextFactory;
@@ -20,7 +21,7 @@ use Lemonade\Framework\Debug\Dump\Renderer\HtmlDumpRenderer;
 
 final class DebugServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         /*
          * Debug dumper.

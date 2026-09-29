@@ -145,8 +145,7 @@ final class RouteCollection
     private function toMatch(Route $route, array $params = []): RouteMatch
     {
         return new RouteMatch(
-            controller: $route->controller(),
-            action: $route->action(),
+            controllerAction: $route->controllerAction(),
             params: $params,
             middleware: $route->middlewareStack(),
             name: $route->routeName(),

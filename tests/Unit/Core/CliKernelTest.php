@@ -332,7 +332,7 @@ declare(strict_types=1);
 use Lemonade\Framework\Routing\Router;
 
 return static function (Router $router): void {
-    $router->getNamed('home.index', '/', 'HomeController@index');
+    $router->getNamed('home.index', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
 };
 PHP);
 

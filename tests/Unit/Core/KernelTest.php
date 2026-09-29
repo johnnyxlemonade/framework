@@ -180,8 +180,8 @@ final class KernelTest extends TestCase
 
         $container = $kernel->container();
 
-        self::assertTrue($container->isBound(MiddlewareStack::class));
-        self::assertTrue($container->isBound(MiddlewareResolver::class));
+        self::assertTrue($container->has(MiddlewareStack::class));
+        self::assertTrue($container->has(MiddlewareResolver::class));
     }
 
     public function testRunDoesNotBindRequestIntoRootContainerBeforeApplicationProvidersRegister(): void
@@ -201,7 +201,7 @@ final class KernelTest extends TestCase
         $kernel->run($request);
 
         self::assertNull(KernelRequestProbeProvider::$request);
-        self::assertFalse($kernel->container()->isBound(ServerRequestInterface::class));
+        self::assertFalse($kernel->container()->has(ServerRequestInterface::class));
     }
 
     public function testExplicitBootstrapRemainsRequestlessForApplicationProviders(): void
@@ -220,7 +220,7 @@ final class KernelTest extends TestCase
         $kernel->bootstrap();
 
         self::assertNull(KernelRequestProbeProvider::$request);
-        self::assertFalse($kernel->container()->isBound(ServerRequestInterface::class));
+        self::assertFalse($kernel->container()->has(ServerRequestInterface::class));
     }
 
     public function testBootstrapRunsBootableProviderAfterAllConfiguredProvidersRegister(): void
@@ -253,7 +253,7 @@ final class KernelTest extends TestCase
         );
         $this->writeConfigFile(
             'Routing.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/application-phase', 'KernelRouteRegistrarSupportController@application');\n};\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/application-phase', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\KernelRouteRegistrarSupportController::class, 'application'));\n};\n",
         );
 
         $kernel = $this->kernel(false);
@@ -416,7 +416,7 @@ final class KernelTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertFalse($kernel->container()->isBound(MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
 
         $definitions = $kernel->container()->get(ConfigDefinitionRegistry::class);
         self::assertCount(2, $definitions->entriesFor(ApiConfigDefinition::moduleKey()));
@@ -624,7 +624,7 @@ final class KernelTest extends TestCase
     {
         $this->writeConfigFile(
             'Routing.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/head-fallback', 'HeadKernelSupportController@index');\n};\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/head-fallback', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\HeadKernelSupportController::class, 'index'));\n};\n",
         );
     }
 
@@ -632,7 +632,7 @@ final class KernelTest extends TestCase
     {
         $this->writeConfigFile(
             'Routing.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/options-auto', 'OptionsKernelSupportController@index');\n};\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/options-auto', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\OptionsKernelSupportController::class, 'index'));\n};\n",
         );
     }
 
@@ -640,7 +640,7 @@ final class KernelTest extends TestCase
     {
         $this->writeConfigFile(
             'Routing.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/options-explicit', 'OptionsKernelSupportController@index');\n    \$router->options('/options-explicit', 'OptionsKernelSupportController@options');\n};\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/options-explicit', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\OptionsKernelSupportController::class, 'index'));\n    \$router->options('/options-explicit', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\OptionsKernelSupportController::class, 'options'));\n};\n",
         );
     }
 
@@ -648,7 +648,7 @@ final class KernelTest extends TestCase
     {
         $this->writeConfigFile(
             'Routing.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/request-scope', 'RequestScopeKernelController@index');\n};\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/request-scope', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\RequestScopeKernelController::class, 'index'));\n};\n",
         );
     }
 
@@ -656,7 +656,7 @@ final class KernelTest extends TestCase
     {
         $this->writeConfigFile(
             'Routing.php',
-            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/request-scope-throw', 'RequestScopeThrowingController@index');\n};\n",
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/request-scope-throw', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\RequestScopeThrowingController::class, 'index'));\n};\n",
         );
     }
 
@@ -715,32 +715,47 @@ final class KernelTest extends TestCase
 
 namespace App\Controllers;
 
-use Lemonade\Framework\Core\AbstractController;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
-final class HeadKernelSupportController extends AbstractController
+final class HeadKernelSupportController
 {
     public function index(): ResponseInterface
     {
-        return $this->response('head-kernel-body', 207, 'text/plain; charset=UTF-8')
-            ->withHeader('X-Head-Kernel', 'ok');
+        $factory = new Psr17Factory();
+
+        return $factory
+            ->createResponse(207)
+            ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
+            ->withHeader('X-Head-Kernel', 'ok')
+            ->withBody($factory->createStream('head-kernel-body'));
     }
 }
 
-final class OptionsKernelSupportController extends AbstractController
+final class OptionsKernelSupportController
 {
     public function index(): ResponseInterface
     {
-        return $this->response('options-index', 200, 'text/plain; charset=UTF-8');
+        return $this->response('options-index', 200);
     }
 
     public function options(): ResponseInterface
     {
-        return $this->response('explicit-options', 209, 'text/plain; charset=UTF-8');
+        return $this->response('explicit-options', 209);
+    }
+
+    private function response(string $content, int $status): ResponseInterface
+    {
+        $factory = new Psr17Factory();
+
+        return $factory
+            ->createResponse($status)
+            ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
+            ->withBody($factory->createStream($content));
     }
 }
 
-final class KernelRouteRegistrarSupportController extends AbstractController
+final class KernelRouteRegistrarSupportController
 {
     public function application(): ResponseInterface
     {
@@ -750,6 +765,13 @@ final class KernelRouteRegistrarSupportController extends AbstractController
     public function provider(): ResponseInterface
     {
         return $this->response('provider');
+    }
+
+    private function response(string $content): ResponseInterface
+    {
+        $factory = new Psr17Factory();
+
+        return $factory->createResponse()->withBody($factory->createStream($content));
     }
 }
 
@@ -810,7 +832,7 @@ final class RequestScopeThrowingController
 
 namespace Lemonade\Framework\Tests\Unit\Core;
 
-final class KernelScopeTrackingContainer implements \Lemonade\Framework\Container\ContainerInterface, \Lemonade\Framework\Container\ContainerBuilderInterface, \Lemonade\Framework\Container\ScopeFactoryInterface
+final class KernelScopeTrackingContainer implements \Lemonade\Framework\Container\ContainerInterface, \Lemonade\Framework\Container\ContainerBuilderInterface, \Lemonade\Framework\Container\ContainerDiagnosticsInterface, \Lemonade\Framework\Container\ScopeFactoryInterface
 {
     public ?\Lemonade\Framework\Container\ScopedContainerInterface $lastScope = null;
 
@@ -880,6 +902,16 @@ final class KernelScopeTrackingContainer implements \Lemonade\Framework\Containe
         return $this->delegate->compile();
     }
 
+    public function freeze(): \Lemonade\Framework\Container\CompiledContainerPlan
+    {
+        return $this->delegate->freeze();
+    }
+
+    public function isFrozen(): bool
+    {
+        return $this->delegate->isFrozen();
+    }
+
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
     {
         $this->delegate->singletonTagged($id, $concrete, ...$tags);
@@ -890,6 +922,10 @@ final class KernelScopeTrackingContainer implements \Lemonade\Framework\Containe
         $this->delegate->tag($serviceId, $tag);
     }
 
+    /**
+     * @param non-empty-string $tag
+     * @return iterable<string, object>
+     */
     public function tagged(string $tag): iterable
     {
         return $this->delegate->tagged($tag);
@@ -918,7 +954,7 @@ final class KernelScopeTrackingContainer implements \Lemonade\Framework\Containe
 
 final class KernelRouteRegistrarProvider implements \Lemonade\Framework\Core\ServiceProviderInterface
 {
-    public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
+    public function register(\Lemonade\Framework\Container\ContainerBuilderInterface $container): void
     {
         $container->singletonTagged(
             KernelRouteRegistrar::class,
@@ -932,7 +968,7 @@ final class KernelRequestProbeProvider implements \Lemonade\Framework\Core\Servi
 {
     public static ?\Psr\Http\Message\ServerRequestInterface $request = null;
 
-    public function register(\Lemonade\Framework\Container\ContainerInterface $container): void
+    public function register(\Lemonade\Framework\Container\ContainerBuilderInterface $container): void
     {
         if (!$container->isBound(\Psr\Http\Message\ServerRequestInterface::class)) {
             return;
@@ -1024,6 +1060,6 @@ final class KernelRouteRegistrar implements \Lemonade\Framework\Routing\RouteReg
             throw new \RuntimeException('Application routes must register before provider routes.');
         }
 
-        $router->get('/provider-phase', 'KernelRouteRegistrarSupportController@provider');
+        $router->get('/provider-phase', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\KernelRouteRegistrarSupportController::class, 'provider'));
     }
 }

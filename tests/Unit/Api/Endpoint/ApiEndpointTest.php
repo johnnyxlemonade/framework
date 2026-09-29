@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Tests\Unit\Api\Endpoint;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpoint;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
+use Lemonade\Framework\Routing\ControllerAction;
 use PHPUnit\Framework\TestCase;
 
 final class ApiEndpointTest extends TestCase
@@ -16,7 +17,7 @@ final class ApiEndpointTest extends TestCase
         $endpoint = new ApiEndpoint(
             method: 'GET',
             path: '/users',
-            handler: 'UsersController@index',
+            controllerAction: ControllerAction::for('UsersController', 'index'),
             name: 'users.index',
             summary: 'Users',
             description: 'List users',
@@ -42,7 +43,7 @@ final class ApiEndpointTest extends TestCase
         $endpoint = new ApiEndpoint(
             method: 'GET',
             path: '/users',
-            handler: 'UsersController@index',
+            controllerAction: ControllerAction::for('UsersController', 'index'),
             name: 'users.index',
             summary: 'Users',
             description: 'List users',
@@ -64,7 +65,6 @@ final class ApiEndpointTest extends TestCase
     public function testEndpointRejectsInvalidBaseFields(
         string $method,
         string $path,
-        string $handler,
         string $name,
         string $summary,
     ): void {
@@ -73,7 +73,7 @@ final class ApiEndpointTest extends TestCase
         $reflection->newInstanceArgs([
             $method,
             $path,
-            $handler,
+            ControllerAction::for('UsersController', 'index'),
             $name,
             $summary,
             'List users',
@@ -96,16 +96,15 @@ final class ApiEndpointTest extends TestCase
     }
 
     /**
-     * @return list<array{string, string, string, string, string}>
+     * @return list<array{string, string, string, string}>
      */
     public static function invalidEndpointFieldProvider(): array
     {
         return [
-            ['', '/users', 'UsersController@index', 'users.index', 'Users'],
-            ['GET', '', 'UsersController@index', 'users.index', 'Users'],
-            ['GET', '/users', '', 'users.index', 'Users'],
-            ['GET', '/users', 'UsersController@index', '', 'Users'],
-            ['GET', '/users', 'UsersController@index', 'users.index', ''],
+            ['', '/users', 'users.index', 'Users'],
+            ['GET', '', 'users.index', 'Users'],
+            ['GET', '/users', '', 'Users'],
+            ['GET', '/users', 'users.index', ''],
         ];
     }
 }

@@ -30,7 +30,6 @@ final class Router
      */
     private array $namePrefixes = [];
 
-    private string $controllerNamespace = 'App\\Controllers';
     private string $localizedRouteNamePrefix = 'localized.';
     private string $localizedRoutePrefix = '/{locale}';
     private string $localizedLocaleParameter = 'locale';
@@ -48,81 +47,79 @@ final class Router
         $this->collection = new RouteCollection();
     }
 
-    public function get(string $path, string $handler): Route
+    public function get(string $path, ControllerAction $action): Route
     {
-        return $this->map('GET', $path, $handler);
+        return $this->map('GET', $path, $action);
     }
 
-    public function post(string $path, string $handler): Route
+    public function post(string $path, ControllerAction $action): Route
     {
-        return $this->map('POST', $path, $handler);
+        return $this->map('POST', $path, $action);
     }
 
-    public function put(string $path, string $handler): Route
+    public function put(string $path, ControllerAction $action): Route
     {
-        return $this->map('PUT', $path, $handler);
+        return $this->map('PUT', $path, $action);
     }
 
-    public function patch(string $path, string $handler): Route
+    public function patch(string $path, ControllerAction $action): Route
     {
-        return $this->map('PATCH', $path, $handler);
+        return $this->map('PATCH', $path, $action);
     }
 
-    public function delete(string $path, string $handler): Route
+    public function delete(string $path, ControllerAction $action): Route
     {
-        return $this->map('DELETE', $path, $handler);
+        return $this->map('DELETE', $path, $action);
     }
 
-    public function head(string $path, string $handler): Route
+    public function head(string $path, ControllerAction $action): Route
     {
-        return $this->map('HEAD', $path, $handler);
+        return $this->map('HEAD', $path, $action);
     }
 
-    public function options(string $path, string $handler): Route
+    public function options(string $path, ControllerAction $action): Route
     {
-        return $this->map('OPTIONS', $path, $handler);
+        return $this->map('OPTIONS', $path, $action);
     }
 
-    public function getNamed(string $name, string $path, string $handler): Route
+    public function getNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'GET', $path, $handler);
+        return $this->mapNamed($name, 'GET', $path, $action);
     }
 
-    public function postNamed(string $name, string $path, string $handler): Route
+    public function postNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'POST', $path, $handler);
+        return $this->mapNamed($name, 'POST', $path, $action);
     }
 
-    public function putNamed(string $name, string $path, string $handler): Route
+    public function putNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'PUT', $path, $handler);
+        return $this->mapNamed($name, 'PUT', $path, $action);
     }
 
-    public function patchNamed(string $name, string $path, string $handler): Route
+    public function patchNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'PATCH', $path, $handler);
+        return $this->mapNamed($name, 'PATCH', $path, $action);
     }
 
-    public function deleteNamed(string $name, string $path, string $handler): Route
+    public function deleteNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'DELETE', $path, $handler);
+        return $this->mapNamed($name, 'DELETE', $path, $action);
     }
 
-    public function headNamed(string $name, string $path, string $handler): Route
+    public function headNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'HEAD', $path, $handler);
+        return $this->mapNamed($name, 'HEAD', $path, $action);
     }
 
-    public function optionsNamed(string $name, string $path, string $handler): Route
+    public function optionsNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'OPTIONS', $path, $handler);
+        return $this->mapNamed($name, 'OPTIONS', $path, $action);
     }
 
-    public function map(HttpMethod|string $method, string $path, string $handler): Route
+    public function map(HttpMethod|string $method, string $path, ControllerAction $action): Route
     {
         $this->assertMutable();
-
-        [$controller, $action] = $this->parseHandler($handler);
 
         $methodName = $this->normalizeMethod($method);
         $normalizedPath = $this->withGroupPrefix($path);
@@ -130,8 +127,7 @@ final class Router
         $route = new Route(
             method: $methodName,
             path: $normalizedPath,
-            controller: $controller,
-            action: $action,
+            controllerAction: $action,
             assertMutable: fn(): bool => $this->assertMutable(),
             registerName: function (Route $route, string $name): void {
                 $this->registerRouteName($route, $name);
@@ -146,7 +142,7 @@ final class Router
         return $route;
     }
 
-    public function mapNamed(string $name, HttpMethod|string $method, string $path, string $handler): Route
+    public function mapNamed(string $name, HttpMethod|string $method, string $path, ControllerAction $action): Route
     {
         $this->assertMutable();
 
@@ -154,7 +150,7 @@ final class Router
 
         $this->assertRouteNameAvailable($resolvedName);
 
-        $route = $this->map($method, $path, $handler);
+        $route = $this->map($method, $path, $action);
 
         $route->name($resolvedName);
 
@@ -259,13 +255,6 @@ final class Router
         return $this->buildUrl($this->namedRoutes[$name], $params);
     }
 
-    public function setControllerNamespace(string $namespace): void
-    {
-        $this->assertMutable();
-
-        $this->controllerNamespace = trim($namespace, '\\');
-    }
-
     /**
      * Prevents further route and route-configuration mutation.
      */
@@ -292,13 +281,6 @@ final class Router
             }
         }
 
-        if ($method === 'GET' || $method === 'HEAD') {
-            $resolved = $this->resolveConventionRoute($path);
-            if ($resolved !== null) {
-                return $resolved;
-            }
-        }
-
         throw RouteNotFoundException::forRequest(
             $method,
             (string) $request->getUri(),
@@ -312,14 +294,6 @@ final class Router
     {
         $normalizedPath = RoutePathNormalizer::normalize($path);
         $allowed = $this->collection->allowedMethodsForPath($normalizedPath);
-
-        if ($allowed === [] && $this->resolveConventionRoute($normalizedPath) !== null) {
-            return RouteCollection::sortMethods([
-                'GET',
-                'HEAD',
-                'OPTIONS',
-            ]);
-        }
 
         return RouteCollection::sortMethods($allowed);
     }
@@ -430,114 +404,6 @@ final class Router
                 $segments,
             ),
         );
-    }
-
-    private function resolveConventionRoute(string $path): ?RouteMatch
-    {
-        if ($path === '/') {
-            $controller = $this->buildControllerClass(['home']);
-
-            return class_exists($controller)
-                ? new RouteMatch($controller, 'index')
-                : null;
-        }
-
-        $segments = array_values(array_filter(
-            explode('/', trim($path, '/')),
-            static fn(string $segment): bool => $segment !== '',
-        ));
-
-        if ($segments === []) {
-            return null;
-        }
-
-        $controllerA = $this->buildControllerClass($segments);
-
-        if (class_exists($controllerA)) {
-            return new RouteMatch($controllerA, 'index');
-        }
-
-        if (count($segments) >= 2) {
-            $action = array_pop($segments);
-            $controllerB = $this->buildControllerClass($segments);
-
-            if (class_exists($controllerB)) {
-                return new RouteMatch($controllerB, $action);
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param array<int, string> $segments
-     */
-    private function buildControllerClass(array $segments): string
-    {
-        $segments = array_map(
-            static fn(string $segment): string => str_replace(
-                ' ',
-                '',
-                ucwords(str_replace(['-', '_'], ' ', $segment)),
-            ),
-            $segments,
-        );
-
-        $last = array_pop($segments);
-
-        if ($last === null) {
-            return $this->controllerNamespace . '\\HomeController';
-        }
-
-        $controller = $last . 'Controller';
-        $prefix = $segments === [] ? '' : implode('\\', $segments) . '\\';
-
-        return $this->controllerNamespace . '\\' . $prefix . $controller;
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function parseHandler(string $handler): array
-    {
-        if (!str_contains($handler, '@')) {
-            throw new \InvalidArgumentException(sprintf(
-                'Route handler "%s" must use "Controller@action" format.',
-                $handler,
-            ));
-        }
-
-        [$controller, $action] = explode('@', $handler, 2);
-
-        $controller = trim($controller);
-        $action = trim($action);
-
-        if ($controller === '' || $action === '') {
-            throw new \InvalidArgumentException(sprintf(
-                'Route handler "%s" must contain controller and action.',
-                $handler,
-            ));
-        }
-
-        return [
-            $this->resolveControllerClass($controller),
-            $action,
-        ];
-    }
-
-    private function resolveControllerClass(string $controller): string
-    {
-        $controller = trim($controller, '\\');
-
-        if (str_starts_with($controller, $this->controllerNamespace . '\\')) {
-            return $controller;
-        }
-
-        if (class_exists($controller)) {
-            return $controller;
-        }
-
-        return $this->controllerNamespace . '\\' . $controller;
     }
 
     private function normalizeMethod(HttpMethod|string $method): string

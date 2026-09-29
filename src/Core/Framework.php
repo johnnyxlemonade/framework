@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Container\ContainerDiagnosticsInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Container\ScopeKind;
+use Lemonade\Framework\Container\TaggedServicesInterface;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigFileLoader;
 use Lemonade\Framework\Core\Config\CoreConfigurationServiceProvider;
@@ -48,6 +51,8 @@ final class Framework
 {
     private readonly Router $router;
     private readonly ServiceProviderLifecycle $providerLifecycle;
+    private readonly ContainerBuilderInterface $builder;
+    private readonly ContainerDiagnosticsInterface $diagnostics;
     /**
      * @var list<callable(MiddlewareStack):void>
      */
@@ -63,6 +68,22 @@ final class Framework
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
     ) {
+        if (!$this->container instanceof ContainerBuilderInterface) {
+            throw new RuntimeException(sprintf(
+                'Framework bootstrap requires a container implementing %s.',
+                ContainerBuilderInterface::class,
+            ));
+        }
+
+        if (!$this->container instanceof ContainerDiagnosticsInterface) {
+            throw new RuntimeException(sprintf(
+                'Framework bootstrap requires a container implementing %s.',
+                ContainerDiagnosticsInterface::class,
+            ));
+        }
+
+        $this->builder = $this->container;
+        $this->diagnostics = $this->container;
         $this->providerLifecycle = new ServiceProviderLifecycle($this->container);
         $this->router = new Router();
 
@@ -71,21 +92,21 @@ final class Framework
 
     private function registerCoreServices(): void
     {
-        $this->container->singleton(ApplicationContext::class, $this->context);
-        $this->container->singleton(Environment::class, $this->context->environment());
+        $this->builder->singleton(ApplicationContext::class, $this->context);
+        $this->builder->singleton(Environment::class, $this->context->environment());
 
         $this->register(new CoreConfigurationServiceProvider());
         $this->config(...(new FrameworkDefaultsLoader())->load());
-        $this->container->singleton(ContainerInterface::class, $this->container);
-        $this->container->singleton(Router::class, $this->router);
-        $this->container->singleton(RouteRegistrarRegistry::class, RouteRegistrarRegistry::class);
+        $this->builder->singleton(ContainerInterface::class, $this->container);
+        $this->builder->singleton(Router::class, $this->router);
+        $this->builder->singleton(RouteRegistrarRegistry::class, RouteRegistrarRegistry::class);
 
         $frameworkLogger = new NullLogger();
-        $this->container->singleton(LoggerInterface::class, $frameworkLogger);
-        $this->container->setDiagnosticLogger($frameworkLogger);
+        $this->builder->singleton(LoggerInterface::class, $frameworkLogger);
+        $this->diagnostics->setDiagnosticLogger($frameworkLogger);
 
-        $this->container->singleton(Psr17Factory::class, Psr17Factory::class);
-        $this->container->singleton(ServerRequestFactory::class, ServerRequestFactory::class);
+        $this->builder->singleton(Psr17Factory::class, Psr17Factory::class);
+        $this->builder->singleton(ServerRequestFactory::class, ServerRequestFactory::class);
         $this->register(new BenchmarkServiceProvider());
 
         $this->config(
@@ -117,6 +138,14 @@ final class Framework
     public function register(object ...$providers): self
     {
         $this->providerLifecycle->register(...$providers);
+
+        return $this;
+    }
+
+    /** @internal Executes one globally validated bootstrap provider plan. */
+    public function registerPlan(ProviderLifecyclePlan $plan): self
+    {
+        $this->providerLifecycle->registerPlan($plan);
 
         return $this;
     }
@@ -185,6 +214,13 @@ final class Framework
     {
         $registry = $this->container->get(RouteRegistrarRegistry::class);
 
+        if (!$this->container instanceof TaggedServicesInterface) {
+            throw new RuntimeException(sprintf(
+                'Route finalization requires a container implementing %s.',
+                TaggedServicesInterface::class,
+            ));
+        }
+
         foreach ($this->container->tagged(RouteRegistrarInterface::class) as $serviceId => $registrar) {
             if (!$registrar instanceof RouteRegistrarInterface) {
                 throw new RuntimeException(sprintf(
@@ -251,7 +287,7 @@ final class Framework
      */
     public function middleware(callable $configure): self
     {
-        if ($this->container->isBound(MiddlewareStack::class)) {
+        if ($this->container->has(MiddlewareStack::class)) {
             $configure($this->container->get(MiddlewareStack::class));
             return $this;
         }

@@ -29,7 +29,7 @@ final class Psr17FactoryWiringTest extends TestCase
         $framework = $this->framework();
         $container = $framework->container();
 
-        self::assertTrue($container->isBound(Psr17Factory::class));
+        self::assertTrue($container->has(Psr17Factory::class));
         $factory = $container->get(Psr17Factory::class);
 
         $serverRequestFactory = $container->get(ServerRequestFactory::class);

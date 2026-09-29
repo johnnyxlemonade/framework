@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Tests\Unit\Api\Endpoint;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Routing\ControllerAction;
 use PHPUnit\Framework\TestCase;
 
 final class ApiEndpointRegistryTest extends TestCase
@@ -19,37 +20,39 @@ final class ApiEndpointRegistryTest extends TestCase
             scopes: ['users:read'],
             successStatusCodes: [200, 206],
         );
-        $endpoint = $registry->add('GET', '/users', 'UsersController@index', 'users.index', 'Users', 'List users', ApiAccess::Protected, $metadata);
+        $endpoint = $registry->add('GET', '/users', ControllerAction::for('UsersController', 'index'), 'users.index', 'Users', 'List users', ApiAccess::Protected, $metadata);
 
         self::assertSame($endpoint, $registry->findByName('users.index'));
         self::assertSame($endpoint, $registry->findByRequest('GET', '/users'));
         self::assertSame(['Users'], $endpoint->metadata()->tags());
         self::assertSame(['users:read'], $endpoint->metadata()->scopes());
         self::assertSame([200, 206], $endpoint->metadata()->successStatusCodes());
+        self::assertSame('UsersController', $endpoint->controllerAction()->controllerClass());
+        self::assertSame('index', $endpoint->controllerAction()->method());
     }
 
     public function testDuplicateNameThrowsLogicException(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/users', 'UsersController@index', 'users.index', 'Users', 'List users');
+        $registry->add('GET', '/users', ControllerAction::for('UsersController', 'index'), 'users.index', 'Users', 'List users');
 
         $this->expectException(\LogicException::class);
-        $registry->add('GET', '/admins', 'AdminsController@index', 'users.index', 'Admins', 'List admins');
+        $registry->add('GET', '/admins', ControllerAction::for('AdminsController', 'index'), 'users.index', 'Admins', 'List admins');
     }
 
     public function testDuplicateMethodPathThrowsLogicException(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->add('GET', '/users', 'UsersController@index', 'users.index', 'Users', 'List users');
+        $registry->add('GET', '/users', ControllerAction::for('UsersController', 'index'), 'users.index', 'Users', 'List users');
 
         $this->expectException(\LogicException::class);
-        $registry->add('GET', '/users', 'UsersController@other', 'users.other', 'Users', 'Other');
+        $registry->add('GET', '/users', ControllerAction::for('UsersController', 'other'), 'users.other', 'Users', 'Other');
     }
 
     public function testHeadRequestFallsBackToGetEndpoint(): void
     {
         $registry = new ApiEndpointRegistry();
-        $endpoint = $registry->add('GET', '/users/{id}', 'UsersController@show', 'users.show', 'User', 'Show user');
+        $endpoint = $registry->add('GET', '/users/{id}', ControllerAction::for('UsersController', 'show'), 'users.show', 'User', 'Show user');
 
         self::assertSame($endpoint, $registry->findByRequest('HEAD', '/users/{id}'));
     }
@@ -58,18 +61,27 @@ final class ApiEndpointRegistryTest extends TestCase
     {
         $registry = new ApiEndpointRegistry();
 
-        self::assertSame('POST', $registry->post('/a', 'C@a', 'a.post', 'A', 'A')->method());
-        self::assertSame('PUT', $registry->put('/b', 'C@b', 'b.put', 'B', 'B')->method());
-        self::assertSame('PATCH', $registry->patch('/c', 'C@c', 'c.patch', 'C', 'C')->method());
-        self::assertSame('DELETE', $registry->delete('/d', 'C@d', 'd.delete', 'D', 'D')->method());
+        self::assertSame('POST', $registry->post('/a', ControllerAction::for('C', 'a'), 'a.post', 'A', 'A')->method());
+        self::assertSame('PUT', $registry->put('/b', ControllerAction::for('C', 'b'), 'b.put', 'B', 'B')->method());
+        self::assertSame('PATCH', $registry->patch('/c', ControllerAction::for('C', 'c'), 'c.patch', 'C', 'C')->method());
+        self::assertSame('DELETE', $registry->delete('/d', ControllerAction::for('C', 'd'), 'd.delete', 'D', 'D')->method());
     }
 
     public function testAllReturnsEndpointList(): void
     {
         $registry = new ApiEndpointRegistry();
-        $registry->get('/a', 'C@a', 'a', 'A', 'A');
-        $registry->get('/b', 'C@b', 'b', 'B', 'B');
+        $registry->get('/a', ControllerAction::for('C', 'a'), 'a', 'A', 'A');
+        $registry->get('/b', ControllerAction::for('C', 'b'), 'b', 'B', 'B');
 
         self::assertCount(2, $registry->all());
+    }
+
+    public function testStringHandlerIsNotSupported(): void
+    {
+        $registry = new ApiEndpointRegistry();
+
+        $this->expectException(\TypeError::class);
+        /** @phpstan-ignore-next-line The test intentionally verifies that the removed string API is rejected. */
+        $registry->get('/users', 'UsersController@index', 'users.index', 'Users', 'List users');
     }
 }

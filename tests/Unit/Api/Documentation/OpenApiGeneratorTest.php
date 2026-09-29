@@ -15,6 +15,7 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\FrameworkInfo;
+use Lemonade\Framework\Routing\ControllerAction;
 use PHPUnit\Framework\TestCase;
 
 final class OpenApiGeneratorTest extends TestCase
@@ -24,7 +25,7 @@ final class OpenApiGeneratorTest extends TestCase
         $registry = new ApiEndpointRegistry();
         $registry->get(
             path: '/framework/health',
-            handler: 'HealthController@show',
+            controllerAction: ControllerAction::for('HealthController', 'show'),
             name: 'framework.health',
             summary: 'Health',
             description: 'Health endpoint',
@@ -35,7 +36,7 @@ final class OpenApiGeneratorTest extends TestCase
         );
         $registry->get(
             path: '/framework/openapi.json',
-            handler: 'OpenApiController@show',
+            controllerAction: ControllerAction::for('OpenApiController', 'show'),
             name: 'framework.openapi',
             summary: 'OpenAPI',
             description: 'OpenAPI endpoint',
@@ -56,7 +57,7 @@ final class OpenApiGeneratorTest extends TestCase
         );
         $registry->get(
             path: '/framework/docs',
-            handler: 'DocsController@show',
+            controllerAction: ControllerAction::for('DocsController', 'show'),
             name: 'framework.docs',
             summary: 'Docs',
             description: 'Docs endpoint',

@@ -60,7 +60,7 @@ final class KernelFactoryTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertFalse($kernel->container()->isBound(\Lemonade\Framework\Http\Middleware\MiddlewareStack::class));
+        self::assertFalse($kernel->container()->has(\Lemonade\Framework\Http\Middleware\MiddlewareStack::class));
     }
 
     private function deleteRecursive(string $path): void

@@ -8,12 +8,11 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Controller\ControllerActionInspector;
 use Lemonade\Framework\Core\Controller\ControllerArgumentBinder;
 use Lemonade\Framework\Core\Controller\ControllerResultNormalizer;
+use Lemonade\Framework\Http\Response\Responses;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\RouteMatch;
-use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Message\StreamFactoryInterface;
 use RuntimeException;
 
 /**
@@ -31,11 +30,10 @@ final class ControllerResolver
 
     private readonly ControllerArgumentBinder $argumentBinder;
 
-    private readonly ControllerResultNormalizer $resultNormalizer;
+    private ?ControllerResultNormalizer $resultNormalizer = null;
 
     /**
-     * Accepts the scoped container used for controller resolution,
-     * response factories, stream factories, and benchmark access.
+     * Accepts the scoped container used for controller resolution and benchmark access.
      */
     public function __construct(
         private readonly ContainerInterface $container,
@@ -43,7 +41,6 @@ final class ControllerResolver
     ) {
         $this->actionInspector = new ControllerActionInspector();
         $this->argumentBinder = new ControllerArgumentBinder();
-        $this->resultNormalizer = new ControllerResultNormalizer();
     }
 
     /**
@@ -52,8 +49,7 @@ final class ControllerResolver
      * The current request is already bound into the active scope by the kernel.
      * The resolver then reads the controller class, action, and route
      * parameters from the route match, resolves the controller through the
-     * container, initializes {@see AbstractController} context when applicable,
-     * injects `ServerRequestInterface` action parameters directly, maps named
+     * container, injects `ServerRequestInterface` action parameters directly, maps named
      * route parameters to action arguments, converts builtin `int`, `float`,
      * `bool`, and `string` parameters, applies declared default values when
      * route parameters are absent, invokes the action, and normalizes the
@@ -72,8 +68,9 @@ final class ControllerResolver
      */
     public function handle(RouteMatch $match, ServerRequestInterface $request): PsrResponseInterface
     {
-        $controllerClass = $match->controller();
-        $action = $match->action();
+        $actionDefinition = $match->controllerAction();
+        $controllerClass = $actionDefinition->controllerClass();
+        $action = $actionDefinition->method();
         $controllerClass = trim($controllerClass);
         if ($controllerClass === '') {
             throw new RuntimeException('Resolved controller class must be a non-empty string.');
@@ -91,14 +88,6 @@ final class ControllerResolver
 
         $resolvedAction = $this->actionInspector->inspect($controller, $controllerClass, $action);
 
-        if ($controller instanceof AbstractController) {
-            /** @var ResponseFactoryInterface $responseFactory */
-            $responseFactory = $this->container->get(ResponseFactoryInterface::class);
-            /** @var StreamFactoryInterface $streamFactory */
-            $streamFactory = $this->container->get(StreamFactoryInterface::class);
-            $controller->setControllerContext($request, $responseFactory, $streamFactory, $this->container);
-        }
-
         $this->markBenchmark('controller_resolved');
         $args = $this->argumentBinder->bind($resolvedAction, $match, $request);
 
@@ -106,21 +95,11 @@ final class ControllerResolver
         $result = $resolvedAction->method()->invokeArgs($resolvedAction->controller(), $args);
         $this->markBenchmark('controller_action_finished');
 
-        $response = $this->resultNormalizer->normalize(
-            result: $result,
-            responseFactoryResolver: function (): ResponseFactoryInterface {
-                /** @var ResponseFactoryInterface $responseFactory */
-                $responseFactory = $this->container->get(ResponseFactoryInterface::class);
-
-                return $responseFactory;
-            },
-            streamFactoryResolver: function (): StreamFactoryInterface {
-                /** @var StreamFactoryInterface $streamFactory */
-                $streamFactory = $this->container->get(StreamFactoryInterface::class);
-
-                return $streamFactory;
-            },
-        );
+        $response = $result instanceof PsrResponseInterface
+            ? $result
+            : ($this->resultNormalizer ??= new ControllerResultNormalizer(
+                $this->container->get(Responses::class),
+            ))->normalize($result);
         $this->markBenchmark('response_created');
 
         return $response;

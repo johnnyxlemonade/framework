@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Logging;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Container\ContainerDiagnosticsInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
@@ -14,7 +16,7 @@ use Psr\Log\LoggerInterface;
 
 final class LoggingServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(LoggingConfigResolver::class, LoggingConfigResolver::class);
         $container->singleton(LoggingConfig::class, static function (ContainerInterface $container): LoggingConfig {
@@ -34,7 +36,9 @@ final class LoggingServiceProvider implements ServiceProviderInterface
             $manager = $container->get(LogManager::class);
             $logger = $manager->app();
 
-            $container->setDiagnosticLogger($logger);
+            if ($container instanceof ContainerDiagnosticsInterface) {
+                $container->setDiagnosticLogger($logger);
+            }
 
             return $logger;
         });

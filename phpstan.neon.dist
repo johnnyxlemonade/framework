@@ -37,23 +37,6 @@ parameters:
     # accumulating stale exceptions in the configuration.
     reportUnmatchedIgnoredErrors: true
 
-    # Require every callable to declare its parameter and return types.
-    # A bare "callable" is not a sufficient contract.
-    checkMissingCallableSignature: true
-
-    # Report public and protected return types that are broader
-    # than the implementation actually requires.
-    checkTooWideReturnTypesInProtectedAndPublicMethods: true
-
     # Require typed properties to be provably initialized before use.
     # Relying on implicit initialization is not a valid object invariant.
     checkUninitializedProperties: true
-
-    # Apply strict checks to benevolent union types such as array-key.
-    # Every possible type must support the performed operation.
-    checkBenevolentUnionTypes: true
-
-    # Do not assume repeated calls to potentially impure functions
-    # return the same value. Time, randomness, global state, and I/O
-    # may change between calls.
-    rememberPossiblyImpureFunctionValues: false

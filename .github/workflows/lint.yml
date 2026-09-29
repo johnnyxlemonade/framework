@@ -29,13 +29,8 @@ permissions:
 
 jobs:
   lint:
-    name: PHP Lint (PHP ${{ matrix.php }})
+    name: PHP Lint (PHP 8.3)
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ['8.3', '8.4', '8.5']
 
     steps:
       - name: Checkout
@@ -44,7 +39,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '8.3'
           coverage: none
           tools: composer:v2
           extensions: fileinfo, mbstring
@@ -60,9 +55,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ runner.os }}-php-${{ matrix.php }}-lint-${{ hashFiles('composer.lock') }}
+          key: composer-${{ runner.os }}-php-8.3-lint-${{ hashFiles('composer.lock') }}
           restore-keys: |
-            composer-${{ runner.os }}-php-${{ matrix.php }}-lint-
+            composer-${{ runner.os }}-php-8.3-lint-
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress

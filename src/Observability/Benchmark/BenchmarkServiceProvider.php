@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Observability\Benchmark;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -13,7 +14,7 @@ use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigResolver;
 
 final class BenchmarkServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(BenchmarkConfigResolver::class, BenchmarkConfigResolver::class);
         $container->singleton(BenchmarkConfig::class, static function (ContainerInterface $container): BenchmarkConfig {

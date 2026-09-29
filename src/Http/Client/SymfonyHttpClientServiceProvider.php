@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Client;
 
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -18,7 +19,7 @@ final class SymfonyHttpClientServiceProvider implements ServiceProviderInterface
     private const string SYMFONY_HTTP_CLIENT_CLASS = 'Symfony\\Component\\HttpClient\\HttpClient';
     private const string SYMFONY_HTTP_CLIENT_INTERFACE = 'Symfony\\Contracts\\HttpClient\\HttpClientInterface';
 
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(HttpClientConfigResolver::class, HttpClientConfigResolver::class);
         $container->singleton(HttpClientConfig::class, static function (ContainerInterface $container): HttpClientConfig {

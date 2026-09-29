@@ -11,6 +11,7 @@ use Lemonade\Framework\Container\Definition\FactoryTarget;
 use Lemonade\Framework\Container\Definition\InstanceTarget;
 use Lemonade\Framework\Container\Exception\AliasTargetNotFoundException;
 use Lemonade\Framework\Container\Exception\ContainerException;
+use Lemonade\Framework\Container\Exception\ContainerFrozenException;
 use Lemonade\Framework\Container\Exception\InvalidContextualBindingException;
 use Lemonade\Framework\Container\Exception\InvalidServiceDecoratorException;
 use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
@@ -22,7 +23,7 @@ use Psr\Log\NullLogger;
 use ReflectionClass;
 use ReflectionNamedType;
 
-final class Container implements ContainerInterface, ContainerBuilderInterface, ScopeFactoryInterface
+final class Container implements ContainerInterface, ContainerBuilderInterface, ContainerDiagnosticsInterface, ScopeFactoryInterface, TaggedServicesInterface
 {
     private ContainerBuilder $builder;
     private ?CompiledContainerPlan $compiledPlan = null;
@@ -84,6 +85,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     public function __construct(?ContainerBuilder $builder = null)
     {
         $this->builder = $builder ?? new ContainerBuilder();
+        $this->builder->instance(ContainerInterface::class, $this);
     }
 
     /**
@@ -92,6 +94,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      */
     public function set(string $id, callable|object|string $concrete): void
     {
+        $this->assertMutable();
         $this->builder->set($id, $concrete);
         $this->definitionChanged($id);
     }
@@ -102,6 +105,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      */
     public function singleton(string $id, callable|object|string $concrete): void
     {
+        $this->assertMutable();
         $this->builder->singleton($id, $concrete);
         $this->definitionChanged($id);
     }
@@ -112,6 +116,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      */
     public function scoped(string $id, callable|object|string $concrete): void
     {
+        $this->assertMutable();
         $this->builder->scoped($id, $concrete);
         $this->definitionChanged($id);
     }
@@ -128,6 +133,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
 
     public function instance(string $id, object $instance): void
     {
+        $this->assertMutable();
         $this->builder->instance($id, $instance);
         $this->definitionChanged($id);
     }
@@ -141,6 +147,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      */
     public function alias(string $alias, string $target): void
     {
+        $this->assertMutable();
         $this->builder->alias($alias, $target);
         $this->compiledPlan = null;
     }
@@ -154,6 +161,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      */
     public function decorate(string $serviceId, string|callable $decorator, int $priority = 0): void
     {
+        $this->assertMutable();
         $canonicalId = $this->compiledPlan()->canonicalId($serviceId);
         $this->builder->decorate($serviceId, $decorator, $priority);
         $this->definitionChanged($canonicalId);
@@ -167,6 +175,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      */
     public function when(string $consumer): ContextualBindingBuilder
     {
+        $this->assertMutable();
         return $this->builder->contextualBindingBuilder($consumer, function (): void {
             $this->instances = [];
             $this->compiledPlan = null;
@@ -178,8 +187,25 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->compiledPlan();
     }
 
+    public function freeze(): CompiledContainerPlan
+    {
+        if ($this->builder->isFrozen()) {
+            return $this->compiledPlan();
+        }
+
+        $this->compiledPlan = $this->builder->freeze();
+
+        return $this->compiledPlan;
+    }
+
+    public function isFrozen(): bool
+    {
+        return $this->builder->isFrozen();
+    }
+
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
     {
+        $this->assertMutable();
         $this->singleton($id, $concrete);
 
         foreach ($tags as $tag) {
@@ -189,6 +215,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
 
     public function tag(string $serviceId, string $tag): void
     {
+        $this->assertMutable();
         $this->builder->tag($serviceId, $tag);
         $this->compiledPlan = null;
     }
@@ -232,7 +259,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         $plan = $this->compiledPlan();
         $canonicalId = $plan->canonicalId($id);
 
-        return $plan->hasDefinition($canonicalId) || $this->classExists($canonicalId);
+        return $plan->hasDefinition($canonicalId);
     }
 
     /**
@@ -698,7 +725,11 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
             ));
         }
 
-        if ($kind === 'interface' && !$runtimeContainer->isBound($dependency)) {
+        $scopeHasBinding = $dependency !== ''
+            && $runtimeContainer instanceof ScopedContainerInterface
+            && $runtimeContainer->hasScopedBinding($dependency);
+
+        if ($kind === 'interface' && !$scopeHasBinding && !$this->isBound($dependency)) {
             if ($hasDefaultValue) {
                 return $defaultValue;
             }
@@ -773,6 +804,13 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         unset($this->instances[$id]);
         $this->compiledPlan = null;
         $this->invalidateDiagnosticCacheFor($id);
+    }
+
+    private function assertMutable(): void
+    {
+        if ($this->isFrozen()) {
+            throw new ContainerFrozenException('Container definitions are frozen after bootstrap and cannot be changed.');
+        }
     }
 
     private function compiledPlan(): CompiledContainerPlan

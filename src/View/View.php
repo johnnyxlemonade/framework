@@ -33,6 +33,13 @@ final class View
         private readonly ?ViewResourceRegistry $resources = null,
     ) {}
 
+    public function __clone(): void
+    {
+        $this->temporaryShared = [];
+        $this->renderDepth = 0;
+        $this->resetViewState();
+    }
+
     public function share(string $key, mixed $value): void
     {
         $this->shared[$key] = $value;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Core\AbstractController;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Http\Middleware\ControllerRequestHandler;
@@ -30,7 +29,7 @@ final class ControllerRequestHandlerTest extends TestCase
         $container->singleton(ControllerHandlerTestController::class, ControllerHandlerTestController::class);
 
         $resolver = new ControllerResolver($container, new Benchmark());
-        $match = new RouteMatch(ControllerHandlerTestController::class, 'show', ['id' => '42']);
+        $match = new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ControllerHandlerTestController::class, 'show'), ['id' => '42']);
         $handler = new ControllerRequestHandler($resolver, $match);
         $request = $factory->createServerRequest('GET', '/users/42');
 
@@ -41,7 +40,7 @@ final class ControllerRequestHandlerTest extends TestCase
     }
 }
 
-final class ControllerHandlerTestController extends AbstractController
+final class ControllerHandlerTestController
 {
     public static int $called = 0;
 

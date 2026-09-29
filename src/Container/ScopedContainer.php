@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Container;
 
 use Lemonade\Framework\Container\Exception\ScopedContainerClosedException;
-use Lemonade\Framework\Container\Exception\ScopedContainerMutationException;
-use Psr\Log\LoggerInterface;
 
 final class ScopedContainer implements ScopedContainerInterface
 {
@@ -49,26 +47,6 @@ final class ScopedContainer implements ScopedContainerInterface
         $this->localInstances[$id] = $instance;
     }
 
-    public function set(string $id, callable|object|string $concrete): void
-    {
-        $this->rejectRootMutation();
-    }
-
-    public function singleton(string $id, callable|object|string $concrete): void
-    {
-        $this->rejectRootMutation();
-    }
-
-    public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
-    {
-        $this->rejectRootMutation();
-    }
-
-    public function tag(string $serviceId, string $tag): void
-    {
-        $this->rejectRootMutation();
-    }
-
     /** @return iterable<string, object> */
     public function tagged(string $tag): iterable
     {
@@ -77,19 +55,9 @@ final class ScopedContainer implements ScopedContainerInterface
         return $this->root->taggedInScope($this, $tag);
     }
 
-    public function setDiagnosticLogger(?LoggerInterface $logger): void
-    {
-        $this->rejectRootMutation();
-    }
-
     public function has(string $id): bool
     {
         return isset($this->localInstances[$id]) || $this->root->has($id);
-    }
-
-    public function isBound(string $id): bool
-    {
-        return isset($this->localInstances[$id]) || $this->root->isBound($id);
     }
 
     public function get(string $id): mixed
@@ -130,12 +98,4 @@ final class ScopedContainer implements ScopedContainerInterface
         }
     }
 
-    private function rejectRootMutation(): never
-    {
-        $this->assertOpen();
-
-        throw new ScopedContainerMutationException(
-            'Cannot register services from a scoped runtime container. Register services during bootstrap/provider registration, or use bindScopedInstance() for scope-local values.',
-        );
-    }
 }

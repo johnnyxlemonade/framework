@@ -42,7 +42,7 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
     public function testCacheGenerationCreatesFileAndCommandReturnsZero(): void
     {
         $router = new Router();
-        $router->getNamed('home', '/', 'HomeController@index');
+        $router->getNamed('home', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         $baseUrl = 'https://example.com';
         $config = $this->sitemapConfig(routes: [new SitemapRouteConfig('home', [], null, null, null)]);
         $context = new ApplicationContext(Environment::Testing, new Path($this->root), DebugMode::disabled());
@@ -78,7 +78,7 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
     public function testGenerationCleansTemporaryFilesOnFailure(): void
     {
         $router = new Router();
-        $router->getNamed('home', '/', 'HomeController@index');
+        $router->getNamed('home', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
         $baseUrl = 'https://example.com';
         $config = $this->sitemapConfig(
             routes: [new SitemapRouteConfig('home', [], null, null, null)],
@@ -116,8 +116,8 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
     public function testGzipModeGeneratesGzipChunksAndXmlIndex(): void
     {
         $router = new Router();
-        $router->getNamed('home', '/', 'HomeController@index');
-        $router->getNamed('examples.index', '/examples', 'ExamplesController@index');
+        $router->getNamed('home', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+        $router->getNamed('examples.index', '/examples', \Lemonade\Framework\Routing\ControllerAction::for('ExamplesController', 'index'));
         $baseUrl = 'https://example.com';
         $config = $this->sitemapConfig(
             routes: [
@@ -154,8 +154,8 @@ final class SitemapFileGeneratorAndCommandTest extends TestCase
     public function testMaxUncompressedBytesSplitsSitemapParts(): void
     {
         $router = new Router();
-        $router->getNamed('home', '/', 'HomeController@index');
-        $router->getNamed('examples.index', '/examples', 'ExamplesController@index');
+        $router->getNamed('home', '/', \Lemonade\Framework\Routing\ControllerAction::for('HomeController', 'index'));
+        $router->getNamed('examples.index', '/examples', \Lemonade\Framework\Routing\ControllerAction::for('ExamplesController', 'index'));
         $baseUrl = 'https://example.com';
         $config = $this->sitemapConfig(
             routes: [

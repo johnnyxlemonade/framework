@@ -16,13 +16,29 @@ final class ServiceProviderLifecycle
 
     private int $bootedProviders = 0;
 
+    private readonly ContainerBuilderInterface $builder;
+
     public function __construct(
         private readonly ContainerInterface $container,
-    ) {}
+    ) {
+        if (!$container instanceof ContainerBuilderInterface) {
+            throw new LogicException(sprintf(
+                'Provider registration requires a container implementing %s.',
+                ContainerBuilderInterface::class,
+            ));
+        }
+
+        $this->builder = $container;
+    }
 
     public function register(object ...$providers): void
     {
-        foreach ((new ProviderDependencyResolver())->sort(array_values($providers)) as $provider) {
+        $this->registerPlan(new ProviderLifecyclePlan(array_values($providers)));
+    }
+
+    public function registerPlan(ProviderLifecyclePlan $plan): void
+    {
+        foreach ($plan->providers() as $provider) {
             if (!self::supports($provider)) {
                 throw new LogicException(sprintf(
                     'Service provider "%s" must implement %s, %s or %s.',
@@ -34,17 +50,9 @@ final class ServiceProviderLifecycle
             }
 
             if ($provider instanceof DefinitionServiceProviderInterface) {
-                if (!$this->container instanceof ContainerBuilderInterface) {
-                    throw new LogicException(sprintf(
-                        'Definition service provider "%s" requires a container implementing %s.',
-                        $provider::class,
-                        ContainerBuilderInterface::class,
-                    ));
-                }
-
-                $provider->register($this->container);
+                $provider->register($this->builder);
             } elseif ($provider instanceof ServiceProviderInterface) {
-                $provider->register($this->container);
+                $provider->register($this->builder);
             }
 
             if ($provider instanceof BootableServiceProviderInterface) {
@@ -54,13 +62,11 @@ final class ServiceProviderLifecycle
     }
 
     /**
-     * Compiles the currently registered definitions before booting newly added providers.
+     * Freezes registered definitions before booting runtime providers.
      */
     public function boot(): void
     {
-        if ($this->container instanceof ContainerBuilderInterface) {
-            $this->container->compile();
-        }
+        $this->builder->freeze();
 
         $count = count($this->bootableProviders);
 

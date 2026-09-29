@@ -23,6 +23,9 @@ final class RouterPropertiesTest extends TestCase
     use TestTrait;
 
     private const PROPERTY_CASES = 500;
+    private const ITEM_CONTROLLER = 'App\\Controllers\\ItemController';
+    private const CATALOG_CONTROLLER = 'App\\Controllers\\CatalogController';
+    private const ARTICLE_CONTROLLER = 'App\\Controllers\\ArticleController';
 
     public function testRouteParameterRoundTripForSimpleSegment(): void
     {
@@ -33,7 +36,7 @@ final class RouterPropertiesTest extends TestCase
             ->forAll(RoutePropertyGenerators::roundTripSegment())
             ->then(function (string $segment) use (&$firstFailure): void {
                 $router = new Router();
-                $router->getNamed('items.show', '/items/{value}', 'ItemController@show');
+                $router->getNamed('items.show', '/items/{value}', \Lemonade\Framework\Routing\ControllerAction::for(self::ITEM_CONTROLLER, 'show'));
 
                 $url = $router->url('items.show', ['value' => $segment]);
                 $match = $router->match(new ServerRequest('GET', $url));
@@ -57,7 +60,7 @@ final class RouterPropertiesTest extends TestCase
                     ));
                 }
 
-                self::assertSame('App\\Controllers\\ItemController', $match->controller());
+                self::assertSame(self::ITEM_CONTROLLER, $match->controller());
                 self::assertSame('show', $match->action());
             });
     }
@@ -71,7 +74,7 @@ final class RouterPropertiesTest extends TestCase
             ->forAll(RoutePropertyGenerators::wildcardRoundTripValue())
             ->then(function (string $value) use (&$firstFailure): void {
                 $router = new Router();
-                $router->getNamed('items.show', '/items/{value:any}', 'ItemController@show');
+                $router->getNamed('items.show', '/items/{value:any}', \Lemonade\Framework\Routing\ControllerAction::for(self::ITEM_CONTROLLER, 'show'));
 
                 $url = $router->url('items.show', ['value' => $value]);
                 $match = $router->match(new ServerRequest('GET', $url));
@@ -95,7 +98,7 @@ final class RouterPropertiesTest extends TestCase
                     ));
                 }
 
-                self::assertSame('App\\Controllers\\ItemController', $match->controller());
+                self::assertSame(self::ITEM_CONTROLLER, $match->controller());
                 self::assertSame('show', $match->action());
             });
     }
@@ -113,7 +116,7 @@ final class RouterPropertiesTest extends TestCase
             ->when(static fn(string $registeredPath, string $otherPath): bool => $registeredPath !== $otherPath)
             ->then(function (string $registeredPath, string $otherPath) use (&$firstFailure): void {
                 $router = new Router();
-                $router->get($registeredPath, 'CatalogController@index');
+                $router->get($registeredPath, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'index'));
 
                 try {
                     $match = $router->match(new ServerRequest('GET', $registeredPath));
@@ -135,7 +138,7 @@ final class RouterPropertiesTest extends TestCase
                     ));
                 }
 
-                self::assertSame('App\\Controllers\\CatalogController', $match->controller());
+                self::assertSame(self::CATALOG_CONTROLLER, $match->controller());
                 self::assertSame('index', $match->action());
                 self::assertSame([], $match->params());
 
@@ -172,7 +175,7 @@ final class RouterPropertiesTest extends TestCase
             ->forAll(RoutePropertyGenerators::headInvariantCase())
             ->then(function (GetRouteCase $case) use (&$firstFailure): void {
                 $router = new Router();
-                $router->get($case->routePath, 'ArticleController@show');
+                $router->get($case->routePath, \Lemonade\Framework\Routing\ControllerAction::for(self::ARTICLE_CONTROLLER, 'show'));
 
                 try {
                     $getMatch = $router->match(new ServerRequest('GET', $case->requestPath));
@@ -228,13 +231,13 @@ final class RouterPropertiesTest extends TestCase
             ->then(function (string $path) use (&$firstFailure): void {
                 $router = new Router();
                 $normalizedEquivalent = rtrim($path, '/') . '/';
-                $router->get($path, 'CatalogController@index');
-                $postRoute = $router->post($normalizedEquivalent, 'CatalogController@store');
+                $router->get($path, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'index'));
+                $postRoute = $router->post($normalizedEquivalent, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'store'));
 
                 self::assertSame('POST', $postRoute->method());
 
                 try {
-                    $router->get($normalizedEquivalent, 'CatalogController@duplicate');
+                    $router->get($normalizedEquivalent, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'duplicate'));
                 } catch (\LogicException) {
                     return;
                 }
@@ -264,15 +267,15 @@ final class RouterPropertiesTest extends TestCase
                 $router = new Router();
                 $registrationVariant = '///' . trim($path, '/') . '///';
                 $requestVariant = rtrim($path, '/') . '/';
-                $route = $router->get($registrationVariant, 'CatalogController@index');
+                $route = $router->get($registrationVariant, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'index'));
 
                 self::assertSame($path, $route->path());
                 self::assertSame(
-                    'App\\Controllers\\CatalogController',
+                    self::CATALOG_CONTROLLER,
                     $router->match(new ServerRequest('GET', $requestVariant))->controller(),
                 );
                 self::assertSame(
-                    'App\\Controllers\\CatalogController',
+                    self::CATALOG_CONTROLLER,
                     $router->match(new ServerRequest('GET', $path))->controller(),
                 );
             });
@@ -333,18 +336,18 @@ final class RouterPropertiesTest extends TestCase
             ->forAll(RoutePropertyGenerators::staticRoutePath())
             ->then(function (string $path): void {
                 $router = new Router();
-                $router->get($path, 'CatalogController@index');
+                $router->get($path, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'index'));
                 $router->freeze();
                 $router->freeze();
 
                 self::assertTrue($router->isFrozen());
                 self::assertSame(
-                    'App\\Controllers\\CatalogController',
+                    self::CATALOG_CONTROLLER,
                     $router->match(new ServerRequest('GET', $path))->controller(),
                 );
 
                 try {
-                    $router->post($path, 'CatalogController@store');
+                    $router->post($path, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'store'));
                 } catch (\LogicException $exception) {
                     self::assertSame('Router is frozen.', $exception->getMessage());
 
@@ -362,11 +365,11 @@ final class RouterPropertiesTest extends TestCase
             ->forAll(RoutePropertyGenerators::staticRoutePath())
             ->then(function (string $path): void {
                 $router = new Router();
-                $router->getNamed('catalog.item', $path, 'CatalogController@index');
+                $router->getNamed('catalog.item', $path, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'index'));
                 $alternatePath = rtrim($path, '/') . '/alternate';
 
                 try {
-                    $router->get($alternatePath, 'CatalogController@alternate')->name('catalog.item');
+                    $router->get($alternatePath, \Lemonade\Framework\Routing\ControllerAction::for(self::CATALOG_CONTROLLER, 'alternate'))->name('catalog.item');
                 } catch (\LogicException) {
                     self::assertSame($path, $router->url('catalog.item'));
 

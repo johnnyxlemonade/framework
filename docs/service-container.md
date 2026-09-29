@@ -2,18 +2,18 @@
 
 The framework container is PSR-11 compatible and supports explicit bindings, singleton bindings and conservative autowiring.
 
-ContainerInterface is the runtime and legacy contract: it exposes service resolution plus the
-established set(), singleton(), tag() and tagged() registration operations. Definition providers
-receive ContainerBuilderInterface instead. Builder-only operations include scoped(), transient(),
-instance(), aliases, decorators and contextual bindings. Scope lifecycle belongs to
-ScopeFactoryInterface::beginScope(), not to ContainerInterface.
+`ContainerInterface` is the runtime resolver contract and exposes only `get()` and `has()`.
+`ContainerBuilderInterface` is the bootstrap-only registration contract. It owns `set()`,
+`singleton()`, `scoped()`, `transient()`, `instance()`, aliases, decorators, contextual bindings
+and tags. Scope lifecycle belongs to `ScopeFactoryInterface::beginScope()`, not to
+`ContainerInterface`.
 
-Services are registered with `set()` or `singleton()`.
+Services are registered through a builder with `set()` or `singleton()`.
 
 ```php
-$container->set(Foo::class, Foo::class);
+$builder->set(Foo::class, Foo::class);
 
-$container->singleton(Bar::class, static function (ContainerInterface $container): Bar {
+$builder->singleton(Bar::class, static function (ContainerInterface $container): Bar {
     return new Bar($container->get(Foo::class));
 });
 ```
@@ -21,13 +21,13 @@ $container->singleton(Bar::class, static function (ContainerInterface $container
 Both methods accept a class name, a factory callable or a concrete object as the implementation.
 
 ```php
-$container->set(FooInterface::class, Foo::class);
+$builder->set(FooInterface::class, Foo::class);
 
-$container->singleton(Bar::class, static function (ContainerInterface $container): Bar {
+$builder->singleton(Bar::class, static function (ContainerInterface $container): Bar {
     return new Bar($container->get(FooInterface::class));
 });
 
-$container->singleton('custom.service', new CustomService());
+$builder->singleton('custom.service', new CustomService());
 ```
 
 ## Definition planning
@@ -37,14 +37,15 @@ a container plan before resolution. This preserves the existing `set()`, `single
 `tagged()` API while separating registration metadata from lazy runtime resolution. The plan does
 not generate PHP code and does not change the singleton, transient, factory or autowiring contracts.
 
-`Container::compile()` creates the current compiled snapshot/plan; it is not a hard freeze of
-registration. Legacy registration calls after compilation can invalidate and rebuild that plan under
-their existing compatibility semantics. New code should still register definitions in a provider's
-`register()` phase and must not mutate root definitions during runtime dispatch.
+`compile()` creates a plan snapshot while registration is still open. `freeze()` creates the final
+plan and closes the builder permanently for this process. After `freeze()`, every definition
+mutation—including definitions, aliases, decorators, contextual bindings and tags—fails with
+`ContainerFrozenException`; the plan is no longer invalidated or rebuilt. Bootstrap freezes the
+builder after all providers have registered and before bootable providers run.
 
-Definition-based service providers receive `ContainerBuilderInterface`, which exposes only
-definition registration and compilation. Runtime resolution and side effects belong in a bootable
-provider's `boot(ContainerInterface $container)` phase after all providers have registered.
+Service providers receive `ContainerBuilderInterface` for definition registration. Runtime
+resolution and side effects belong in a bootable provider's `boot(ContainerInterface $container)`
+phase after all providers have registered and the builder is frozen.
 
 ## Service lifetimes and scopes
 
@@ -87,11 +88,9 @@ must enforce a request-local contract.
 
 `ScopedContainerInterface` is a runtime resolver and scope-local binding boundary, not a service
 registration API. `bindScopedInstance()` is its only write API; it adds an object only to the active
-scope. `set()`, `singleton()`, `singletonTagged()`, `tag()` and `setDiagnosticLogger()` are retained
-only because the legacy `ContainerInterface` requires them, and reject calls with
-`ScopedContainerMutationException`. Middleware, controllers, commands and job handlers must register
-root services during provider registration instead. This prevents a runtime mutation in a long-running
-queue worker from affecting later jobs.
+scope. It has no root-definition mutators. Middleware, controllers, commands and job handlers must
+register root services during provider registration instead. This prevents a runtime mutation in a
+long-running queue worker from affecting later jobs.
 
 A singleton must never depend on a scoped service, directly or through a contextual binding or
 alias. The container rejects that resolution with a dedicated exception. Scoped services may depend
@@ -107,14 +106,19 @@ isolated `Job` scope with `JobContext`, plus `QueuedMessage` for asynchronously 
 Synchronous queue dispatch also creates its own Job scope instead of reusing an active Request
 scope. Legacy queue callables remain compatible, but are not resolved through the container.
 
-The in-memory event dispatcher is not scope-aware. Do not rely on event listeners receiving scoped
-dependencies; a scoped dispatcher/listener invoker design remains future work.
+`EventDispatcherInterface` is a scoped runtime service. Its listener invoker resolves listener
+classes from the active Request, Command or Job scope, so listener dependencies may use values
+from that scope. Root dispatch is not a normal runtime model; resolve and dispatch events from an
+active scope.
 
 This replaces the older root-container request binding that was available before application
 providers registered. The replacement is intentionally breaking: `register()` and `boot()` must not
 read a current request. Put request-dependent decisions in middleware, a scoped service, or a
 controller instead. The root container must never contain a request-specific
 `ServerRequestInterface` binding.
+
+`ViewRendererInterface` is a request-scoped service. Inject it into a controller or another
+request-scoped consumer; resolving it from the root container fails like every scoped service.
 
 HTTP runtime is scope-capable by contract: the kernel requires a container implementing
 ScopeFactoryInterface, and framework HTTP providers require ContainerBuilderInterface to declare
@@ -194,21 +198,22 @@ discovery, reflection scanning, interface autowiring, or constructor self-regist
 provider still explicitly binds every service and explicitly declares each capability membership.
 
 ```php
-$container->singleton(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
-$container->tag(ArticlesRouteRegistrar::class, RouteRegistrarInterface::class);
+$builder->singleton(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
+$builder->tag(ArticlesRouteRegistrar::class, RouteRegistrarInterface::class);
 ```
 
 `tag()` accepts only an explicitly bound service (`set()` or `singleton()`); tagging an autowire
 fallback service fails fast. The same `serviceId + tag` pair is rejected, while one service may
-have multiple tags and one tag may contain multiple services. `tagged($tag)` resolves services
-through the normal container and returns them in tag declaration order, preserving ordinary
-singleton semantics.
+have multiple tags and one tag may contain multiple services. Runtime tag lookup is deliberately
+separate from PSR-11: a consumer that needs it depends on `TaggedServicesInterface`; its
+`tagged($tag)` method resolves services in declaration order and preserves ordinary singleton
+semantics.
 
 For the common singleton case, `singletonTagged()` is equivalent to `singleton()` followed by one
 or more `tag()` calls; it does not implement a second binding mechanism:
 
 ```php
-$container->singletonTagged(
+$builder->singletonTagged(
     ArticlesRouteRegistrar::class,
     ArticlesRouteRegistrar::class,
     RouteRegistrarInterface::class,
@@ -227,17 +232,13 @@ IDs. A string service ID is not a service alias; explicit aliases use
 `ContainerBuilderInterface::alias()`.
 
 ```php
-$container->singleton('custom.service', new CustomService());
+$builder->singleton('custom.service', new CustomService());
 ```
 
-New application and framework code should resolve services through constructor DI, service provider factories, explicit view data, or `$helpers` / `$requestHelpers` in views. Controller service helpers are `AbstractController` convenience APIs; `controllerService()` is a generic lookup escape hatch, not a replacement for constructor DI in action controllers.
-
-For example, use controller services instead of resolving common services globally:
-
-```php
-$validator = $this->validator();
-$url = $this->url();
-```
+New application and framework code should resolve services through constructor DI, service
+provider factories, explicit view data, or `$helpers` / `$requestHelpers` in views. Controllers
+receive their dependencies through constructor injection; action parameters receive request and
+route values.
 
 In views, use the shared helper objects:
 

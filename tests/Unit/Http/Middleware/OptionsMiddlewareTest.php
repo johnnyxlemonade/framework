@@ -32,7 +32,7 @@ final class OptionsMiddlewareTest extends TestCase
     public function testOptionsOnPathWithGetRouteReturns204AllowAndEmptyBody(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
         $factory = new Psr17Factory();
         $middleware = new OptionsMiddleware($router, $factory);
         $handler = new RecordingHandler($factory->createResponse(404));
@@ -49,7 +49,7 @@ final class OptionsMiddlewareTest extends TestCase
     public function testOptionsMissingPathFallsBackToStandard404Flow(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
         $factory = new Psr17Factory();
         $middleware = new OptionsMiddleware($router, $factory);
         $handler = new RecordingHandler($factory->createResponse(404)->withBody($factory->createStream('not-found')));
@@ -65,8 +65,8 @@ final class OptionsMiddlewareTest extends TestCase
     public function testExplicitOptionsRouteHasPriorityOverAutoResponse(): void
     {
         $router = new Router();
-        $router->get('/users', 'UserController@index');
-        $router->options('/users', 'UserController@options');
+        $router->get('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
+        $router->options('/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'options'));
         $factory = new Psr17Factory();
         $middleware = new OptionsMiddleware($router, $factory);
         $handler = new RecordingHandler($factory->createResponse(200)->withBody($factory->createStream('explicit-options')));

@@ -4,17 +4,17 @@ Service providers are the main composition mechanism for framework and applicati
 
 ## Provider lifecycle
 
-New providers should separate service definitions from runtime side effects. A
-`DefinitionServiceProviderInterface` receives `ContainerBuilderInterface` in `register()` and
-should only declare bindings and tags. It cannot resolve services through that contract.
+New providers should separate service definitions from runtime side effects.
+`ServiceProviderInterface::register()` receives `ContainerBuilderInterface` and should only
+declare bindings and tags. It must not resolve runtime services through that contract.
 `scoped()` is a builder operation; scope creation itself belongs to
 `ScopeFactoryInterface::beginScope()` at the runtime boundary.
 
 ```php
 use Lemonade\Framework\Container\ContainerBuilderInterface;
-use Lemonade\Framework\Core\DefinitionServiceProviderInterface;
+use Lemonade\Framework\Core\ServiceProviderInterface;
 
-final class BillingProvider implements DefinitionServiceProviderInterface
+final class BillingProvider implements ServiceProviderInterface
 {
     public function register(ContainerBuilderInterface $builder): void
     {
@@ -41,10 +41,17 @@ final class BillingRoutesProvider implements BootableServiceProviderInterface
 }
 ```
 
-The existing `ServiceProviderInterface::register(ContainerInterface $container)` remains fully
-supported for compatibility. Legacy providers may continue to use the container exactly as before,
-including immediate resolution where their established behavior requires it. New code should keep
-`register()` definition-only and move runtime side effects to `boot()`.
+`DefinitionServiceProviderInterface` remains a transitional compatibility contract for existing
+providers. New providers use `ServiceProviderInterface`; both registration contracts receive the
+same builder-only API. New code keeps `register()` definition-only and moves runtime side effects to
+`boot()`.
+
+At bootstrap, `ApplicationBootstrapper` creates one internal `ProviderLifecyclePlan`. It contains
+the early core providers, the HTTP or CLI entrypoint provider, configured framework providers and
+application providers. Its complete dependency graph is validated and stably ordered before any
+provider registers. Definitions then register through the builder, the builder freezes, and only
+then do optional `boot(ContainerInterface $container)` hooks run. A boot hook is runtime-only and
+cannot change container definitions.
 
 ## Provider dependencies
 
@@ -70,7 +77,10 @@ Every dependency must be a supported provider class and must be included in the 
 provider list. Missing, invalid and cyclic dependencies fail during bootstrap with a descriptive
 exception. Provider priorities and automatic discovery are intentionally not part of this model.
 
-A service provider implements `ServiceProviderInterface` and receives the framework container through its `register()` method. Inside that method it can register transient bindings, singleton bindings, factories, concrete objects or string service IDs. A string service ID is an ordinary binding identifier, not a service alias; definition providers declare explicit aliases through `ContainerBuilderInterface::alias()`.
+A service provider implements `ServiceProviderInterface` and receives the builder through its
+`register()` method. Inside that method it can register transient bindings, singleton bindings,
+factories, concrete objects or string service IDs. A string service ID is an ordinary binding
+identifier, not a service alias; explicit aliases use `ContainerBuilderInterface::alias()`.
 
 ## Provider example
 
@@ -80,14 +90,14 @@ A service provider implements `ServiceProviderInterface` and receives the framew
 namespace App\Providers;
 
 use App\Services\InvoiceImporter;
-use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
 final class AppServiceProvider implements ServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $builder): void
     {
-        $container->singleton(InvoiceImporter::class, InvoiceImporter::class);
+        $builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
     }
 }
 ```
@@ -158,18 +168,18 @@ scope; provider registration and boot remain requestless composition phases.
 ## Translation resources
 
 Providers may contribute file translation resources without copying them into the application
-`Language/` directory. The provider itself registers a resource root with
-`TranslationResourceRegistry` during its `register()` method. Each resource uses the conventional
+`Language/` directory. A bootable provider registers a resource root with
+`TranslationResourceRegistry` during its `boot()` method. Each resource uses the conventional
 `<locale>/<group>.php` layout.
 
 ```php
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Core\BootableServiceProviderInterface;
 use Lemonade\Framework\Localization\TranslationResourceRegistry;
 
-final class ExampleServiceProvider implements ServiceProviderInterface
+final class ExampleServiceProvider implements BootableServiceProviderInterface
 {
-    public function register(ContainerInterface $container): void
+    public function boot(ContainerInterface $container): void
     {
         $translationResources = $container->get(TranslationResourceRegistry::class);
         $translationResources->register(__DIR__ . '/Resources/lang');
@@ -192,7 +202,7 @@ replacing an entire group, so unrelated keys from earlier resources remain avail
 The resource root must exist and be a directory. Equivalent paths, including paths with a trailing
 slash or a symlink to the same directory, are canonicalized and registered only once.
 
-Resources are a bootstrap-time contribution: register them during provider registration before the
+Resources are a bootstrap-time contribution: register them during provider boot before the
 translator is first used. Once a translator reads a catalog, further resource registration is
 rejected to avoid inconsistent cached catalogs. Enabling, disabling, installing, or removing a
 provider therefore takes effect on the next application bootstrap; a provider absent from bootstrap

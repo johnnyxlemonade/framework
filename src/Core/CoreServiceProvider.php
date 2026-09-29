@@ -7,9 +7,12 @@ namespace Lemonade\Framework\Core;
 use DateTimeZone;
 use Lemonade\Framework\Clock\ClockInterface;
 use Lemonade\Framework\Clock\SystemClock;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
+use Lemonade\Framework\Core\Http\ResponseBuilder;
+use Lemonade\Framework\Http\Response\Responses;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -42,9 +45,9 @@ final class CoreServiceProvider implements ServiceProviderInterface
      *
      * @throws RuntimeException If the configured application timezone is invalid.
      */
-    public function register(ContainerInterface $container): void
+    public function register(ContainerBuilderInterface $container): void
     {
-        $builder = ProviderContainerAssertions::builder($container, self::class, 'scoped HTTP services');
+        $builder = ProviderContainerAssertions::builder($container, self::class, 'core services');
 
         /*
          * PSR-7 / PSR-17 factories.
@@ -57,6 +60,8 @@ final class CoreServiceProvider implements ServiceProviderInterface
         $container->singleton(StreamFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
         $container->singleton(UploadedFileFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
         $container->singleton(UriFactoryInterface::class, static fn(ContainerInterface $container): Psr17Factory => $container->get(Psr17Factory::class));
+        $container->singleton(ResponseBuilder::class, ResponseBuilder::class);
+        $container->singleton(Responses::class, Responses::class);
 
         /*
          * Core framework utilities.
