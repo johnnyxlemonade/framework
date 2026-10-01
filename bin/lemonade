@@ -10,6 +10,14 @@ use Lemonade\Framework\Core\Context\ApplicationContextFactory;
 $packageRoot = dirname(__DIR__);
 
 $autoload = $_composer_autoload_path ?? null;
+$workingDirectory = getcwd();
+$applicationAutoload = is_string($workingDirectory)
+    ? $workingDirectory . '/vendor/autoload.php'
+    : null;
+
+if (!is_string($autoload) || !is_file($autoload)) {
+    $autoload = $applicationAutoload;
+}
 
 if (!is_string($autoload) || !is_file($autoload)) {
     $autoload = $packageRoot . '/vendor/autoload.php';

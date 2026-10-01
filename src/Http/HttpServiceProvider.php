@@ -13,6 +13,7 @@ use Lemonade\Framework\Api\Security\NullApiAuthenticator;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\Http\RequestData;
 use Lemonade\Framework\Core\ProviderContainerAssertions;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Http\Config\CorsConfig;
@@ -38,6 +39,7 @@ use Lemonade\Framework\Http\Middleware\PoweredByMiddleware;
 use Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware;
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
 use Lemonade\Framework\Http\Response\HtmlMinifier;
+use Psr\Http\Message\ServerRequestInterface;
 
 final class HttpServiceProvider implements ServiceProviderInterface
 {
@@ -106,6 +108,15 @@ final class HttpServiceProvider implements ServiceProviderInterface
         $container->singleton(HtmlMinifier::class, HtmlMinifier::class);
 
         $container->singleton(HttpRequestInspector::class, HttpRequestInspector::class);
+        $builder->scoped(
+            RequestData::class,
+            static function (ContainerInterface $container): RequestData {
+                return new RequestData(
+                    $container->get(ServerRequestInterface::class),
+                    $container->get(HttpRequestInspector::class),
+                );
+            },
+        );
         $container->singleton(HttpLogContext::class, HttpLogContext::class);
     }
 

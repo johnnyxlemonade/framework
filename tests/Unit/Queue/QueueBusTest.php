@@ -160,6 +160,8 @@ final class QueueBusTest extends TestCase
 
         self::assertSame(QueueInstallCommand::class, $commands->definition('queue:install')->commandClass);
         self::assertSame(QueueWorkCommand::class, $commands->definition('queue:work')->commandClass);
+        self::assertTrue($container->isBound(QueueInstallCommand::class));
+        self::assertTrue($container->isBound(QueueWorkCommand::class));
     }
 
     private function bus(?QueueBusTransportSpy $database = null): QueueBus

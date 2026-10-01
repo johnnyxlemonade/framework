@@ -10,6 +10,7 @@ use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Api\Endpoint\ApiRoutePathResolver;
 use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\Container;
@@ -214,6 +215,7 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         $this->expectException(\LogicException::class);
         $framework->register(new ApiServiceProvider());
+        $framework->bootProviders();
     }
 
     public function testApiServiceProviderExplicitlyBindsFrameworkApiEndpointProvider(): void
@@ -230,6 +232,7 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         self::assertTrue($container->isBound(FrameworkApiEndpointProvider::class));
         self::assertTrue($container->isBound(ApiConfig::class));
+        self::assertTrue($container->isBound(ApiRoutePathResolver::class));
     }
 
     public function testApiServiceProviderSkipsHttpRouteRegistrationInCliRuntime(): void
@@ -269,6 +272,7 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         $this->expectException(\LogicException::class);
         $framework->register(new ApiServiceProvider());
+        $framework->bootProviders();
     }
 
     public function testFrameworkRunsWithDefaultsWhenAppApiConfigFileIsMissing(): void

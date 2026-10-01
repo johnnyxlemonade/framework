@@ -24,6 +24,11 @@ final class QueueServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerBuilderInterface $container): void
     {
+        // These are framework CLI entry points, so their bindings belong to
+        // the queue provider rather than to every consuming application.
+        $container->set(QueueInstallCommand::class, QueueInstallCommand::class);
+        $container->set(QueueWorkCommand::class, QueueWorkCommand::class);
+
         $container->singleton(QueueConfigResolver::class, QueueConfigResolver::class);
         $container->singleton(QueueConfig::class, static function (ContainerInterface $container): QueueConfig {
             return $container

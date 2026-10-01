@@ -14,6 +14,7 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistrar;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
+use Lemonade\Framework\Api\Endpoint\ApiRoutePathResolver;
 use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
 use Lemonade\Framework\Api\Framework\Health\HealthController;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
@@ -26,11 +27,12 @@ use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\BootableServiceProviderInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use LogicException;
 
-final class ApiServiceProvider implements ServiceProviderInterface
+final class ApiServiceProvider implements ServiceProviderInterface, BootableServiceProviderInterface
 {
     public function register(ContainerBuilderInterface $container): void
     {
@@ -45,6 +47,7 @@ final class ApiServiceProvider implements ServiceProviderInterface
         });
 
         $container->singleton(ApiEndpointRegistry::class, ApiEndpointRegistry::class);
+        $container->singleton(ApiRoutePathResolver::class, ApiRoutePathResolver::class);
         $container->singleton(ApiEndpointRegistrar::class, ApiEndpointRegistrar::class);
         $container->singleton(ApiEndpointRequestResolver::class, ApiEndpointRequestResolver::class);
         $container->singleton(ApiAuthenticatorInterface::class, static function (ContainerInterface $container): ApiAuthenticatorInterface {
@@ -70,7 +73,10 @@ final class ApiServiceProvider implements ServiceProviderInterface
         $container->singleton(OpenApiController::class, OpenApiController::class);
         $container->singleton(DocsController::class, DocsController::class);
         $container->singleton(ApiAuthorizationMiddleware::class, ApiAuthorizationMiddleware::class);
+    }
 
+    public function boot(ContainerInterface $container): void
+    {
         $config = $container->get(ApiConfig::class);
 
         if ($this->isCliRuntime($container)) {
