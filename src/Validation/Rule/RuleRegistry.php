@@ -14,7 +14,7 @@ final class RuleRegistry
     /**
      * @var array<string, class-string<ValidationRuleInterface>>
      */
-    private array $map = [
+    private const BUILT_IN_RULES = [
         'required' => RequiredRule::class,
         'required_if' => RequiredIfRule::class,
         'required_with' => RequiredWithRule::class,
@@ -79,6 +79,21 @@ final class RuleRegistry
         'recaptcha' => RecaptchaRule::class,
         'no_html' => NoHtmlRule::class,
     ];
+
+    /**
+     * @var array<string, class-string<ValidationRuleInterface>>
+     */
+    private array $map = self::BUILT_IN_RULES;
+
+    /**
+     * Returns the canonical framework-owned rule catalog.
+     *
+     * @return array<string, class-string<ValidationRuleInterface>>
+     */
+    public static function builtInRules(): array
+    {
+        return self::BUILT_IN_RULES;
+    }
 
     public function has(string $name): bool
     {

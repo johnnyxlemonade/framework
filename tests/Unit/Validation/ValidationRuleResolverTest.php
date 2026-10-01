@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Validation;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\Config\AutowireMode;
+use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Database;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
@@ -57,6 +60,36 @@ final class ValidationRuleResolverTest extends TestCase
         $this->expectExceptionMessage('Resolved validation rule "invalid_rule"');
 
         $resolver->resolve('invalid_rule');
+    }
+
+    public function testStrictModeRequiresApplicationToRegisterClassRule(): void
+    {
+        $registry = new RuleRegistry();
+        $registry->addRule('container_rule', ResolverContainerRule::class);
+
+        $container = $this->container();
+        $container->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
+        $container->singleton(ResolverRuleDependency::class, new ResolverRuleDependency('expected'));
+        $resolver = new ValidationRuleResolver($registry, $container);
+
+        $this->expectException(ServiceNotFoundException::class);
+        $resolver->resolve('container_rule');
+    }
+
+    public function testStrictModeResolvesApplicationClassRuleAfterExplicitRegistration(): void
+    {
+        $registry = new RuleRegistry();
+        $registry->addRule('container_rule', ResolverContainerRule::class);
+
+        $container = $this->container();
+        $container->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
+        $container->singleton(ResolverRuleDependency::class, new ResolverRuleDependency('expected'));
+        $container->transient(ResolverContainerRule::class, ResolverContainerRule::class);
+        $resolver = new ValidationRuleResolver($registry, $container);
+        $rule = $resolver->resolve('container_rule');
+
+        self::assertInstanceOf(ResolverContainerRule::class, $rule);
+        self::assertTrue($rule->validate('expected', null, []));
     }
 
     public function testDbBackedRuleUsesExplicitDatabaseDependency(): void

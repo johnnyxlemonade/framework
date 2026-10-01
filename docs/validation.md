@@ -5,6 +5,8 @@ Application code defines rules through the fluent `ValidationFieldBuilder`, expl
 
 Rules are resolved at runtime through `RuleRegistry` and `ValidationRuleResolver`. `ValidationRuleName` is only a list of built-in framework rule names for translations, registry lookup and message targeting. It is not a whitelist of all valid rules. Custom rules registered through `RuleRegistry::addRule()` are valid too.
 
+`ValidationServiceProvider` owns and registers every framework-built-in rule as a transient container service. The registry therefore maps a rule name to a class/service ID, and the resolver obtains that ID from the container in both permissive and strict autowiring modes.
+
 The validator is registered in the container as `FormValidation::class` and as the `validator` alias.
 
 ## Basic Controller Usage
@@ -139,6 +141,15 @@ Register the rule name in `RuleRegistry`.
 ```php
 $registry->addRule('slug', SlugRule::class);
 ```
+
+When `container.autowire` is `strict`, an application-owned class rule must also be registered as an application service. This mirrors framework-built-in rules; the framework does not register application classes.
+
+```php
+$container->transient(SlugRule::class, SlugRule::class);
+$registry->addRule('slug', SlugRule::class);
+```
+
+Registering a rule instance with `addRule()` continues to use that exact instance and does not require a separate container binding.
 
 Use the custom rule from the fluent builder.
 

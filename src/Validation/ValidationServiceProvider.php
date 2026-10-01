@@ -36,6 +36,10 @@ final class ValidationServiceProvider implements ServiceProviderInterface
         $container->singleton('validation.rules', RuleRegistry::class);
         $container->singleton(ValidationRuleResolver::class, ValidationRuleResolver::class);
 
+        foreach (RuleRegistry::builtInRules() as $ruleClass) {
+            $container->transient($ruleClass, $ruleClass);
+        }
+
         $container->set(FormValidation::class, static function (ContainerInterface $container): FormValidation {
             return new FormValidation(
                 translator: $container->get(TranslatorInterface::class),
