@@ -42,7 +42,7 @@ final class ErrorPageRenderer
     {
         $template = $this->config->internalServerErrorView;
 
-        return $this->renderSafely(
+        $page = $this->renderSafely(
             template: $template,
             data: $this->errorData(
                 title: '500 Internal Server Error',
@@ -55,6 +55,12 @@ final class ErrorPageRenderer
                 exception: $exception,
             ),
         );
+
+        if (!$this->context->isDevelopment()) {
+            return $page;
+        }
+
+        return $page . $this->developerDiagnostics($exception);
     }
 
     /**
@@ -68,9 +74,10 @@ final class ErrorPageRenderer
         return [
             'title' => $title,
             'message' => $message,
-            'debug' => $this->context->debug(),
-            'exception_class' => $this->context->debug() ? $exception::class : null,
-            'exception_message' => $this->context->debug() ? $exception->getMessage() : null,
+            'debug' => $this->context->isDevelopment(),
+            'exception_class' => $this->context->isDevelopment() ? $exception::class : null,
+            'exception_message' => $this->context->isDevelopment() ? $exception->getMessage() : null,
+            'exception_trace' => $this->context->isDevelopment() ? $exception->getTraceAsString() : null,
         ];
     }
 
@@ -98,7 +105,7 @@ final class ErrorPageRenderer
 
     private function fallback(string $title, string $message, Throwable $exception): string
     {
-        if (!$this->context->debug()) {
+        if (!$this->context->isDevelopment()) {
             return sprintf(
                 '<h1>%s</h1><p>%s</p>',
                 $this->escape($title),
@@ -117,5 +124,18 @@ final class ErrorPageRenderer
     private function escape(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+    }
+
+    private function developerDiagnostics(Throwable $exception): string
+    {
+        return sprintf(
+            "\n<section class=\"framework-error-diagnostics\"><pre>%s</pre></section>",
+            $this->escape(sprintf(
+                "%s: %s\n\n%s",
+                $exception::class,
+                $exception->getMessage(),
+                $exception->getTraceAsString(),
+            )),
+        );
     }
 }

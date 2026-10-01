@@ -11,6 +11,7 @@ use Lemonade\Framework\Cli\Config\CommandsConfig;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
+use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Throwable;
 
@@ -82,6 +83,10 @@ final class CliKernel
      */
     public function handle(array $argv): int
     {
+        /** @var PhpDiagnostics $phpDiagnostics */
+        $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
+        $phpDiagnostics->install();
+
         try {
             $this->benchmark->currentOrStart([
                 'entrypoint' => 'cli',
@@ -126,6 +131,8 @@ final class CliKernel
             }
 
             return 1;
+        } finally {
+            $phpDiagnostics->uninstall();
         }
     }
 

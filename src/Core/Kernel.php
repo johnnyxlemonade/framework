@@ -10,6 +10,7 @@ use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
+use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
@@ -96,6 +97,10 @@ final class Kernel
      */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
+        /** @var PhpDiagnostics $phpDiagnostics */
+        $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
+        $phpDiagnostics->install();
+
         try {
             $this->bootstrapper->loadConfiguration(BootstrapEntrypoint::Http);
 
@@ -134,6 +139,8 @@ final class Kernel
             $this->logException($exception);
 
             return $this->errorResponse($exception);
+        } finally {
+            $phpDiagnostics->uninstall();
         }
     }
 
@@ -149,19 +156,27 @@ final class Kernel
      */
     public function handle(?ServerRequestInterface $request = null): void
     {
-        $this->benchmark->currentOrStart([
-            'entrypoint' => 'http',
-            'started_at' => 'kernel.handle',
-        ])->mark('kernel_start');
+        /** @var PhpDiagnostics $phpDiagnostics */
+        $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
+        $phpDiagnostics->install();
 
-        $request ??= $this->container
-            ->get(ServerRequestFactory::class)
-            ->fromGlobals();
+        try {
+            $this->benchmark->currentOrStart([
+                'entrypoint' => 'http',
+                'started_at' => 'kernel.handle',
+            ])->mark('kernel_start');
 
-        $this->emitter->emit(
-            $this->run($request),
-            $request,
-        );
+            $request ??= $this->container
+                ->get(ServerRequestFactory::class)
+                ->fromGlobals();
+
+            $this->emitter->emit(
+                $this->run($request),
+                $request,
+            );
+        } finally {
+            $phpDiagnostics->uninstall();
+        }
     }
 
     /**
@@ -207,7 +222,7 @@ final class Kernel
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface
     {
-        if ($this->context->debug()) {
+        if ($this->context->isDevelopment()) {
             return $this->textResponse(
                 statusCode: HttpStatus::NOT_FOUND->value,
                 body: '404 Not Found' . PHP_EOL . $exception->getMessage(),
@@ -222,7 +237,7 @@ final class Kernel
 
     private function errorResponse(Throwable $exception): ResponseInterface
     {
-        if ($this->context->debug()) {
+        if ($this->context->isDevelopment()) {
             return $this->textResponse(
                 statusCode: HttpStatus::INTERNAL_SERVER_ERROR->value,
                 body: sprintf(

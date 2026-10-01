@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container;
 
+use Lemonade\Framework\Container\Config\AutowireMode;
 use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Definition\ClassTarget;
 use Lemonade\Framework\Container\Definition\DefinitionTarget;
@@ -17,13 +18,10 @@ use Lemonade\Framework\Container\Exception\InvalidServiceDecoratorException;
 use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
 use Lemonade\Framework\Container\Exception\SingletonDependsOnScopedServiceException;
-use Lemonade\Framework\Core\Context\ApplicationContext;
-use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
 use ReflectionClass;
 use ReflectionNamedType;
 
-final class Container implements ContainerInterface, ContainerBuilderInterface, ContainerDiagnosticsInterface, ScopeFactoryInterface, TaggedServicesInterface
+final class Container implements ContainerInterface, ContainerBuilderInterface, ScopeFactoryInterface, TaggedServicesInterface
 {
     private ContainerBuilder $builder;
     private ?CompiledContainerPlan $compiledPlan = null;
@@ -32,11 +30,6 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      * @var array<string, mixed>
      */
     private array $instances = [];
-
-    /**
-     * @var array<string, true>
-     */
-    private array $reportedAutowireFallbacks = [];
 
     /**
      * @var array<string, bool>
@@ -78,9 +71,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     /** @var list<ServiceLifetime> */
     private array $serviceLifetimeStack = [];
 
-    private ?LoggerInterface $diagnosticLogger = null;
-    private ?LoggerInterface $autowireFallbackLogger = null;
-    private ?bool $autowireFallbackWarningEnabled = null;
+    private ?bool $permissiveAutowiring = null;
 
     public function __construct(?ContainerBuilder $builder = null)
     {
@@ -245,12 +236,6 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->resolveTagged($runtimeContainer, $normalizedTag, $serviceIds);
     }
 
-    public function setDiagnosticLogger(?LoggerInterface $logger): void
-    {
-        $this->diagnosticLogger = $logger;
-        $this->autowireFallbackLogger = null;
-    }
-
     /**
      * @param class-string|string $id
      */
@@ -346,7 +331,12 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
                     ));
                 }
 
-                $this->reportAutowireFallback($canonicalId);
+                if (!$this->allowsAutowireFallback()) {
+                    throw new ServiceNotFoundException(sprintf(
+                        'Service "%s" was not found.',
+                        $canonicalId,
+                    ));
+                }
 
                 return $this->build($canonicalId, $runtimeContainer);
             }
@@ -408,114 +398,22 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $scope;
     }
 
-    private function reportAutowireFallback(string $id): void
+    private function allowsAutowireFallback(): bool
     {
-        if (!$this->isAutowireFallbackWarningEnabled()) {
-            return;
+        if ($this->permissiveAutowiring !== null) {
+            return $this->permissiveAutowiring;
         }
 
-        if (isset($this->reportedAutowireFallbacks[$id])) {
-            return;
+        if (!$this->isBound(ContainerConfig::class)) {
+            return $this->permissiveAutowiring = true;
         }
 
-        $this->reportedAutowireFallbacks[$id] = true;
-
-        $message = sprintf(
-            'Autowiring fallback used for "%s". Register this service explicitly in an appropriate ServiceProvider.',
-            $id,
-        );
-
-        $logger = $this->autowireFallbackLogger();
-        if ($logger !== null && !$logger instanceof NullLogger) {
-            $logger->warning($message, [
-                'service' => $id,
-                'source' => 'container.autowire_fallback',
-            ]);
-
-            return;
+        $config = $this->get(ContainerConfig::class);
+        if (!$config instanceof ContainerConfig) {
+            return $this->permissiveAutowiring = true;
         }
 
-        error_log('[Lemonade][Container] ' . $message);
-    }
-
-    private function isAutowireFallbackWarningEnabled(): bool
-    {
-        if ($this->autowireFallbackWarningEnabled !== null) {
-            return $this->autowireFallbackWarningEnabled;
-        }
-
-        $config = $this->peekContainerConfig();
-
-        if ($config instanceof ContainerConfig) {
-            $this->autowireFallbackWarningEnabled = $config->autowireFallbackWarning;
-
-            return $this->autowireFallbackWarningEnabled;
-        }
-
-        $context = $this->peekContext();
-
-        if ($context instanceof ApplicationContext) {
-            $this->autowireFallbackWarningEnabled = $context->isDevelopment();
-
-            return $this->autowireFallbackWarningEnabled;
-        }
-
-        $this->autowireFallbackWarningEnabled = false;
-
-        return false;
-    }
-
-    private function peekContext(): ?ApplicationContext
-    {
-        if (
-            isset($this->instances[ApplicationContext::class])
-            && $this->instances[ApplicationContext::class] instanceof ApplicationContext
-        ) {
-            return $this->instances[ApplicationContext::class];
-        }
-
-        $instance = $this->boundInstance(ApplicationContext::class);
-
-        return $instance instanceof ApplicationContext ? $instance : null;
-    }
-
-    private function peekContainerConfig(): ?ContainerConfig
-    {
-        if (
-            isset($this->instances[ContainerConfig::class])
-            && $this->instances[ContainerConfig::class] instanceof ContainerConfig
-        ) {
-            return $this->instances[ContainerConfig::class];
-        }
-
-        $instance = $this->boundInstance(ContainerConfig::class);
-
-        return $instance instanceof ContainerConfig ? $instance : null;
-    }
-
-    private function peekLogger(): ?LoggerInterface
-    {
-        if (
-            isset($this->instances[LoggerInterface::class])
-            && $this->instances[LoggerInterface::class] instanceof LoggerInterface
-        ) {
-            return $this->instances[LoggerInterface::class];
-        }
-
-        $instance = $this->boundInstance(LoggerInterface::class);
-
-        return $instance instanceof LoggerInterface ? $instance : null;
-    }
-
-    private function autowireFallbackLogger(): ?LoggerInterface
-    {
-        if ($this->autowireFallbackLogger instanceof LoggerInterface) {
-            return $this->autowireFallbackLogger;
-        }
-
-        $this->autowireFallbackLogger = $this->diagnosticLogger ?? $this->peekLogger();
-
-        return $this->autowireFallbackLogger;
+        return $this->permissiveAutowiring = $config->autowire === AutowireMode::Permissive;
     }
 
     private function resolve(DefinitionTarget $target, ContainerInterface $runtimeContainer): mixed
@@ -788,14 +686,10 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->interfaceExistenceCache[$interfaceName];
     }
 
-    private function invalidateDiagnosticCacheFor(string $id): void
+    private function invalidateAutowirePolicyCacheFor(string $id): void
     {
-        if ($id === ContainerConfig::class || $id === ApplicationContext::class) {
-            $this->autowireFallbackWarningEnabled = null;
-        }
-
-        if ($id === LoggerInterface::class) {
-            $this->autowireFallbackLogger = null;
+        if ($id === ContainerConfig::class) {
+            $this->permissiveAutowiring = null;
         }
     }
 
@@ -803,7 +697,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     {
         unset($this->instances[$id]);
         $this->compiledPlan = null;
-        $this->invalidateDiagnosticCacheFor($id);
+        $this->invalidateAutowirePolicyCacheFor($id);
     }
 
     private function assertMutable(): void
@@ -816,13 +710,6 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     private function compiledPlan(): CompiledContainerPlan
     {
         return $this->compiledPlan ??= $this->builder->compile();
-    }
-
-    private function boundInstance(string $id): ?object
-    {
-        $target = $this->compiledPlan()->definition($id)?->target;
-
-        return $target instanceof InstanceTarget ? $target->instance : null;
     }
 
     /**

@@ -8,103 +8,51 @@ use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
 
 final class LoggingConfigDefinition extends AbstractConfigDefinition
 {
+    /**
+     * Creates an empty logging definition for framework defaults or application policy.
+     */
     public static function create(): self
     {
         return new self();
     }
 
+    /**
+     * Returns the YAML module name consumed by the typed logging resolver.
+     */
     public static function moduleKey(): string
     {
         return 'logging';
     }
 
-    public function appEnabled(bool $enabled = true): self
+    /**
+     * Sets the shared retention period used by every built-in file channel.
+     */
+    public function retentionDays(int $days): self
     {
-        return $this->set('app.enabled', $enabled);
+        return $this->set('retention_days', $days);
     }
 
-    public function appPath(string $path): self
-    {
-        return $this->set('app.path', $path);
-    }
-
-    public function appLevel(string $level): self
-    {
-        return $this->set('app.level', $level);
-    }
-
-    public function appDays(int $days): self
-    {
-        return $this->set('app.days', $days);
-    }
-
-    public function errorEnabled(bool $enabled = true): self
-    {
-        return $this->set('error.enabled', $enabled);
-    }
-
-    public function errorPath(string $path): self
-    {
-        return $this->set('error.path', $path);
-    }
-
-    public function errorLevel(string $level): self
-    {
-        return $this->set('error.level', $level);
-    }
-
-    public function errorDays(int $days): self
-    {
-        return $this->set('error.days', $days);
-    }
-
-    public function errorLogNotFound(bool $enabled = true): self
-    {
-        return $this->set('error.not_found', $enabled);
-    }
-
+    /**
+     * Enables or disables optional HTTP request file logging.
+     */
     public function requestEnabled(bool $enabled = true): self
     {
         return $this->set('request.enabled', $enabled);
     }
 
-    public function requestPath(string $path): self
-    {
-        return $this->set('request.path', $path);
-    }
-
-    public function requestLevel(string $level): self
-    {
-        return $this->set('request.level', $level);
-    }
-
-    public function requestDays(int $days): self
-    {
-        return $this->set('request.days', $days);
-    }
-
+    /**
+     * Sets the lowest response status included in optional request logging.
+     */
     public function requestMinStatus(int $statusCode): self
     {
         return $this->set('request.min_status', $statusCode);
     }
 
+    /**
+     * Enables or disables optional benchmark-run file logging.
+     */
     public function benchmarkEnabled(bool $enabled = true): self
     {
         return $this->set('benchmark.enabled', $enabled);
-    }
-
-    public function benchmarkPath(string $path): self
-    {
-        return $this->set('benchmark.path', $path);
-    }
-
-    public function benchmarkLevel(string $level): self
-    {
-        return $this->set('benchmark.level', $level);
-    }
-
-    public function benchmarkDays(int $days): self
-    {
-        return $this->set('benchmark.days', $days);
     }
 }

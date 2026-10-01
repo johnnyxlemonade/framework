@@ -12,14 +12,23 @@ use Lemonade\Framework\Core\Logging\RotatingFileLogger;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
 use Throwable;
 
+/**
+ * Records uncaught runtime and PHP diagnostics through the error channel, including bootstrap fallback.
+ */
 final class ExceptionLogger
 {
+    /**
+     * Binds diagnostic reporting to the root container and canonical application paths.
+     */
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
     ) {
     }
 
+    /**
+     * Records an uncaught throwable without allowing logging failures to alter error handling.
+     */
     public function log(Throwable $exception, string $source): void
     {
         try {
@@ -38,6 +47,40 @@ final class ExceptionLogger
         $this->logFallback($exception, $source);
     }
 
+    /**
+     * Records a PHP diagnostic with its severity and source location.
+     */
+    public function logPhpDiagnostic(
+        int $severity,
+        string $message,
+        string $file,
+        int $line,
+        string $source,
+    ): void {
+        try {
+            if ($this->container->has(LogManager::class)) {
+                $this->container
+                    ->get(LogManager::class)
+                    ->error()
+                    ->error($message, [
+                        'severity' => $severity,
+                        'file' => $file,
+                        'line' => $line,
+                        'source' => $source,
+                    ]);
+
+                return;
+            }
+        } catch (Throwable) {
+            // LogManager may not be available during early bootstrap failure.
+        }
+
+        $this->logFallback(
+            new \ErrorException($message, 0, $severity, $file, $line),
+            $source,
+        );
+    }
+
     private function logFallback(Throwable $exception, string $source): void
     {
         try {
@@ -46,21 +89,13 @@ final class ExceptionLogger
                 : null;
 
             if ($config instanceof LoggingConfig) {
-                $enabled = $config->error->enabled;
-
-                if (!$enabled) {
-                    return;
-                }
-
-                $file = $config->error->path;
-                $days = $config->error->days;
+                $days = $config->retentionDays;
             } else {
-                $file = 'error.log';
                 $days = 7;
             }
 
             (new RotatingFileLogger(
-                file: $this->resolveLogFile($file),
+                file: $this->context->resolveLogPath('error.log'),
                 directoryManager: $this->container->get(DirectoryManagerInterface::class),
                 retentionDays: $days,
             ))->error($exception->getMessage(), [
@@ -70,21 +105,6 @@ final class ExceptionLogger
         } catch (Throwable) {
             // Fallback logging must never break exception handling.
         }
-    }
-
-    private function resolveLogFile(string $file): string
-    {
-        if ($this->isAbsolutePath($file)) {
-            return $file;
-        }
-
-        return $this->context->resolveLogPath($file);
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        return str_starts_with($path, '/')
-            || preg_match('/^[A-Z]:[\/\\\\]/i', $path) === 1;
     }
 
     /**

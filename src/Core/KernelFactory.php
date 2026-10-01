@@ -63,6 +63,7 @@ final class KernelFactory
             healthFastPath: new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
                 $container->get(Benchmark::class),
+                $context,
             ),
             benchmark: $container->get(Benchmark::class),
         );

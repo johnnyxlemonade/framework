@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Component;
 
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
-use Lemonade\Framework\Component\Breadcrumb\BreadcrumbFactory;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbRenderer;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbServiceProvider;
-use Lemonade\Framework\Component\Breadcrumb\Config\BreadcrumbsConfigDefinition;
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Component\ComponentServiceProvider;
 use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
@@ -227,7 +225,6 @@ final class ComponentServiceProviderTest extends TestCase
 
         $provider->register($container);
 
-        self::assertTrue($container->isBound(BreadcrumbFactory::class));
         self::assertTrue($container->isBound(BreadcrumbRenderer::class));
         self::assertTrue($container->isBound(BreadcrumbComponent::class));
     }
@@ -264,11 +261,6 @@ final class ComponentServiceProviderTest extends TestCase
                 ->maxPerPage(100)
                 ->visiblePages(7)
                 ->showFirstLast(),
-        );
-        $registry->addDefinition(
-            BreadcrumbsConfigDefinition::create()
-                ->frontendRoot('Domu', '/')
-                ->adminRoot('Admin', '/admin'),
         );
         $registry->addDefinition(
             MetaConfigDefinition::create()

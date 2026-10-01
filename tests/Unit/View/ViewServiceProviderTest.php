@@ -386,6 +386,7 @@ final class ViewServiceProviderTest extends TestCase
             new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
                 $container->get(Benchmark::class),
+                $context,
             ),
             $container->get(Benchmark::class),
         );

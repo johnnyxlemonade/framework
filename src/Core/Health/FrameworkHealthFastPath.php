@@ -12,6 +12,7 @@ use Lemonade\Framework\Api\Http\Response\ApiResponseFactory;
 use Lemonade\Framework\Clock\SystemClock;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\FrameworkInfo;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
@@ -30,6 +31,7 @@ final class FrameworkHealthFastPath
     public function __construct(
         private readonly ConfigDefinitionRegistry $definitions,
         private readonly Benchmark $benchmark,
+        private readonly ApplicationContext $context,
         private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
     ) {
     }
@@ -96,7 +98,10 @@ final class FrameworkHealthFastPath
         $run?->stop();
 
         if ($run instanceof BenchmarkRun) {
-            $response = (new BenchmarkResponseInjector($snapshot->benchmark))->inject(
+            $response = (new BenchmarkResponseInjector(
+                $snapshot->benchmark,
+                $this->context,
+            ))->inject(
                 $response,
                 $run,
             );

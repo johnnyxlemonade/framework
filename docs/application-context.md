@@ -28,6 +28,24 @@ APP_PUBLIC_PATH=/path/to/public-root
 
 `APP_DEBUG` explicitly enables or disables debug mode. When it is not provided, the default is derived from the selected environment.
 
+## Error presentation policy
+
+HTTP error presentation is determined by `APP_ENV`, not by `APP_DEBUG` alone:
+
+- `development` renders developer-facing HTML diagnostics for unexpected HTML failures, including the exception class, message and trace.
+- every non-development environment renders a generic HTML 500 response and never exposes an exception message, file path or trace.
+- registered API endpoints always return generic Problem Details for unexpected failures, in every environment.
+
+`APP_DEBUG` can still be used by framework diagnostics, but it cannot make a production response disclose internal error details.
+
+The framework installs a PHP diagnostic policy during bootstrap. It sets `error_reporting(E_ALL)` and
+uses `display_errors=0` outside development. Development warnings and recoverable errors become
+`ErrorException` instances; notices and deprecations are reported without being silently discarded.
+Production reports PHP diagnostics to the framework error logger without sending them to the client.
+Fatal PHP errors are also reported during shutdown. When the shutdown path can still write a response,
+it uses a plain-text fallback rather than the normal HTML throwable page: development includes the fatal
+message and file location without a standard trace, while non-development returns `500 Internal Server Error`.
+
 `APP_BASE_PATH` can override the base path passed to the context factory. This is useful when the entrypoint path and application root path are not the same.
 
 `APP_PUBLIC_PATH` can explicitly override the public web root used for assets and uploads. Relative values are resolved against the application base path.

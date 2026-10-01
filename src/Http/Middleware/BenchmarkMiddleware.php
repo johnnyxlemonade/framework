@@ -87,7 +87,7 @@ final class BenchmarkMiddleware implements MiddlewareInterface
 
     private function logRun(BenchmarkRun $run): void
     {
-        if (!$this->config->benchmark->enabled) {
+        if (!$this->config->benchmarkEnabled) {
             return;
         }
 

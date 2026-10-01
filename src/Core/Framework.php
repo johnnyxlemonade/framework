@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
-use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
-use Lemonade\Framework\Container\ContainerDiagnosticsInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
@@ -20,6 +18,7 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Config\FrameworkDefaultsLoader;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
+use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Exception\InvalidRequestScopeException;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
@@ -52,7 +51,6 @@ final class Framework
     private readonly Router $router;
     private readonly ServiceProviderLifecycle $providerLifecycle;
     private readonly ContainerBuilderInterface $builder;
-    private readonly ContainerDiagnosticsInterface $diagnostics;
     /**
      * @var list<callable(MiddlewareStack):void>
      */
@@ -75,15 +73,7 @@ final class Framework
             ));
         }
 
-        if (!$this->container instanceof ContainerDiagnosticsInterface) {
-            throw new RuntimeException(sprintf(
-                'Framework bootstrap requires a container implementing %s.',
-                ContainerDiagnosticsInterface::class,
-            ));
-        }
-
         $this->builder = $this->container;
-        $this->diagnostics = $this->container;
         $this->providerLifecycle = new ServiceProviderLifecycle($this->container);
         $this->router = new Router();
 
@@ -94,6 +84,11 @@ final class Framework
     {
         $this->builder->singleton(ApplicationContext::class, $this->context);
         $this->builder->singleton(Environment::class, $this->context->environment());
+        $phpDiagnostics = new PhpDiagnostics(
+            $this->context,
+            $this->container,
+        );
+        $this->builder->singleton(PhpDiagnostics::class, $phpDiagnostics);
 
         $this->register(new CoreConfigurationServiceProvider());
         $this->config(...(new FrameworkDefaultsLoader())->load());
@@ -103,15 +98,12 @@ final class Framework
 
         $frameworkLogger = new NullLogger();
         $this->builder->singleton(LoggerInterface::class, $frameworkLogger);
-        $this->diagnostics->setDiagnosticLogger($frameworkLogger);
 
         $this->builder->singleton(Psr17Factory::class, Psr17Factory::class);
         $this->builder->singleton(ServerRequestFactory::class, ServerRequestFactory::class);
         $this->register(new BenchmarkServiceProvider());
 
         $this->config(
-            ContainerConfigDefinition::create()
-                ->autowireFallbackWarning($this->context->isDevelopment()),
             AppConfigDefinition::create()
                 ->basePath($this->context->basePath())
                 ->publicPath($this->context->publicPath())

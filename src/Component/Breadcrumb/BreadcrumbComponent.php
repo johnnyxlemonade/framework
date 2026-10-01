@@ -4,29 +4,31 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Breadcrumb;
 
+/**
+ * Creates application-supplied breadcrumb trails and renders them through the
+ * framework's canonical breadcrumb renderer.
+ */
 final class BreadcrumbComponent
 {
+    /**
+     * Initializes the component with the renderer shared by views and callers.
+     */
     public function __construct(
-        private readonly BreadcrumbFactory $factory,
         private readonly BreadcrumbRenderer $renderer,
     ) {
     }
 
-    public function frontend(string $currentLabel, ?string $currentUrl = null): BreadcrumbTrail
-    {
-        return $this->factory->createFrontend($currentLabel, $currentUrl);
-    }
-
-    public function admin(string $currentLabel, ?string $currentUrl = null): BreadcrumbTrail
-    {
-        return $this->factory->createAdmin($currentLabel, $currentUrl);
-    }
-
+    /**
+     * Starts an empty trail so the caller can define its own navigation roots and items.
+     */
     public function empty(): BreadcrumbTrail
     {
-        return $this->factory->empty();
+        return new BreadcrumbTrail();
     }
 
+    /**
+     * Renders a trail or returns an empty string when no trail is available.
+     */
     public function render(?BreadcrumbTrail $trail): string
     {
         return $this->renderer->render($trail);

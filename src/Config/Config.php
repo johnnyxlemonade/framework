@@ -23,7 +23,6 @@ return [
         'Components.php',
         'Meta.php',
         'Pagination.php',
-        'Breadcrumbs.php',
     ],
     'http' => [
         'Error.php',

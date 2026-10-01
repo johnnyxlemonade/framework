@@ -248,7 +248,15 @@ In views, use the shared helper objects:
 
 ## Autowiring
 
-Autowiring is available for concrete classes, but it is intentionally limited:
+The default container policy is permissive:
+
+```yaml
+module: container
+config:
+  autowire: permissive
+```
+
+Autowiring is intentionally limited:
 
 - unbound concrete classes can be instantiated through reflection
 - class-typed constructor parameters can be resolved recursively
@@ -258,11 +266,12 @@ Autowiring is available for concrete classes, but it is intentionally limited:
 - non-instantiable classes fail early
 - missing services fail with a service-not-found exception
 
-The container may report concrete-class autowiring fallback usage when diagnostics are enabled. This encourages explicit service registration without removing the convenience of resolving simple concrete classes.
+Concrete autowiring is supported container behavior in this mode. It is transient and does not emit a warning or write diagnostics.
 
-Fallback reporting is an explicit diagnostics policy, not a naming convention: when enabled, the
-container reports every concrete-class autowiring fallback once per service ID. It never infers
-reportability from a namespace, directory or class-name suffix. Applications can disable reporting
-through the existing `container.autowire_fallback_warning` typed configuration.
+Set `autowire: strict` when an application requires every resolved service to have an explicit definition. In strict mode, an unbound concrete class fails with the standard service-not-found exception. Explicit bindings continue to support aliases, factories, singleton and scoped lifecycles, decorators, tags and contextual bindings.
 
-This keeps the container useful for small object graphs while making important service wiring visible in service providers.
+## Explicit registrations
+
+Register a service explicitly when it needs an interface or alias binding, a singleton or scoped lifecycle, a factory or external instance, a decorator, a tagged extension point, configuration, contextual or scalar policy, resource ownership, or stable instance identity.
+
+Autowire-only resolution is appropriate for a concrete, instantiable, stateless class that has no special lifecycle, configuration or resource ownership, and does not participate in tags or decorators.

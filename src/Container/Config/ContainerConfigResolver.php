@@ -4,35 +4,37 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container\Config;
 
+/**
+ * Resolves layered container definitions into one runtime autowiring policy.
+ */
 final class ContainerConfigResolver
 {
+    /**
+     * Applies definitions in registration order, retaining the last valid mode.
+     */
     public function resolve(ContainerConfigDefinition ...$definitions): ContainerConfig
     {
-        $autowireFallbackWarning = false;
+        $autowire = AutowireMode::Permissive;
 
         foreach ($definitions as $definition) {
             $data = $definition->toArray();
 
-            if (array_key_exists('autowire_fallback_warning', $data)) {
-                $autowireFallbackWarning = $this->toBool($data['autowire_fallback_warning'], $autowireFallbackWarning);
+            if (array_key_exists('autowire', $data)) {
+                $autowire = $this->modeOr($data['autowire'], $autowire);
             }
         }
 
-        return new ContainerConfig($autowireFallbackWarning);
+        return new ContainerConfig($autowire);
     }
 
-    private function toBool(mixed $value, bool $default): bool
+    private function modeOr(mixed $value, AutowireMode $default): AutowireMode
     {
-        if (is_bool($value)) {
-            return $value;
-        }
-
         if (!is_scalar($value)) {
             return $default;
         }
 
-        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $mode = strtolower(trim((string) $value));
 
-        return $resolved ?? $default;
+        return AutowireMode::tryFrom($mode) ?? $default;
     }
 }

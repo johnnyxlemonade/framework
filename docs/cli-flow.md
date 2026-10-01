@@ -16,8 +16,8 @@ bin/lemonade
    -> load conventional YAML config files, including Commands.yaml
    -> apply runtime app config
    -> register core providers
-   -> register common framework providers
    -> register ConsoleServiceProvider
+   -> register common framework providers
    -> register application providers
 -> build CommandRegistry
    -> validate configured CommandDefinition metadata and command classes

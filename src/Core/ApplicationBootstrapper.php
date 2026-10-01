@@ -6,7 +6,6 @@ namespace Lemonade\Framework\Core;
 
 use Lemonade\Framework\Cache\CacheServiceProvider;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
-use Lemonade\Framework\Container\ContainerDiagnosticsInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\ConfigLoader;
@@ -17,7 +16,6 @@ use Lemonade\Framework\Core\Logging\LoggingServiceProvider;
 use Lemonade\Framework\Filesystem\FilesystemServiceProvider;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Psr\Log\LoggerInterface;
 
 /**
  * Coordinates the shared root-container bootstrap for application entrypoints.
@@ -76,7 +74,6 @@ final class ApplicationBootstrapper
         $this->applyRuntimeAppConfig();
         $plan = $this->providerPlan($entrypoint);
         $this->framework->registerPlan($plan);
-        $this->configureDiagnostics();
         $this->markBenchmark(
             $entrypoint === BootstrapEntrypoint::Http
                 ? 'core_providers_registered'
@@ -108,19 +105,6 @@ final class ApplicationBootstrapper
                 ->configPath($this->context->configPath())
                 ->storagePath($this->context->storagePath()),
         );
-    }
-
-    private function configureDiagnostics(): void
-    {
-        $logger = $this->container->get(LoggerInterface::class);
-        if (!$this->container instanceof ContainerDiagnosticsInterface) {
-            throw new \LogicException(sprintf(
-                'Bootstrap diagnostics require a container implementing %s.',
-                ContainerDiagnosticsInterface::class,
-            ));
-        }
-
-        $this->container->setDiagnosticLogger($logger);
     }
 
     private function providerPlan(BootstrapEntrypoint $entrypoint): ProviderLifecyclePlan

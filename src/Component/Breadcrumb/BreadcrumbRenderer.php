@@ -4,21 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Breadcrumb;
 
+/**
+ * Renders generic breadcrumb trail data as escaped semantic BreadcrumbList markup.
+ */
 final class BreadcrumbRenderer
 {
     /**
-     * @param array<string, string> $classes
+     * Renders the supplied trail with the final item as the active non-link item.
      */
-    public function __construct(
-        private readonly array $classes = [
-            'ul' => 'breadcrumb-navigation',
-            'li' => 'breadcrumb-link{active}',
-            'a' => 'breadcrumb-link-anchor',
-            'span' => 'breadcrumb-link-name',
-        ],
-    ) {
-    }
-
     public function render(?BreadcrumbTrail $trail): string
     {
         if ($trail === null || $trail->count() === 0) {
@@ -28,17 +21,11 @@ final class BreadcrumbRenderer
         $items = $trail->items();
         $lastIndex = count($items) - 1;
 
-        $ulClass = $this->classFor('ul');
-        $liClassTemplate = $this->classFor('li');
-        $aClass = $this->classFor('a');
-        $spanClass = $this->classFor('span');
-
-        $html = '<ul class="' . $this->escape($ulClass) . '" itemscope itemtype="https://schema.org/BreadcrumbList">' . PHP_EOL;
+        $html = '<ul class="breadcrumb mb-0" itemscope itemtype="https://schema.org/BreadcrumbList">' . PHP_EOL;
 
         foreach ($items as $index => $item) {
-            $isActive = $item->active() || $index === $lastIndex;
-            $activeClass = $isActive ? ' active' : '';
-            $liClass = str_replace('{active}', $activeClass, $liClassTemplate);
+            $isActive = $index === $lastIndex;
+            $liClass = $isActive ? 'breadcrumb-item active' : 'breadcrumb-item';
 
             $name = $this->escape($item->label());
             $position = (string) ($index + 1);
@@ -46,12 +33,12 @@ final class BreadcrumbRenderer
 
             $html .= '    <li class="' . $this->escape($liClass) . '" itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">' . PHP_EOL;
 
-            if (is_string($url) && $url !== '') {
-                $html .= '        <a href="' . $this->escape($url) . '" class="' . $this->escape($aClass) . '" itemprop="item" title="' . $name . '">' . PHP_EOL;
-                $html .= '            <span class="' . $this->escape($spanClass) . '" itemprop="name">' . $name . '</span>' . PHP_EOL;
+            if (!$isActive && is_string($url) && $url !== '') {
+                $html .= '        <a href="' . $this->escape($url) . '" class="text-decoration-none" itemprop="item" title="' . $name . '">' . PHP_EOL;
+                $html .= '            <span itemprop="name">' . $name . '</span>' . PHP_EOL;
                 $html .= '        </a>' . PHP_EOL;
             } else {
-                $html .= '        <span class="' . $this->escape($spanClass) . '" itemprop="name">' . $name . '</span>' . PHP_EOL;
+                $html .= '        <span itemprop="name"' . ($isActive ? ' aria-current="page"' : '') . '>' . $name . '</span>' . PHP_EOL;
             }
 
             $html .= '        <meta itemprop="position" content="' . $position . '">' . PHP_EOL;
@@ -61,11 +48,6 @@ final class BreadcrumbRenderer
         $html .= '</ul>';
 
         return $html;
-    }
-
-    private function classFor(string $element): string
-    {
-        return $this->classes[$element] ?? '';
     }
 
     private function escape(string $value): string

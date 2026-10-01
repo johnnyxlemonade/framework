@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Container;
 
+use Lemonade\Framework\Container\Config\AutowireMode;
+use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerBuilder;
 use Lemonade\Framework\Container\ContainerInterface;
@@ -71,6 +73,16 @@ final class ContextualBindingTest extends TestCase
     public function testContextualParameterSuppliesExplicitScalar(): void
     {
         $builder = new ContainerBuilder();
+        $builder->when(ContextualCsvConsumer::class)->parameter('delimiter')->value(';');
+
+        self::assertSame(';', (new Container($builder))->get(ContextualCsvConsumer::class)->delimiter);
+    }
+
+    public function testStrictModeKeepsExplicitContextualBindingsFunctional(): void
+    {
+        $builder = new ContainerBuilder();
+        $builder->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
+        $builder->set(ContextualCsvConsumer::class, ContextualCsvConsumer::class);
         $builder->when(ContextualCsvConsumer::class)->parameter('delimiter')->value(';');
 
         self::assertSame(';', (new Container($builder))->get(ContextualCsvConsumer::class)->delimiter);

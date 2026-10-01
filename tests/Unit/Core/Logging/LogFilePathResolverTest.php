@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 final class LogFilePathResolverTest extends TestCase
 {
-    public function testRelativeLogPathResolvesIntoStorageWritableLogs(): void
+    public function testBuiltInChannelsResolveToCanonicalStorageFiles(): void
     {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -23,25 +23,9 @@ final class LogFilePathResolverTest extends TestCase
 
         $resolver = new LogFilePathResolver($context);
 
-        self::assertSame(
-            '/var/www/framework/storage/writable/logs/error.log',
-            $resolver->resolve('error.log', 'fallback.log'),
-        );
-    }
-
-    public function testAbsoluteLogPathIsPreserved(): void
-    {
-        $context = new ApplicationContext(
-            Environment::Testing,
-            new Path('C:\\laragon\\www\\framework', 'C:\\laragon\\www\\framework\\public'),
-            DebugMode::disabled(),
-        );
-
-        $resolver = new LogFilePathResolver($context);
-
-        self::assertSame(
-            'C:\\logs\\error.log',
-            $resolver->resolve('C:\\logs\\error.log', 'fallback.log'),
-        );
+        self::assertSame('/var/www/framework/storage/writable/logs/app.log', $resolver->resolve('app'));
+        self::assertSame('/var/www/framework/storage/writable/logs/error.log', $resolver->resolve('error'));
+        self::assertSame('/var/www/framework/storage/writable/logs/request.log', $resolver->resolve('request'));
+        self::assertSame('/var/www/framework/storage/writable/logs/benchmark.log', $resolver->resolve('benchmark'));
     }
 }

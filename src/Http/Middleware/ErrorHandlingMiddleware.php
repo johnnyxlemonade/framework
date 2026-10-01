@@ -6,7 +6,6 @@ namespace Lemonade\Framework\Http\Middleware;
 
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
-use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Http\Error\ErrorPageRenderer;
 use Lemonade\Framework\Http\Exception\NotFoundHttpException;
@@ -20,10 +19,15 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Throwable;
 
+/**
+ * Translates expected HTTP failures and unexpected throwables into safe responses and error records.
+ */
 final class ErrorHandlingMiddleware implements MiddlewareInterface
 {
+    /**
+     * Connects response rendering, error logging and API problem-detail handling.
+     */
     public function __construct(
-        private readonly LoggingConfig $config,
         private readonly Psr17Factory $responseFactory,
         private readonly LogManager $logs,
         private readonly HttpLogContext $httpLogContext,
@@ -33,6 +37,9 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
     ) {
     }
 
+    /**
+     * Handles the request and maps exceptions without treating ordinary 404 responses as runtime errors.
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         try {
@@ -78,13 +85,6 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
 
         try {
             if ($exception instanceof RouteNotFoundException || $exception instanceof NotFoundHttpException) {
-                $this->logs->error()->notice($exception->getMessage(), [
-                    'exception' => $exception::class,
-                    'message' => $exception->getMessage(),
-                    'status' => HttpStatus::NOT_FOUND->value,
-                    'request' => $this->httpLogContext->request($request),
-                ]);
-
                 return;
             }
 
@@ -103,14 +103,6 @@ final class ErrorHandlingMiddleware implements MiddlewareInterface
 
     private function shouldLogException(Throwable $exception): bool
     {
-        if (!$this->logs->enabled('error', true)) {
-            return false;
-        }
-
-        if ($exception instanceof RouteNotFoundException || $exception instanceof NotFoundHttpException) {
-            return $this->config->errorLogNotFound;
-        }
-
-        return true;
+        return !($exception instanceof RouteNotFoundException || $exception instanceof NotFoundHttpException);
     }
 }

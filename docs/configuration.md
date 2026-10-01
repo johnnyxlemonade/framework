@@ -2,9 +2,9 @@
 
 Application configuration is YAML-first. YAML is the recommended app-level input format, but it is not the framework's internal config model.
 
-Each application YAML file is loaded as an input document, mapped to a concrete typed `ConfigDefinitionInterface` implementation, and then resolved through the existing typed resolvers into runtime DTO/config objects.
+Each application YAML file is loaded as an input document, mapped to a concrete typed `ConfigDefinitionInterface` implementation, and then resolved through the existing typed resolvers into runtime DTO/config objects. Explicit PHP sources that return a `ConfigDefinitionInterface` are also supported; raw PHP array configuration is not.
 
-Framework defaults may still remain in PHP internally. Application config loading itself is YAML-only.
+Framework defaults may still remain in PHP internally.
 
 The framework resolves application configuration from the application context. By convention, configuration files are stored in:
 
@@ -24,7 +24,6 @@ app/Config/Cache.yaml
 app/Config/Logging.yaml
 app/Config/Session.yaml
 app/Config/Database.yaml
-app/Config/Breadcrumbs.yaml
 app/Config/Upload.yaml
 app/Config/Providers.yaml
 ```
@@ -127,7 +126,7 @@ Routing is the intentional exception: application routes still live in `app/Conf
 
 ## Compiled application config cache
 
-The framework can compile the resolved application config definitions into generated PHP cache files. YAML and environment values remain the source of truth. The generated cache is only a derived artifact.
+The framework can compile the resolved application config definitions into generated PHP cache files. YAML sources, explicit PHP sources returning `ConfigDefinitionInterface`, and environment values remain the source of truth. The generated cache is only a derived artifact.
 
 ### Where the cache is stored
 
@@ -219,7 +218,7 @@ The generated cache is accepted only when all of the following still match:
 
 This means:
 
-- changing a tracked YAML file invalidates the cache
+- changing a tracked YAML or explicit PHP config-definition source invalidates the cache
 - changing a tracked `ConfigMap.php` file invalidates the cache
 - changing a used environment value invalidates the cache
 - adding a config file that is already listed in `Config.yaml` invalidates the cache because a previously missing tracked candidate changes from `exists: false` to `exists: true`
@@ -239,7 +238,7 @@ The cache does not rebuild when:
 
 - `app/Config/Config.yaml` or `Config.yml`
 - every candidate config source path resolved from the manifest
-- every actual loaded YAML file
+- every actual loaded YAML file or explicit PHP config-definition source
 - each YAML directory `ConfigMap.php` used during loading
 
 For environment tracking, the loader stores only environment keys that were actually consumed by YAML `$env` resolution. Unused environment variables are not part of cache freshness.
@@ -273,7 +272,7 @@ There is currently no file lock or cross-request coordination. Under concurrent 
 
 ### Source of truth and safe manual operations
 
-YAML files and environment values are authoritative. Generated cache files:
+YAML files, explicit PHP config-definition sources, and environment values are authoritative. Generated cache files:
 
 - are not source of truth
 - should not be edited manually

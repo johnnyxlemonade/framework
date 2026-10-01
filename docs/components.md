@@ -100,6 +100,24 @@ $components->meta();
 
 These accessors exist only for framework-provided components.
 
+## Breadcrumbs
+
+Breadcrumbs are a generic presentation component. The application creates the
+trail and supplies already-localized labels and application-generated URLs; the
+framework does not define application areas, roots, labels, or routes.
+
+~~~php
+$trail = $components->breadcrumb()
+    ->empty()
+    ->add('Home', '/')
+    ->add('Documentation', '/documentation');
+~~~
+
+The renderer owns the semantic BreadcrumbList markup, canonical structural
+classes, escaping, and the active final item. Applications that need a
+fundamentally different rendering contract may replace the breadcrumb
+component through the existing component override configuration.
+
 `pagination()` is request-scoped because its factory derives page and URL defaults from the
 current request. Resolve it from a controller, route middleware, or the `$component` registry
 provided to a controller-rendered view; do not resolve pagination from a root provider or other

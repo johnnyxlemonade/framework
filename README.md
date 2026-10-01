@@ -66,6 +66,7 @@ Required platform requirements:
 - PHP `>= 8.3 < 8.6`
 - `ext-fileinfo`
 - `ext-mbstring`
+- `ext-xmlwriter`
 
 Official support covers PHP 8.3, 8.4 and 8.5. The syntax and runtime target is PHP 8.3: new framework source and generated PHP source must remain PHP 8.3 compatible, even when development or CI runs on PHP 8.4 or 8.5. Framework source does not use PHP 8.4+ syntax.
 
@@ -203,8 +204,8 @@ data. See the [controller documentation](docs/controllers.md).
 
 Application services are registered through providers.
 
-New providers can separate definition registration from runtime initialization through the
-`register()` / `boot()` lifecycle. See [service provider documentation](docs/service-providers.md).
+New providers register definitions through `ServiceProviderInterface::register()`. Providers that need
+runtime initialization additionally implement `BootableServiceProviderInterface` for `boot()`. See [service provider documentation](docs/service-providers.md).
 
 ```php
 <?php
@@ -275,7 +276,7 @@ config:
 
 If an application needs a custom config definition that is not covered by the built-in registry, `app/Config/ConfigMap.php` can be used as an advanced extension point to map YAML file aliases to `ConfigDefinitionInterface` classes. This is not part of the primary happy-path application setup.
 
-In production, application config definitions are compiled automatically into entrypoint-specific generated PHP cache files under `storage/cache/framework/config/`. Development and testing continue to load config directly from source YAML. See [docs/configuration.md](docs/configuration.md) for cache lifecycle, invalidation, and deployment workflow details.
+In production, application config definitions are compiled automatically into entrypoint-specific generated PHP cache files under `storage/cache/framework/config/`. Development and testing load YAML or explicit PHP sources returning `ConfigDefinitionInterface` directly; raw PHP arrays are not supported. See [docs/configuration.md](docs/configuration.md) for cache lifecycle, invalidation, and deployment workflow details.
 
 ### CLI Command
 
@@ -402,17 +403,7 @@ composer check
 
 ## Development Server
 
-For local development:
-
-```bash
-php -S localhost:8000 -t .
-```
-
-Then open:
-
-```text
-http://localhost:8000
-```
+The framework package does not provide a standalone HTTP application entrypoint or public scaffold. Run its HTTP runtime through a consuming application's own public entrypoint and document root.
 
 ## License
 

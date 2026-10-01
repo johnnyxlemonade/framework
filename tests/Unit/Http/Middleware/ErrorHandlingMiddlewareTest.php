@@ -18,7 +18,6 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
-use Lemonade\Framework\Core\Logging\Config\LoggingChannelConfig;
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogFilePathResolver;
 use Lemonade\Framework\Core\Logging\LogManager;
@@ -57,10 +56,7 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         $factory = new Psr17Factory();
         $view = new View($this->viewsPath());
         $container = new TrackingViewContainer($view);
-        $middleware = $this->middleware(
-            container: $container,
-            errorLogNotFound: false,
-        );
+        $middleware = $this->middleware(container: $container);
         $handler = new ErrorMiddlewareRecordingHandler(
             $factory->createResponse(200)->withBody($factory->createStream('ok')),
         );
@@ -74,15 +70,12 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         self::assertSame(0, $container->viewResolutions);
     }
 
-    public function testNotFoundReturns404WithoutErrorLevelLogByDefault(): void
+    public function testNotFoundReturns404WithoutAnErrorLogRecord(): void
     {
         $factory = new Psr17Factory();
         $view = new View($this->viewsPath());
         $container = new TrackingViewContainer($view);
-        $middleware = $this->middleware(
-            container: $container,
-            errorLogNotFound: false,
-        );
+        $middleware = $this->middleware(container: $container);
         $handler = new ErrorMiddlewareThrowableHandler(
             NotFoundHttpException::create('Unsupported locale "dsadsa".'),
         );
@@ -100,42 +93,10 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         self::assertSame([], $this->readErrorLogRecords());
     }
 
-    public function testNotFoundCanBeLoggedWithoutTraceAndWithoutErrorLevel(): void
-    {
-        $factory = new Psr17Factory();
-        $middleware = $this->middleware(
-            container: new TrackingViewContainer(new View($this->viewsPath())),
-            errorLogNotFound: true,
-        );
-        $handler = new ErrorMiddlewareThrowableHandler(
-            NotFoundHttpException::create('Unsupported locale "dsadsa".'),
-        );
-
-        $response = $middleware->process(
-            $factory->createServerRequest('GET', '/dsadsa'),
-            $handler,
-        );
-
-        $records = $this->readErrorLogRecords();
-
-        self::assertSame(404, $response->getStatusCode());
-        self::assertCount(1, $records);
-        self::assertSame('notice', $records[0]['level'] ?? null);
-        self::assertSame('Unsupported locale "dsadsa".', $records[0]['message'] ?? null);
-        self::assertIsArray($records[0]['context'] ?? null);
-        self::assertSame(404, $records[0]['context']['status'] ?? null);
-        self::assertArrayNotHasKey('trace', $records[0]['context']);
-        self::assertArrayNotHasKey('file', $records[0]['context']);
-        self::assertArrayNotHasKey('line', $records[0]['context']);
-    }
-
     public function testRuntimeExceptionReturns500AndWritesErrorLogWithExceptionContext(): void
     {
         $factory = new Psr17Factory();
-        $middleware = $this->middleware(
-            container: new TrackingViewContainer(new View($this->viewsPath())),
-            errorLogNotFound: false,
-        );
+        $middleware = $this->middleware(container: new TrackingViewContainer(new View($this->viewsPath())));
         $handler = new ErrorMiddlewareThrowableHandler(
             new RuntimeException('Unexpected failure.'),
         );
@@ -156,6 +117,28 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         self::assertSame('Unexpected failure.', $records[0]['context']['message'] ?? null);
         self::assertIsString($records[0]['context']['trace'] ?? null);
         self::assertNotSame('', $records[0]['context']['trace'] ?? '');
+        self::assertStringNotContainsString('Unexpected failure.', (string) $response->getBody());
+        self::assertStringNotContainsString(__FILE__, (string) $response->getBody());
+    }
+
+    public function testDevelopmentHtml500ContainsDeveloperDetailAndTrace(): void
+    {
+        $middleware = $this->middleware(
+            container: new TrackingViewContainer(new View($this->viewsPath())),
+            environment: Environment::Development,
+        );
+
+        $response = $middleware->process(
+            (new Psr17Factory())->createServerRequest('GET', '/broken'),
+            new ErrorMiddlewareThrowableHandler(new RuntimeException('Development exception detail.')),
+        );
+
+        $body = (string) $response->getBody();
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertStringContainsString(RuntimeException::class, $body);
+        self::assertStringContainsString('Development exception detail.', $body);
+        self::assertStringContainsString('#0', $body);
     }
 
     public function testRegisteredApiEndpointExceptionReturnsGenericProblemDetails(): void
@@ -164,7 +147,6 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         $endpoints->get('/broken', \Lemonade\Framework\Routing\ControllerAction::for('ApiController', 'show'), 'api.broken', 'Broken', 'Broken', ApiAccess::Public);
         $middleware = $this->middleware(
             container: new TrackingViewContainer(new View($this->viewsPath())),
-            errorLogNotFound: false,
             endpoints: $endpoints,
         );
 
@@ -186,12 +168,29 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         self::assertStringNotContainsString('Internal exception detail.', $detail);
     }
 
-    public function testJsonAcceptDoesNotChangeHtmlErrorPolicyForNonApiRequest(): void
+    public function testDevelopmentApiExceptionRemainsGenericProblemDetails(): void
     {
+        $endpoints = new ApiEndpointRegistry();
+        $endpoints->get('/broken', \Lemonade\Framework\Routing\ControllerAction::for('ApiController', 'show'), 'api.broken', 'Broken', 'Broken', ApiAccess::Public);
         $middleware = $this->middleware(
             container: new TrackingViewContainer(new View($this->viewsPath())),
-            errorLogNotFound: false,
+            endpoints: $endpoints,
+            environment: Environment::Development,
         );
+
+        $response = $middleware->process(
+            (new Psr17Factory())->createServerRequest('GET', '/api/broken'),
+            new ErrorMiddlewareThrowableHandler(new RuntimeException('Development API detail.')),
+        );
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertStringNotContainsString('Development API detail.', (string) $response->getBody());
+        self::assertStringNotContainsString(RuntimeException::class, (string) $response->getBody());
+    }
+
+    public function testJsonAcceptDoesNotChangeHtmlErrorPolicyForNonApiRequest(): void
+    {
+        $middleware = $this->middleware(container: new TrackingViewContainer(new View($this->viewsPath())));
 
         $response = $middleware->process(
             (new Psr17Factory())
@@ -207,10 +206,7 @@ final class ErrorHandlingMiddlewareTest extends TestCase
     public function testHtml404UsesErrorPageRendererTemplateFlow(): void
     {
         $factory = new Psr17Factory();
-        $middleware = $this->middleware(
-            container: new TrackingViewContainer(new View($this->viewsPath())),
-            errorLogNotFound: false,
-        );
+        $middleware = $this->middleware(container: new TrackingViewContainer(new View($this->viewsPath())));
         $handler = new ErrorMiddlewareThrowableHandler(
             NotFoundHttpException::create('Missing page.'),
         );
@@ -229,33 +225,23 @@ final class ErrorHandlingMiddlewareTest extends TestCase
 
     private function middleware(
         TrackingViewContainer $container,
-        bool $errorLogNotFound,
         ?ApiEndpointRegistry $endpoints = null,
+        Environment $environment = Environment::Testing,
     ): ErrorHandlingMiddleware {
         $context = new ApplicationContext(
-            Environment::Testing,
+            $environment,
             new Path($this->root),
             DebugMode::disabled(),
         );
 
         return new ErrorHandlingMiddleware(
-            config: new LoggingConfig(
-                app: new LoggingChannelConfig(true, 'app.log', 'info', 7),
-                error: new LoggingChannelConfig(true, 'error.log', 'error', 7),
-                request: new LoggingChannelConfig(false, 'request.log', 'info', 7),
-                benchmark: new LoggingChannelConfig(false, 'benchmark.log', 'debug', 7),
-                requestMinStatus: 0,
-                errorLogNotFound: $errorLogNotFound,
-            ),
             responseFactory: new Psr17Factory(),
             logs: new LogManager(
                 config: new LoggingConfig(
-                    app: new LoggingChannelConfig(true, 'app.log', 'info', 7),
-                    error: new LoggingChannelConfig(true, 'error.log', 'error', 7),
-                    request: new LoggingChannelConfig(false, 'request.log', 'info', 7),
-                    benchmark: new LoggingChannelConfig(false, 'benchmark.log', 'debug', 7),
+                    retentionDays: 7,
+                    requestEnabled: false,
                     requestMinStatus: 0,
-                    errorLogNotFound: $errorLogNotFound,
+                    benchmarkEnabled: false,
                 ),
                 pathResolver: new LogFilePathResolver($context),
                 directoryManager: new ErrorMiddlewareDirectoryManager(),

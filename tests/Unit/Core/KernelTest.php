@@ -63,7 +63,7 @@ final class KernelTest extends TestCase
     public function testRun404InDebugContainsExceptionMessage(): void
     {
         $this->writeThrowingConfig(RouteNotFoundException::class, 'Not found in bootstrap');
-        $kernel = $this->kernel(true);
+        $kernel = $this->kernel(true, Environment::Development);
         $response = $kernel->run(new ServerRequest('GET', '/anything'));
         $body = (string) $response->getBody();
 
@@ -107,7 +107,7 @@ final class KernelTest extends TestCase
     public function testRun500InDebugContainsClassAndMessage(): void
     {
         $this->writeThrowingConfig(\RuntimeException::class, 'Boom from bootstrap');
-        $kernel = $this->kernel(true);
+        $kernel = $this->kernel(true, Environment::Development);
         $response = $kernel->run(new ServerRequest('GET', '/anything'));
         $body = (string) $response->getBody();
 
@@ -124,6 +124,20 @@ final class KernelTest extends TestCase
 
         self::assertSame(500, $response->getStatusCode());
         self::assertSame('500 Internal Server Error', (string) $response->getBody());
+    }
+
+    public function testProductionRun500DoesNotExposeDetailsWhenDebugIsEnabled(): void
+    {
+        $this->writeThrowingConfig(\RuntimeException::class, 'Production detail must stay private');
+        $kernel = $this->kernel(true, Environment::Production);
+
+        $response = $kernel->run(new ServerRequest('GET', '/anything'));
+        $body = (string) $response->getBody();
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame('500 Internal Server Error', $body);
+        self::assertStringNotContainsString('Production detail must stay private', $body);
+        self::assertStringNotContainsString(__FILE__, $body);
     }
 
     public function testRunExceptionIsLoggedByExceptionLogger(): void
@@ -334,7 +348,7 @@ final class KernelTest extends TestCase
     public function testHandleCreatesRequestFromGlobalsWhenNullProvided(): void
     {
         $this->writeRoutingHeadFallbackTarget();
-        $kernel = $this->kernel(true);
+        $kernel = $this->kernel(true, Environment::Development);
         $factory = $kernel->container()->get(Psr17Factory::class);
 
         $originalServer = $_SERVER;
@@ -443,6 +457,7 @@ final class KernelTest extends TestCase
             new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
                 $container->get(Benchmark::class),
+                $context,
             ),
             $container->get(Benchmark::class),
         );
@@ -574,6 +589,7 @@ final class KernelTest extends TestCase
             new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
                 $container->get(Benchmark::class),
+                $context,
             ),
             $container->get(Benchmark::class),
         );
@@ -832,7 +848,7 @@ final class RequestScopeThrowingController
 
 namespace Lemonade\Framework\Tests\Unit\Core;
 
-final class KernelScopeTrackingContainer implements \Lemonade\Framework\Container\ContainerInterface, \Lemonade\Framework\Container\ContainerBuilderInterface, \Lemonade\Framework\Container\ContainerDiagnosticsInterface, \Lemonade\Framework\Container\ScopeFactoryInterface
+final class KernelScopeTrackingContainer implements \Lemonade\Framework\Container\ContainerInterface, \Lemonade\Framework\Container\ContainerBuilderInterface, \Lemonade\Framework\Container\ScopeFactoryInterface
 {
     public ?\Lemonade\Framework\Container\ScopedContainerInterface $lastScope = null;
 
@@ -929,11 +945,6 @@ final class KernelScopeTrackingContainer implements \Lemonade\Framework\Containe
     public function tagged(string $tag): iterable
     {
         return $this->delegate->tagged($tag);
-    }
-
-    public function setDiagnosticLogger(?\Psr\Log\LoggerInterface $logger): void
-    {
-        $this->delegate->setDiagnosticLogger($logger);
     }
 
     public function has(string $id): bool

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Observability\Benchmark;
 
+use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
 use Nyholm\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
@@ -12,11 +13,16 @@ final class BenchmarkResponseInjector
 {
     public function __construct(
         private readonly BenchmarkConfig $config,
+        private readonly ApplicationContext $context,
     ) {
     }
 
     public function inject(ResponseInterface $response, BenchmarkRun $run): ResponseInterface
     {
+        if (!$this->context->isDevelopment()) {
+            return $response;
+        }
+
         $elapsedMs = number_format($run->elapsedMs(), 3, '.', '');
         $memoryDeltaBytes = $run->memoryDeltaBytes();
         $peakBytes = $run->peakMemoryBytes();

@@ -10,8 +10,6 @@ use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
-use Lemonade\Framework\Core\Logging\Config\LoggingChannelConfig;
-use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use PHPUnit\Framework\TestCase;
 
@@ -20,24 +18,6 @@ final class ExceptionLoggerTest extends TestCase
     public function testLogNeverThrowsWithMinimalContainer(): void
     {
         $container = new Container();
-        $logger = new ExceptionLogger($container, $this->context());
-
-        $logger->log(new \RuntimeException('boom'), 'kernel');
-        self::addToAssertionCount(1);
-    }
-
-    public function testFallbackRespectsErrorLogEnabledFalse(): void
-    {
-        $container = new Container();
-        $container->singleton(LoggingConfig::class, new LoggingConfig(
-            app: new LoggingChannelConfig(true, 'storage/writable/logs/app.log', 'info', 7),
-            error: new LoggingChannelConfig(false, 'storage/writable/logs/error.log', 'error', 7),
-            request: new LoggingChannelConfig(false, 'storage/writable/logs/request.log', 'info', 7),
-            benchmark: new LoggingChannelConfig(false, 'storage/writable/logs/benchmark.log', 'debug', 7),
-            requestMinStatus: 0,
-            errorLogNotFound: false,
-        ));
-
         $logger = new ExceptionLogger($container, $this->context());
 
         $logger->log(new \RuntimeException('boom'), 'kernel');

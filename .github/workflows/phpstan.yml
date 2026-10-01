@@ -51,7 +51,7 @@ jobs:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
-          extensions: fileinfo, mbstring
+          extensions: fileinfo, mbstring, xmlwriter
 
       - name: Validate composer.json
         run: composer validate --strict

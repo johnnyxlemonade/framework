@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Container;
 
+use Lemonade\Framework\Container\Config\AutowireMode;
 use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerBuilder;
 use Lemonade\Framework\Container\Exception\ContainerException;
 use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
-use Lemonade\Framework\Core\Context\ApplicationContext;
-use Lemonade\Framework\Core\Context\DebugMode;
-use Lemonade\Framework\Core\Context\Environment;
-use Lemonade\Framework\Core\Context\Path;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\AbstractLogger;
 
 interface TestContractInterface
 {
@@ -93,26 +90,6 @@ final class InvokableFactory
     public function __invoke(): \stdClass
     {
         return new \stdClass();
-    }
-}
-
-final class ContainerDiagnosticLogger extends AbstractLogger
-{
-    /**
-     * @var list<array{level: mixed, message: string, context: array<mixed>}>
-     */
-    public array $records = [];
-
-    /**
-     * @param array<mixed> $context
-     */
-    public function log($level, string|\Stringable $message, array $context = []): void
-    {
-        $this->records[] = [
-            'level' => $level,
-            'message' => (string) $message,
-            'context' => $context,
-        ];
     }
 }
 
@@ -368,6 +345,55 @@ final class ContainerTest extends TestCase
         self::assertSame('dep', $resolved->dependency->value());
     }
 
+    public function testPermissiveAutowireFallbackIsTransientAndDoesNotWriteDiagnostics(): void
+    {
+        $errorLog = tempnam(sys_get_temp_dir(), 'lemonade-container-error-log-');
+        self::assertIsString($errorLog);
+
+        $previousErrorLog = ini_get('error_log');
+        $previousLogErrors = ini_get('log_errors');
+        ini_set('error_log', $errorLog);
+        ini_set('log_errors', '1');
+
+        try {
+            $container = new Container();
+            $first = $container->get(PlainConcreteClass::class);
+            $second = $container->get(PlainConcreteClass::class);
+
+            self::assertInstanceOf(PlainConcreteClass::class, $first);
+            self::assertNotSame($first, $second);
+            self::assertSame('', (string) file_get_contents($errorLog));
+        } finally {
+            ini_set('error_log', is_string($previousErrorLog) ? $previousErrorLog : '');
+            ini_set('log_errors', is_string($previousLogErrors) ? $previousLogErrors : '1');
+            @unlink($errorLog);
+        }
+    }
+
+    public function testStrictAutowireFallbackRejectsUnboundConcreteClass(): void
+    {
+        $container = new Container();
+        $container->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
+
+        $this->expectException(ServiceNotFoundException::class);
+        $this->expectExceptionMessage(sprintf('Service "%s" was not found.', PlainConcreteClass::class));
+        $container->get(PlainConcreteClass::class);
+    }
+
+    public function testStrictModePreservesExplicitAliasesFactoriesAndSingletons(): void
+    {
+        $builder = new ContainerBuilder();
+        $builder->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
+        $builder->singleton(PlainConcreteClass::class, PlainConcreteClass::class);
+        $builder->alias('plain.alias', PlainConcreteClass::class);
+        $builder->set('factory.service', static fn(): \stdClass => new \stdClass());
+        $container = new Container($builder);
+
+        self::assertSame($container->get(PlainConcreteClass::class), $container->get('plain.alias'));
+        self::assertSame($container->get(PlainConcreteClass::class), $container->get(PlainConcreteClass::class));
+        self::assertNotSame($container->get('factory.service'), $container->get('factory.service'));
+    }
+
     public function testClassStringBindingResolvesConcreteImplementation(): void
     {
         $container = new Container();
@@ -439,131 +465,6 @@ final class ContainerTest extends TestCase
         $container->get(CircularDependencyA::class);
     }
 
-    public function testAutowireFallbackWarningUsesNeutralProviderGuidance(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\App\Services\ContainerAutowireFallbackService::class);
-
-        self::assertCount(1, $logger->records);
-        self::assertSame('warning', $logger->records[0]['level']);
-        self::assertSame(\App\Services\ContainerAutowireFallbackService::class, $logger->records[0]['context']['service']);
-        self::assertSame('container.autowire_fallback', $logger->records[0]['context']['source']);
-        self::assertStringContainsString('appropriate ServiceProvider', $logger->records[0]['message']);
-        self::assertStringNotContainsString('App\\Providers\\AppServiceProvider', $logger->records[0]['message']);
-    }
-
-    public function testFrameworkClassAutowireFallbackWarningIsLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticManager::class);
-
-        self::assertCount(1, $logger->records);
-        self::assertSame(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticManager::class, $logger->records[0]['context']['service']);
-        self::assertStringContainsString('appropriate ServiceProvider', $logger->records[0]['message']);
-    }
-
-    public function testFrameworkRegistryAutowireFallbackWarningIsLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticRegistry::class);
-
-        self::assertCount(1, $logger->records);
-        self::assertSame(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticRegistry::class, $logger->records[0]['context']['service']);
-    }
-
-    public function testFrameworkFactoryAutowireFallbackWarningIsLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticFactory::class);
-
-        self::assertCount(1, $logger->records);
-    }
-
-    public function testFrameworkResolverAutowireFallbackWarningIsLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticResolver::class);
-
-        self::assertCount(1, $logger->records);
-    }
-
-    public function testFrameworkMiddlewareAutowireFallbackWarningIsLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticMiddleware::class);
-
-        self::assertCount(1, $logger->records);
-        self::assertSame(\Lemonade\Framework\Tests\Unit\Container\Fixtures\ContainerDiagnosticMiddleware::class, $logger->records[0]['context']['service']);
-    }
-
-    public function testVendorMiddlewareAutowireFallbackWarningIsLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\Vendor\Package\ContainerExternalMiddleware::class);
-
-        self::assertCount(1, $logger->records);
-    }
-
-    public function testVendorClassAutowireFallbackWarningIsLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\Vendor\Package\ContainerExternalService::class);
-
-        self::assertCount(1, $logger->records);
-    }
-
-    public function testAutowireFallbackWarningIsLoggedOnlyOncePerServiceId(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\App\Services\ContainerAutowireFallbackService::class);
-        $container->get(\App\Services\ContainerAutowireFallbackService::class);
-
-        self::assertCount(1, $logger->records);
-    }
-
-    public function testAppModelAndAuthenticatorAutowireFallbackWarningsAreLogged(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = $this->diagnosticContainer($logger);
-
-        $container->get(\App\Models\ContainerAutowireFallbackModel::class);
-        $container->get(\App\Auth\ContainerAutowireFallbackAuthenticator::class);
-
-        self::assertCount(2, $logger->records);
-        self::assertSame(\App\Models\ContainerAutowireFallbackModel::class, $logger->records[0]['context']['service']);
-        self::assertSame(\App\Auth\ContainerAutowireFallbackAuthenticator::class, $logger->records[1]['context']['service']);
-    }
-
-    public function testAutowireFallbackWarningCanBeDisabledByConfig(): void
-    {
-        $logger = new ContainerDiagnosticLogger();
-        $container = new Container();
-        $container->singleton(ContainerConfig::class, new ContainerConfig(false));
-        $container->setDiagnosticLogger($logger);
-
-        $container->get(\App\Services\ContainerAutowireFallbackService::class);
-
-        self::assertSame([], $logger->records);
-    }
-
     public function testMissingClassLookupCachesNegativeExistenceResult(): void
     {
         $container = new Container();
@@ -619,76 +520,6 @@ final class ContainerTest extends TestCase
 
         self::assertTrue($classCache[PlainConcreteClass::class]);
         self::assertTrue($interfaceCache[TestContractInterface::class]);
-    }
-
-    public function testAutowireFallbackUsesErrorLogOnlyWhenLoggerIsUnavailable(): void
-    {
-        $errorLog = tempnam(sys_get_temp_dir(), 'lemonade-container-error-log-');
-        self::assertIsString($errorLog);
-
-        $previousErrorLog = ini_get('error_log');
-        $previousLogErrors = ini_get('log_errors');
-        ini_set('error_log', $errorLog);
-        ini_set('log_errors', '1');
-
-        try {
-            $container = new Container();
-            $container->singleton(ApplicationContext::class, $this->developmentContext());
-
-            $container->get(\App\Services\ContainerAutowireFallbackService::class);
-
-            $contents = file_get_contents($errorLog);
-            self::assertIsString($contents);
-            self::assertStringContainsString('[Lemonade][Container]', $contents);
-            self::assertStringContainsString(\App\Services\ContainerAutowireFallbackService::class, $contents);
-        } finally {
-            ini_set('error_log', is_string($previousErrorLog) ? $previousErrorLog : '');
-            ini_set('log_errors', is_string($previousLogErrors) ? $previousLogErrors : '1');
-            @unlink($errorLog);
-        }
-    }
-
-    public function testAutowireFallbackDoesNotUseErrorLogWhenLoggerIsAvailable(): void
-    {
-        $errorLog = tempnam(sys_get_temp_dir(), 'lemonade-container-error-log-');
-        self::assertIsString($errorLog);
-
-        $previousErrorLog = ini_get('error_log');
-        $previousLogErrors = ini_get('log_errors');
-        ini_set('error_log', $errorLog);
-        ini_set('log_errors', '1');
-
-        try {
-            $logger = new ContainerDiagnosticLogger();
-            $container = $this->diagnosticContainer($logger);
-
-            $container->get(\App\Services\ContainerAutowireFallbackService::class);
-
-            self::assertCount(1, $logger->records);
-            self::assertSame('', (string) file_get_contents($errorLog));
-        } finally {
-            ini_set('error_log', is_string($previousErrorLog) ? $previousErrorLog : '');
-            ini_set('log_errors', is_string($previousLogErrors) ? $previousLogErrors : '1');
-            @unlink($errorLog);
-        }
-    }
-
-    private function diagnosticContainer(ContainerDiagnosticLogger $logger): Container
-    {
-        $container = new Container();
-        $container->singleton(ContainerConfig::class, new ContainerConfig(true));
-        $container->setDiagnosticLogger($logger);
-
-        return $container;
-    }
-
-    private function developmentContext(): ApplicationContext
-    {
-        return new ApplicationContext(
-            Environment::Development,
-            new Path(sys_get_temp_dir()),
-            DebugMode::enabled(),
-        );
     }
 
     /**
