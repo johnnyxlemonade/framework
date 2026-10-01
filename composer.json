@@ -49,7 +49,7 @@
     "friendsofphp/php-cs-fixer": "^v3.94",
     "giorgiosironi/eris": "^1.1.0",
     "guzzlehttp/guzzle": "^7.10 || ^8.0",
-    "infection/infection": "0.28.1",
+    "infection/infection": "0.35.5",
     "phpstan/phpstan": "^2.1",
     "phpstan/phpstan-strict-rules": "^2.0",
     "phpunit/phpunit": "^10.5 || ^11.0"
