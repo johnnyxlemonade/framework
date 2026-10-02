@@ -9,24 +9,38 @@ use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Message\ResponseInterface;
 
+/**
+ * Provides application controllers with framework response factories including one-pass streamed bodies
+ */
 final readonly class Responses
 {
+    /**
+     * Initializes the facade for standard HTTP responses
+     */
     public function __construct(
         private ResponseBuilder $builder,
     ) {
     }
 
+    /**
+     * Creates a text response
+     */
     public function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->builder->text($content, $status);
     }
 
+    /**
+     * Creates an HTML response
+     */
     public function html(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->builder->html($content, $status);
     }
 
     /**
+     * Creates a JSON response using the framework encoding policy
+     *
      * @param array<string, mixed> $payload
      *
      * @throws JsonException
@@ -36,11 +50,17 @@ final readonly class Responses
         return $this->builder->json($payload, $status);
     }
 
+    /**
+     * Creates a redirect response
+     */
     public function redirect(string $to, int $status = HttpStatus::FOUND->value): ResponseInterface
     {
         return $this->builder->redirect($to, $status);
     }
 
+    /**
+     * Creates a file download response
+     */
     public function download(
         string $filePath,
         ?string $downloadName = null,
@@ -50,7 +70,9 @@ final readonly class Responses
     }
 
     /**
-     * @param callable():void $producer
+     * Creates a one-pass response from a lazy producer of string chunks
+     *
+     * @param callable(): iterable<string> $producer
      * @param array<string, string> $headers
      */
     public function stream(

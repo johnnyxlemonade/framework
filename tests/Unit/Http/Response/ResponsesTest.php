@@ -82,11 +82,11 @@ final class ResponsesTest extends TestCase
         self::assertSame('download body', (string) $response->getBody());
     }
 
-    public function testStreamSetsHeadersAndReadableCallbackBody(): void
+    public function testStreamSetsHeadersAndReadableIterableBody(): void
     {
         $response = $this->responses()->stream(
-            producer: static function (): void {
-                echo 'streamed';
+            producer: static function (): iterable {
+                yield 'streamed';
             },
             status: 206,
             headers: ['X-Custom' => 'yes'],

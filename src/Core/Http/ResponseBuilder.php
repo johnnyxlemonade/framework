@@ -6,32 +6,45 @@ namespace Lemonade\Framework\Core\Http;
 
 use JsonException;
 use Lemonade\Framework\Http\HttpStatus;
-use Lemonade\Framework\Http\Psr\CallbackStream;
+use Lemonade\Framework\Http\Psr\IterableStream;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 
+/**
+ * Builds framework HTTP responses with PSR-17 factories while preserving streaming response bodies
+ */
 final class ResponseBuilder
 {
+    /**
+     * Initializes the builder with PSR-17 factories for responses and bodies
+     */
     public function __construct(
         private readonly ResponseFactoryInterface $responseFactory,
         private readonly StreamFactoryInterface $streamFactory,
     ) {
     }
 
+    /**
+     * Creates a text response with the requested status
+     */
     public function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->response($content, $status, 'text/plain; charset=UTF-8');
     }
 
+    /**
+     * Creates an HTML response with the requested status
+     */
     public function html(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
         return $this->response($content, $status, 'text/html; charset=UTF-8');
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * Creates a JSON response while preserving Unicode characters and slashes
      *
+     * @param array<string, mixed> $payload
      * @throws JsonException
      */
     public function json(array $payload, int $status = HttpStatus::OK->value): ResponseInterface
@@ -44,6 +57,9 @@ final class ResponseBuilder
         return $this->response($content, $status, 'application/json; charset=UTF-8');
     }
 
+    /**
+     * Creates a redirect response with its target Location header
+     */
     public function redirect(string $to, int $status = HttpStatus::FOUND->value): ResponseInterface
     {
         return $this->responseFactory
@@ -51,6 +67,9 @@ final class ResponseBuilder
             ->withHeader('Location', $to);
     }
 
+    /**
+     * Creates a file download response with its headers and a PSR file stream body
+     */
     public function download(
         string $filePath,
         ?string $downloadName = null,
@@ -73,6 +92,9 @@ final class ResponseBuilder
         return $response->withBody($this->streamFactory->createStreamFromFile($filePath, 'r'));
     }
 
+    /**
+     * Creates a response with content and a Content-Type header
+     */
     public function response(
         string $content = '',
         int $status = HttpStatus::OK->value,
@@ -92,7 +114,9 @@ final class ResponseBuilder
     }
 
     /**
-     * @param callable():void $producer
+     * Creates a one-pass response whose producer lazily yields string chunks
+     *
+     * @param callable(): iterable<string> $producer
      * @param array<string, string> $headers
      */
     public function stream(
@@ -104,7 +128,7 @@ final class ResponseBuilder
         $response = $this->responseFactory
             ->createResponse($status)
             ->withHeader('Content-Type', $contentType)
-            ->withBody(CallbackStream::from($producer));
+            ->withBody(IterableStream::from($producer));
 
         foreach ($headers as $name => $value) {
             $response = $response->withHeader($name, $value);

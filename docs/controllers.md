@@ -73,6 +73,39 @@ final class AccountController
 
 `Responses` provides `html()`, `text()`, `json()`, `redirect()`, `download()` and `stream()`.
 
+### Streamed responses and downloads
+
+`Responses::stream()` accepts a zero-argument producer which returns an iterable of string chunks.
+The producer is lazy: it is first evaluated while the response body is emitted, and the framework
+does not collect the iterable before sending its first chunk.
+
+```php
+use Psr\Http\Message\ResponseInterface;
+
+public function export(): ResponseInterface
+{
+    return $this->responses->stream(static function (): iterable {
+        yield "first chunk\n";
+        yield "second chunk\n";
+    }, contentType: 'text/plain; charset=UTF-8');
+}
+```
+
+The callback must yield strings; it must not write with `echo`. A streamed body is one-pass and is
+not seekable. Its size is unknown, so `stream()` does not infer a `Content-Length` header.
+
+The standard response emitter reads every readable PSR-7 body in 64 KiB chunks. Therefore a
+`download()` response keeps its file stream, `Content-Disposition`, content type, known
+`Content-Length`, and cache headers without the framework materializing the file. Normal text,
+HTML, and JSON responses continue to use ordinary PSR-7 bodies.
+
+This is a framework-memory guarantee, not an immediate network-delivery guarantee: PHP, the web
+server, and reverse proxies may buffer output independently. The framework does not flush output
+buffers or set server-specific buffering headers. Producer exceptions happen during emission, after
+the kernel response pipeline has completed, so the emitter does not replace them with an error
+response. Before the first body chunk an outer integration may still handle the exception; once a
+chunk has been emitted, the status and headers cannot reliably be changed into an error page.
+
 For a matched route, an action receiving `ServerRequestInterface` gets the same request instance
 that route middleware received. Its `RouteRequestAttributes::MATCH` attribute contains the
 immutable `RouteMatch` with the matched controller, action, parameters and, for named explicit

@@ -10,8 +10,14 @@ use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Response\Responses;
 use Psr\Http\Message\ResponseInterface;
 
+/**
+ * Serves cached and generated sitemaps through bounded response body streams
+ */
 final class SitemapController
 {
+    /**
+     * Initializes sitemap delivery with configuration, generation, paths and response factories
+     */
     public function __construct(
         private readonly SitemapConfig $config,
         private readonly SitemapGenerator $generator,
@@ -20,6 +26,9 @@ final class SitemapController
     ) {
     }
 
+    /**
+     * Returns the configured sitemap as a cached file or a lazily generated XML response
+     */
     public function index(): ResponseInterface
     {
         if ($this->config->mode === 'cache') {
@@ -42,7 +51,7 @@ final class SitemapController
 
             $headers = ['Last-Modified' => gmdate('D, d M Y H:i:s', $mtime) . ' GMT'];
 
-            return $this->responses->stream(static function () use ($path): void {
+            return $this->responses->stream(static function () use ($path): iterable {
                 $handle = fopen($path, 'rb');
                 if (!is_resource($handle)) {
                     return;
@@ -52,20 +61,16 @@ final class SitemapController
                     if ($chunk === false) {
                         break;
                     }
-                    echo $chunk;
+                    yield $chunk;
                 }
                 fclose($handle);
             }, HttpStatus::OK->value, $contentType, $headers);
         }
 
-        return $this->responses->stream(function (): void {
-            $stream = fopen('php://output', 'wb');
-            if (!is_resource($stream)) {
-                return;
-            }
-
-            $this->generator->writeUrlset($stream, $this->generator->urls());
-            fclose($stream);
-        }, HttpStatus::OK->value, 'application/xml; charset=UTF-8');
+        return $this->responses->stream(
+            fn(): iterable => $this->generator->urlsetChunks($this->generator->urls()),
+            HttpStatus::OK->value,
+            'application/xml; charset=UTF-8',
+        );
     }
 }

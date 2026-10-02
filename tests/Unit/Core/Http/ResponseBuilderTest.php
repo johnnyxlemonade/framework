@@ -115,13 +115,13 @@ final class ResponseBuilderTest extends TestCase
         self::assertSame('download body', (string) $response->getBody());
     }
 
-    public function testStreamSetsHeadersAndReadableCallbackBody(): void
+    public function testStreamSetsHeadersAndReadableIterableBody(): void
     {
         $builder = $this->builder();
 
         $response = $builder->stream(
-            producer: static function (): void {
-                echo 'streamed';
+            producer: static function (): iterable {
+                yield 'streamed';
             },
             status: 206,
             contentType: 'text/plain; charset=UTF-8',

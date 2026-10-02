@@ -83,6 +83,15 @@ and cannot consume request-local values.
 controllers can inject it for HTML, text, JSON, redirect, download and stream responses; view
 controllers can inject the request-scoped `ViewRendererInterface` for rendered HTML responses.
 
+`ResponseEmitter` emits normal readable PSR-7 bodies in 64 KiB chunks rather than casting a
+body to a string. This keeps framework memory bounded by the configured read chunk and any current
+body chunk. File downloads therefore retain their file-backed body and known `Content-Length` when
+available. Stream producers yield string chunks lazily and have no inferred `Content-Length`.
+Network delivery may still be buffered by PHP, a web server, or a proxy. After emission of the
+first body chunk, a producer failure cannot be reliably replaced with a new status or error body.
+Producer failures occur during emission, outside the kernel response conversion path; before the
+first body chunk, only an outer integration can decide how to handle such a failure.
+
 This is a breaking change from older versions that bound `ServerRequestInterface` into the root
 container before provider registration. Providers must not inspect the current request in
 `register()` or `boot()`; use middleware, a scoped service, or a controller for request-dependent

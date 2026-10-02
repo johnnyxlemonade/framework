@@ -9,8 +9,14 @@ use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\Support\Xml\XmlStreamWriter;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Normalizes sitemap URLs and serializes them either to a target stream or as lazy XML chunks
+ */
 final class SitemapGenerator
 {
+    /**
+     * Initializes sitemap generation with provider discovery and URL normalization dependencies
+     */
     public function __construct(
         private readonly SitemapProviderRegistry $registry,
         private readonly BaseUrlResolver $baseUrlResolver,
@@ -20,6 +26,8 @@ final class SitemapGenerator
     }
 
     /**
+     * Lazily resolves valid sitemap URLs from registered providers
+     *
      * @return iterable<SitemapUrl>
      */
     public function urls(): iterable
@@ -58,6 +66,30 @@ final class SitemapGenerator
     }
 
     /**
+     * Lazily yields XML urlset chunks without assembling the full sitemap in memory
+     *
+     * @param iterable<SitemapUrl> $urls
+     * @return iterable<string>
+     */
+    public function urlsetChunks(iterable $urls): iterable
+    {
+        yield "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+        yield '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+
+        foreach ($urls as $url) {
+            if (!$url instanceof SitemapUrl) {
+                throw new SitemapException('Sitemap urlset expects SitemapUrl items.');
+            }
+
+            yield $this->urlChunk($url);
+        }
+
+        yield "</urlset>\n";
+    }
+
+    /**
+     * Writes a complete XML urlset to the supplied resource stream
+     *
      * @param resource $stream
      * @param iterable<SitemapUrl> $urls
      * @return array{count:int}
@@ -84,18 +116,27 @@ final class SitemapGenerator
         return ['count' => $count];
     }
 
+    /**
+     * Writes the beginning of an XML urlset through the XML writer
+     */
     public function startUrlset(XmlStreamWriter $xml): void
     {
         $xml->startDocument('1.0', 'UTF-8');
         $xml->startElement('urlset', ['xmlns' => 'http://www.sitemaps.org/schemas/sitemap/0.9']);
     }
 
+    /**
+     * Writes the end of an XML urlset through the XML writer
+     */
     public function endUrlset(XmlStreamWriter $xml): void
     {
         $xml->endElement();
         $xml->endDocument();
     }
 
+    /**
+     * Writes one URL element with all available sitemap attributes
+     */
     public function writeUrlElement(XmlStreamWriter $xml, SitemapUrl $url): void
     {
         $xml->startElement('url');
@@ -123,6 +164,36 @@ final class SitemapGenerator
         $xml->endElement();
     }
 
+    /**
+     * Renders one XML URL element through a small temporary stream
+     */
+    private function urlChunk(SitemapUrl $url): string
+    {
+        $stream = fopen('php://temp', 'w+b');
+
+        if (!is_resource($stream)) {
+            throw new SitemapException('Unable to open temporary sitemap XML stream.');
+        }
+
+        try {
+            $xml = new XmlStreamWriter($stream);
+            $this->writeUrlElement($xml, $url);
+            rewind($stream);
+            $chunk = stream_get_contents($stream);
+
+            if (!is_string($chunk)) {
+                throw new SitemapException('Unable to read temporary sitemap XML stream.');
+            }
+
+            return $chunk;
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
+     * Normalizes a relative or absolute URL according to sitemap configuration
+     */
     private function normalizeLoc(string $loc, ?string $configuredBaseUrl): string
     {
         $trimmed = trim($loc);
@@ -137,6 +208,9 @@ final class SitemapGenerator
         return $this->baseUrlResolver->baseUrl($trimmed);
     }
 
+    /**
+     * Converts a last-modified value to the sitemap date format
+     */
     private function formatLastmod(\DateTimeInterface|string $lastmod): string
     {
         if ($lastmod instanceof \DateTimeInterface) {
