@@ -14,13 +14,18 @@ final class TranslationResourceRegistry
      */
     private array $directories = [];
 
+    /**
+     * @var list<TranslationResourceDefinition>
+     */
+    private array $resources = [];
+
     private bool $frozen = false;
 
     /**
      * @throws InvalidArgumentException When the resource root does not exist or is not a directory.
      * @throws LogicException When registration happens after a translator has read a catalog.
      */
-    public function register(string $directory): void
+    public function register(string $directory, ?string $owner = null): void
     {
         if ($this->frozen) {
             throw new LogicException('Translation resources must be registered during provider registration before the translator is first used.');
@@ -40,6 +45,7 @@ final class TranslationResourceRegistry
         }
 
         $this->directories[] = $normalized;
+        $this->resources[] = new TranslationResourceDefinition($normalized, $owner);
     }
 
     /**
@@ -64,5 +70,15 @@ final class TranslationResourceRegistry
     public function directories(): array
     {
         return $this->directories;
+    }
+
+    /**
+     * Registered resources preserve optional provider ownership metadata.
+     *
+     * @return list<TranslationResourceDefinition>
+     */
+    public function resources(): array
+    {
+        return $this->resources;
     }
 }

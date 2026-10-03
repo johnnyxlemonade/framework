@@ -7,19 +7,29 @@ namespace Lemonade\Framework\Localization;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 
+/**
+ * Resolves source catalogs and runtime overrides with the configured locale fallback
+ */
 final class FileTranslator implements TranslatorInterface
 {
-    /**
-     * @var array<string, array<string, string>>
-     */
-    private array $cache = [];
     private ?string $localeOverride = null;
 
+    private readonly TranslationSourceCatalogInterface $sources;
+
+    private readonly TranslationOverrideProviderInterface $overrides;
+
+    /**
+     * Configures locale settings, source resources and the optional mutable override provider
+     */
     public function __construct(
-        private readonly ApplicationContext $context,
+        ApplicationContext $context,
         private readonly LocalizationConfig $config,
-        private readonly ?TranslationResourceRegistry $resources = null,
+        ?TranslationResourceRegistry $resources = null,
+        ?TranslationSourceCatalogInterface $sources = null,
+        ?TranslationOverrideProviderInterface $overrides = null,
     ) {
+        $this->sources = $sources ?? new FileTranslationSourceCatalog($context, $resources);
+        $this->overrides = $overrides ?? new NullTranslationOverrideProvider();
     }
 
     public function setLocale(?string $locale): self
@@ -41,8 +51,8 @@ final class FileTranslator implements TranslatorInterface
         $locale = $this->resolveLocale($locale);
         $fallbackLocale = $this->fallbackLocale();
 
-        $line = $this->lines($group, $locale)[$item]
-            ?? $this->lines($group, $fallbackLocale)[$item]
+        $line = $this->resolvedLines($group, $locale)[$item]
+            ?? $this->resolvedLines($group, $fallbackLocale)[$item]
             ?? $key;
 
         if ($replacements === []) {
@@ -62,20 +72,18 @@ final class FileTranslator implements TranslatorInterface
     public function group(string $group, ?string $locale = null): array
     {
         $resolvedLocale = $this->resolveLocale($locale);
-        $primary = $this->lines($group, $resolvedLocale);
-        $fallback = $this->lines($group, $this->fallbackLocale());
+        $primary = $this->resolvedLines($group, $resolvedLocale);
+        $fallback = $this->resolvedLines($group, $this->fallbackLocale());
 
         return array_replace($fallback, $primary);
     }
 
     public function all(?string $locale = null): array
     {
-        $this->freezeResources();
         $resolvedLocale = $this->resolveLocale($locale);
-        $groups = $this->groupNames($resolvedLocale);
         $output = [];
 
-        foreach ($groups as $group) {
+        foreach ($this->groupNames($resolvedLocale) as $group) {
             $output[$group] = $this->group($group, $resolvedLocale);
         }
 
@@ -83,6 +91,8 @@ final class FileTranslator implements TranslatorInterface
     }
 
     /**
+     * Splits a translator key into its group and flattened item key
+     *
      * @return array{0:string,1:string}
      */
     private function splitKey(string $key): array
@@ -95,6 +105,9 @@ final class FileTranslator implements TranslatorInterface
         return [$parts[0], $parts[1]];
     }
 
+    /**
+     * Resolves an explicit, runtime or configured locale before falling back
+     */
     private function resolveLocale(?string $locale): string
     {
         $resolved = $locale ?? $this->localeOverride ?? $this->defaultLocale();
@@ -104,108 +117,32 @@ final class FileTranslator implements TranslatorInterface
     }
 
     /**
+     * Resolves source values and current overrides for one exact locale and group
+     *
      * @return array<string, string>
      */
-    private function lines(string $group, string $locale): array
+    private function resolvedLines(string $group, string $locale): array
     {
-        $this->freezeResources();
-        $cacheKey = $locale . ':' . $group;
-        if (isset($this->cache[$cacheKey])) {
-            return $this->cache[$cacheKey];
-        }
-
-        $frameworkFile = $this->context->path('src/Language/' . $locale . '/' . $group . '.php');
-        $packageFrameworkFile = $this->frameworkLanguagePath($locale, $group);
-        $appFile = $this->context->appPath('Language/' . $locale . '/' . $group . '.php');
-
-        $frameworkLines = array_replace(
-            $this->loadFile($packageFrameworkFile),
-            $this->loadFile($frameworkFile),
+        return array_replace(
+            $this->sources->lines($locale, $group),
+            $this->overrides->group($locale, $group),
         );
-        $resourceLines = [];
-        foreach ($this->resourcePaths($locale, $group) as $resourcePath) {
-            $resourceLines = array_replace($resourceLines, $this->loadFile($resourcePath));
-        }
-        $appLines = $this->loadFile($appFile);
-
-        return $this->cache[$cacheKey] = array_replace($frameworkLines, $resourceLines, $appLines);
     }
 
     /**
-     * @return array<string, string>
-     */
-    private function loadFile(string $path): array
-    {
-        if (!is_file($path)) {
-            return [];
-        }
-
-        $loaded = require $path;
-
-        if (!is_array($loaded)) {
-            return [];
-        }
-
-        return $this->flattenLines($loaded);
-    }
-
-    /**
-     * @param array<mixed> $lines
-     * @return array<string, string>
-     */
-    private function flattenLines(array $lines, string $prefix = ''): array
-    {
-        $result = [];
-
-        foreach ($lines as $key => $value) {
-            if (!is_string($key) || $key === '') {
-                continue;
-            }
-
-            $fullKey = $prefix !== '' ? $prefix . '.' . $key : $key;
-
-            if (is_string($value)) {
-                $result[$fullKey] = $value;
-                continue;
-            }
-
-            if (is_array($value)) {
-                $result = array_merge(
-                    $result,
-                    $this->flattenLines($value, $fullKey),
-                );
-            }
-        }
-
-        return $result;
-    }
-
-    /**
+     * Returns groups available from either the requested or fallback locale
+     *
      * @return list<string>
      */
     private function groupNames(string $locale): array
     {
         $fallbackLocale = $this->fallbackLocale();
-        $frameworkDir = $this->context->path('src/Language/' . $locale);
-        $packageFrameworkDir = $this->frameworkLanguageDirectory($locale);
-        $appDir = $this->context->appPath('Language/' . $locale);
-        $fallbackFrameworkDir = $this->context->path('src/Language/' . $fallbackLocale);
-        $fallbackPackageFrameworkDir = $this->frameworkLanguageDirectory($fallbackLocale);
-        $fallbackAppDir = $this->context->appPath('Language/' . $fallbackLocale);
-
-        $resourceDirectories = $this->resourceDirectories($locale);
-        $fallbackResourceDirectories = $this->resourceDirectories($fallbackLocale);
-
-        $names = array_merge(
-            $this->collectGroupNamesFromDirectory($frameworkDir),
-            $this->collectGroupNamesFromDirectory($packageFrameworkDir),
-            $this->collectGroupNamesFromDirectory($appDir),
-            $this->collectGroupNamesFromDirectory($fallbackFrameworkDir),
-            $this->collectGroupNamesFromDirectory($fallbackPackageFrameworkDir),
-            $this->collectGroupNamesFromDirectory($fallbackAppDir),
-            ...array_map($this->collectGroupNamesFromDirectory(...), $resourceDirectories),
-            ...array_map($this->collectGroupNamesFromDirectory(...), $fallbackResourceDirectories),
-        );
+        $names = [
+            ...$this->sources->groups($locale),
+            ...$this->sources->groups($fallbackLocale),
+            ...$this->overrides->groups($locale),
+            ...$this->overrides->groups($fallbackLocale),
+        ];
 
         $names = array_values(array_unique($names));
         sort($names);
@@ -214,84 +151,22 @@ final class FileTranslator implements TranslatorInterface
     }
 
     /**
-     * @return list<string>
+     * Returns the configured default locale or the stable framework default
      */
-    private function collectGroupNamesFromDirectory(string $directory): array
-    {
-        if (!is_dir($directory)) {
-            return [];
-        }
-
-        $files = glob(rtrim($directory, '/\\') . DIRECTORY_SEPARATOR . '*.php');
-        if (!is_array($files)) {
-            return [];
-        }
-
-        $names = [];
-        foreach ($files as $file) {
-            $name = pathinfo($file, PATHINFO_FILENAME);
-            if ($name !== '') {
-                $names[] = $name;
-            }
-        }
-
-        return $names;
-    }
-
     private function defaultLocale(): string
     {
-        $locale = $this->config->defaultLocale;
-        $locale = trim($locale);
+        $locale = trim($this->config->defaultLocale);
 
         return $locale !== '' ? $locale : 'en';
     }
 
+    /**
+     * Returns the configured fallback locale or the stable framework default
+     */
     private function fallbackLocale(): string
     {
-        $locale = $this->config->fallbackLocale;
-        $locale = trim($locale);
+        $locale = trim($this->config->fallbackLocale);
 
         return $locale !== '' ? $locale : 'en';
-    }
-
-    private function frameworkLanguageDirectory(string $locale): string
-    {
-        return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'Language' . DIRECTORY_SEPARATOR . $locale;
-    }
-
-    private function frameworkLanguagePath(string $locale, string $group): string
-    {
-        return $this->frameworkLanguageDirectory($locale) . DIRECTORY_SEPARATOR . $group . '.php';
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function resourcePaths(string $locale, string $group): array
-    {
-        return array_map(
-            static fn(string $directory): string => $directory . DIRECTORY_SEPARATOR . $group . '.php',
-            $this->resourceDirectories($locale),
-        );
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function resourceDirectories(string $locale): array
-    {
-        if ($this->resources === null) {
-            return [];
-        }
-
-        return array_map(
-            static fn(string $directory): string => $directory . DIRECTORY_SEPARATOR . $locale,
-            $this->resources->directories(),
-        );
-    }
-
-    private function freezeResources(): void
-    {
-        $this->resources?->freeze();
     }
 }
