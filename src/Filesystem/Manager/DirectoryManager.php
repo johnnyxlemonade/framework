@@ -38,7 +38,25 @@ final class DirectoryManager implements DirectoryManagerInterface
      */
     public function create(string $pathIterator, int $mode = 0775): void
     {
-        if (!is_dir($pathIterator) && !@mkdir($pathIterator, $mode, true) && !is_dir($pathIterator)) {
+        if (is_dir($pathIterator)) {
+            return;
+        }
+
+        try {
+            $created = @mkdir($pathIterator, $mode, true);
+        } catch (Throwable $exception) {
+            if (is_dir($pathIterator)) {
+                return;
+            }
+
+            throw new FilesystemException(
+                sprintf("Unable to create directory '%s' with mode %s.", $pathIterator, decoct($mode)),
+                FilesystemException::CODE_DIR_CREATE_FAILED,
+                $exception,
+            );
+        }
+
+        if (!$created && !is_dir($pathIterator)) {
             throw new FilesystemException(
                 sprintf("Unable to create directory '%s' with mode %s.", $pathIterator, decoct($mode)),
                 FilesystemException::CODE_DIR_CREATE_FAILED,

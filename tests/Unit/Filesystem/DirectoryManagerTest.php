@@ -43,6 +43,81 @@ final class DirectoryManagerTest extends TestCase
         self::assertDirectoryExists($path);
     }
 
+    public function testCreateToleratesConcurrentCreationWhenWarningsBecomeExceptions(): void
+    {
+        $this->manager->create($this->root);
+
+        $directory = $this->path('concurrent');
+        $barrier = $this->path('barrier');
+        $worker = $this->path('create-directory-worker.php');
+        $autoload = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+
+        file_put_contents($worker, sprintf(<<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+require %s;
+
+set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+    throw new \ErrorException($message, 0, $severity, $file, $line);
+});
+
+$ready = $argv[2] . '.' . getmypid();
+touch($ready);
+
+while (!is_file($argv[3])) {
+    usleep(1_000);
+}
+
+(new \Lemonade\Framework\Filesystem\Manager\DirectoryManager())->create($argv[1]);
+PHP, var_export($autoload, true)));
+
+        $processes = [];
+        $workerCount = 8;
+
+        for ($index = 0; $index < $workerCount; ++$index) {
+            $process = proc_open(
+                [PHP_BINARY, $worker, $directory, $barrier . '.ready', $barrier . '.go'],
+                [
+                    0 => ['pipe', 'r'],
+                    1 => ['pipe', 'w'],
+                    2 => ['pipe', 'w'],
+                ],
+                $pipes,
+            );
+
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+            $processes[] = [$process, $pipes];
+        }
+
+        $readyPaths = glob($barrier . '.ready.*');
+        $readyCount = $readyPaths === false ? 0 : count($readyPaths);
+
+        for ($attempt = 0; $attempt < 200 && $readyCount < $workerCount; ++$attempt) {
+            usleep(10_000);
+
+            $readyPaths = glob($barrier . '.ready.*');
+            $readyCount = $readyPaths === false ? 0 : count($readyPaths);
+        }
+
+        touch($barrier . '.go');
+
+        self::assertSame($workerCount, $readyCount);
+
+        foreach ($processes as [$process, $pipes]) {
+            $stdout = stream_get_contents($pipes[1]);
+            $stderr = stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            self::assertSame(0, proc_close($process), is_string($stdout) ? $stdout . $stderr : $stderr);
+        }
+
+        self::assertDirectoryExists($directory);
+    }
+
     public function testWriteCreatesParentAndWritesContent(): void
     {
         $file = $this->path('nested/file.txt');
