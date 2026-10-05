@@ -88,6 +88,7 @@ vendor/bin/lemonade database:migrate:status
 vendor/bin/lemonade queue:install
 vendor/bin/lemonade queue:work
 vendor/bin/lemonade discovery:sitemap:generate
+vendor/bin/lemonade upload:chunks:cleanup
 ```
 
 `queue:install` creates the configured database-transport tables. `queue:work` requires an
@@ -95,5 +96,9 @@ asynchronous transport such as `database`; its optional arguments are queue name
 processed job count and idle sleep in milliseconds. These commands are suitable for supervisor or
 cron-driven operations, but the framework does not provide a separate scheduler or workflow engine.
 
+`upload:chunks:cleanup` removes expired filesystem-backed temporary chunk uploads and reports the
+number of released sessions and bytes. Run it periodically when applications expose sequential chunk
+upload endpoints.
+
 See [Database](database.md), [Infrastructure modules](infrastructure.md) and
-[Discovery](discovery.md) for their configuration and operational contracts.
+[Discovery](discovery.md), and [Uploads](uploads.md) for their configuration and operational contracts.

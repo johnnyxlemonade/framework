@@ -20,6 +20,7 @@ The main `README.md` is intentionally an entry overview. Detailed runtime, confi
 - [Views](views.md)
 - [Components](components.md)
 - [Validation](validation.md)
+- [Uploads](uploads.md)
 - [Database](database.md)
 - [Infrastructure modules](infrastructure.md)
 - [CLI commands](cli-commands.md)
