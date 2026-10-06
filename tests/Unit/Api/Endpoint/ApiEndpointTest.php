@@ -9,6 +9,7 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpoint;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Routing\ControllerAction;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ApiEndpointTest extends TestCase
 {
@@ -59,9 +60,7 @@ final class ApiEndpointTest extends TestCase
         self::assertSame([200, 201], $endpoint->metadata()->successStatusCodes());
     }
 
-    /**
-     * @dataProvider invalidEndpointFieldProvider
-     */
+    #[DataProvider('invalidEndpointFieldProvider')]
     public function testEndpointRejectsInvalidBaseFields(
         string $method,
         string $path,

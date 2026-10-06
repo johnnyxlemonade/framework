@@ -8,6 +8,10 @@ use Lemonade\Framework\Database\Connection\ConnectionInterface;
 
 final class Database
 {
+    /** @var list<callable():void> */
+    private array $afterCommitCallbacks = [];
+
+    private int $managedTransactionDepth = 0;
     public function __construct(
         private readonly ConnectionInterface $connection,
         private readonly DatabaseDriverInterface $driver,
@@ -52,7 +56,48 @@ final class Database
      */
     public function transaction(callable $callback): mixed
     {
-        return $this->connection->transaction($callback);
+        $ownsTransaction = !$this->connection->inTransaction();
+        if ($this->managedTransactionDepth === 0 && !$ownsTransaction) {
+            throw new \LogicException('After-commit callbacks require a transaction started through Database.');
+        }
+        ++$this->managedTransactionDepth;
+
+        try {
+            $result = $this->connection->transaction($callback);
+        } catch (\Throwable $exception) {
+            if ($ownsTransaction) {
+                $this->afterCommitCallbacks = [];
+            }
+
+            throw $exception;
+        } finally {
+            --$this->managedTransactionDepth;
+        }
+
+        if ($ownsTransaction) {
+            $callbacks = $this->afterCommitCallbacks;
+            $this->afterCommitCallbacks = [];
+
+            foreach ($callbacks as $afterCommit) {
+                $afterCommit();
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Schedules a side effect after a Database-owned outer transaction commits, or executes it immediately.
+     */
+    public function afterCommit(callable $callback): void
+    {
+        if ($this->managedTransactionDepth === 0) {
+            $callback();
+
+            return;
+        }
+
+        $this->afterCommitCallbacks[] = $callback;
     }
 
     public function lastInsertId(): int|string|null

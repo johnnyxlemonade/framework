@@ -9,6 +9,7 @@ use Lemonade\Framework\Core\Http\ResponseBuilder;
 use Lemonade\Framework\Http\Response\Responses;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ControllerResultNormalizerTest extends TestCase
 {
@@ -22,9 +23,7 @@ final class ControllerResultNormalizerTest extends TestCase
         self::assertSame($response, $normalized);
     }
 
-    /**
-     * @dataProvider scalarResultProvider
-     */
+    #[DataProvider('scalarResultProvider')]
     public function testNormalizesStringAndScalarResults(mixed $result, string $expectedBody): void
     {
         $factory = new Psr17Factory();

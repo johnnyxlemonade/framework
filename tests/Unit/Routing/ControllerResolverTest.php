@@ -13,6 +13,7 @@ use Lemonade\Framework\Routing\RouteMatch;
 use Lemonade\Framework\View\ViewRendererInterface;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -265,9 +266,7 @@ final class ControllerResolverTest extends TestCase
         $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ResponsesController::class, 'missing')), $this->request());
     }
 
-    /**
-     * @dataProvider nonPublicActionProvider
-     */
+    #[DataProvider('nonPublicActionProvider')]
     public function testNonPublicActionThrowsBeforeInvocation(string $action): void
     {
         NonPublicActionController::$invoked = false;

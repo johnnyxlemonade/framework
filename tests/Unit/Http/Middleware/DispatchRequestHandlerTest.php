@@ -16,6 +16,7 @@ use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -195,9 +196,7 @@ final class DispatchRequestHandlerTest extends TestCase
         self::assertSame('public', (string) $response->getBody());
     }
 
-    /**
-     * @dataProvider nonPublicExplicitActionProvider
-     */
+    #[DataProvider('nonPublicExplicitActionProvider')]
     public function testExplicitRouteRejectsNonPublicActionBeforeInvocationWithDispatch(string $action): void
     {
         DispatchVisibilityController::$invoked = false;
@@ -231,9 +230,7 @@ final class DispatchRequestHandlerTest extends TestCase
             ->handle((new Psr17Factory())->createServerRequest('GET', '/dispatch-visibility/show'));
     }
 
-    /**
-     * @dataProvider nonPublicConventionActionProvider
-     */
+    #[DataProvider('nonPublicConventionActionProvider')]
     public function testExplicitRouteRejectsNonPublicActionBeforeInvocation(string $action): void
     {
         DispatchVisibilityController::$invoked = false;

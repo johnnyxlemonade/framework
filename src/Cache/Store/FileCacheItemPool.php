@@ -19,6 +19,7 @@ use function is_array;
 use function is_file;
 use function is_int;
 use function is_string;
+use function restore_error_handler;
 use function serialize;
 use function set_error_handler;
 use function sha1;
@@ -297,7 +298,7 @@ final class FileCacheItemPool implements CacheItemPoolInterface
      */
     private function deserializeValue(string $serialized): array
     {
-        $previousHandler = set_error_handler(static function (): bool {
+        set_error_handler(static function (): bool {
             return true;
         });
 
@@ -309,11 +310,7 @@ final class FileCacheItemPool implements CacheItemPoolInterface
                 'value' => null,
             ];
         } finally {
-            if ($previousHandler !== null) {
-                set_error_handler($previousHandler);
-            } else {
-                restore_error_handler();
-            }
+            restore_error_handler();
         }
 
         if ($value === false && $serialized !== serialize(false)) {

@@ -6,20 +6,17 @@ namespace Lemonade\Framework\Tests\Unit\Support\Slug;
 
 use Lemonade\Framework\Support\Slug\Slugger;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class SluggerTest extends TestCase
 {
-    /**
-     * @dataProvider slugExamples
-     */
+    #[DataProvider('slugExamples')]
     public function testSlugNormalizesText(string $input, string $expected): void
     {
         self::assertSame($expected, $this->slugger()->slug($input));
     }
 
-    /**
-     * @dataProvider localeSlugExamples
-     */
+    #[DataProvider('localeSlugExamples')]
     public function testSlugTransliteratesSupportedLocales(string $input, string $locale, string $expected): void
     {
         self::assertSame($expected, $this->slugger()->slug($input, locale: $locale));

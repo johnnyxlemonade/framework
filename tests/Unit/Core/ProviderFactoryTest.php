@@ -16,6 +16,7 @@ use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Queue\JobContext;
 use Lemonade\Framework\Queue\QueuedMessage;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\ServerRequestInterface;
 
 final class ProviderFactoryTest extends TestCase
@@ -81,10 +82,10 @@ final class ProviderFactoryTest extends TestCase
     }
 
     /**
-     * @dataProvider runtimeOnlyScopeDependencyProvider
      * @param class-string $dependency
      * @param class-string<ServiceProviderInterface> $providerClass
      */
+    #[DataProvider('runtimeOnlyScopeDependencyProvider')]
     public function testRejectsCommandAndJobDependenciesEvenWhenTheyAreBound(string $dependency, string $providerClass): void
     {
         $container = new Container();

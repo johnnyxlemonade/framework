@@ -16,6 +16,7 @@ use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootExcepti
 use Lemonade\Framework\Container\Exception\SingletonDependsOnScopedServiceException;
 use Lemonade\Framework\Container\ScopeKind;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ScopedContainerTest extends TestCase
 {
@@ -114,9 +115,7 @@ final class ScopedContainerTest extends TestCase
         }
     }
 
-    /**
-     * @dataProvider scopeKindProvider
-     */
+    #[DataProvider('scopeKindProvider')]
     public function testScopedRuntimeResolutionWorksForEveryScopeKind(ScopeKind $kind): void
     {
         $container = new Container();
