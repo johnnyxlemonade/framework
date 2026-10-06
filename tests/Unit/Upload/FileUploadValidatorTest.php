@@ -114,16 +114,6 @@ final class FileUploadValidatorTest extends TestCase
         $validator->validate($upload, $options);
     }
 
-    public function testExplicitAllowedMimeTypesFurtherRestrictCatalogMatching(): void
-    {
-        $validator = $this->validator('application/pdf');
-        $upload = $this->upload('document.pdf', "%PDF-1.4\n");
-        $options = $this->options(['pdf'], ['text/plain']);
-
-        $this->expectException(UploadValidationException::class);
-        $validator->validate($upload, $options);
-    }
-
     public function testDetectsMimeExactlyOnceForAValidatedGenericUpload(): void
     {
         $detector = new CountingMimeTypeDetector(MimeType::fromString('application/pdf'));
@@ -194,14 +184,12 @@ final class FileUploadValidatorTest extends TestCase
 
     /**
      * @param list<string> $extensions
-     * @param list<string> $mimeTypes
      */
-    private function options(array $extensions, array $mimeTypes = []): FileUploadOptions
+    private function options(array $extensions): FileUploadOptions
     {
         return new FileUploadOptions(
             targetDirectory: 'files',
             targetRelativeDirectory: 'files',
-            allowedMimeTypes: $mimeTypes,
             allowedExtensions: $extensions,
         );
     }

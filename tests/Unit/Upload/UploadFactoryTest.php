@@ -31,7 +31,7 @@ use PHPUnit\Framework\TestCase;
 
 final class UploadFactoryTest extends TestCase
 {
-    public function testDefaultProfilesUseExtensionPoliciesWithoutMimeDuplication(): void
+    public function testDefaultProfilesUseCatalogBackedExtensionPolicies(): void
     {
         $definition = require dirname(__DIR__, 3) . '/src/Config/Upload.php';
 
@@ -40,32 +40,28 @@ final class UploadFactoryTest extends TestCase
         $config = (new UploadConfigResolver())->resolve($definition);
 
         self::assertSame(['pdf', 'doc', 'docx', 'txt'], $config->files['default']->allowedExtensions);
-        self::assertSame([], $config->files['default']->allowedMimeTypes);
         self::assertSame(['jpg', 'jpeg', 'png', 'webp'], $config->images['default']->allowedExtensions);
-        self::assertSame([], $config->images['default']->allowedMimeTypes);
     }
 
-    public function testResolverPreservesExplicitMimeRestrictionsAndEmptyMimePolicies(): void
+    public function testResolverRejectsLegacyMimePolicies(): void
     {
-        $config = (new UploadConfigResolver())->resolve(
-            UploadConfigDefinition::create()
-                ->fileProfile(
-                    profile: 'empty',
-                    targetDirectory: 'files',
-                    maxBytes: 1024,
-                    allowedExtensions: ['pdf'],
-                )
-                ->imageProfile(
-                    profile: 'restricted',
-                    targetDirectory: 'images',
-                    maxBytes: 1024,
-                    allowedExtensions: ['png'],
-                    allowedMimeTypes: ['image/png'],
-                ),
-        );
+        $definition = UploadConfigDefinition::fromArrayData([
+            'files' => [
+                'restricted' => [
+                    'target_directory' => 'files',
+                    'max_bytes' => 1024,
+                    'allowed_extensions' => ['pdf'],
+                    'allowed_mime_types' => ['application/pdf'],
+                ],
+            ],
+        ]);
 
-        self::assertSame([], $config->files['empty']->allowedMimeTypes);
-        self::assertSame(['image/png'], $config->images['restricted']->allowedMimeTypes);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Upload profile "restricted": allowed_mime_types is no longer supported');
+
+        (new UploadConfigResolver())->resolve(
+            $definition,
+        );
     }
 
     public function testFileOptionsUseResolvedPublicUploadsDirectoryInSeparatedWebrootMode(): void
@@ -105,7 +101,7 @@ final class UploadFactoryTest extends TestCase
                 profile: 'default',
                 targetDirectory: 'images',
                 maxBytes: 1024,
-                allowedMimeTypes: ['image/png'],
+                allowedExtensions: ['png'],
             ),
         );
         $translator = new UploadFactoryTranslatorStub();

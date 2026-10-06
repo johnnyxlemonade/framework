@@ -4,13 +4,38 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload\Config;
 
+use InvalidArgumentException;
+use Lemonade\Framework\Mime\MimeTypeCatalog;
+use Lemonade\Framework\Support\ByteSizeParser;
+
 /**
- * Resolves layered upload definitions into the profile data consumed by upload factories.
+ * Converts typed upload definitions into fail-fast runtime policies consumed by UploadFactory.
+ *
+ * It normalizes the canonical extension allowlist against MimeTypeCatalog and parses byte limits before a request
+ * can reach an uploader.
  */
 final readonly class UploadConfigResolver
 {
+    private MimeTypeCatalog $catalog;
+
     /**
-     * Merges configured profile definitions while preserving an empty optional MIME restriction
+     * Creates a resolver using the composed MIME catalog, or the framework catalog for isolated use.
+     *
+     * The parser is shared so all supported size syntax has one binary-byte interpretation.
+     */
+    public function __construct(
+        ?MimeTypeCatalog $catalog = null,
+        private ByteSizeParser $byteSizeParser = new ByteSizeParser(),
+    ) {
+        $this->catalog = $catalog ?? MimeTypeCatalog::default();
+    }
+
+    /**
+     * Merges layered definitions into profiles with normalized extensions and positive byte limits.
+     *
+     * Unknown extensions, legacy MIME policies, and malformed limits are rejected before upload services are used.
+     *
+     * @throws InvalidArgumentException When an upload profile cannot form a safe catalog-backed policy
      */
     public function resolve(UploadConfigDefinition ...$definitions): UploadConfig
     {
@@ -20,8 +45,8 @@ final readonly class UploadConfigResolver
         foreach ($definitions as $definition) {
             $data = $definition->toArray();
 
-            $files = $this->mergeFileProfiles($files, $this->profileMap($data['files'] ?? null));
-            $images = $this->mergeImageProfiles($images, $this->profileMap($data['images'] ?? null));
+            $files = $this->mergeFileProfiles($files, $this->profileMap($data['files'] ?? null, 'files'));
+            $images = $this->mergeImageProfiles($images, $this->profileMap($data['images'] ?? null, 'images'));
         }
 
         return new UploadConfig($files, $images);
@@ -36,14 +61,16 @@ final readonly class UploadConfigResolver
     {
         foreach ($rawProfiles as $name => $profile) {
             if (!is_string($name) || trim($name) === '' || !is_array($profile)) {
-                continue;
+                throw new InvalidArgumentException('Upload file profiles must map non-empty names to profile mappings.');
             }
 
-            $current[trim($name)] = new FileUploadProfileConfig(
+            $profileName = trim($name);
+            $this->rejectLegacyMimePolicy($profile, $profileName);
+
+            $current[$profileName] = new FileUploadProfileConfig(
                 targetDirectory: $this->stringOr($profile['target_directory'] ?? '', ''),
-                maxBytes: max(1, $this->intOr($profile['max_bytes'] ?? 10_485_760, 10_485_760)),
-                allowedMimeTypes: $this->stringList($profile['allowed_mime_types'] ?? []),
-                allowedExtensions: $this->stringList($profile['allowed_extensions'] ?? []),
+                maxBytes: $this->maxBytes($profile['max_bytes'] ?? 10_485_760, $profileName),
+                allowedExtensions: $this->allowedExtensions($profile['allowed_extensions'] ?? [], $profileName),
             );
         }
 
@@ -59,14 +86,16 @@ final readonly class UploadConfigResolver
     {
         foreach ($rawProfiles as $name => $profile) {
             if (!is_string($name) || trim($name) === '' || !is_array($profile)) {
-                continue;
+                throw new InvalidArgumentException('Upload image profiles must map non-empty names to profile mappings.');
             }
 
-            $current[trim($name)] = new ImageUploadProfileConfig(
+            $profileName = trim($name);
+            $this->rejectLegacyMimePolicy($profile, $profileName);
+
+            $current[$profileName] = new ImageUploadProfileConfig(
                 targetDirectory: $this->stringOr($profile['target_directory'] ?? '', ''),
-                maxBytes: max(1, $this->intOr($profile['max_bytes'] ?? 5_242_880, 5_242_880)),
-                allowedMimeTypes: $this->stringList($profile['allowed_mime_types'] ?? []),
-                allowedExtensions: $this->stringList($profile['allowed_extensions'] ?? ['jpg', 'jpeg', 'png', 'webp']),
+                maxBytes: $this->maxBytes($profile['max_bytes'] ?? 5_242_880, $profileName),
+                allowedExtensions: $this->allowedExtensions($profile['allowed_extensions'] ?? ['jpg', 'jpeg', 'png', 'webp'], $profileName),
                 reencode: $this->toBool($profile['reencode'] ?? true, true),
                 minWidth: $this->nullableInt($profile['min_width'] ?? null),
                 maxWidth: $this->nullableInt($profile['max_width'] ?? null),
@@ -81,17 +110,21 @@ final readonly class UploadConfigResolver
     /**
      * @return array<string, mixed>
      */
-    private function profileMap(mixed $value): array
+    private function profileMap(mixed $value, string $kind): array
     {
-        if (!is_array($value)) {
+        if ($value === null) {
             return [];
+        }
+
+        if (!is_array($value)) {
+            throw new InvalidArgumentException(sprintf('Upload %s profiles must be a mapping.', $kind));
         }
 
         $profiles = [];
 
         foreach ($value as $name => $profile) {
             if (!is_string($name)) {
-                continue;
+                throw new InvalidArgumentException(sprintf('Upload %s profile names must be strings.', $kind));
             }
 
             $profiles[$name] = $profile;
@@ -110,19 +143,17 @@ final readonly class UploadConfigResolver
         return $normalized === '' ? $default : $normalized;
     }
 
-    private function intOr(mixed $value, int $default): int
+    private function maxBytes(mixed $value, string $profile): int
     {
-        if (is_int($value)) {
-            return $value;
+        try {
+            return $this->byteSizeParser->parse($value);
+        } catch (InvalidArgumentException $exception) {
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": invalid max_bytes: %s',
+                $profile,
+                $exception->getMessage(),
+            ), previous: $exception);
         }
-        if (is_float($value)) {
-            return (int) $value;
-        }
-        if (is_string($value) && is_numeric($value)) {
-            return (int) $value;
-        }
-
-        return $default;
     }
 
     private function nullableInt(mixed $value): ?int
@@ -157,24 +188,45 @@ final readonly class UploadConfigResolver
         return $resolved ?? $default;
     }
 
-    /**
-     * @return list<string>
-     */
-    private function stringList(mixed $value): array
+    /** @return list<string> */
+    private function allowedExtensions(mixed $value, string $profile): array
     {
         if (!is_array($value)) {
-            return [];
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": allowed_extensions must be a list of extensions.',
+                $profile,
+            ));
         }
 
         $items = [];
 
         foreach ($value as $item) {
-            if (!is_scalar($item)) {
-                continue;
+            if (!is_string($item)) {
+                throw new InvalidArgumentException(sprintf(
+                    'Upload profile "%s": allowed_extensions must contain only strings.',
+                    $profile,
+                ));
             }
 
-            $normalized = trim((string) $item);
-            if ($normalized === '' || in_array($normalized, $items, true)) {
+            try {
+                $normalized = MimeTypeCatalog::normalizeExtension($item);
+            } catch (InvalidArgumentException $exception) {
+                throw new InvalidArgumentException(sprintf(
+                    'Upload profile "%s": unknown allowed extension "%s".',
+                    $profile,
+                    $item,
+                ), previous: $exception);
+            }
+
+            if ($this->catalog->definitionForExtension($normalized) === null) {
+                throw new InvalidArgumentException(sprintf(
+                    'Upload profile "%s": unknown allowed extension "%s".',
+                    $profile,
+                    $item,
+                ));
+            }
+
+            if (in_array($normalized, $items, true)) {
                 continue;
             }
 
@@ -182,5 +234,18 @@ final readonly class UploadConfigResolver
         }
 
         return $items;
+    }
+
+    /** @param array<mixed> $profile */
+    private function rejectLegacyMimePolicy(array $profile, string $profileName): void
+    {
+        if (!array_key_exists('allowed_mime_types', $profile)) {
+            return;
+        }
+
+        throw new InvalidArgumentException(sprintf(
+            'Upload profile "%s": allowed_mime_types is no longer supported; use allowed_extensions.',
+            $profileName,
+        ));
     }
 }

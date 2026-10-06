@@ -11,21 +11,25 @@ use Lemonade\Framework\Upload\Exception\UploadValidationException;
 use Psr\Http\Message\UploadedFileInterface;
 
 /**
- * Adds image-content and dimension checks to generic upload validation.
+ * Adds image decoding, detected-image MIME agreement, and dimension checks to the generic upload boundary.
  */
 final readonly class ImageUploadValidator
 {
     /**
-     * Creates image validation on top of the shared generic upload boundary
+     * Extends the generic extension and MIME boundary with image-specific content validation.
      */
     public function __construct(
-        private readonly FileUploadValidator $fileValidator,
-        private readonly TranslatorInterface $translator,
+        private FileUploadValidator $fileValidator,
+        private TranslatorInterface $translator,
     ) {
     }
 
     /**
-     * Validates an image upload and returns its server-detected MIME value
+     * Validates an image payload before storage and returns its server-detected MIME value.
+     *
+     * The detected MIME must agree with both MimeTypeCatalog and decoded image metadata.
+     *
+     * @throws UploadValidationException When generic upload, image-content, MIME, or dimension validation fails
      */
     public function validate(
         ?UploadedFileInterface $file,
@@ -35,7 +39,6 @@ final readonly class ImageUploadValidator
             targetDirectory: $options->targetDirectory(),
             targetRelativeDirectory: $options->targetRelativeDirectory(),
             maxBytes: $options->maxBytes(),
-            allowedMimeTypes: $options->allowedMimeTypes(),
             allowedExtensions: $options->allowedExtensions(),
         );
 

@@ -11,8 +11,14 @@ use Lemonade\Framework\Upload\ValueObject\UploadedFile;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 
+/**
+ * Executes generic uploads against one immutable resolved policy.
+ */
 final class ConfiguredFileUploader
 {
+    /**
+     * Couples the upload workflow to one policy without owning request state.
+     */
     public function __construct(
         private readonly UploadService $service,
         private readonly FileUploadOptions $options,
@@ -20,11 +26,17 @@ final class ConfiguredFileUploader
     ) {
     }
 
+    /**
+     * Validates and publishes one supplied upload using this uploader's policy.
+     */
     public function upload(?UploadedFileInterface $file): UploadedFile
     {
         return $this->service->uploadFile($file, $this->options);
     }
 
+    /**
+     * Resolves a nested request input and validates and publishes its uploaded file.
+     */
     public function uploadFromRequest(ServerRequestInterface $request, string $inputName): UploadedFile
     {
         $uploadedFiles = [];
@@ -40,16 +52,20 @@ final class ConfiguredFileUploader
         );
     }
 
+    /**
+     * Exposes the immutable policy used by subsequent upload operations.
+     */
     public function options(): FileUploadOptions
     {
         return $this->options;
     }
 
     /**
+     * Exports server-enforced rules for consumers that need to describe this uploader without changing validation.
+     *
      * @return array{
      *     target_directory: string,
      *     max_bytes: int,
-     *     allowed_mime_types: list<string>,
      *     allowed_extensions: list<string>
      * }
      */
@@ -58,7 +74,6 @@ final class ConfiguredFileUploader
         return [
             'target_directory' => $this->options->targetDirectory(),
             'max_bytes' => $this->options->maxBytes(),
-            'allowed_mime_types' => $this->options->allowedMimeTypes(),
             'allowed_extensions' => $this->options->allowedExtensions(),
         ];
     }

@@ -12,12 +12,15 @@ use Lemonade\Framework\Upload\Exception\UploadValidationException;
 use Psr\Http\Message\UploadedFileInterface;
 
 /**
- * Validates generic uploads against transport, size, extension, and detected-content constraints.
+ * Validates generic uploads against transport, byte limits, explicit extension policy, and detected content.
+ *
+ * A client MIME declaration is never trusted: the temporary payload is detected server-side and must match its
+ * filename extension through MimeTypeCatalog.
  */
 final readonly class FileUploadValidator
 {
     /**
-     * Creates validation backed by translated failures and shared server-side MIME detection
+     * Combines translated validation failures with server-side MIME detection and catalog compatibility rules.
      */
     public function __construct(
         private readonly TranslatorInterface $translator,
@@ -27,9 +30,12 @@ final readonly class FileUploadValidator
     }
 
     /**
-     * Validates one generic upload and returns its server-detected MIME value
+     * Accepts a payload only after its transport state, size, explicit extension, and detected MIME family agree.
+     *
+     * The returned MIME is detected from temporary server-visible bytes, never the client declaration.
      *
      * @phpstan-assert UploadedFileInterface $file
+     * @throws UploadValidationException When the payload is absent, unreadable, oversized, or fails extension/MIME validation
      */
     public function validate(
         ?UploadedFileInterface $file,
@@ -57,15 +63,6 @@ final readonly class FileUploadValidator
 
         $mime = $this->detector->detect($tmpPath);
 
-        $allowedMimeTypes = $this->normalizeMimeTypes($options->allowedMimeTypes());
-
-        if ($allowedMimeTypes !== [] && !in_array($mime->value(), $allowedMimeTypes, true)) {
-            throw new UploadValidationException($this->translator->get(
-                'upload.mime_not_allowed',
-                ['mime' => $mime->value()],
-            ));
-        }
-
         $extension = $this->clientExtension($file);
         $allowedExtensions = $this->normalizeExtensions($options->allowedExtensions());
 
@@ -87,7 +84,9 @@ final readonly class FileUploadValidator
     }
 
     /**
-     * Resolves the readable temporary path exposed by the upload stream
+     * Extracts a readable temporary filesystem path from the upload stream for server-side inspection.
+     *
+     * @throws UploadValidationException When the stream does not expose a readable local file
      */
     public function resolvePath(UploadedFileInterface $file): string
     {
@@ -109,18 +108,6 @@ final readonly class FileUploadValidator
     private function clientExtension(UploadedFileInterface $file): string
     {
         return strtolower(pathinfo($file->getClientFilename() ?? '', PATHINFO_EXTENSION));
-    }
-
-    /**
-     * @param list<string>|array<int|string, string> $mimeTypes
-     * @return list<string>
-     */
-    private function normalizeMimeTypes(array $mimeTypes): array
-    {
-        return array_values(array_unique(array_map(
-            static fn(string $mimeType): string => strtolower(trim($mimeType)),
-            $mimeTypes,
-        )));
     }
 
     /**

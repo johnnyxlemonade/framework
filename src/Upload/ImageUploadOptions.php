@@ -5,21 +5,19 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Upload;
 
 /**
- * Carries image upload policy, including optional MIME narrowing beyond extension validation.
+ * Carries image upload policy with catalog-backed extension validation.
  */
 final readonly class ImageUploadOptions
 {
     /**
-     * Creates an immutable image upload policy with optional MIME restrictions
+     * Creates an immutable image policy that applies catalog MIME matching before image decoding.
      *
-     * @param list<string> $allowedMimeTypes
-     * @param list<string> $allowedExtensions
+     * @param list<string> $allowedExtensions Explicit normalized filename suffixes permitted by this upload operation
      */
     public function __construct(
         private string $targetDirectory,
         private string $targetRelativeDirectory,
         private int $maxBytes = 5_242_880,
-        private array $allowedMimeTypes = [],
         private array $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'],
         private bool $reencode = true,
         private ?int $minWidth = null,
@@ -30,7 +28,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns the absolute directory where the validated image will be published
+     * Provides the absolute directory where a validated image is published.
      */
     public function targetDirectory(): string
     {
@@ -38,7 +36,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns the public-relative directory retained in the uploaded image reference
+     * Provides the public-relative directory retained in the uploaded image reference.
      */
     public function targetRelativeDirectory(): string
     {
@@ -46,7 +44,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns the largest accepted uploaded payload in bytes
+     * Provides the positive server-enforced source-payload limit in bytes.
      */
     public function maxBytes(): int
     {
@@ -54,17 +52,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns optional MIME values that further restrict catalog-compatible uploads
-     *
-     * @return list<string>
-     */
-    public function allowedMimeTypes(): array
-    {
-        return $this->allowedMimeTypes;
-    }
-
-    /**
-     * Returns extensions explicitly permitted by this image upload policy
+     * Provides normalized filename suffixes that may proceed to catalog MIME matching.
      *
      * @return list<string>
      */
@@ -74,7 +62,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Reports whether validated source bytes are re-encoded before publication
+     * Indicates whether validated source bytes are re-encoded before publication.
      */
     public function reencode(): bool
     {
@@ -82,7 +70,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns the optional lower bound for source image width
+     * Provides the optional inclusive lower bound for decoded source-image width.
      */
     public function minWidth(): ?int
     {
@@ -90,7 +78,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns the optional upper bound for source image width
+     * Provides the optional inclusive upper bound for decoded source-image width.
      */
     public function maxWidth(): ?int
     {
@@ -98,7 +86,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns the optional lower bound for source image height
+     * Provides the optional inclusive lower bound for decoded source-image height.
      */
     public function minHeight(): ?int
     {
@@ -106,7 +94,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Returns the optional upper bound for source image height
+     * Provides the optional inclusive upper bound for decoded source-image height.
      */
     public function maxHeight(): ?int
     {

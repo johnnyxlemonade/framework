@@ -5,6 +5,50 @@ uploader performs file-size, extension and server-detected MIME validation befor
 publication to `UploadStorage`. Image profiles add image and dimension validation and can re-encode
 the published image.
 
+## Configuration
+
+Each profile declares only an explicit `allowed_extensions` allowlist. The framework detects the
+actual MIME type server-side through `ext-fileinfo`, then accepts the upload only when the detected
+MIME is a `MimeTypeCatalog` match for the client filename extension. Client-supplied MIME metadata
+is never trusted. `allowed_mime_types` is not an upload configuration option.
+
+```yaml
+module: upload
+config:
+  images:
+    admin-image:
+      target_directory: admin/images
+      max_bytes: 5MB
+      allowed_extensions:
+        - jpg
+        - jpeg
+        - png
+        - webp
+      reencode: true
+
+  files:
+    admin-file:
+      target_directory: admin/files
+      max_bytes: 10MB
+      allowed_extensions:
+        - jpg
+        - jpeg
+        - png
+        - webp
+        - pdf
+        - doc
+        - docx
+        - xls
+        - xlsx
+        - txt
+```
+
+`max_bytes` accepts either a positive raw byte integer, such as `10485760`, or a positive whole
+number followed by `B`, `KB`, `MB`, or `GB`; whitespace before the unit is allowed and units are
+case-insensitive. These units use binary multipliers: `1KB = 1024` bytes, `1MB = 1024 * 1024`
+bytes, and `1GB = 1024 * 1024 * 1024` bytes. Zero, negative, decimal, unknown-unit, and overflowing
+values are configuration errors.
+
 Applications select an existing file or image profile and pass an `UploadedFileInterface` to the
 configured uploader. The resulting `UploadedFile` or `UploadedImage` is the same regardless of how
 the temporary upload bytes reached the framework.

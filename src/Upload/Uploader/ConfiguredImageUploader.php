@@ -11,8 +11,14 @@ use Lemonade\Framework\Upload\ValueObject\UploadedImage;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
 
+/**
+ * Executes image uploads against one immutable resolved policy.
+ */
 final class ConfiguredImageUploader
 {
+    /**
+     * Couples image upload processing to one policy without owning request state.
+     */
     public function __construct(
         private readonly UploadService $service,
         private readonly ImageUploadOptions $options,
@@ -20,11 +26,17 @@ final class ConfiguredImageUploader
     ) {
     }
 
+    /**
+     * Validates, optionally re-encodes, and publishes one supplied image using this uploader's policy.
+     */
     public function upload(?UploadedFileInterface $file): UploadedImage
     {
         return $this->service->uploadImage($file, $this->options);
     }
 
+    /**
+     * Resolves a nested request input and validates and publishes its uploaded image.
+     */
     public function uploadFromRequest(ServerRequestInterface $request, string $inputName): UploadedImage
     {
         $uploadedFiles = [];
@@ -40,16 +52,20 @@ final class ConfiguredImageUploader
         );
     }
 
+    /**
+     * Exposes the immutable policy used by subsequent image upload operations.
+     */
     public function options(): ImageUploadOptions
     {
         return $this->options;
     }
 
     /**
+     * Exports server-enforced rules for consumers that need to describe this uploader without changing validation.
+     *
      * @return array{
      *     target_directory: string,
      *     max_bytes: int,
-     *     allowed_mime_types: list<string>,
      *     allowed_extensions: list<string>,
      *     reencode: bool,
      *     min_width: int|null,
@@ -63,7 +79,6 @@ final class ConfiguredImageUploader
         return [
             'target_directory' => $this->options->targetDirectory(),
             'max_bytes' => $this->options->maxBytes(),
-            'allowed_mime_types' => $this->options->allowedMimeTypes(),
             'allowed_extensions' => $this->options->allowedExtensions(),
             'reencode' => $this->options->reencode(),
             'min_width' => $this->options->minWidth(),

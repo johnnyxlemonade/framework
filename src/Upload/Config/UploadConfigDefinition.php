@@ -12,7 +12,7 @@ use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
 final class UploadConfigDefinition extends AbstractConfigDefinition
 {
     /**
-     * Starts an upload configuration definition for framework upload profiles
+     * Starts an empty definition that can declare named file and image upload profiles.
      */
     public static function create(): self
     {
@@ -20,7 +20,7 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
     }
 
     /**
-     * Provides the configuration namespace consumed by the upload subsystem
+     * Identifies definitions consumed by the upload configuration resolver.
      */
     public static function moduleKey(): string
     {
@@ -28,37 +28,32 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
     }
 
     /**
-     * Defines one generic-file profile whose extension policy is always required for acceptance
+     * Declares a generic-file profile whose explicit extensions are validated against MimeTypeCatalog at runtime.
      *
-     * @param list<string> $allowedExtensions
-     * @param list<string> $allowedMimeTypes
+     * @param list<string> $allowedExtensions Canonical application allowlist; detected MIME must match each filename suffix
      */
     public function fileProfile(
         string $profile,
         string $targetDirectory,
         int $maxBytes,
         array $allowedExtensions = [],
-        array $allowedMimeTypes = [],
     ): self {
         return $this
             ->set("files.{$profile}.target_directory", $targetDirectory)
             ->set("files.{$profile}.max_bytes", $maxBytes)
-            ->set("files.{$profile}.allowed_mime_types", array_values($allowedMimeTypes))
             ->set("files.{$profile}.allowed_extensions", array_values($allowedExtensions));
     }
 
     /**
-     * Defines one image profile with optional MIME narrowing after extension and byte validation
+     * Declares an image profile whose explicit extensions gate catalog-backed MIME and image-content validation.
      *
-     * @param list<string> $allowedExtensions
-     * @param list<string> $allowedMimeTypes
+     * @param list<string> $allowedExtensions Canonical application allowlist; detected MIME must match each filename suffix
      */
     public function imageProfile(
         string $profile,
         string $targetDirectory,
         int $maxBytes,
         array $allowedExtensions = [],
-        array $allowedMimeTypes = [],
         bool $reencode = true,
         ?int $minWidth = null,
         ?int $maxWidth = null,
@@ -68,7 +63,6 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
         $this
             ->set("images.{$profile}.target_directory", $targetDirectory)
             ->set("images.{$profile}.max_bytes", $maxBytes)
-            ->set("images.{$profile}.allowed_mime_types", array_values($allowedMimeTypes))
             ->set("images.{$profile}.allowed_extensions", array_values($allowedExtensions))
             ->set("images.{$profile}.reencode", $reencode);
 
