@@ -48,12 +48,15 @@ final readonly class ChunkUploadService
      * Creates a temporary session for an explicit file or image profile after resolving its maximum final size.
      *
      * The declared size is reserved as an upper bound before any chunk data is written.
+     *
+     * @param array<string,mixed> $context
      */
     public function start(
         string $kind,
         string $profile,
         string $originalFilename,
         int $declaredSize,
+        array $context = [],
     ): ChunkUploadSession {
         $this->validateStart($kind, $profile, $originalFilename, $declaredSize);
 
@@ -80,11 +83,38 @@ final readonly class ChunkUploadService
             currentOffset: 0,
             createdAt: $createdAt,
             expiresAt: $createdAt + $this->config->ttlSeconds(),
+            context: $context,
         );
 
         $this->store->create($session);
 
         return $session;
+    }
+
+    /**
+     * Returns server-authoritative metadata for an active session without exposing its payload.
+     */
+    public function session(string $uploadId): ChunkUploadSessionDescriptor
+    {
+        $result = $this->store->withLock($uploadId, function () use ($uploadId): ChunkUploadSessionDescriptor {
+            $session = $this->activeSession($uploadId);
+
+            return new ChunkUploadSessionDescriptor(
+                uploadId: $session->uploadId(),
+                kind: $session->kind(),
+                profile: $session->profile(),
+                originalFilename: $session->originalFilename(),
+                declaredSize: $session->declaredSize(),
+                currentOffset: $session->currentOffset(),
+                context: $session->context(),
+            );
+        });
+
+        if (!$result instanceof ChunkUploadSessionDescriptor) {
+            throw new UploadValidationException('Chunk upload session does not exist.');
+        }
+
+        return $result;
     }
 
     /**

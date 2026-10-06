@@ -144,6 +144,7 @@ final readonly class FilesystemChunkUploadSessionStore
                 currentOffset: $this->intValue($decoded, 'current_offset'),
                 createdAt: $this->intValue($decoded, 'created_at'),
                 expiresAt: $this->intValue($decoded, 'expires_at'),
+                context: $this->contextValue($decoded),
             );
         } catch (\Throwable $exception) {
             throw new UploadStorageException('Chunk upload metadata is invalid.', previous: $exception);
@@ -297,6 +298,7 @@ final readonly class FilesystemChunkUploadSessionStore
                 'current_offset' => $session->currentOffset(),
                 'created_at' => $session->createdAt(),
                 'expires_at' => $session->expiresAt(),
+                'context' => $session->context(),
             ], JSON_THROW_ON_ERROR);
 
             $this->filesystem->write($temporary, $json, 0600);
@@ -354,6 +356,32 @@ final readonly class FilesystemChunkUploadSessionStore
         }
 
         return $value;
+    }
+
+    /**
+     * Reads optional opaque context without assigning application semantics to it.
+     *
+     * @param array<mixed,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function contextValue(array $data): array
+    {
+        $context = $data['context'] ?? [];
+
+        if (!is_array($context)) {
+            return [];
+        }
+
+        $resolved = [];
+        foreach ($context as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+
+            $resolved[$key] = $value;
+        }
+
+        return $resolved;
     }
 
     private function assertUploadId(string $uploadId): void

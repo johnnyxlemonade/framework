@@ -26,6 +26,8 @@ final readonly class ChunkUploadSession
         private int $currentOffset,
         private int $createdAt,
         private int $expiresAt,
+        /** @var array<string,mixed> */
+        private array $context = [],
     ) {
         if (!in_array($this->kind, ['file', 'image'], true)) {
             throw new InvalidArgumentException('Chunk upload kind must be file or image.');
@@ -113,6 +115,16 @@ final readonly class ChunkUploadSession
     }
 
     /**
+     * Returns application-owned opaque metadata persisted with this session.
+     *
+     * @return array<string,mixed>
+     */
+    public function context(): array
+    {
+        return $this->context;
+    }
+
+    /**
      * Reports whether the supplied UNIX timestamp is at or beyond this session's fixed expiry.
      */
     public function isExpired(int $now): bool
@@ -135,6 +147,7 @@ final readonly class ChunkUploadSession
             currentOffset: $currentOffset,
             createdAt: $this->createdAt,
             expiresAt: $this->expiresAt,
+            context: $this->context,
         );
     }
 }
