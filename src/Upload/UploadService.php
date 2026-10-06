@@ -45,11 +45,6 @@ final readonly class UploadService
     ): UploadedFile {
         $mime = $this->fileValidator->validate($file, $options);
 
-        /**
-         * @var UploadedFileInterface $file
-         */
-        $tmpPath = $this->fileValidator->resolvePath($file);
-
         $targetDir = $this->storage->ensureTargetDirectory($options->targetDirectory());
         $extension = $this->clientExtension($file);
 

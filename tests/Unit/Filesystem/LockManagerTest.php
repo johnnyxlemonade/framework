@@ -40,18 +40,15 @@ final class LockManagerTest extends TestCase
     public function testLockWrapsCallbackExceptionIntoFilesystemExceptionWithPrevious(): void
     {
         $lockFile = $this->path('locks/fail.lock');
-        $exception = null;
 
         try {
             $this->manager->lock($lockFile, static function (): void {
                 throw new \RuntimeException('boom');
             });
         } catch (FilesystemException $exception) {
+            self::assertInstanceOf(\RuntimeException::class, $exception->getPrevious());
+            self::assertSame('boom', $exception->getPrevious()->getMessage());
         }
-
-        self::assertInstanceOf(FilesystemException::class, $exception);
-        self::assertInstanceOf(\RuntimeException::class, $exception->getPrevious());
-        self::assertSame('boom', $exception->getPrevious()->getMessage());
     }
 
     private function path(string $relative): string

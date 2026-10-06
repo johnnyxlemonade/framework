@@ -87,8 +87,6 @@ final class ComponentServiceProviderTest extends TestCase
         $container = $this->buildContainer();
         (new ComponentServiceProvider())->register($container);
 
-        /** @var ComponentRegistry $registry */
-        $registry = $container->get(ComponentRegistry::class);
         $scope = $container->beginScope(ScopeKind::Request);
         $scope->bindScopedInstance(ServerRequestInterface::class, new ServerRequest('GET', '/articles?page=2'));
 

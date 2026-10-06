@@ -24,8 +24,6 @@ final class ValidPhonenumberRule implements ValidationRuleInterface
         }
 
         if (class_exists('Lemonade\\PhoneNumber\\PhoneNumber')) {
-            $valid = false;
-
             try {
                 $number = \Lemonade\PhoneNumber\PhoneNumber::parse($phoneNumber, $countryCode);
                 $valid = is_object($number)
@@ -34,7 +32,7 @@ final class ValidPhonenumberRule implements ValidationRuleInterface
                     && $number->isPossibleNumber()
                     && $number->isValidNumber();
             } catch (\Exception) {
-                $valid = false;
+                return false;
             }
 
             if (!$valid) {

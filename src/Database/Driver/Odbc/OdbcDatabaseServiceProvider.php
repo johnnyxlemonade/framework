@@ -33,7 +33,6 @@ final class OdbcDatabaseServiceProvider implements ServiceProviderInterface
 
         $container->singleton(OdbcDatabaseDriver::class, static function (ContainerInterface $container): OdbcDatabaseDriver {
             $connection = $container->get(OdbcConnection::class);
-            $config = $container->get(DatabaseConfig::class);
             $identifierEscaper = $container->get(OdbcIdentifierEscaper::class);
             $identifierProtector = new IdentifierProtector($identifierEscaper);
 

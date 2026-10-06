@@ -28,6 +28,8 @@ final readonly class FileUploadValidator
 
     /**
      * Validates one generic upload and returns its server-detected MIME value
+     *
+     * @phpstan-assert UploadedFileInterface $file
      */
     public function validate(
         ?UploadedFileInterface $file,
