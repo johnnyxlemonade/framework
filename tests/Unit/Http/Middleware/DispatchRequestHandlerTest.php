@@ -185,6 +185,21 @@ final class DispatchRequestHandlerTest extends TestCase
         self::assertInstanceOf(RouteMatch::class, $matchedRequest->getAttribute(RouteRequestAttributes::MATCH));
     }
 
+    public function testDispatchPathOverridesOnlyRouteMatchingAndPreservesTheOriginalRequestUri(): void
+    {
+        $router = new Router();
+        $router->get('/contact/{id}', \Lemonade\Framework\Routing\ControllerAction::for(DispatchContextController::class, 'show'));
+        $request = (new Psr17Factory())
+            ->createServerRequest('GET', '/en/contact/42?source=menu')
+            ->withAttribute(RouteRequestAttributes::DISPATCH_PATH, '/contact/42');
+
+        $response = $this->buildHandler($router, $this->buildContainer())->handle($request);
+
+        self::assertSame('en/contact/42?source=menu', ltrim((string) DispatchContextController::$request?->getUri(), '/'));
+        self::assertSame('source=menu', DispatchContextController::$request?->getUri()->getQuery());
+        self::assertSame('42', (string) $response->getBody());
+    }
+
     public function testExplicitRouteDispatchesPublicAction(): void
     {
         $router = new Router();

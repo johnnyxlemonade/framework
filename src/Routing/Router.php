@@ -9,6 +9,12 @@ use Lemonade\Framework\Routing\Exception\MissingRouteParameterException;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Psr\Http\Message\ServerRequestInterface;
 
+/**
+ * Collects immutable route definitions and resolves requests after registration freezes.
+ *
+ * It owns route-name uniqueness and path normalization but leaves request preprocessing
+ * to the dispatch boundary.
+ */
 final class Router
 {
     /**
@@ -42,81 +48,129 @@ final class Router
 
     private bool $frozen = false;
 
+    /**
+     * Initializes an empty mutable route collection.
+     */
     public function __construct()
     {
         $this->collection = new RouteCollection();
     }
 
+    /**
+     * Registers a GET route using the current group prefix.
+     */
     public function get(string $path, ControllerAction $action): Route
     {
-        return $this->map('GET', $path, $action);
+        return $this->map(HttpMethod::GET, $path, $action);
     }
 
+    /**
+     * Registers a POST route using the current group prefix.
+     */
     public function post(string $path, ControllerAction $action): Route
     {
-        return $this->map('POST', $path, $action);
+        return $this->map(HttpMethod::POST, $path, $action);
     }
 
+    /**
+     * Registers a PUT route using the current group prefix.
+     */
     public function put(string $path, ControllerAction $action): Route
     {
-        return $this->map('PUT', $path, $action);
+        return $this->map(HttpMethod::PUT, $path, $action);
     }
 
+    /**
+     * Registers a PATCH route using the current group prefix.
+     */
     public function patch(string $path, ControllerAction $action): Route
     {
-        return $this->map('PATCH', $path, $action);
+        return $this->map(HttpMethod::PATCH, $path, $action);
     }
 
+    /**
+     * Registers a DELETE route using the current group prefix.
+     */
     public function delete(string $path, ControllerAction $action): Route
     {
-        return $this->map('DELETE', $path, $action);
+        return $this->map(HttpMethod::DELETE, $path, $action);
     }
 
+    /**
+     * Registers a HEAD route using the current group prefix.
+     */
     public function head(string $path, ControllerAction $action): Route
     {
-        return $this->map('HEAD', $path, $action);
+        return $this->map(HttpMethod::HEAD, $path, $action);
     }
 
+    /**
+     * Registers an OPTIONS route using the current group prefix.
+     */
     public function options(string $path, ControllerAction $action): Route
     {
-        return $this->map('OPTIONS', $path, $action);
+        return $this->map(HttpMethod::OPTIONS, $path, $action);
     }
 
+    /**
+     * Registers a named GET route and reserves its URL-generation name.
+     */
     public function getNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'GET', $path, $action);
+        return $this->mapNamed($name, HttpMethod::GET, $path, $action);
     }
 
+    /**
+     * Registers a named POST route and reserves its URL-generation name.
+     */
     public function postNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'POST', $path, $action);
+        return $this->mapNamed($name, HttpMethod::POST, $path, $action);
     }
 
+    /**
+     * Registers a named PUT route and reserves its URL-generation name.
+     */
     public function putNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'PUT', $path, $action);
+        return $this->mapNamed($name, HttpMethod::PUT, $path, $action);
     }
 
+    /**
+     * Registers a named PATCH route and reserves its URL-generation name.
+     */
     public function patchNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'PATCH', $path, $action);
+        return $this->mapNamed($name, HttpMethod::PATCH, $path, $action);
     }
 
+    /**
+     * Registers a named DELETE route and reserves its URL-generation name.
+     */
     public function deleteNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'DELETE', $path, $action);
+        return $this->mapNamed($name, HttpMethod::DELETE, $path, $action);
     }
 
+    /**
+     * Registers a named HEAD route and reserves its URL-generation name.
+     */
     public function headNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'HEAD', $path, $action);
+        return $this->mapNamed($name, HttpMethod::HEAD, $path, $action);
     }
 
+    /**
+     * Registers a named OPTIONS route and reserves its URL-generation name.
+     */
     public function optionsNamed(string $name, string $path, ControllerAction $action): Route
     {
-        return $this->mapNamed($name, 'OPTIONS', $path, $action);
+        return $this->mapNamed($name, HttpMethod::OPTIONS, $path, $action);
     }
 
+    /**
+     * Adds one route definition and applies constraints configured for localized groups.
+     */
     public function map(HttpMethod|string $method, string $path, ControllerAction $action): Route
     {
         $this->assertMutable();
@@ -142,6 +196,9 @@ final class Router
         return $route;
     }
 
+    /**
+     * Adds one named route after rejecting a duplicate effective name.
+     */
     public function mapNamed(string $name, HttpMethod|string $method, string $path, ControllerAction $action): Route
     {
         $this->assertMutable();
@@ -161,6 +218,9 @@ final class Router
 
     /**
      * @param callable(self): void $builder
+     */
+    /**
+     * Runs a registration callback with a temporary path prefix and returns its routes.
      */
     public function group(string $prefix, callable $builder): RouteGroup
     {
@@ -183,6 +243,9 @@ final class Router
 
     /**
      * @param callable(self): void $builder
+     */
+    /**
+     * Registers parallel plain and locale-prefixed variants for the callback's routes.
      */
     public function localizedGroup(callable $builder): LocalizedRouteGroup
     {
@@ -211,6 +274,13 @@ final class Router
 
     /**
      * @param list<string> $supportedLocales
+     */
+    /**
+     * Configures the static locale-prefix convention used by future localized groups.
+     *
+     * It must run before route registration is frozen.
+     *
+     * @param array<mixed> $supportedLocales
      */
     public function configureLocalizedRoutes(
         string $routeNamePrefix = 'localized.',
@@ -246,6 +316,11 @@ final class Router
     /**
      * @param array<string, scalar|null> $params
      */
+    /**
+     * Generates a path for a named route and appends unused parameters as a query string.
+     *
+     * @param array<string, scalar|null> $params
+     */
     public function url(string $name, array $params = []): string
     {
         if (!isset($this->namedRoutes[$name])) {
@@ -258,22 +333,36 @@ final class Router
     /**
      * Prevents further route and route-configuration mutation.
      */
+    /**
+     * Prevents further route and localized-route configuration changes.
+     */
     public function freeze(): void
     {
         $this->frozen = true;
     }
 
+    /**
+     * Reports whether route registration has become immutable.
+     */
     public function isFrozen(): bool
     {
         return $this->frozen;
     }
 
-    public function match(ServerRequestInterface $request): RouteMatch
+    /**
+     * Matches the request method against its URI path or a dispatch-only path override.
+     *
+     * The override changes only route selection; request metadata and the URI reported
+     * by a missing-route exception remain those of the original request.
+     */
+    public function match(ServerRequestInterface $request, ?string $dispatchPath = null): RouteMatch
     {
         $method = strtoupper($request->getMethod());
-        $path = RoutePathNormalizer::normalize($request->getUri()->getPath());
+        $path = RoutePathNormalizer::normalize($dispatchPath ?? $request->getUri()->getPath());
 
-        $candidateMethods = $method === 'HEAD' ? ['HEAD', 'GET'] : [$method];
+        $candidateMethods = $method === HttpMethod::HEAD->value
+            ? [HttpMethod::HEAD->value, HttpMethod::GET->value]
+            : [$method];
         foreach ($candidateMethods as $candidateMethod) {
             $match = $this->collection->match($candidateMethod, $path);
             if ($match !== null) {
@@ -290,6 +379,11 @@ final class Router
     /**
      * @return list<string>
      */
+    /**
+     * Lists normalized HTTP methods that have a route for the supplied path.
+     *
+     * @return list<string>
+     */
     public function allowedMethodsForPath(string $path): array
     {
         $normalizedPath = RoutePathNormalizer::normalize($path);
@@ -298,12 +392,20 @@ final class Router
         return RouteCollection::sortMethods($allowed);
     }
 
+    /**
+     * Reports whether one method has an explicitly registered route for the path.
+     */
     public function hasExplicitRouteForPath(HttpMethod|string $method, string $path): bool
     {
         return $this->collection->hasExplicitRouteForPath($method, $path);
     }
 
     /**
+     * @param array<string, scalar|null> $params
+     */
+    /**
+     * Substitutes path parameters and serializes remaining values into a query string.
+     *
      * @param array<string, scalar|null> $params
      */
     private function buildUrl(string $path, array $params): string
@@ -356,6 +458,9 @@ final class Router
         return $url . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
     }
 
+    /**
+     * Encodes one route value according to whether its placeholder spans segments.
+     */
     private function encodeRouteParameter(string $key, string $value, bool $wildcard): string
     {
         if ($wildcard) {
@@ -365,6 +470,9 @@ final class Router
         return $this->encodeSimpleRouteParameter($key, $value);
     }
 
+    /**
+     * Encodes a single-segment route value and rejects embedded separators.
+     */
     private function encodeSimpleRouteParameter(string $key, string $value): string
     {
         if ($value === '') {
@@ -377,6 +485,9 @@ final class Router
         return rawurlencode($value);
     }
 
+    /**
+     * Encodes each non-empty segment of a wildcard route value independently.
+     */
     private function encodeWildcardRouteParameter(string $key, string $value): string
     {
         if ($value === '') {
@@ -406,6 +517,9 @@ final class Router
         );
     }
 
+    /**
+     * Converts an enum or arbitrary method input to its uppercase routing form.
+     */
     private function normalizeMethod(HttpMethod|string $method): string
     {
         return $method instanceof HttpMethod
@@ -413,6 +527,9 @@ final class Router
             : strtoupper($method);
     }
 
+    /**
+     * Applies all active registration-group prefixes to a route path.
+     */
     private function withGroupPrefix(string $path): string
     {
         $prefix = implode('', $this->groupPrefixes);
@@ -424,6 +541,9 @@ final class Router
         return RoutePathNormalizer::normalize($prefix . '/' . ltrim($path, '/'));
     }
 
+    /**
+     * Applies active localized name prefixes to a route name.
+     */
     private function withNamePrefix(string $name): string
     {
         if ($this->namePrefixes === []) {
@@ -433,6 +553,9 @@ final class Router
         return implode('', $this->namePrefixes) . $name;
     }
 
+    /**
+     * Persists a route's generated URL template after duplicate-name validation.
+     */
     private function registerRouteName(Route $route, string $name): void
     {
         $this->assertMutable();
@@ -441,6 +564,9 @@ final class Router
         $this->namedRoutes[$name] = $this->formatUrl($route->path());
     }
 
+    /**
+     * Rejects reuse of a name that already identifies a registered route.
+     */
     private function assertRouteNameAvailable(string $name): void
     {
         if (isset($this->namedRoutes[$name])) {
@@ -452,6 +578,9 @@ final class Router
         }
     }
 
+    /**
+     * Rejects route mutations once the router has entered its immutable runtime state.
+     */
     private function assertMutable(): bool
     {
         if ($this->frozen) {
@@ -461,11 +590,17 @@ final class Router
         return true;
     }
 
+    /**
+     * Produces the leading-slash URL template stored for named-route generation.
+     */
     private function formatUrl(string $path): string
     {
         return '/' . ltrim(RoutePathNormalizer::normalize($path), '/');
     }
 
+    /**
+     * Limits the configured locale placeholder to the supported static locale set.
+     */
     private function applyLocalizedRouteConstraints(Route $route): void
     {
         if ($this->localizedSupportedLocales === []) {
@@ -489,6 +624,12 @@ final class Router
     }
 
     /**
+     * @param array<mixed> $supportedLocales
+     * @return list<string>
+     */
+    /**
+     * Removes invalid and duplicate scalar locale values while preserving order.
+     *
      * @param array<mixed> $supportedLocales
      * @return list<string>
      */
