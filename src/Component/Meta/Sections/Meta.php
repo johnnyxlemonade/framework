@@ -32,8 +32,8 @@ final class Meta extends AbstractMetaEntity
         $tags[] = new MetaTag('rating', $this->data->getRating());
         $tags[] = new MetaTag('web_author', $this->data->getAuthor());
 
-        // Canonical URL including optional query params.
-        $tags[] = new LinkTag('canonical', $this->data->getCanonicalUrl());
+        // Canonical URL supplied by the page owner.
+        $tags[] = new LinkTag('canonical', $this->data->getCanonical());
 
         // Image link tag.
         $tags[] = new LinkTag('image_src', $this->data->getImage());

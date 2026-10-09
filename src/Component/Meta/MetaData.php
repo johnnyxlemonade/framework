@@ -8,7 +8,6 @@ final readonly class MetaData
 {
     /**
      * @param array<string, string|null> $custom
-     * @param array<string, string|null> $extraParams
      * @param array<string, string> $alternates
      */
     public function __construct(
@@ -23,35 +22,14 @@ final readonly class MetaData
         private ?string $author = null,
         private ?string $robots = null,
         private ?string $canonical = null,
+        private ?string $url = null,
+        private ?string $type = null,
+        private ?string $locale = null,
         private ?string $image = null,
+        private ?string $imageAlt = null,
         private array $custom = [],
-        private array $extraParams = [],
         private array $alternates = [],
     ) {
-    }
-
-    public function withParam(string $key, ?string $value): self
-    {
-        $params = $this->extraParams;
-        $params[$key] = $value;
-
-        return new self(
-            websiteName: $this->websiteName,
-            charset: $this->charset,
-            viewport: $this->viewport,
-            rating: $this->rating,
-            titleSeparator: $this->titleSeparator,
-            title: $this->title,
-            description: $this->description,
-            keywords: $this->keywords,
-            author: $this->author,
-            robots: $this->robots,
-            canonical: $this->canonical,
-            image: $this->image,
-            custom: $this->custom,
-            extraParams: $params,
-            alternates: $this->alternates,
-        );
     }
 
     public function withDefaults(
@@ -79,9 +57,12 @@ final readonly class MetaData
             author: $this->author,
             robots: $this->robots,
             canonical: $this->canonical,
+            url: $this->url,
+            type: $this->type,
+            locale: $this->locale,
             image: $this->image,
+            imageAlt: $this->imageAlt,
             custom: $this->custom,
-            extraParams: $this->extraParams,
             alternates: $this->alternates,
         );
     }
@@ -100,9 +81,12 @@ final readonly class MetaData
             author: $this->author,
             robots: $this->robots,
             canonical: $this->canonical,
+            url: $this->url,
+            type: $this->type,
+            locale: $this->locale,
             image: $this->image,
+            imageAlt: $this->imageAlt,
             custom: $this->custom,
-            extraParams: $this->extraParams,
             alternates: $this->alternates,
         );
     }
@@ -166,9 +150,29 @@ final readonly class MetaData
         return $this->canonical;
     }
 
+    public function getUrl(): ?string
+    {
+        return $this->url;
+    }
+
+    public function getType(): ?string
+    {
+        return $this->type;
+    }
+
+    public function getLocale(): ?string
+    {
+        return $this->locale;
+    }
+
     public function getImage(): ?string
     {
         return $this->image;
+    }
+
+    public function getImageAlt(): ?string
+    {
+        return $this->imageAlt;
     }
 
     /**
@@ -180,14 +184,6 @@ final readonly class MetaData
     }
 
     /**
-     * @return array<string, string|null>
-     */
-    public function getExtraParams(): array
-    {
-        return $this->extraParams;
-    }
-
-    /**
      * @return array<string, string>
      */
     public function getAlternates(): array
@@ -195,31 +191,4 @@ final readonly class MetaData
         return $this->alternates;
     }
 
-    public function getCanonicalUrl(): string
-    {
-        $canonical = $this->canonical ?? '';
-
-        if ($canonical === '' || $this->extraParams === []) {
-            return $canonical;
-        }
-
-        $filtered = array_filter(
-            $this->extraParams,
-            static fn(?string $value): bool => $value !== null && $value !== '',
-        );
-
-        if ($filtered === []) {
-            return $canonical;
-        }
-
-        $queryParams = http_build_query($filtered);
-
-        if ($queryParams === '') {
-            return $canonical;
-        }
-
-        $separator = str_contains($canonical, '?') ? '&' : '?';
-
-        return $canonical . $separator . $queryParams;
-    }
 }

@@ -18,6 +18,7 @@ final class Twitter extends AbstractMetaEntity
         $tags[] = new TwitterTag('twitter:title', $this->data->getTitle());
         $tags[] = new TwitterTag('twitter:description', $this->data->getDescription());
         $tags[] = new TwitterTag('twitter:image', $this->data->getImage());
+        $tags[] = new TwitterTag('twitter:image:alt', $this->imageAlt());
 
         // pokud máme autora / handle
         if (isset($custom['twitter:creator']) && $custom['twitter:creator'] !== '') {
@@ -25,5 +26,14 @@ final class Twitter extends AbstractMetaEntity
         }
 
         return $this->renderTags($tags);
+    }
+
+    private function imageAlt(): ?string
+    {
+        if ($this->data->getImage() === null || $this->data->getImage() === '') {
+            return null;
+        }
+
+        return $this->data->getImageAlt();
     }
 }
