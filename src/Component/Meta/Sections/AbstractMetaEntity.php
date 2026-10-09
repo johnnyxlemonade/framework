@@ -7,14 +7,24 @@ namespace Lemonade\Framework\Component\Meta\Sections;
 use Lemonade\Framework\Component\Meta\MetaData;
 use Lemonade\Framework\Component\Meta\Tag\TagInterface;
 
-abstract class AbstractMetaEntity implements MetaEntityInterface
+/**
+ * Shares immutable page metadata and tag-list rendering among metadata sections.
+ *
+ * Custom subclasses must remain readonly to preserve their fixed page metadata.
+ */
+abstract readonly class AbstractMetaEntity implements MetaEntityInterface
 {
+    /**
+     * Initializes a section with the metadata it will render.
+     */
     public function __construct(
-        protected readonly MetaData $data,
+        protected MetaData $data,
     ) {
     }
 
     /**
+     * Renders only non-empty tags, separating each rendered tag by a newline.
+     *
      * @param TagInterface[] $tags
      */
     protected function renderTags(array $tags): string

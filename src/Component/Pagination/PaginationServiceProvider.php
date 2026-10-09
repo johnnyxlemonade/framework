@@ -7,7 +7,6 @@ namespace Lemonade\Framework\Component\Pagination;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfig;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfigDefinition;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfigResolver;
-use Lemonade\Framework\Component\Support\ComponentConfig;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
@@ -16,8 +15,14 @@ use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
+/**
+ * Registers resolved pagination configuration and request-scoped pagination services.
+ */
 final class PaginationServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers pagination services while keeping request-dependent factory and component instances scoped.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $builder = ProviderContainerAssertions::builder($container, self::class, 'request-scoped services');
@@ -44,7 +49,7 @@ final class PaginationServiceProvider implements ServiceProviderInterface
             $config = $container->get(PaginationConfig::class);
 
             return new PaginationRenderer(
-                classes: ComponentConfig::normalizeClasses($config->classes),
+                classes: $config->classes,
                 translator: $container->get(TranslatorInterface::class),
                 visiblePages: $config->visiblePages,
                 showFirstLast: $config->showFirstLast,

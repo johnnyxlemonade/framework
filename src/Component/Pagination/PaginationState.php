@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Pagination;
 
+/**
+ * Describes one requested page and derives its offsets, navigation state and page URLs.
+ */
 final readonly class PaginationState
 {
     /**
+     * Initializes page boundaries and the URL context preserved across navigation links.
+     *
      * @param array<string, scalar|null> $query
      */
     public function __construct(
@@ -19,61 +24,97 @@ final readonly class PaginationState
     ) {
     }
 
+    /**
+     * Returns the one-based page selected for this result set.
+     */
     public function currentPage(): int
     {
         return $this->currentPage;
     }
 
+    /**
+     * Returns the number of rows assigned to each page.
+     */
     public function perPage(): int
     {
         return $this->perPage;
     }
 
+    /**
+     * Returns the total number of rows in the result set.
+     */
     public function total(): int
     {
         return $this->total;
     }
 
+    /**
+     * Returns the query parameter name that carries the requested page.
+     */
     public function pageName(): string
     {
         return $this->pageName;
     }
 
+    /**
+     * Returns the zero-based row offset for the current page.
+     */
     public function offset(): int
     {
         return max(0, ($this->currentPage - 1) * $this->perPage);
     }
 
+    /**
+     * Returns the highest valid page, with one as the minimum.
+     */
     public function lastPage(): int
     {
         return max(1, (int) ceil($this->total / $this->perPage));
     }
 
+    /**
+     * Reports whether the result set spans more than one page.
+     */
     public function hasPages(): bool
     {
         return $this->lastPage() > 1;
     }
 
+    /**
+     * Reports whether a page before the current page exists.
+     */
     public function hasPrev(): bool
     {
         return $this->currentPage > 1;
     }
 
+    /**
+     * Reports whether a page after the current page exists.
+     */
     public function hasNext(): bool
     {
         return $this->currentPage < $this->lastPage();
     }
 
+    /**
+     * Returns the closest valid page before the current page.
+     */
     public function prevPage(): int
     {
         return max(1, $this->currentPage - 1);
     }
 
+    /**
+     * Returns the closest valid page after the current page.
+     */
     public function nextPage(): int
     {
         return min($this->lastPage(), $this->currentPage + 1);
     }
 
+    /**
+     * Builds a page URL while retaining non-empty query parameters from this state.
+     */
     public function url(int $page): string
     {
         $query = $this->query;
@@ -87,6 +128,8 @@ final readonly class PaginationState
     }
 
     /**
+     * Returns a contiguous window of valid page numbers centered around the current page where possible.
+     *
      * @return list<int>
      */
     public function pages(int $maxPages = 5): array

@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Component\Meta\Sections;
 
 use Lemonade\Framework\Component\Meta\Tag\TwitterTag;
 
-final class Twitter extends AbstractMetaEntity
+/**
+ * Renders Twitter Card metadata using page defaults and supported custom overrides.
+ */
+final readonly class Twitter extends AbstractMetaEntity
 {
+    /**
+     * Renders the Twitter Card tag set and an optional creator declaration.
+     */
     public function render(): string
     {
         $tags = [];

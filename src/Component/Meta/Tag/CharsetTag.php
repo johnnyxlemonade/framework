@@ -7,13 +7,22 @@ namespace Lemonade\Framework\Component\Meta\Tag;
 use function htmlspecialchars;
 use function sprintf;
 
-final class CharsetTag implements TagInterface
+/**
+ * Renders an escaped character-set declaration when one is configured.
+ */
+final readonly class CharsetTag implements TagInterface
 {
+    /**
+     * Initializes the optional character-set value.
+     */
     public function __construct(
-        private readonly ?string $charset,
+        private ?string $charset,
     ) {
     }
 
+    /**
+     * Renders the character-set declaration or suppresses it for empty content.
+     */
     public function render(): string
     {
         if ($this->charset === null || $this->charset === '') {

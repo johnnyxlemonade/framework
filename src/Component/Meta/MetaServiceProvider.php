@@ -12,8 +12,14 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
+/**
+ * Registers metadata configuration resolution and the metadata rendering component.
+ */
 final class MetaServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Adds shared metadata services and resolves registered metadata definitions lazily.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(MetaConfigResolver::class, MetaConfigResolver::class);

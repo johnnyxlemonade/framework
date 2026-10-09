@@ -37,7 +37,7 @@ final class BreadcrumbComponentTest extends TestCase
 
         $html = (new BreadcrumbRenderer())->render($trail);
 
-        self::assertStringContainsString('class="breadcrumb mb-0"', $html);
+        self::assertStringContainsString('class="breadcrumb"', $html);
         self::assertStringContainsString('href="/search?q=&lt;term&gt;&amp;page=1"', $html);
         self::assertStringContainsString('&lt;Home &amp;&gt;', $html);
         self::assertStringContainsString('class="breadcrumb-item active"', $html);

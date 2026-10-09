@@ -7,16 +7,24 @@ namespace Lemonade\Framework\Component\Pagination;
 use Lemonade\Framework\Database\QueryBuilder;
 use Psr\Http\Message\ServerRequestInterface;
 
-final class PaginationFactory
+/**
+ * Creates pagination results from rows or query builders using the current request as fallback context.
+ */
+final readonly class PaginationFactory
 {
+    /**
+     * Initializes request-derived pagination defaults and enforces the configured page-size maximum.
+     */
     public function __construct(
-        private readonly ServerRequestInterface $request,
-        private readonly int $defaultPerPage = 20,
-        private readonly int $maxPerPage = 200,
+        private ServerRequestInterface $request,
+        private int $defaultPerPage = 20,
+        private int $maxPerPage = 200,
     ) {
     }
 
     /**
+     * Slices in-memory rows and returns their page state with request-derived URL context.
+     *
      * @param list<array<string, mixed>> $items
      * @param array<string, scalar|null> $query
      */
@@ -47,6 +55,8 @@ final class PaginationFactory
     }
 
     /**
+     * Counts and fetches the requested page from a query builder with request-derived URL context.
+     *
      * @param array<string, scalar|null> $query
      */
     public function fromQueryBuilder(

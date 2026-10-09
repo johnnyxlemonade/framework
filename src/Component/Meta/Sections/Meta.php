@@ -10,10 +10,16 @@ use Lemonade\Framework\Component\Meta\Tag\LinkTag;
 use Lemonade\Framework\Component\Meta\Tag\MetaTag;
 use Lemonade\Framework\Component\Meta\Tag\TitleTag;
 
-final class Meta extends AbstractMetaEntity
+/**
+ * Renders standard document, SEO, canonical and alternate-language metadata.
+ */
+final readonly class Meta extends AbstractMetaEntity
 {
     private const string GENERATOR = 'Lemonade CMS [lemonadeframework.cz]';
 
+    /**
+     * Renders standard tags while omitting custom values owned by social sections.
+     */
     public function render(): string
     {
         $tags = [];

@@ -6,8 +6,18 @@ namespace Lemonade\Framework\Component\Config;
 
 use LogicException;
 
+/**
+ * Merges component definitions into a validated immutable configuration.
+ *
+ * Definitions are processed in order, so a later registration replaces an earlier one with the same name.
+ */
 final class ComponentConfigResolver
 {
+    /**
+     * Resolves ordered definitions and rejects invalid component names or class references.
+     *
+     * @throws LogicException When a definition contains an invalid name or an unavailable class.
+     */
     public function resolve(ComponentConfigDefinition ...$definitions): ComponentConfig
     {
         $components = [];

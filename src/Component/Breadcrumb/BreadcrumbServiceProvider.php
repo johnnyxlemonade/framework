@@ -18,7 +18,6 @@ final class BreadcrumbServiceProvider implements ServiceProviderInterface
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(BreadcrumbRenderer::class, BreadcrumbRenderer::class);
-
         $container->singleton(BreadcrumbComponent::class, BreadcrumbComponent::class);
     }
 }

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Meta\Tag;
 
-final class OpenGraphTag extends AbstractTag
+/**
+ * Renders a property-based Open Graph metadata declaration.
+ */
+final readonly class OpenGraphTag extends AbstractTag
 {
     protected function template(): string
     {

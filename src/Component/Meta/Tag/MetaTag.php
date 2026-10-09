@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Meta\Tag;
 
-final class MetaTag extends AbstractTag
+/**
+ * Renders a name-based HTML metadata declaration.
+ */
+final readonly class MetaTag extends AbstractTag
 {
     protected function template(): string
     {

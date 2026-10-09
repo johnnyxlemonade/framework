@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Meta;
 
+/**
+ * Carries page-specific metadata independently from its HTML rendering.
+ *
+ * Instances are immutable; modifier methods return a copy while preserving all other values.
+ */
 final readonly class MetaData
 {
     /**
+     * Initializes page metadata and optional custom or alternate declarations.
+     *
      * @param array<string, string|null> $custom
      * @param array<string, string> $alternates
      */
@@ -32,6 +39,9 @@ final readonly class MetaData
     ) {
     }
 
+    /**
+     * Returns a copy where empty standard values fall back to the supplied component defaults.
+     */
     public function withDefaults(
         string $websiteName,
         string $charset,
@@ -67,6 +77,9 @@ final readonly class MetaData
         );
     }
 
+    /**
+     * Returns a copy with a title separator specific to this page.
+     */
     public function withTitleSeparator(string $separator): self
     {
         return new self(
@@ -91,31 +104,49 @@ final readonly class MetaData
         );
     }
 
+    /**
+     * Returns the page character encoding or an empty string when it is unset.
+     */
     public function getCharset(): string
     {
         return (string) $this->charset;
     }
 
+    /**
+     * Returns the viewport declaration or an empty string when it is unset.
+     */
     public function getViewport(): string
     {
         return (string) $this->viewport;
     }
 
+    /**
+     * Returns the content rating or an empty string when it is unset.
+     */
     public function getRating(): string
     {
         return (string) $this->rating;
     }
 
+    /**
+     * Returns the website name or an empty string when it is unset.
+     */
     public function getWebsiteName(): string
     {
         return (string) $this->websiteName;
     }
 
+    /**
+     * Returns the title separator or an empty string when it is unset.
+     */
     public function getTitleSeparator(): string
     {
         return (string) $this->titleSeparator;
     }
 
+    /**
+     * Returns the page title combined with the website name when a page title is present.
+     */
     public function getTitle(): string
     {
         if ($this->title !== null && $this->title !== '') {
@@ -125,57 +156,89 @@ final readonly class MetaData
         return (string) $this->websiteName;
     }
 
+    /**
+     * Returns the optional page description.
+     */
     public function getDescription(): ?string
     {
         return $this->description;
     }
 
+    /**
+     * Returns the optional page keywords.
+     */
     public function getKeywords(): ?string
     {
         return $this->keywords;
     }
 
+    /**
+     * Returns the optional author attribution.
+     */
     public function getAuthor(): ?string
     {
         return $this->author;
     }
 
+    /**
+     * Returns the optional robots directive.
+     */
     public function getRobots(): ?string
     {
         return $this->robots;
     }
 
+    /**
+     * Returns the optional canonical URL.
+     */
     public function getCanonical(): ?string
     {
         return $this->canonical;
     }
 
+    /**
+     * Returns the optional page URL used by social metadata.
+     */
     public function getUrl(): ?string
     {
         return $this->url;
     }
 
+    /**
+     * Returns the optional social metadata type.
+     */
     public function getType(): ?string
     {
         return $this->type;
     }
 
+    /**
+     * Returns the optional locale used by social metadata.
+     */
     public function getLocale(): ?string
     {
         return $this->locale;
     }
 
+    /**
+     * Returns the optional image URL used by metadata sections.
+     */
     public function getImage(): ?string
     {
         return $this->image;
     }
 
+    /**
+     * Returns the optional alternative text for the metadata image.
+     */
     public function getImageAlt(): ?string
     {
         return $this->imageAlt;
     }
 
     /**
+     * Returns custom metadata keys and their optional values.
+     *
      * @return array<string, string|null>
      */
     public function getCustom(): array
@@ -184,6 +247,8 @@ final readonly class MetaData
     }
 
     /**
+     * Returns alternate language codes mapped to their URLs.
+     *
      * @return array<string, string>
      */
     public function getAlternates(): array

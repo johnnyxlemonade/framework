@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Meta\Config;
 
+/**
+ * Merges ordered metadata definitions into defaults consumable by the metadata component.
+ */
 final class MetaConfigResolver
 {
+    /**
+     * Resolves definitions in order, retaining a previous default for non-scalar configured values.
+     */
     public function resolve(MetaConfigDefinition ...$definitions): MetaConfig
     {
         $websiteName = 'website';

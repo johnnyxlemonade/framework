@@ -7,19 +7,31 @@ namespace Lemonade\Framework\Component;
 use Lemonade\Framework\Container\ContainerInterface;
 use RuntimeException;
 
+/**
+ * Maps view-facing component names to container services and resolves them on demand.
+ *
+ * Registrations may be extended or replaced before a component is resolved.
+ */
 final class ComponentRegistry
 {
     /**
+     * Stores component names and the service classes resolved for those names.
+     *
      * @var array<string, class-string>
      */
     private array $components = [];
 
+    /**
+     * Initializes the registry with the container used for lazy component resolution.
+     */
     public function __construct(
         private readonly ContainerInterface $container,
     ) {
     }
 
     /**
+     * Registers or replaces the service class resolved for a component name.
+     *
      * @param class-string $componentClass
      */
     public function register(string $name, string $componentClass): void
@@ -27,17 +39,24 @@ final class ComponentRegistry
         $this->components[$name] = $componentClass;
     }
 
+    /**
+     * Reports whether a component name is currently registered.
+     */
     public function has(string $name): bool
     {
         return isset($this->components[$name]);
     }
 
     /**
+     * Resolves a registered component and optionally verifies its expected implementation type.
+     *
      * @template T of object
      *
      * @param class-string<T>|null $expectedClass
      *
      * @return ($expectedClass is class-string<T> ? T : object)
+     *
+     * @throws RuntimeException When the name is unregistered, cannot resolve to an object, or violates the expected type.
      */
     public function get(string $name, ?string $expectedClass = null): object
     {
@@ -77,22 +96,33 @@ final class ComponentRegistry
         return $component;
     }
 
+    /**
+     * Resolves the registered breadcrumb component.
+     */
     public function breadcrumb(): Breadcrumb\BreadcrumbComponent
     {
         return $this->get('breadcrumb', Breadcrumb\BreadcrumbComponent::class);
     }
 
+    /**
+     * Resolves the registered request-aware pagination component.
+     */
     public function pagination(): Pagination\PaginationComponent
     {
         return $this->get('pagination', Pagination\PaginationComponent::class);
     }
 
+    /**
+     * Resolves the registered metadata component.
+     */
     public function meta(): Meta\MetaComponent
     {
         return $this->get('meta', Meta\MetaComponent::class);
     }
 
     /**
+     * Returns the current component-name to service-class mapping.
+     *
      * @return array<string, class-string>
      */
     public function all(): array

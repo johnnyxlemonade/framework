@@ -6,19 +6,27 @@ namespace Lemonade\Framework\Component\Pagination;
 
 use Lemonade\Framework\Localization\TranslatorInterface;
 
-final class PaginationRenderer
+/**
+ * Renders accessible pagination navigation from immutable pagination state.
+ */
+final readonly class PaginationRenderer
 {
     /**
+     * Initializes presentation classes, optional labels translation and navigation visibility defaults.
+     *
      * @param array<string, string> $classes
      */
     public function __construct(
-        private readonly array $classes = [],
-        private readonly ?TranslatorInterface $translator = null,
-        private readonly int $visiblePages = 5,
-        private readonly bool $showFirstLast = true,
+        private array $classes = [],
+        private ?TranslatorInterface $translator = null,
+        private int $visiblePages = 5,
+        private bool $showFirstLast = true,
     ) {
     }
 
+    /**
+     * Renders page navigation or returns an empty string for absent or single-page results.
+     */
     public function render(?PaginationState $state): string
     {
         if (!$state instanceof PaginationState || !$state->hasPages()) {

@@ -6,15 +6,23 @@ namespace Lemonade\Framework\Component\Pagination;
 
 use Lemonade\Framework\Database\QueryBuilder;
 
-final class PaginationComponent
+/**
+ * Provides the application-facing entry point for creating and rendering pagination.
+ */
+final readonly class PaginationComponent
 {
+    /**
+     * Initializes the component with the request-aware factory and shared renderer.
+     */
     public function __construct(
-        private readonly PaginationFactory $factory,
-        private readonly PaginationRenderer $renderer,
+        private PaginationFactory $factory,
+        private PaginationRenderer $renderer,
     ) {
     }
 
     /**
+     * Paginates in-memory rows using an explicit page or the current request's page parameter.
+     *
      * @param list<array<string, mixed>> $items
      * @param array<string, scalar|null> $query
      */
@@ -30,6 +38,8 @@ final class PaginationComponent
     }
 
     /**
+     * Paginates database rows using an explicit page or the current request's page parameter.
+     *
      * @param array<string, scalar|null> $query
      */
     public function fromQueryBuilder(
@@ -43,6 +53,9 @@ final class PaginationComponent
         return $this->factory->fromQueryBuilder($builder, $page, $perPage, $pageName, $basePath, $query);
     }
 
+    /**
+     * Renders a pagination result or state, returning an empty string when no state is supplied.
+     */
     public function render(PaginationResult|PaginationState|null $pagination): string
     {
         if ($pagination instanceof PaginationResult) {

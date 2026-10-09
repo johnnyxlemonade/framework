@@ -18,17 +18,27 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
+/**
+ * Registers built-in components, their configuration and the view-facing component registry.
+ *
+ * Configured component names may replace the built-in mapping during lazy registry resolution.
+ */
 final class ComponentServiceProvider implements ServiceProviderInterface
 {
     /**
+     * Defines the default component-name to service-class mappings.
+     *
      * @var array<string, class-string>
      */
-    private const COMPONENTS = [
+    private const array COMPONENTS = [
         'breadcrumb' => BreadcrumbComponent::class,
         'pagination' => PaginationComponent::class,
         'meta' => MetaComponent::class,
     ];
 
+    /**
+     * Registers component services, resolved configuration and the lazy registry factory.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(ComponentConfigResolver::class, ComponentConfigResolver::class);

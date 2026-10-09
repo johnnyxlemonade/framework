@@ -8,13 +8,13 @@ namespace Lemonade\Framework\Component\Breadcrumb;
  * Creates application-supplied breadcrumb trails and renders them through the
  * framework's canonical breadcrumb renderer.
  */
-final class BreadcrumbComponent
+final readonly class BreadcrumbComponent
 {
     /**
      * Initializes the component with the renderer shared by views and callers.
      */
     public function __construct(
-        private readonly BreadcrumbRenderer $renderer,
+        private BreadcrumbRenderer $renderer,
     ) {
     }
 

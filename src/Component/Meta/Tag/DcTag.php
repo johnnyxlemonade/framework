@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Meta\Tag;
 
-final class DcTag extends AbstractTag
+/**
+ * Renders a Dublin Core metadata declaration.
+ */
+final readonly class DcTag extends AbstractTag
 {
     protected function template(): string
     {

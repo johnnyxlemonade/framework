@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Component\Meta\Sections;
 
 use Lemonade\Framework\Component\Meta\Tag\OpenGraphTag;
 
-final class Facebook extends AbstractMetaEntity
+/**
+ * Renders Open Graph and Facebook-specific metadata from page metadata and custom values.
+ */
+final readonly class Facebook extends AbstractMetaEntity
 {
+    /**
+     * Renders Open Graph defaults and supported custom Open Graph or Facebook tags.
+     */
     public function render(): string
     {
         $tags = [];

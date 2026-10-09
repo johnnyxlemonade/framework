@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Component\Meta\Sections;
 
 use Lemonade\Framework\Component\Meta\Tag\DcTag;
 
-final class Dc extends AbstractMetaEntity
+/**
+ * Renders Dublin Core metadata derived from the page's standard values.
+ */
+final readonly class Dc extends AbstractMetaEntity
 {
+    /**
+     * Renders the supported Dublin Core tag set.
+     */
     public function render(): string
     {
         $tags = [];

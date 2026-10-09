@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Pagination\Config;
 
+/**
+ * Merges ordered pagination definitions and normalizes them into usable defaults.
+ */
 final class PaginationConfigResolver
 {
+    /**
+     * Resolves definitions in order, retaining the prior default for unsupported values.
+     */
     public function resolve(PaginationConfigDefinition ...$definitions): PaginationConfig
     {
         $defaultPerPage = 20;
