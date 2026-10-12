@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Container;
 
-use Lemonade\Framework\Container\Config\AutowireMode;
-use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerBuilder;
 use Lemonade\Framework\Container\Exception\ContainerException;
@@ -345,7 +343,7 @@ final class ContainerTest extends TestCase
         self::assertSame('dep', $resolved->dependency->value());
     }
 
-    public function testPermissiveAutowireFallbackIsTransientAndDoesNotWriteDiagnostics(): void
+    public function testUnboundConcreteClassIsAutowiredAsTransient(): void
     {
         $errorLog = tempnam(sys_get_temp_dir(), 'lemonade-container-error-log-');
         self::assertIsString($errorLog);
@@ -368,30 +366,6 @@ final class ContainerTest extends TestCase
             ini_set('log_errors', is_string($previousLogErrors) ? $previousLogErrors : '1');
             @unlink($errorLog);
         }
-    }
-
-    public function testStrictAutowireFallbackRejectsUnboundConcreteClass(): void
-    {
-        $container = new Container();
-        $container->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
-
-        $this->expectException(ServiceNotFoundException::class);
-        $this->expectExceptionMessage(sprintf('Service "%s" was not found.', PlainConcreteClass::class));
-        $container->get(PlainConcreteClass::class);
-    }
-
-    public function testStrictModePreservesExplicitAliasesFactoriesAndSingletons(): void
-    {
-        $builder = new ContainerBuilder();
-        $builder->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
-        $builder->singleton(PlainConcreteClass::class, PlainConcreteClass::class);
-        $builder->alias('plain.alias', PlainConcreteClass::class);
-        $builder->set('factory.service', static fn(): \stdClass => new \stdClass());
-        $container = new Container($builder);
-
-        self::assertSame($container->get(PlainConcreteClass::class), $container->get('plain.alias'));
-        self::assertSame($container->get(PlainConcreteClass::class), $container->get(PlainConcreteClass::class));
-        self::assertNotSame($container->get('factory.service'), $container->get('factory.service'));
     }
 
     public function testClassStringBindingResolvesConcreteImplementation(): void
@@ -432,11 +406,16 @@ final class ContainerTest extends TestCase
 
         $container->get(NeedsConcreteDependency::class);
         $firstPlanCount = count($this->buildPlans($container));
+        $firstPlan = $this->autowiringPlan($container, NeedsConcreteDependency::class);
+        $firstReflection = $firstPlan['reflection'];
 
         $container->get(NeedsConcreteDependency::class);
         $secondPlanCount = count($this->buildPlans($container));
+        $secondPlan = $this->autowiringPlan($container, NeedsConcreteDependency::class);
+        $secondReflection = $secondPlan['reflection'];
 
         self::assertSame($firstPlanCount, $secondPlanCount);
+        self::assertSame($firstReflection, $secondReflection);
         self::assertArrayHasKey(NeedsConcreteDependency::class, $this->buildPlans($container));
         self::assertArrayHasKey(DependencyClass::class, $this->buildPlans($container));
     }
@@ -533,6 +512,22 @@ final class ContainerTest extends TestCase
         $plans = $property->getValue($container);
 
         return $plans;
+    }
+
+    /**
+     * @param class-string $className
+     * @return array{reflection: \ReflectionClass<object>}
+     */
+    private function autowiringPlan(Container $container, string $className): array
+    {
+        $plan = $this->buildPlans($container)[$className] ?? null;
+
+        self::assertIsArray($plan);
+        self::assertArrayHasKey('reflection', $plan);
+        self::assertInstanceOf(\ReflectionClass::class, $plan['reflection']);
+
+        /** @var array{reflection: \ReflectionClass<object>} $plan */
+        return $plan;
     }
 
     /**

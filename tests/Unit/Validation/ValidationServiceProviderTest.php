@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Validation;
 
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Container\Config\AutowireMode;
-use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Database;
@@ -118,9 +116,9 @@ final class ValidationServiceProviderTest extends TestCase
         self::assertInstanceOf(RecaptchaRule::class, $container->get(RecaptchaRule::class));
     }
 
-    public function testRegistersAndResolvesEveryBuiltInRuleInStrictMode(): void
+    public function testRegistersAndResolvesEveryBuiltInRule(): void
     {
-        $container = $this->strictContainer();
+        $container = $this->container();
         $factory = new Psr17Factory();
         $container->singleton(RequestFactoryInterface::class, $factory);
         $container->singleton(StreamFactoryInterface::class, $factory);
@@ -150,13 +148,6 @@ final class ValidationServiceProviderTest extends TestCase
         return $container;
     }
 
-    private function strictContainer(): Container
-    {
-        $container = $this->container();
-        $container->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
-
-        return $container;
-    }
 }
 
 final class ValidationServiceProviderConnection implements ConnectionInterface

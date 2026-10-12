@@ -7,30 +7,24 @@ namespace Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Cli\Config\CommandsConfig;
 use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
 use Lemonade\Framework\Cli\Config\CommandsConfigResolver;
-use Lemonade\Framework\Container\Config\ContainerConfig;
-use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
-use Lemonade\Framework\Container\Config\ContainerConfigResolver;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
+/**
+ * Registers the root typed-configuration services used before application providers run.
+ */
 final class CoreConfigurationServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Declares configuration state and resolvers without reading application configuration eagerly.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(Config::class, new Config());
         $container->singleton(ConfigDefinitionRegistry::class, new ConfigDefinitionRegistry());
-        $container->singleton(ContainerConfigResolver::class, ContainerConfigResolver::class);
-        $container->singleton(ContainerConfig::class, static function (ContainerInterface $container): ContainerConfig {
-            return $container
-                ->get(ContainerConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    ContainerConfigDefinition::moduleKey(),
-                    ContainerConfigDefinition::class,
-                ));
-        });
         $container->singleton(AppConfigResolver::class, AppConfigResolver::class);
         $container->singleton(AppConfig::class, static function (ContainerInterface $container): AppConfig {
             return $container

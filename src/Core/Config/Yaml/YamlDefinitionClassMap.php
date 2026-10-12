@@ -10,7 +10,6 @@ use Lemonade\Framework\Cli\Config\CommandsConfigDefinition;
 use Lemonade\Framework\Component\Config\ComponentConfigDefinition;
 use Lemonade\Framework\Component\Meta\Config\MetaConfigDefinition;
 use Lemonade\Framework\Component\Pagination\Config\PaginationConfigDefinition;
-use Lemonade\Framework\Container\Config\ContainerConfigDefinition;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 use Lemonade\Framework\Core\Config\FrameworkConfigDefinition;
@@ -31,6 +30,9 @@ use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
 use Lemonade\Framework\View\Config\ViewConfigDefinition;
 use LogicException;
 
+/**
+ * Maps YAML aliases and module keys to typed definition classes accepted by the configuration loader.
+ */
 final class YamlDefinitionClassMap
 {
     /**
@@ -43,6 +45,9 @@ final class YamlDefinitionClassMap
      */
     private array $classesByModule = [];
 
+    /**
+     * Creates the canonical map of framework-supported YAML definition types.
+     */
     public static function withDefaults(): self
     {
         $map = new self();
@@ -50,7 +55,6 @@ final class YamlDefinitionClassMap
         $map->register('App', AppConfigDefinition::class);
         $map->register('Framework', FrameworkConfigDefinition::class);
         $map->register('Providers', ProvidersConfigDefinition::class);
-        $map->register('Container', ContainerConfigDefinition::class);
         $map->register('Api', ApiConfigDefinition::class);
         $map->register('Benchmark', BenchmarkConfigDefinition::class);
         $map->register('Cache', CacheConfigDefinition::class);
@@ -76,6 +80,8 @@ final class YamlDefinitionClassMap
     }
 
     /**
+     * Adds several alias mappings and returns this map for composition.
+     *
      * @param array<string, class-string<ConfigDefinitionInterface>> $classesByAlias
      */
     public function registerMany(array $classesByAlias): self
@@ -88,6 +94,8 @@ final class YamlDefinitionClassMap
     }
 
     /**
+     * Adds one definition class under its YAML alias and declared module key.
+     *
      * @param class-string<ConfigDefinitionInterface> $definitionClass
      */
     public function register(string $alias, string $definitionClass): self
@@ -106,6 +114,8 @@ final class YamlDefinitionClassMap
     }
 
     /**
+     * Prefers a module-key match and falls back to the YAML alias when no module matches.
+     *
      * @return class-string<ConfigDefinitionInterface>|null
      */
     public function resolve(?string $alias, ?string $module): ?string

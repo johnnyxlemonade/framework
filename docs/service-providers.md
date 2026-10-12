@@ -18,7 +18,7 @@ final class BillingProvider implements ServiceProviderInterface
 {
     public function register(ContainerBuilderInterface $builder): void
     {
-        $builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+        $builder->singleton(InvoiceImportRegistry::class, InvoiceImportRegistry::class);
     }
 }
 ```
@@ -97,7 +97,7 @@ final class AppServiceProvider implements ServiceProviderInterface
 {
     public function register(ContainerBuilderInterface $builder): void
     {
-        $builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+        $builder->singleton(InvoiceImportRegistry::class, InvoiceImportRegistry::class);
     }
 }
 ```

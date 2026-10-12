@@ -46,7 +46,6 @@ final class XmlStreamWriterTest extends TestCase
         $invalid = 'not-a-resource';
 
         $this->expectException(RuntimeException::class);
-        /** @phpstan-ignore-next-line intentionally passing non-resource to verify runtime guard */
         new XmlStreamWriter($invalid);
     }
 

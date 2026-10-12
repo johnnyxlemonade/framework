@@ -15,7 +15,7 @@ This project has not published tagged releases. This section summarizes notable 
 - Added framework API documentation endpoints and Swagger UI.
 - Added image processing, MIME validation, and configurable image-variant scaling and background policies.
 - Made HTML error presentation environment-driven, centralized PHP diagnostics and fatal-shutdown handling, and limited benchmark response diagnostics to development.
-- Added `container.autowire` modes: permissive concrete autowiring is the default and strict mode requires explicit service definitions.
+- **Breaking:** Removed configurable container autowiring. Concrete classes always autowire; interfaces, scalars, and explicit lifecycles require their corresponding explicit bindings.
 - Simplified built-in logging to canonical app, error, request, and benchmark channels with shared retention; request and benchmark file logging remain opt-in.
 - **Breaking:** Removed the unused legacy `integrations` configuration module.
 - **Breaking:** Simplified breadcrumbs to a generic caller-owned trail; removed application-specific root modes and breadcrumb configuration.

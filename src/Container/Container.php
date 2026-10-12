@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Container;
 
-use Lemonade\Framework\Container\Config\AutowireMode;
-use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\Definition\ClassTarget;
 use Lemonade\Framework\Container\Definition\DefinitionTarget;
 use Lemonade\Framework\Container\Definition\FactoryTarget;
@@ -21,6 +19,10 @@ use Lemonade\Framework\Container\Exception\SingletonDependsOnScopedServiceExcept
 use ReflectionClass;
 use ReflectionNamedType;
 
+/**
+ * Resolves concrete object graphs through reflection while keeping explicit definitions and their
+ * lifecycle caches in one root-owned runtime container.
+ */
 final class Container implements ContainerInterface, ContainerBuilderInterface, ScopeFactoryInterface, TaggedServicesInterface
 {
     private ContainerBuilder $builder;
@@ -71,8 +73,9 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     /** @var list<ServiceLifetime> */
     private array $serviceLifetimeStack = [];
 
-    private ?bool $permissiveAutowiring = null;
-
+    /**
+     * Initializes the root definition builder and exposes this container through the runtime contract.
+     */
     public function __construct(?ContainerBuilder $builder = null)
     {
         $this->builder = $builder ?? new ContainerBuilder();
@@ -80,6 +83,8 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
+     * Registers a transient definition that is rebuilt for each resolution.
+     *
      * @param class-string|non-empty-string $id
      * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
      */
@@ -91,6 +96,8 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
+     * Registers a root-owned definition whose resolved value retains identity for this container.
+     *
      * @param class-string|non-empty-string $id
      * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
      */
@@ -102,6 +109,8 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
+     * Registers a definition whose resolved value is retained only by an active scope.
+     *
      * @param class-string|non-empty-string $id
      * @param callable(ContainerInterface):mixed|object|non-empty-string $concrete
      */
@@ -112,16 +121,25 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         $this->definitionChanged($id);
     }
 
+    /**
+     * Opens an isolated runtime scope for request, command, or job-local instances.
+     */
     public function beginScope(ScopeKind $kind): ScopedContainerInterface
     {
         return new ScopedContainer($this, $kind);
     }
 
+    /**
+     * Registers a transient definition using the same behavior as {@see set()}.
+     */
     public function transient(string $id, callable|object|string $concrete): void
     {
         $this->set($id, $concrete);
     }
 
+    /**
+     * Registers an existing object as the canonical root-owned service value.
+     */
     public function instance(string $id, object $instance): void
     {
         $this->assertMutable();
@@ -130,8 +148,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
-     * The concrete container implements the builder contract used by definition providers.
-     * This method intentionally is not added to the legacy ContainerInterface.
+     * Maps an alternate service ID to the target definition without creating another lifecycle cache.
      *
      * @param non-empty-string $alias
      * @param non-empty-string $target
@@ -144,8 +161,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
-     * The concrete container implements the builder contract used by definition providers.
-     * This method intentionally is not added to the legacy ContainerInterface.
+     * Adds a wrapper that is applied whenever the explicitly defined target service resolves.
      *
      * @param class-string|non-empty-string $serviceId
      * @param class-string<ServiceDecoratorInterface>|callable(ContainerInterface, mixed):mixed $decorator
@@ -159,8 +175,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
-     * The concrete container implements the builder contract used by definition providers.
-     * This method intentionally is not added to the legacy ContainerInterface.
+     * Starts a consumer-specific binding declaration and clears already resolved root instances on change.
      *
      * @param class-string|string $consumer
      */
@@ -173,11 +188,17 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         });
     }
 
+    /**
+     * Returns the current immutable definition snapshot without closing registration.
+     */
     public function compile(): CompiledContainerPlan
     {
         return $this->compiledPlan();
     }
 
+    /**
+     * Finalizes definitions and returns the plan used by subsequent runtime resolution.
+     */
     public function freeze(): CompiledContainerPlan
     {
         if ($this->builder->isFrozen()) {
@@ -189,11 +210,17 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->compiledPlan;
     }
 
+    /**
+     * Reports whether definition mutations are permanently prohibited.
+     */
     public function isFrozen(): bool
     {
         return $this->builder->isFrozen();
     }
 
+    /**
+     * Registers one root-owned service and declares its membership in each supplied tagged collection.
+     */
     public function singletonTagged(string $id, callable|object|string $concrete, string ...$tags): void
     {
         $this->assertMutable();
@@ -204,6 +231,9 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         }
     }
 
+    /**
+     * Adds an explicit definition to a named collection capability.
+     */
     public function tag(string $serviceId, string $tag): void
     {
         $this->assertMutable();
@@ -211,13 +241,21 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         $this->compiledPlan = null;
     }
 
-    /** @return iterable<string, object> */
+    /**
+     * Resolves the root-visible members of a named collection in declaration order.
+     *
+     * @return iterable<string, object>
+     */
     public function tagged(string $tag): iterable
     {
         return $this->taggedFor($this, $tag);
     }
 
-    /** @return iterable<string, object> */
+    /**
+     * Resolves a named collection against the supplied scope so scoped members retain scope-local identity.
+     *
+     * @return iterable<string, object>
+     */
     public function taggedInScope(ScopedContainer $scope, string $tag): iterable
     {
         return $this->taggedFor($scope, $tag);
@@ -237,6 +275,8 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
+     * Reports only whether an explicit definition exists after alias canonicalization.
+     *
      * @param class-string|string $id
      */
     public function has(string $id): bool
@@ -248,6 +288,8 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
+     * Reports whether an ID has an explicit definition, alias, or already resolved root singleton.
+     *
      * @param class-string|string $id
      */
     public function isBound(string $id): bool
@@ -259,6 +301,8 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
+     * Resolves an explicit definition or autowires an instantiable concrete class as a transient value.
+     *
      * @template T of object
      *
      * @param class-string<T>|string $id
@@ -269,11 +313,17 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->resolveService($this, $id);
     }
 
+    /**
+     * Resolves a service using the supplied active scope for scoped dependencies and instances.
+     */
     public function getInScope(ScopedContainer $scope, string $id): mixed
     {
         return $this->resolveService($scope, $id);
     }
 
+    /**
+     * Rejects a singleton resolution chain that attempts to capture a scope-local value.
+     */
     public function assertScopeLocalServiceCanResolve(string $id): void
     {
         if (!in_array(ServiceLifetime::Singleton, $this->serviceLifetimeStack, true)) {
@@ -325,13 +375,6 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
                         ));
                     }
 
-                    throw new ServiceNotFoundException(sprintf(
-                        'Service "%s" was not found.',
-                        $canonicalId,
-                    ));
-                }
-
-                if (!$this->allowsAutowireFallback()) {
                     throw new ServiceNotFoundException(sprintf(
                         'Service "%s" was not found.',
                         $canonicalId,
@@ -396,24 +439,6 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         }
 
         return $scope;
-    }
-
-    private function allowsAutowireFallback(): bool
-    {
-        if ($this->permissiveAutowiring !== null) {
-            return $this->permissiveAutowiring;
-        }
-
-        if (!$this->isBound(ContainerConfig::class)) {
-            return $this->permissiveAutowiring = true;
-        }
-
-        $config = $this->get(ContainerConfig::class);
-        if (!$config instanceof ContainerConfig) {
-            return $this->permissiveAutowiring = true;
-        }
-
-        return $this->permissiveAutowiring = $config->autowire === AutowireMode::Permissive;
     }
 
     private function resolve(DefinitionTarget $target, ContainerInterface $runtimeContainer): mixed
@@ -686,18 +711,10 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->interfaceExistenceCache[$interfaceName];
     }
 
-    private function invalidateAutowirePolicyCacheFor(string $id): void
-    {
-        if ($id === ContainerConfig::class) {
-            $this->permissiveAutowiring = null;
-        }
-    }
-
     private function definitionChanged(string $id): void
     {
         unset($this->instances[$id]);
         $this->compiledPlan = null;
-        $this->invalidateAutowirePolicyCacheFor($id);
     }
 
     private function assertMutable(): void

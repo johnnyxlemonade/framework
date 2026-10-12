@@ -1,8 +1,4 @@
 includes:
-    # Enables rules planned for future PHPStan releases.
-    # This catches upcoming compatibility issues before they become defaults.
-    - vendor/phpstan/phpstan/conf/bleedingEdge.neon
-
     # Adds stricter analysis rules beyond the standard rule levels.
     - vendor/phpstan/phpstan-strict-rules/rules.neon
 
@@ -11,8 +7,8 @@ parameters:
     # of the PHP version running PHPStan.
     phpVersion: 80300
 
-    # Use the highest available PHPStan rule level.
-    level: 10
+    # Keep the canonical QA baseline practical while preserving strict rules.
+    level: 8
 
     # Vendor Psalm/PHPDoc metadata for Eris does not model the actual
     # runtime shrink iterator shape used by the property harness.

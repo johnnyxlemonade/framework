@@ -6,8 +6,6 @@ namespace Lemonade\Framework\Tests\Unit\Container;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerBuilder;
-use Lemonade\Framework\Container\Config\AutowireMode;
-use Lemonade\Framework\Container\Config\ContainerConfig;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Container\Exception\ContainerException;
@@ -40,21 +38,6 @@ final class ScopedContainerTest extends TestCase
         $first = $firstScope->get('scoped.service');
 
         self::assertSame(ScopeKind::Request, $firstScope->kind());
-        self::assertSame($first, $firstScope->get('scoped.service'));
-        self::assertNotSame($first, $secondScope->get('scoped.service'));
-    }
-
-    public function testStrictModeKeepsExplicitScopedServicesFunctional(): void
-    {
-        $builder = new ContainerBuilder();
-        $builder->instance(ContainerConfig::class, new ContainerConfig(AutowireMode::Strict));
-        $builder->scoped('scoped.service', static fn(): \stdClass => new \stdClass());
-        $container = new Container($builder);
-        $firstScope = $container->beginScope(ScopeKind::Request);
-        $secondScope = $container->beginScope(ScopeKind::Command);
-
-        $first = $firstScope->get('scoped.service');
-
         self::assertSame($first, $firstScope->get('scoped.service'));
         self::assertNotSame($first, $secondScope->get('scoped.service'));
     }

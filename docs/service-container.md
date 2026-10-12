@@ -1,6 +1,7 @@
 # Service Container
 
-The framework container is PSR-11 compatible and supports explicit bindings, singleton bindings and conservative autowiring.
+The framework container is PSR-11 compatible. Concrete classes are autowired by default; explicit
+bindings express interfaces, values, factories, tags, decorators, or lifecycle decisions.
 
 `ContainerInterface` is the runtime resolver contract and exposes only `get()` and `has()`.
 `ContainerBuilderInterface` is the bootstrap-only registration contract. It owns `set()`,
@@ -8,25 +9,18 @@ The framework container is PSR-11 compatible and supports explicit bindings, sin
 and tags. Scope lifecycle belongs to `ScopeFactoryInterface::beginScope()`, not to
 `ContainerInterface`.
 
-Services are registered through a builder with `set()` or `singleton()`.
-
-```php
-$builder->set(Foo::class, Foo::class);
-
-$builder->singleton(Bar::class, static function (ContainerInterface $container): Bar {
-    return new Bar($container->get(Foo::class));
-});
-```
-
-Both methods accept a class name, a factory callable or a concrete object as the implementation.
+Do not register a stateless concrete class merely to make it resolvable. The container autowires it.
+Use an explicit registration when the service needs a contract or lifecycle.
 
 ```php
 $builder->set(FooInterface::class, Foo::class);
 
-$builder->singleton(Bar::class, static function (ContainerInterface $container): Bar {
-    return new Bar($container->get(FooInterface::class));
-});
+$builder->singleton(RequestCache::class, RequestCache::class);
+```
 
+Explicit bindings accept a class name, a factory callable or a concrete object as the implementation.
+
+```php
 $builder->singleton('custom.service', new CustomService());
 ```
 
@@ -132,8 +126,8 @@ alias maps one service ID to a canonical target ID; it never creates a second bi
 Alias chains are canonicalized when the container plan compiles, and cycles fail fast.
 
 ```php
-$builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
-$builder->alias('invoice.importer', InvoiceImporter::class);
+$builder->singleton(InvoiceImportRegistry::class, InvoiceImportRegistry::class);
+$builder->alias('invoice.import.registry', InvoiceImportRegistry::class);
 ```
 
 Resolving either ID follows the canonical service definition, so singleton aliases share identity
@@ -149,10 +143,10 @@ the runtime container and the previous service value. Class decorators implement
 their constructor can use normal autowiring.
 
 ```php
-$builder->singleton(InvoiceImporter::class, InvoiceImporter::class);
+$builder->singleton(InvoiceImportRegistry::class, InvoiceImportRegistry::class);
 $builder->decorate(
-    InvoiceImporter::class,
-    static fn(ContainerInterface $container, mixed $inner): CachedInvoiceImporter => new CachedInvoiceImporter($inner),
+    InvoiceImportRegistry::class,
+    static fn(ContainerInterface $container, mixed $inner): CachedInvoiceImportRegistry => new CachedInvoiceImportRegistry($inner),
     priority: 100,
 );
 ```
@@ -198,12 +192,12 @@ discovery, reflection scanning, interface autowiring, or constructor self-regist
 provider still explicitly binds every service and explicitly declares each capability membership.
 
 ```php
-$builder->singleton(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
+$builder->set(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
 $builder->tag(ArticlesRouteRegistrar::class, RouteRegistrarInterface::class);
 ```
 
-`tag()` accepts only an explicitly bound service (`set()` or `singleton()`); tagging an autowire
-fallback service fails fast. The same `serviceId + tag` pair is rejected, while one service may
+`tag()` accepts only an explicitly bound service (`set()` or `singleton()`); tagging an unbound
+concrete service fails fast. The same `serviceId + tag` pair is rejected, while one service may
 have multiple tags and one tag may contain multiple services. Runtime tag lookup is deliberately
 separate from PSR-11: a consumer that needs it depends on `TaggedServicesInterface`; its
 `tagged($tag)` method resolves services in declaration order and preserves ordinary singleton
@@ -248,15 +242,7 @@ In views, use the shared helper objects:
 
 ## Autowiring
 
-The default container policy is permissive:
-
-```yaml
-module: container
-config:
-  autowire: permissive
-```
-
-Autowiring is intentionally limited:
+Autowiring is the container contract and is intentionally limited:
 
 - unbound concrete classes can be instantiated through reflection
 - class-typed constructor parameters can be resolved recursively
@@ -266,9 +252,7 @@ Autowiring is intentionally limited:
 - non-instantiable classes fail early
 - missing services fail with a service-not-found exception
 
-Concrete autowiring is supported container behavior in this mode. It is transient and does not emit a warning or write diagnostics.
-
-Set `autowire: strict` when an application requires every resolved service to have an explicit definition. In strict mode, an unbound concrete class fails with the standard service-not-found exception. Explicit bindings continue to support aliases, factories, singleton and scoped lifecycles, decorators, tags and contextual bindings.
+Autowiring creates a new concrete instance for every resolution. It does not emit a warning or write diagnostics.
 
 ## Explicit registrations
 
