@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config\Definition;
 
+/**
+ * Provides array-backed storage and normalization for typed configuration definitions.
+ */
 abstract class AbstractConfigDefinition implements ConfigDefinitionInterface
 {
     /**
@@ -31,6 +34,9 @@ abstract class AbstractConfigDefinition implements ConfigDefinitionInterface
         return $definition;
     }
 
+    /**
+     * Replaces one configuration value at a dot-separated path.
+     */
     protected function set(string $path, mixed $value): static
     {
         $segments = explode('.', $path);
@@ -49,6 +55,9 @@ abstract class AbstractConfigDefinition implements ConfigDefinitionInterface
         return $this;
     }
 
+    /**
+     * Appends one configuration value at a dot-separated list path.
+     */
     protected function append(string $path, mixed $value): static
     {
         $segments = explode('.', $path);
@@ -83,6 +92,9 @@ abstract class AbstractConfigDefinition implements ConfigDefinitionInterface
         return $normalized;
     }
 
+    /**
+     * Normalizes recursively supported values and rejects unsupported configuration values.
+     */
     private static function normalizeValue(mixed $value, string $path): mixed
     {
         if (is_array($value)) {

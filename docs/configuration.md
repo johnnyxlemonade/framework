@@ -74,6 +74,22 @@ app.config_path
 app.storage_path
 ```
 
+## Application secret
+
+`app.secret` is the canonical stable application secret for framework capabilities
+that need a host-provided secret. Configure it from `APP_SECRET`; do not derive it
+from a feature-specific secret. Capabilities that require it fail explicitly when
+the value is missing or empty.
+
+```yaml
+module: app
+config:
+  secret:
+    $env: APP_SECRET
+    type: string
+    default: ''
+```
+
 ## Environment helper
 
 Environment values can be read through `Lemonade\Framework\Support\Env`. The helper resolves values from `$_ENV`, then `$_SERVER`, then `getenv()`.

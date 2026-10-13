@@ -7,6 +7,9 @@ namespace Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 
+/**
+ * Persists and validates compiled application configuration definitions.
+ */
 final class ApplicationConfigCache
 {
     private const int CACHE_VERSION = 1;
@@ -102,11 +105,17 @@ final class ApplicationConfigCache
         }
     }
 
+    /**
+     * Determines whether compiled configuration caching is active for the context.
+     */
     private function enabled(ApplicationContext $context): bool
     {
         return $context->isProduction();
     }
 
+    /**
+     * Builds the cache-file path for one application entrypoint.
+     */
     private function cacheFile(ApplicationContext $context, string $entrypoint): string
     {
         return $context->resolveCachePath(
@@ -293,6 +302,9 @@ final class ApplicationConfigCache
         return $serialized;
     }
 
+    /**
+     * Resolves a cached source path against the application base path.
+     */
     private function resolveSourcePath(ApplicationContext $context, string $path): string
     {
         if (
@@ -306,6 +318,9 @@ final class ApplicationConfigCache
         return $context->path($path);
     }
 
+    /**
+     * Converts an absolute source path into a path relative to the application base.
+     */
     private function relativeToBase(ApplicationContext $context, string $absolutePath): string
     {
         $basePath = rtrim($context->basePath(), '/\\');
@@ -324,6 +339,9 @@ final class ApplicationConfigCache
         return str_replace('\\', '/', $normalizedAbsolute);
     }
 
+    /**
+     * Reads and normalizes the current value of one environment variable.
+     */
     private function currentEnvValue(string $key): string|int|float|bool|null
     {
         if (array_key_exists($key, $_ENV)) {
@@ -341,6 +359,9 @@ final class ApplicationConfigCache
             : $this->normalizeEnvValue($value);
     }
 
+    /**
+     * Restricts an environment value to scalar cache-safe values.
+     */
     private function normalizeEnvValue(mixed $value): string|int|float|bool|null
     {
         if (

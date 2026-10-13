@@ -10,6 +10,9 @@ use Lemonade\Framework\Core\Config\Yaml\YamlDefinitionLoader;
 use LogicException;
 use RuntimeException;
 
+/**
+ * Loads typed configuration definitions from PHP and YAML source files.
+ */
 final class ConfigFileLoader
 {
     private const string CONFIG_MAP_FILE = 'ConfigMap.php';
@@ -19,11 +22,17 @@ final class ConfigFileLoader
      */
     private array $yamlClassMapsByDirectory = [];
 
+    /**
+     * Loads one typed configuration definition from a source file.
+     */
     public function load(string $file, ?string $rootKey = null): ConfigDefinitionInterface
     {
         return $this->loadWithMetadata($file, $rootKey)->definition();
     }
 
+    /**
+     * Loads one definition together with the environment and source metadata it consumed.
+     */
     public function loadWithMetadata(string $file, ?string $rootKey = null): LoadedConfigFile
     {
         if (!is_file($file)) {
@@ -83,6 +92,9 @@ final class ConfigFileLoader
         ));
     }
 
+    /**
+     * Returns the cached YAML definition map for one configuration directory.
+     */
     private function yamlClassMapForDirectory(string $directory): YamlDefinitionClassMap
     {
         if (isset($this->yamlClassMapsByDirectory[$directory])) {

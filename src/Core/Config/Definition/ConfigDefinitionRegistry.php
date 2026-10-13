@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Core\Config\Definition;
 
 use LogicException;
 
+/**
+ * Registers and retrieves typed configuration definitions by module key.
+ */
 final class ConfigDefinitionRegistry
 {
     /**
@@ -13,6 +16,9 @@ final class ConfigDefinitionRegistry
      */
     private array $entries = [];
 
+    /**
+     * Adds one typed definition to its module-key group.
+     */
     public function addDefinition(ConfigDefinitionInterface $definition): void
     {
         $this->entries[$definition::moduleKey()][] = $definition;

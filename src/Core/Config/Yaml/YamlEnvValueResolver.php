@@ -7,6 +7,9 @@ namespace Lemonade\Framework\Core\Config\Yaml;
 use Lemonade\Framework\Support\Env;
 use LogicException;
 
+/**
+ * Resolves YAML environment directives and records their consumed variable names.
+ */
 final class YamlEnvValueResolver
 {
     /**
@@ -14,6 +17,9 @@ final class YamlEnvValueResolver
      */
     private array $usedEnvKeys = [];
 
+    /**
+     * Clears the environment-variable usage recorded for the current document.
+     */
     public function reset(): void
     {
         $this->usedEnvKeys = [];
@@ -30,6 +36,9 @@ final class YamlEnvValueResolver
         return $keys;
     }
 
+    /**
+     * Resolves environment directives recursively within one YAML value.
+     */
     public function resolve(mixed $value, string $path = 'config'): mixed
     {
         if (!is_array($value)) {
@@ -98,6 +107,9 @@ final class YamlEnvValueResolver
         };
     }
 
+    /**
+     * Resolves one optional string environment value with its YAML default.
+     */
     private function resolveString(string $envKey, mixed $default): ?string
     {
         if ($default === null) {
@@ -111,6 +123,9 @@ final class YamlEnvValueResolver
         return Env::string($envKey, (string) $default);
     }
 
+    /**
+     * Validates an integer default declared by a YAML environment directive.
+     */
     private function normalizeIntDefault(mixed $default, string $path): int
     {
         if (is_int($default)) {
@@ -127,6 +142,9 @@ final class YamlEnvValueResolver
         ));
     }
 
+    /**
+     * Validates a floating-point default declared by a YAML environment directive.
+     */
     private function normalizeFloatDefault(mixed $default, string $path): float
     {
         if (is_float($default) || is_int($default)) {
@@ -143,6 +161,9 @@ final class YamlEnvValueResolver
         ));
     }
 
+    /**
+     * Validates a boolean default declared by a YAML environment directive.
+     */
     private function normalizeBoolDefault(mixed $default, string $path): bool
     {
         if (is_bool($default)) {

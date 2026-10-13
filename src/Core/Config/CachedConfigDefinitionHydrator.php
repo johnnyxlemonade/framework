@@ -9,6 +9,9 @@ use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 use RuntimeException;
 
+/**
+ * Reconstructs supported configuration definitions from compiled cache data.
+ */
 final class CachedConfigDefinitionHydrator
 {
     /**

@@ -5,15 +5,25 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core\Config\Yaml;
 
 use RuntimeException;
+use Symfony\Component\Yaml\Yaml;
 use Throwable;
 
-final class YamlConfigParser
+/**
+ * Parses YAML configuration files through the installed YAML parser.
+ */
+final readonly class YamlConfigParser
 {
+    /**
+     * Receives the YAML parser class used to read configuration files.
+     */
     public function __construct(
-        private readonly string $parserClass = \Symfony\Component\Yaml\Yaml::class,
+        private string $parserClass = Yaml::class,
     ) {
     }
 
+    /**
+     * Parses one YAML configuration file into its native PHP representation.
+     */
     public function parseFile(string $file): mixed
     {
         if (!class_exists($this->parserClass)) {

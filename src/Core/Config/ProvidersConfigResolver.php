@@ -7,8 +7,14 @@ namespace Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\ServiceProviderLifecycle;
 use LogicException;
 
+/**
+ * Resolves host provider definitions into validated runtime configuration.
+ */
 final class ProvidersConfigResolver
 {
+    /**
+     * Resolves ordered host provider definitions into runtime configuration.
+     */
     public function resolve(ProvidersConfigDefinition ...$definitions): ProvidersConfig
     {
         $providers = [];

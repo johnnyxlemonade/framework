@@ -7,8 +7,14 @@ namespace Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\ServiceProviderLifecycle;
 use LogicException;
 
+/**
+ * Resolves framework provider definitions into validated runtime configuration.
+ */
 final class FrameworkConfigResolver
 {
+    /**
+     * Resolves ordered provider definitions into runtime framework configuration.
+     */
     public function resolve(FrameworkConfigDefinition ...$definitions): FrameworkConfig
     {
         $providers = [];

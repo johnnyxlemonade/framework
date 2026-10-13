@@ -59,6 +59,20 @@ SQLite schema support is intentionally conservative. Some `ALTER TABLE` operatio
 
 App-level YAML is still mapped into `DatabaseConfigDefinition` before `DatabaseConfigResolver` produces runtime config objects.
 
+## Fixed-window rate limiting
+
+`DatabaseRateLimiter` is a generic `RateLimiterInterface` implementation for
+MySQL and MariaDB. It atomically stores HMAC-addressed opaque buckets in a small
+application-owned table. The framework supplies the limiter mechanism; the host
+application owns the migration that creates the table and any feature-specific
+policy or key semantics.
+
+The limiter provides `status()`, `hit()`, and `clear()`. `status()` is read-only,
+while `hit()` atomically records one attempt using a fixed window. The database
+table requires a binary `key_hash` primary key, integer `attempts`, and
+`expires_at` columns. Expired buckets are reset by a subsequent `hit()` and may
+be cleaned up opportunistically by the host application.
+
 ## Container-managed database services and models
 
 The default application container resolves `ConnectionInterface`, `DatabaseDriverInterface`, and

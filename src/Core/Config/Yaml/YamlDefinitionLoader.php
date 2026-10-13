@@ -12,14 +12,23 @@ use Lemonade\Framework\Core\Config\ProvidersConfigDefinition;
 use LogicException;
 use RuntimeException;
 
+/**
+ * Maps parsed YAML documents into typed configuration definitions.
+ */
 final class YamlDefinitionLoader
 {
+    /**
+     * Receives the parser and environment resolver used for YAML definitions.
+     */
     public function __construct(
         private readonly YamlConfigParser $parser = new YamlConfigParser(),
         private readonly YamlEnvValueResolver $envValueResolver = new YamlEnvValueResolver(),
     ) {
     }
 
+    /**
+     * Loads a YAML document and maps it to its declared typed definition.
+     */
     public function load(
         string $file,
         ?string $rootKey,

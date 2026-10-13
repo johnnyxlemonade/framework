@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Core\Config;
 
 use Lemonade\Framework\Core\Config;
 
+/**
+ * Produces configuration output with sensitive values redacted.
+ */
 final class ConfigDumper
 {
     /**
@@ -22,6 +25,9 @@ final class ConfigDumper
         'encryption_key',
     ];
 
+    /**
+     * Receives the configuration source rendered by this dumper.
+     */
     public function __construct(
         private readonly Config $config,
     ) {
@@ -68,6 +74,9 @@ final class ConfigDumper
         return $data;
     }
 
+    /**
+     * Determines whether a configuration key requires value redaction.
+     */
     private function isSensitiveKey(string $key): bool
     {
         $normalized = strtolower($key);

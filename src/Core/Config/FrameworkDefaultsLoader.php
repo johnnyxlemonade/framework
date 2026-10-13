@@ -7,6 +7,9 @@ namespace Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 use RuntimeException;
 
+/**
+ * Loads the framework's built-in typed configuration definitions.
+ */
 final class FrameworkDefaultsLoader
 {
     /**

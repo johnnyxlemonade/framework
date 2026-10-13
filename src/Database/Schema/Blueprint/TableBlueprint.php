@@ -9,6 +9,9 @@ use Lemonade\Framework\Database\Schema\Definition\TableDefinition;
 use Lemonade\Framework\Database\Schema\Definition\TableOptions;
 use Lemonade\Framework\Database\Schema\Enum\ColumnType;
 
+/**
+ * Collects declarative column, index, foreign-key, and table-option changes for one table.
+ */
 final class TableBlueprint
 {
     /** @var list<ColumnBlueprint> */
@@ -163,9 +166,12 @@ final class TableBlueprint
         return $this->column($name, ColumnType::Json);
     }
 
-    public function binary(string $name): ColumnBlueprint
+    /**
+     * Adds a binary column, optionally with a fixed length for hashes and opaque identifiers.
+     */
+    public function binary(string $name, ?int $length = null): ColumnBlueprint
     {
-        return $this->column($name, ColumnType::Binary);
+        return $this->column($name, ColumnType::Binary, $length);
     }
 
     public function timestamps(): void

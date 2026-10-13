@@ -133,6 +133,9 @@ final class YamlDefinitionClassMap
         return null;
     }
 
+    /**
+     * Verifies that a mapped class implements the configuration definition contract.
+     */
     private function assertDefinitionClass(string $definitionClass): void
     {
         if (!class_exists($definitionClass)) {
@@ -151,6 +154,9 @@ final class YamlDefinitionClassMap
         }
     }
 
+    /**
+     * Normalizes an alias or module key for case-insensitive lookup.
+     */
     private static function normalize(string $value): string
     {
         return strtolower(trim($value));

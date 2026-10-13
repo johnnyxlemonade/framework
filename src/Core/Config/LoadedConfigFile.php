@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Core\Config;
 
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionInterface;
 
+/**
+ * Carries one loaded definition together with its environment and source dependencies.
+ */
 final readonly class LoadedConfigFile
 {
     /**
@@ -19,6 +22,9 @@ final readonly class LoadedConfigFile
     ) {
     }
 
+    /**
+     * Returns the typed configuration definition loaded from the source file.
+     */
     public function definition(): ConfigDefinitionInterface
     {
         return $this->definition;

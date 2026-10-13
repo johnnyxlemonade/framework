@@ -18,6 +18,7 @@ use Lemonade\Framework\Image\ImageServiceProvider;
 use Lemonade\Framework\Localization\LocalizationServiceProvider;
 use Lemonade\Framework\Mime\MimeServiceProvider;
 use Lemonade\Framework\Queue\QueueServiceProvider;
+use Lemonade\Framework\RateLimit\RateLimitServiceProvider;
 use Lemonade\Framework\Routing\RoutingServiceProvider;
 use Lemonade\Framework\Security\SecurityServiceProvider;
 use Lemonade\Framework\Session\SessionServiceProvider;
@@ -38,6 +39,7 @@ return FrameworkConfigDefinition::create()
         PdoDatabaseServiceProvider::class,
         SqliteDatabaseServiceProvider::class,
         MigrationServiceProvider::class,
+        RateLimitServiceProvider::class,
         SessionServiceProvider::class,
         ComponentServiceProvider::class,
         ValidationServiceProvider::class,

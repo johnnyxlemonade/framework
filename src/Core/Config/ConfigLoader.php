@@ -9,12 +9,18 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Framework;
 use LogicException;
 
+/**
+ * Loads application configuration for HTTP and CLI entrypoints.
+ */
 final class ConfigLoader
 {
     public const ENTRYPOINT_HTTP = 'http';
     public const ENTRYPOINT_CLI = 'cli';
     private const CONFIG_MANIFEST_CANDIDATES = ['Config.yaml', 'Config.yml'];
 
+    /**
+     * Loads all configuration definitions required by one application entrypoint.
+     */
     public function loadApplication(
         Framework $framework,
         ApplicationContext $context,
@@ -111,6 +117,9 @@ final class ConfigLoader
         return $normalized;
     }
 
+    /**
+     * Finds the supported configuration manifest in the application configuration directory.
+     */
     private function resolveManifestPath(ApplicationContext $context): string
     {
         foreach (self::CONFIG_MANIFEST_CANDIDATES as $candidate) {
