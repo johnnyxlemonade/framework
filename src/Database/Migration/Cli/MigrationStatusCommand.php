@@ -21,16 +21,19 @@ use function is_resource;
  * When database history is unavailable, it reports registry-only Unknown states
  * and returns a non-zero exit code because the status could not be verified.
  */
-final class MigrationStatusCommand implements CommandInterface
+final readonly class MigrationStatusCommand implements CommandInterface
 {
     /** @var resource */
-    private $stdout;
+    private mixed $stdout;
     /** @var resource */
-    private $stderr;
+    private mixed $stderr;
 
+    /**
+     * Initializes this MigrationStatusCommand with the collaborators and state required by its database contract.
+     */
     public function __construct(
-        private readonly MigrationRegistry $registry,
-        private readonly ContainerInterface $container,
+        private MigrationRegistry $registry,
+        private ContainerInterface $container,
         mixed $stdout = null,
         mixed $stderr = null,
     ) {
@@ -45,16 +48,25 @@ final class MigrationStatusCommand implements CommandInterface
         $this->stderr = $stderr ?? STDERR;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function name(): string
     {
         return 'database:migrate:status';
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function description(): string
     {
         return 'Shows database migration status.';
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function run(array $args): int
     {
         unset($args);
@@ -86,6 +98,9 @@ final class MigrationStatusCommand implements CommandInterface
         }
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     private function resolveStatus(): MigrationStatus
     {
         try {

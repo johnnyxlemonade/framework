@@ -16,24 +16,26 @@ use Lemonade\Framework\Database\Connection\ConnectionFactory;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
-use Lemonade\Framework\Database\Schema\Schema;
-use Lemonade\Framework\Database\Schema\SchemaCompiler;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 
-final class DatabaseServiceProvider implements ServiceProviderInterface
+/**
+ * Registers the configured connection, driver, query facade, and schema services.
+ */
+final readonly class DatabaseServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers the database capability with the framework container or registry.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(ConnectionFactory::class, static function (ContainerInterface $container): ConnectionFactory {
+        $container->set(ConnectionFactory::class, static function (ContainerInterface $container): ConnectionFactory {
             return new ConnectionFactory(
                 benchmark: $container->get(Benchmark::class),
                 captureQueryDetails: $container->get(ApplicationContext::class)->isDebug(),
             );
         });
-        $container->singleton(DatabaseFactory::class, DatabaseFactory::class);
         $container->singleton(DatabaseDriverRegistry::class, DatabaseDriverRegistry::class);
-        $container->singleton(DatabaseConfigResolver::class, DatabaseConfigResolver::class);
         $container->singleton(DatabaseRuntimeConfig::class, static function (ContainerInterface $container): DatabaseRuntimeConfig {
             return $container
                 ->get(DatabaseConfigResolver::class)
@@ -58,23 +60,15 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
         });
 
         $container->singleton(ConnectionInterface::class, static function (ContainerInterface $container): ConnectionInterface {
-            /** @var ConnectionFactory $factory */
             $factory = $container->get(ConnectionFactory::class);
-
-            /** @var DatabaseConfig $config */
             $config = $container->get(DatabaseConfig::class);
 
             return $factory->create($config);
         });
 
         $container->singleton(DatabaseDriverInterface::class, static function (ContainerInterface $container): DatabaseDriverInterface {
-            /** @var DatabaseConfig $config */
             $config = $container->get(DatabaseConfig::class);
-
-            /** @var ConnectionInterface $connection */
             $connection = $container->get(ConnectionInterface::class);
-
-            /** @var DatabaseDriverRegistry $registry */
             $registry = $container->get(DatabaseDriverRegistry::class);
 
             return $registry->resolveDriver(
@@ -86,10 +80,7 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
         });
 
         $container->singleton(Database::class, static function (ContainerInterface $container): Database {
-            /** @var ConnectionInterface $connection */
             $connection = $container->get(ConnectionInterface::class);
-
-            /** @var DatabaseDriverInterface $driver */
             $driver = $container->get(DatabaseDriverInterface::class);
 
             return new Database(
@@ -98,11 +89,8 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
             );
         });
 
-        $container->singleton(SchemaGrammarInterface::class, static function (ContainerInterface $container): SchemaGrammarInterface {
-            /** @var DatabaseConfig $config */
+        $container->set(SchemaGrammarInterface::class, static function (ContainerInterface $container): SchemaGrammarInterface {
             $config = $container->get(DatabaseConfig::class);
-
-            /** @var DatabaseDriverRegistry $registry */
             $registry = $container->get(DatabaseDriverRegistry::class);
 
             return $registry->resolveSchemaGrammar(
@@ -111,30 +99,11 @@ final class DatabaseServiceProvider implements ServiceProviderInterface
                 container: $container,
             );
         });
-
-        $container->singleton(SchemaCompiler::class, static function (ContainerInterface $container): SchemaCompiler {
-            /** @var SchemaGrammarInterface $grammar */
-            $grammar = $container->get(SchemaGrammarInterface::class);
-
-            return new SchemaCompiler(
-                grammar: $grammar,
-            );
-        });
-
-        $container->singleton(Schema::class, static function (ContainerInterface $container): Schema {
-            /** @var SchemaCompiler $compiler */
-            $compiler = $container->get(SchemaCompiler::class);
-
-            /** @var DatabaseDriverInterface $databaseDriver */
-            $databaseDriver = $container->get(DatabaseDriverInterface::class);
-
-            return new Schema(
-                compiler: $compiler,
-                db: $databaseDriver,
-            );
-        });
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     private static function resolveConnectionName(DatabaseRuntimeConfig $config): string
     {
         $connectionName = $config->defaultConnection;

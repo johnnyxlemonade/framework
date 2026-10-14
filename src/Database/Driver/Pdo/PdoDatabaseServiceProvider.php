@@ -21,35 +21,16 @@ use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 use Lemonade\Framework\Database\Sql\IdentifierEscaperInterface;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
 
-final class PdoDatabaseServiceProvider implements ServiceProviderInterface
+/**
+ * Registers PDO-specific driver and schema-grammar factories.
+ */
+final readonly class PdoDatabaseServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers the database capability with the framework container or registry.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(PdoConnection::class, static function (ContainerInterface $container): PdoConnection {
-            $connection = $container->get(ConnectionInterface::class);
-
-            if (!$connection instanceof PdoConnection) {
-                throw DatabaseException::invalidConfiguration(
-                    'Current database connection is not a PDO connection.',
-                );
-            }
-
-            return $connection;
-        });
-
-        $container->singleton(PdoDatabaseDriver::class, static function (ContainerInterface $container): PdoDatabaseDriver {
-            $connection = $container->get(PdoConnection::class);
-            $config = $container->get(DatabaseConfig::class);
-            $identifierEscaper = self::resolveIdentifierEscaper($config, $container);
-            $identifierProtector = new IdentifierProtector($identifierEscaper);
-
-            return new PdoDatabaseDriver(
-                connection: $connection,
-                identifierEscaper: $identifierEscaper,
-                identifierProtector: $identifierProtector,
-            );
-        });
-
         $registry = $container->get(DatabaseDriverRegistry::class);
 
         $registry->registerDriver(
@@ -93,6 +74,9 @@ final class PdoDatabaseServiceProvider implements ServiceProviderInterface
         );
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     private static function resolveMysqlGrammar(DatabaseConfig $config, ContainerInterface $container): SchemaGrammarInterface
     {
         if (!PdoDsnResolver::isMysql($config)) {
@@ -104,6 +88,9 @@ final class PdoDatabaseServiceProvider implements ServiceProviderInterface
         return $container->get(MysqlSchemaGrammar::class);
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     private static function resolveSqliteGrammar(DatabaseConfig $config, ContainerInterface $container): SchemaGrammarInterface
     {
         if (!PdoDsnResolver::isSqlite($config)) {
@@ -115,6 +102,9 @@ final class PdoDatabaseServiceProvider implements ServiceProviderInterface
         return $container->get(SqliteSchemaGrammar::class);
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     private static function resolveIdentifierEscaper(
         DatabaseConfig $config,
         ContainerInterface $container,

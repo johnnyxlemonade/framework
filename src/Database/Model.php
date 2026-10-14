@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database;
 
+/**
+ * Provides the model contract for the database subsystem.
+ */
 abstract class Model
 {
     protected string $table = '';
@@ -97,6 +100,9 @@ abstract class Model
 
     private bool $tempOnlyDeleted = false;
 
+    /**
+     * Initializes this Model with the collaborators and state required by its database contract.
+     */
     public function __construct(
         protected readonly DatabaseDriverInterface $db,
     ) {
@@ -207,6 +213,9 @@ abstract class Model
         return $this->first($where) !== null;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function countAll(): int
     {
         return $this->builder()->countAllResults();
@@ -490,6 +499,9 @@ abstract class Model
         return $result;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function delete(int|string $id): bool
     {
         $context = $this->trigger('beforeDelete', ['id' => $id]);
@@ -516,6 +528,9 @@ abstract class Model
         return $result;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function forceDelete(int|string $id): bool
     {
         $context = $this->trigger('beforeDelete', ['id' => $id, 'force' => true]);
@@ -588,6 +603,9 @@ abstract class Model
             ->getArray();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function increment(int|string $id, string $column, int|float $amount = 1): bool
     {
         $ok = $this->builder()
@@ -611,6 +629,9 @@ abstract class Model
         return $updated && $this->db->affected_rows() >= 0;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function decrement(int|string $id, string $column, int|float $amount = 1): bool
     {
         $ok = $this->builder()
@@ -634,6 +655,9 @@ abstract class Model
         return $updated && $this->db->affected_rows() >= 0;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function restore(int|string $id): bool
     {
         if (!$this->useSoftDeletes) {
@@ -687,6 +711,9 @@ abstract class Model
         return $ok && $this->db->affected_rows() >= 0;
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withDeleted(bool $state = true): self
     {
         $this->tempWithDeleted = $state;
@@ -697,6 +724,9 @@ abstract class Model
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function onlyDeleted(bool $state = true): self
     {
         $this->tempOnlyDeleted = $state;
@@ -707,6 +737,9 @@ abstract class Model
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function builder(): QueryBuilder
     {
         $builder = QueryBuilder::make($this->db)->table($this->requireTableName());
@@ -716,16 +749,25 @@ abstract class Model
         return $builder;
     }
 
+    /**
+     * Runs the requested database operation and returns its driver-level outcome.
+     */
     public function query(): QueryBuilder
     {
         return $this->builder();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function scoped(string $scope, mixed ...$args): QueryBuilder
     {
         return $this->applyScope($this->builder(), $scope, ...$args);
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function applyScope(QueryBuilder $builder, string $scope, mixed ...$args): QueryBuilder
     {
         $method = $this->scopeMethodName($scope);
@@ -780,11 +822,17 @@ abstract class Model
         }
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     protected function tableName(): string
     {
         return $this->db->protect_identifiers($this->requireTableName(), true, null, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     protected function requireTableName(): string
     {
         if ($this->table === '') {
@@ -797,6 +845,9 @@ abstract class Model
         return $this->table;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     protected function columnName(string $column): string
     {
         return $this->db->protect_identifiers($column, true, null, false);
@@ -887,11 +938,17 @@ abstract class Model
         );
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     protected function now(): string
     {
         return date('Y-m-d H:i:s');
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function setActorId(int|string|null $id): self
     {
         $this->actorId = $id;
@@ -899,6 +956,9 @@ abstract class Model
         return $this;
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     protected function resolveActorId(): int|string|null
     {
         return $this->actorId;
@@ -927,6 +987,9 @@ abstract class Model
         return $this->filterAllowedFields($payload);
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     protected function applySoftDeleteScope(QueryBuilder $builder): QueryBuilder
     {
         if (!$this->useSoftDeletes) {
@@ -944,12 +1007,18 @@ abstract class Model
         return $builder->where($this->deletedAt, null);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     protected function resetSoftDeleteScope(): void
     {
         $this->tempWithDeleted = false;
         $this->tempOnlyDeleted = false;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     protected function scopeMethodName(string $scope): string
     {
         $normalized = trim($scope);
@@ -987,6 +1056,9 @@ abstract class Model
         return $this->normalizeAssoc($payload);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function invokeCallbackMethod(string $method, mixed ...$args): mixed
     {
         $reflection = new \ReflectionMethod($this, $method);

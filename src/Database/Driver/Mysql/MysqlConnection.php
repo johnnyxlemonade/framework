@@ -14,6 +14,9 @@ use mysqli_result;
 use mysqli_stmt;
 use Throwable;
 
+/**
+ * Owns a lazily connected MySQLi session, parameter binding, transaction state, and benchmark instrumentation.
+ */
 final class MysqlConnection implements ConnectionInterface, MysqlConnectionInterface
 {
     private ?mysqli $connection = null;
@@ -22,6 +25,9 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
     private bool $transactionActive = false;
 
+    /**
+     * Creates a lazy MySQLi adapter from normalized connection settings and shared benchmark instrumentation.
+     */
     public function __construct(
         private readonly DatabaseConfig $config,
         private readonly Benchmark $benchmark,
@@ -29,6 +35,11 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     ) {
     }
 
+    /**
+     * Returns the live MySQLi handle, creating and configuring it only on first use.
+     *
+     * @throws DatabaseException When connection setup fails.
+     */
     public function mysqli(): mysqli
     {
         if ($this->connection instanceof mysqli) {
@@ -78,6 +89,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Executes SQL directly or as a prepared statement and records its timing and write metadata.
+     *
      * @param array<int|string, mixed> $bindings
      */
     public function execute(string $sql, array $bindings = []): MysqlExecutionResult
@@ -128,6 +141,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Materializes a result-producing query and releases its native result buffer afterwards.
+     *
      * @param array<int|string, mixed> $bindings
      * @return list<array<string, mixed>>
      */
@@ -149,6 +164,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Streams rows from a native result buffer and always frees it when iteration finishes.
+     *
      * @param array<int|string, mixed> $bindings
      * @return \Generator<int, array<string, mixed>, void, void>
      */
@@ -175,6 +192,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Executes a statement and returns the affected-row count captured by execute().
+     *
      * @param array<int|string, mixed> $bindings
      */
     public function statement(string $sql, array $bindings = []): int
@@ -182,29 +201,48 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         return $this->execute($sql, $bindings)->affectedRows();
     }
 
+    /**
+     * Begins a physical MySQL transaction and records it as active for nested transaction users.
+     */
     public function beginTransaction(): void
     {
         $this->mysqli()->begin_transaction();
         $this->transactionActive = true;
     }
 
+    /**
+     * Commits the active MySQL transaction and clears local transaction state.
+     */
     public function commit(): void
     {
         $this->mysqli()->commit();
         $this->transactionActive = false;
     }
 
+    /**
+     * Rolls back the active MySQL transaction and clears local transaction state.
+     */
     public function rollBack(): void
     {
         $this->mysqli()->rollback();
         $this->transactionActive = false;
     }
 
+    /**
+     * Reports whether this adapter currently owns an active physical MySQL transaction.
+     */
     public function inTransaction(): bool
     {
         return $this->transactionActive;
     }
 
+    /**
+     * Executes a callback atomically, reusing an existing transaction rather than opening a nested physical one.
+     *
+     * @template T
+     * @param callable(self):T $callback
+     * @return T
+     */
     public function transaction(callable $callback): mixed
     {
         if ($this->inTransaction()) {
@@ -227,16 +265,25 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         }
     }
 
+    /**
+     * Returns the latest auto-generated identifier reported by the MySQLi handle.
+     */
     public function lastInsertId(): int|string
     {
         return $this->mysqli()->insert_id;
     }
 
+    /**
+     * Returns the affected-row count captured by the latest execution through this adapter.
+     */
     public function affectedRows(): int
     {
         return $this->affectedRows;
     }
 
+    /**
+     * Verifies the existing handle or replaces it after a failed ping.
+     */
     public function reconnect(): void
     {
         if (!$this->connection instanceof mysqli) {
@@ -260,6 +307,9 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         $this->mysqli();
     }
 
+    /**
+     * Closes the live MySQLi handle and clears local connection and transaction state.
+     */
     public function close(): void
     {
         if (!$this->connection instanceof mysqli) {
@@ -271,21 +321,33 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         $this->transactionActive = false;
     }
 
+    /**
+     * Returns the server version from the current MySQLi handle.
+     */
     public function serverVersion(): string
     {
         return $this->mysqli()->server_info;
     }
 
+    /**
+     * Requests a connection character set from MySQLi.
+     */
     public function setCharset(string $charset): bool
     {
         return $this->mysqli()->set_charset($charset);
     }
 
+    /**
+     * Escapes a value for a MySQL string literal without surrounding quotes.
+     */
     public function escapeString(string $value): string
     {
         return $this->mysqli()->real_escape_string($value);
     }
 
+    /**
+     * Selects a database and translates MySQLi failures to the framework connection exception.
+     */
     public function selectDatabase(string $database): void
     {
         try {
@@ -299,6 +361,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Lists tables in the configured database and can constrain the result to the configured prefix.
+     *
      * @return list<string>
      */
     public function listTables(bool $prefixLimit = false): array
@@ -331,6 +395,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Lists column names through MySQL SHOW COLUMNS metadata.
+     *
      * @return list<string>
      */
     public function listColumns(string $table): array
@@ -354,6 +420,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Returns the latest native MySQLi error while tolerating an unopened connection.
+     *
      * @return array{code:int|string|null,message:string|null}
      */
     public function lastError(): array
@@ -372,6 +440,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Prepares, binds, and executes SQL when bindings require a native MySQLi statement.
+     *
      * @param array<int|string, mixed> $bindings
      */
     private function executePrepared(string $sql, array $bindings): mysqli_stmt
@@ -398,6 +468,8 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     }
 
     /**
+     * Maps PHP values to MySQLi bind type characters in positional binding order.
+     *
      * @param list<mixed> $values
      */
     private function detectBindingTypes(array $values): string
@@ -416,6 +488,9 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         return $types;
     }
 
+    /**
+     * Applies configured strict mode and collation options after MySQLi connects.
+     */
     private function configureSession(mysqli $connection): void
     {
         if ($this->config->collation() !== '') {
@@ -448,6 +523,9 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
         );
     }
 
+    /**
+     * Escapes a single identifier segment used by MySQL metadata statements.
+     */
     private function escapeIdentifierPart(string $value): string
     {
         $sanitized = preg_replace('/[^a-zA-Z0-9_]/', '', $value);

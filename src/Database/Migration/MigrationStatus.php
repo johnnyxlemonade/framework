@@ -7,17 +7,19 @@ namespace Lemonade\Framework\Database\Migration;
 /**
  * Immutable snapshot of the migration status known to the framework.
  */
-final class MigrationStatus
+final readonly class MigrationStatus
 {
     /**
+     * Captures registered migration states, orphaned ledger entries, and history availability at one point in time.
+     *
      * @param array<string, MigrationState> $registered
      * @param list<string> $orphaned
      * @param bool $databaseAvailable Whether the database-backed history was available for verification.
      */
     public function __construct(
-        private readonly array $registered,
-        private readonly array $orphaned,
-        private readonly bool $databaseAvailable = true,
+        private array $registered,
+        private array $orphaned,
+        private bool $databaseAvailable = true,
     ) {
     }
 

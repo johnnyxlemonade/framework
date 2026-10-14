@@ -16,13 +16,16 @@ use RuntimeException;
  * The repository uses the same DatabaseDriverInterface instance as Schema so state
  * reads and writes target the active schema connection.
  */
-final class MigrationStateRepository
+final readonly class MigrationStateRepository
 {
     private const string TABLE = 'migrations';
 
+    /**
+     * Creates a ledger repository sharing the driver and schema connection used by migrations.
+     */
     public function __construct(
-        private readonly DatabaseDriverInterface $driver,
-        private readonly Schema $schema,
+        private DatabaseDriverInterface $driver,
+        private Schema $schema,
     ) {
     }
 

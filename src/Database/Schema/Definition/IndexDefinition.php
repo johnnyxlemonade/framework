@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Database\Schema\Definition;
 
 use Lemonade\Framework\Database\Schema\Enum\IndexType;
 
+/**
+ * Provides the index definition contract for the database subsystem.
+ */
 final readonly class IndexDefinition
 {
     /**
@@ -59,6 +62,9 @@ final readonly class IndexDefinition
         return new self(IndexType::Spatial, self::normalizeColumns($columns), $name, $ifNotExists);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function type(): IndexType
     {
         return $this->type;
@@ -72,21 +78,33 @@ final readonly class IndexDefinition
         return $this->columns;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function name(): ?string
     {
         return $this->name;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function ifNotExists(): bool
     {
         return $this->ifNotExists;
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withIfNotExists(bool $ifNotExists = true): self
     {
         return new self($this->type, $this->columns, $this->name, $ifNotExists);
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     public function resolvedName(): string
     {
         if ($this->name !== null && $this->name !== '') {

@@ -15,7 +15,7 @@ use RecursiveIteratorIterator;
  * Discovery is recursive only below the supplied directory. It does not scan
  * application roots, Composer metadata, or any implicit filesystem location.
  */
-final class MigrationDirectoryRegistrar
+final readonly class MigrationDirectoryRegistrar
 {
     /**
      * @throws MigrationDiscoveryException When the explicit directory, namespace, or class mapping is invalid.
@@ -57,6 +57,9 @@ final class MigrationDirectoryRegistrar
         }
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     private function resolveDirectory(string $directory): string
     {
         if (!file_exists($directory)) {
@@ -75,6 +78,9 @@ final class MigrationDirectoryRegistrar
         return $root === DIRECTORY_SEPARATOR ? $root : rtrim($root, DIRECTORY_SEPARATOR);
     }
 
+    /**
+     * Normalizes the input into the internal representation required by subsequent database operations.
+     */
     private function normalizeNamespace(string $namespace): string
     {
         $namespace = trim($namespace, " \t\r\n\0\x0B\\");
@@ -115,6 +121,9 @@ final class MigrationDirectoryRegistrar
         return $files;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function classNameForFile(string $root, string $namespace, string $file): string
     {
         $prefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
@@ -125,6 +134,9 @@ final class MigrationDirectoryRegistrar
         return $namespace . '\\' . $classPath;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function declaresClass(string $file, string $expectedClass): bool
     {
         $contents = file_get_contents($file);

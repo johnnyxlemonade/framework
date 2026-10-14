@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Database\Result;
 
 use Lemonade\Framework\Database\DatabaseResult;
 
+/**
+ * Provides the array database result contract for the database subsystem.
+ */
 abstract class ArrayDatabaseResult extends DatabaseResult
 {
     /**
@@ -23,11 +26,17 @@ abstract class ArrayDatabaseResult extends DatabaseResult
         $this->rows = $rows;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function num_rows(): int
     {
         return count($this->rows);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function data_seek(int $n = 0): bool
     {
         if ($n < 0 || $n >= count($this->rows)) {
@@ -39,6 +48,9 @@ abstract class ArrayDatabaseResult extends DatabaseResult
         return true;
     }
 
+    /**
+     * Releases resources retained by this database object so they cannot be reused.
+     */
     public function free_result(): void
     {
         $this->rows = [];

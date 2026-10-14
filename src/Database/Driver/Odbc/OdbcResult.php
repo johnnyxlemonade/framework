@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Database\Driver\Odbc;
 
 use Lemonade\Framework\Database\Result\ArrayDatabaseResult;
 
+/**
+ * Provides the odbc result contract for the database subsystem.
+ */
 final class OdbcResult extends ArrayDatabaseResult
 {
     /**
@@ -32,6 +35,9 @@ final class OdbcResult extends ArrayDatabaseResult
         return new self($rows, $fields);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function num_fields(): int
     {
         return count($this->fields);
@@ -59,6 +65,9 @@ final class OdbcResult extends ArrayDatabaseResult
         );
     }
 
+    /**
+     * Releases resources retained by this database object so they cannot be reused.
+     */
     public function free_result(): void
     {
         parent::free_result();

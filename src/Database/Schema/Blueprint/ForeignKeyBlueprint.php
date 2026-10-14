@@ -7,6 +7,9 @@ namespace Lemonade\Framework\Database\Schema\Blueprint;
 use Lemonade\Framework\Database\Schema\Definition\ForeignKeyDefinition;
 use Lemonade\Framework\Database\Schema\Enum\ForeignKeyAction;
 
+/**
+ * Collects the referenced table, columns, and actions for a table-level foreign key.
+ */
 final class ForeignKeyBlueprint
 {
     /**
@@ -33,6 +36,9 @@ final class ForeignKeyBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function on(string $table): self
     {
         $this->referencedTable = $table;
@@ -40,6 +46,9 @@ final class ForeignKeyBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function name(string $name): self
     {
         $this->name = $name;
@@ -47,6 +56,9 @@ final class ForeignKeyBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function onUpdate(ForeignKeyAction $action): self
     {
         $this->onUpdate = $action;
@@ -54,6 +66,9 @@ final class ForeignKeyBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function onDelete(ForeignKeyAction $action): self
     {
         $this->onDelete = $action;
@@ -61,31 +76,49 @@ final class ForeignKeyBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function cascadeOnUpdate(): self
     {
         return $this->onUpdate(ForeignKeyAction::Cascade);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function cascadeOnDelete(): self
     {
         return $this->onDelete(ForeignKeyAction::Cascade);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function restrictOnUpdate(): self
     {
         return $this->onUpdate(ForeignKeyAction::Restrict);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function restrictOnDelete(): self
     {
         return $this->onDelete(ForeignKeyAction::Restrict);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function nullOnDelete(): self
     {
         return $this->onDelete(ForeignKeyAction::SetNull);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function definition(): ForeignKeyDefinition
     {
         if ($this->referencedTable === null || trim($this->referencedTable) === '') {

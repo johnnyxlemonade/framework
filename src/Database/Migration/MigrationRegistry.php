@@ -20,6 +20,9 @@ final class MigrationRegistry
     /** @var array<string, class-string<MigrationInterface>> */
     private array $migrations = [];
 
+    /**
+     * Creates a registry that defers migration instantiation to the application container.
+     */
     public function __construct(
         private readonly ContainerInterface $container,
     ) {
@@ -93,6 +96,11 @@ final class MigrationRegistry
         return $migration;
     }
 
+    /**
+     * Validates the sortable timestamp and description format used as the stable migration identity.
+     *
+     * @throws InvalidArgumentException When the identifier is blank, malformed, or contains an invalid timestamp.
+     */
     private static function validateIdentifier(string $identifier): string
     {
         $identifier = trim($identifier);

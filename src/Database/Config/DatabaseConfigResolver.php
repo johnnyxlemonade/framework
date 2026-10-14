@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Database\Config;
 
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 
-final class DatabaseConfigResolver
+/**
+ * Merges ordered database configuration contributions into runtime connection definitions.
+ */
+final readonly class DatabaseConfigResolver
 {
+    /**
+     * Resolves definitions in registration order; later explicitly declared connection names replace earlier ones.
+     */
     public function resolve(DatabaseConfigDefinition ...$definitions): DatabaseRuntimeConfig
     {
         $defaultConnection = null;
@@ -34,6 +40,9 @@ final class DatabaseConfigResolver
         return new DatabaseRuntimeConfig($defaultConnection, $connections);
     }
 
+    /**
+     * Normalizes an optional scalar connection name while treating blank and non-scalar values as no selection.
+     */
     private function nullableString(mixed $value): ?string
     {
         if ($value === null || !is_scalar($value)) {
@@ -46,6 +55,8 @@ final class DatabaseConfigResolver
     }
 
     /**
+     * Retains string-keyed connection options and discards positional or otherwise invalid configuration entries.
+     *
      * @param array<mixed> $values
      * @return array<string, mixed>
      */

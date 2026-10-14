@@ -7,29 +7,46 @@ namespace Lemonade\Framework\Database\Driver\Mysql;
 use Lemonade\Framework\Database\DatabaseResult;
 use mysqli_result;
 
+/**
+ * Adapts a MySQLi result handle to cached framework result projections.
+ */
 final class MysqlResult extends DatabaseResult
 {
+    /**
+     * Retains the MySQLi result handle; public callers construct instances through fromMysqliResult().
+     */
     private function __construct(
         private readonly mysqli_result $result,
     ) {
     }
 
+    /**
+     * Wraps a result-producing MySQLi execution for framework result consumption.
+     */
     public static function fromMysqliResult(mysqli_result $result): self
     {
         return new self($result);
     }
 
+    /**
+     * Returns the number of rows buffered by the MySQLi result handle.
+     */
     public function num_rows(): int
     {
         return (int) $this->result->num_rows;
     }
 
+    /**
+     * Returns the number of fields described by the MySQLi result handle.
+     */
     public function num_fields(): int
     {
         return $this->result->field_count;
     }
 
     /**
+     * Lists field names in the result-set order reported by MySQLi.
+     *
      * @return list<string>
      */
     public function list_fields(): array
@@ -46,6 +63,8 @@ final class MysqlResult extends DatabaseResult
     }
 
     /**
+     * Converts MySQLi field metadata into framework field value objects.
+     *
      * @return list<MysqlField>
      */
     public function field_data(): array
@@ -66,7 +85,7 @@ final class MysqlResult extends DatabaseResult
     }
 
     /**
-     * CI-compatible field metadata.
+     * Converts field metadata to the legacy object shape expected by compatible consumers.
      *
      * @return list<object>
      */
@@ -78,17 +97,25 @@ final class MysqlResult extends DatabaseResult
         );
     }
 
+    /**
+     * Repositions the MySQLi result cursor for subsequent row reads.
+     */
     public function data_seek(int $n = 0): bool
     {
         return $this->result->data_seek($n);
     }
 
+    /**
+     * Releases the native MySQLi result buffer.
+     */
     public function free_result(): void
     {
         $this->result->free();
     }
 
     /**
+     * Fetches the next native row as an associative array for DatabaseResult traversal.
+     *
      * @return array<string, mixed>|null
      */
     protected function fetchAssoc(): ?array
@@ -98,6 +125,9 @@ final class MysqlResult extends DatabaseResult
         return is_array($row) ? $row : null;
     }
 
+    /**
+     * Maps MySQLi field constants to stable legacy type names while preserving unknown constants.
+     */
     private function getFieldType(int $type): string|int
     {
         return match ($type) {

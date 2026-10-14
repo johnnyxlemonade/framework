@@ -14,12 +14,18 @@ use PDOStatement;
 use Stringable;
 use Throwable;
 
+/**
+ * Adapts a PDO connection to the framework connection contract with transaction and benchmark support.
+ */
 final class PdoConnection implements ConnectionInterface
 {
     private ?PDO $connection = null;
 
     private int $affectedRows = 0;
 
+    /**
+     * Initializes this PdoConnection with the collaborators and state required by its database contract.
+     */
     public function __construct(
         private readonly DatabaseConfig $config,
         private readonly Benchmark $benchmark,
@@ -27,6 +33,9 @@ final class PdoConnection implements ConnectionInterface
     ) {
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function pdo(): PDO
     {
         if ($this->connection instanceof PDO) {
@@ -124,6 +133,9 @@ final class PdoConnection implements ConnectionInterface
         return $this->affectedRows = $statement->rowCount();
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     public function beginTransaction(): void
     {
         if (!$this->pdo()->beginTransaction()) {
@@ -131,6 +143,9 @@ final class PdoConnection implements ConnectionInterface
         }
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     public function commit(): void
     {
         if (!$this->pdo()->commit()) {
@@ -138,6 +153,9 @@ final class PdoConnection implements ConnectionInterface
         }
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     public function rollBack(): void
     {
         if (!$this->pdo()->rollBack()) {
@@ -145,11 +163,17 @@ final class PdoConnection implements ConnectionInterface
         }
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function inTransaction(): bool
     {
         return $this->pdo()->inTransaction();
     }
 
+    /**
+     * Executes the callback within an atomic transaction boundary and rolls back when it fails.
+     */
     public function transaction(callable $callback): mixed
     {
         if ($this->inTransaction()) {
@@ -172,6 +196,9 @@ final class PdoConnection implements ConnectionInterface
         }
     }
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function lastInsertId(): int|string|null
     {
         $value = $this->pdo()->lastInsertId();
@@ -187,22 +214,34 @@ final class PdoConnection implements ConnectionInterface
         return $value;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function affectedRows(): int
     {
         return $this->affectedRows;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function reconnect(): void
     {
         $this->close();
         $this->pdo();
     }
 
+    /**
+     * Releases resources retained by this database object so they cannot be reused.
+     */
     public function close(): void
     {
         $this->connection = null;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function serverVersion(): string
     {
         $version = $this->pdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
@@ -210,6 +249,9 @@ final class PdoConnection implements ConnectionInterface
         return is_string($version) && $version !== '' ? $version : 'unknown';
     }
 
+    /**
+     * Escapes the supplied value or identifier for safe inclusion in driver-generated SQL.
+     */
     public function escapeString(string $value): string
     {
         $quoted = $this->pdo()->quote($value);
@@ -320,6 +362,9 @@ final class PdoConnection implements ConnectionInterface
         }
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function detectPdoType(mixed $value): int
     {
         return match (true) {
@@ -331,6 +376,9 @@ final class PdoConnection implements ConnectionInterface
         };
     }
 
+    /**
+     * Normalizes the input into the internal representation required by subsequent database operations.
+     */
     private function normalizeBindingValue(mixed $value, string $sql): mixed
     {
         if (

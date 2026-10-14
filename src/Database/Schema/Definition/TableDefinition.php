@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Schema\Definition;
 
+/**
+ * Provides the table definition contract for the database subsystem.
+ */
 final readonly class TableDefinition
 {
     /**
@@ -32,11 +35,17 @@ final readonly class TableDefinition
         }
     }
 
+    /**
+     * Builds the requested database value while preserving its framework contract.
+     */
     public static function create(string $name): self
     {
         return new self($name);
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withIfNotExists(bool $ifNotExists = true): self
     {
         return new self(
@@ -53,6 +62,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withOptions(?TableOptions $options): self
     {
         return new self(
@@ -69,6 +81,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withColumn(ColumnDefinition $column): self
     {
         return new self(
@@ -85,6 +100,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withModifiedColumn(ColumnDefinition $column): self
     {
         return new self(
@@ -101,6 +119,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withoutColumn(string $column): self
     {
         return new self(
@@ -117,6 +138,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withIndex(IndexDefinition $index): self
     {
         return new self(
@@ -133,6 +157,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withoutIndex(string $index): self
     {
         return new self(
@@ -149,6 +176,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withForeignKey(ForeignKeyDefinition $foreignKey): self
     {
         return new self(
@@ -165,6 +195,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     public function withoutForeignKey(string $foreignKey): self
     {
         return new self(
@@ -181,6 +214,9 @@ final readonly class TableDefinition
         );
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function name(): string
     {
         return $this->name;
@@ -228,21 +264,33 @@ final readonly class TableDefinition
         return $this->droppedForeignKeys;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function ifNotExists(): bool
     {
         return $this->ifNotExists;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function options(): ?TableOptions
     {
         return $this->options;
     }
 
+    /**
+     * Reports whether the requested condition holds for the current database state.
+     */
     public function hasCreateDefinitions(): bool
     {
         return $this->columns !== [] || $this->indexes !== [] || $this->foreignKeys !== [];
     }
 
+    /**
+     * Reports whether the requested condition holds for the current database state.
+     */
     public function hasAlterDefinitions(): bool
     {
         return $this->columns !== []

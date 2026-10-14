@@ -12,12 +12,15 @@ use Lemonade\Framework\Database\Schema\Schema;
  * State is recorded only after a migration completes successfully. The runner does
  * not wrap schema migrations in an automatic database transaction.
  */
-final class MigrationRunner
+final readonly class MigrationRunner
 {
+    /**
+     * Creates a runner that coordinates registered migrations with their persistent application ledger.
+     */
     public function __construct(
-        private readonly MigrationRegistry $registry,
-        private readonly MigrationStateRepository $state,
-        private readonly Schema $schema,
+        private MigrationRegistry $registry,
+        private MigrationStateRepository $state,
+        private Schema $schema,
     ) {
     }
 

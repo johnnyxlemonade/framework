@@ -10,6 +10,9 @@ use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Throwable;
 
+/**
+ * Adapts an ODBC resource to the framework connection contract with transaction support.
+ */
 final class OdbcConnection implements ConnectionInterface
 {
     /** @var resource|null */
@@ -19,6 +22,9 @@ final class OdbcConnection implements ConnectionInterface
 
     private bool $transactionActive = false;
 
+    /**
+     * Initializes this OdbcConnection with the collaborators and state required by its database contract.
+     */
     public function __construct(
         private readonly DatabaseConfig $config,
         private readonly Benchmark $benchmark,
@@ -150,6 +156,9 @@ final class OdbcConnection implements ConnectionInterface
         return $this->affectedRows;
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     public function beginTransaction(): void
     {
         $resource = $this->resource();
@@ -163,6 +172,9 @@ final class OdbcConnection implements ConnectionInterface
         $this->transactionActive = true;
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     public function commit(): void
     {
         $resource = $this->resource();
@@ -175,6 +187,9 @@ final class OdbcConnection implements ConnectionInterface
         $this->transactionActive = false;
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     public function rollBack(): void
     {
         $resource = $this->resource();
@@ -187,11 +202,17 @@ final class OdbcConnection implements ConnectionInterface
         $this->transactionActive = false;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function inTransaction(): bool
     {
         return $this->transactionActive;
     }
 
+    /**
+     * Executes the callback within an atomic transaction boundary and rolls back when it fails.
+     */
     public function transaction(callable $callback): mixed
     {
         if ($this->inTransaction()) {
@@ -214,22 +235,34 @@ final class OdbcConnection implements ConnectionInterface
         }
     }
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function lastInsertId(): int|string|null
     {
         return null;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function affectedRows(): int
     {
         return $this->affectedRows;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function reconnect(): void
     {
         $this->close();
         $this->resource();
     }
 
+    /**
+     * Releases resources retained by this database object so they cannot be reused.
+     */
     public function close(): void
     {
         if ($this->connection === null) {
@@ -241,6 +274,9 @@ final class OdbcConnection implements ConnectionInterface
         $this->transactionActive = false;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function serverVersion(): string
     {
         $resource = $this->resource();
@@ -259,6 +295,9 @@ final class OdbcConnection implements ConnectionInterface
         return 'unknown';
     }
 
+    /**
+     * Escapes the supplied value or identifier for safe inclusion in driver-generated SQL.
+     */
     public function escapeString(string $value): string
     {
         return str_replace("'", "''", $value);
@@ -282,6 +321,9 @@ final class OdbcConnection implements ConnectionInterface
         ];
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     private function resolveDsn(): string
     {
         $dsn = $this->config->dsn();
@@ -529,6 +571,9 @@ final class OdbcConnection implements ConnectionInterface
         return $normalized;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function augmentErrorMessage(string $base): string
     {
         $error = $this->lastError();
@@ -536,6 +581,9 @@ final class OdbcConnection implements ConnectionInterface
         return $base . $this->buildErrorDetails($error['state'], $error['message']);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function buildErrorDetails(?string $state, ?string $message): string
     {
         $parts = [];

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database;
 
+/**
+ * Builds immutable SQL query descriptions and delegates execution to the selected database driver.
+ */
 final class QueryBuilder
 {
     /**
@@ -59,17 +62,28 @@ final class QueryBuilder
     /**
      * @param array<string, mixed> $set
      */
+    /**
+     * Starts an empty immutable query state bound to one driver; public callers use make().
+     *
+     * @param array<string, mixed> $set Pending values for insert or update statements.
+     */
     private function __construct(
         private readonly DatabaseDriverInterface $db,
         private array $set = [],
     ) {
     }
 
+    /**
+     * Builds the requested database value while preserving its framework contract.
+     */
     public static function make(DatabaseDriverInterface $db): self
     {
         return new self($db);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function table(string $table): self
     {
         $next = clone $this;
@@ -95,6 +109,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Builds the requested database value while preserving its framework contract.
+     */
     public function from(string $table): self
     {
         return $this->table($table);
@@ -139,6 +156,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function selectSubquery(self $query, string $alias): self
     {
         [$sql, $bindings] = $query->compileSelect();
@@ -147,6 +167,9 @@ final class QueryBuilder
         return $this->selectRaw('(' . $sql . ') AS ' . $alias, $bindings);
     }
 
+    /**
+     * Builds the requested database value while preserving its framework contract.
+     */
     public function fromSubquery(self $query, string $alias): self
     {
         [$sql, $bindings] = $query->compileSelect();
@@ -179,6 +202,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function distinct(bool $state = true): self
     {
         $next = clone $this;
@@ -187,6 +213,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function join(string $table, string $condition, string $type = 'INNER'): self
     {
         $next = clone $this;
@@ -201,6 +230,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function joinSubquery(self $query, string $alias, string $condition, string $type = 'INNER'): self
     {
         [$sql, $bindings] = $query->compileSelect();
@@ -217,6 +249,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function leftJoinSubquery(self $query, string $alias, string $condition): self
     {
         return $this->joinSubquery($query, $alias, $condition, 'LEFT');
@@ -238,41 +273,65 @@ final class QueryBuilder
         return $this->addWhere('OR', $column, $value);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function where_like(string $column, string $value, string $side = 'both'): self
     {
         return $this->whereLike($column, $value, $side);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereLike(string $column, string $value, string $side = 'both'): self
     {
         return $this->addWhereLike('AND', $column, $value, $side, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function or_where_like(string $column, string $value, string $side = 'both'): self
     {
         return $this->orWhereLike($column, $value, $side);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereLike(string $column, string $value, string $side = 'both'): self
     {
         return $this->addWhereLike('OR', $column, $value, $side, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function where_not_like(string $column, string $value, string $side = 'both'): self
     {
         return $this->whereNotLike($column, $value, $side);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereNotLike(string $column, string $value, string $side = 'both'): self
     {
         return $this->addWhereLike('AND', $column, $value, $side, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function or_where_not_like(string $column, string $value, string $side = 'both'): self
     {
         return $this->orWhereNotLike($column, $value, $side);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereNotLike(string $column, string $value, string $side = 'both'): self
     {
         return $this->addWhereLike('OR', $column, $value, $side, true);
@@ -342,101 +401,161 @@ final class QueryBuilder
         return $this->addWhereIn('OR', $column, $values, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereInSubquery(string $column, self $query): self
     {
         return $this->addWhereInSubquery('AND', $column, $query, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereNotInSubquery(string $column, self $query): self
     {
         return $this->addWhereInSubquery('AND', $column, $query, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereInSubquery(string $column, self $query): self
     {
         return $this->addWhereInSubquery('OR', $column, $query, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereNotInSubquery(string $column, self $query): self
     {
         return $this->addWhereInSubquery('OR', $column, $query, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function where_null(string $column): self
     {
         return $this->whereNull($column);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereNull(string $column): self
     {
         return $this->addWhereNull('AND', $column, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function where_not_null(string $column): self
     {
         return $this->whereNotNull($column);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereNotNull(string $column): self
     {
         return $this->addWhereNull('AND', $column, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function or_where_null(string $column): self
     {
         return $this->orWhereNull($column);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereNull(string $column): self
     {
         return $this->addWhereNull('OR', $column, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function or_where_not_null(string $column): self
     {
         return $this->orWhereNotNull($column);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereNotNull(string $column): self
     {
         return $this->addWhereNull('OR', $column, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function where_between(string $column, mixed $from, mixed $to): self
     {
         return $this->whereBetween($column, $from, $to);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addWhereBetween('AND', $column, $from, $to, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function where_not_between(string $column, mixed $from, mixed $to): self
     {
         return $this->whereNotBetween($column, $from, $to);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function whereNotBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addWhereBetween('AND', $column, $from, $to, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function or_where_between(string $column, mixed $from, mixed $to): self
     {
         return $this->orWhereBetween($column, $from, $to);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addWhereBetween('OR', $column, $from, $to, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function or_where_not_between(string $column, mixed $from, mixed $to): self
     {
         return $this->orWhereNotBetween($column, $from, $to);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orWhereNotBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addWhereBetween('OR', $column, $from, $to, true);
@@ -479,11 +598,17 @@ final class QueryBuilder
         return $this->addWhereRaw('OR', $sql, $bindings);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function order_by(string $column, string $direction = 'ASC'): self
     {
         return $this->orderBy($column, $direction);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orderBy(string $column, string $direction = 'ASC'): self
     {
         $next = clone $this;
@@ -579,26 +704,41 @@ final class QueryBuilder
         return $this->addHavingIn('OR', $column, $values, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function havingBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addHavingBetween('AND', $column, $from, $to, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orHavingBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addHavingBetween('OR', $column, $from, $to, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function havingNotBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addHavingBetween('AND', $column, $from, $to, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function orHavingNotBetween(string $column, mixed $from, mixed $to): self
     {
         return $this->addHavingBetween('OR', $column, $from, $to, true);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function limit(int $limit, int $offset = 0): self
     {
         $next = clone $this;
@@ -608,6 +748,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function offset(int $offset): self
     {
         $next = clone $this;
@@ -616,11 +759,17 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function union(self $query): self
     {
         return $this->addUnion($query, false);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function unionAll(self $query): self
     {
         return $this->addUnion($query, true);
@@ -637,6 +786,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function get(?int $limit = null, int $offset = 0): DatabaseResultInterface|bool
     {
         $builder = $limit !== null ? $this->limit($limit, $offset) : $this;
@@ -669,6 +821,9 @@ final class QueryBuilder
         return $result->result_array();
     }
 
+    /**
+     * Reports whether the requested condition holds for the current database state.
+     */
     public function exists(): bool
     {
         $row = $this
@@ -679,11 +834,17 @@ final class QueryBuilder
         return $row !== null;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function doesntExist(): bool
     {
         return !$this->exists();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function value(string $column): mixed
     {
         $alias = '__value';
@@ -752,6 +913,9 @@ final class QueryBuilder
         return $out;
     }
 
+    /**
+     * Requests an exclusive row lock when the query is evaluated inside a transaction.
+     */
     public function lockForUpdate(): self
     {
         $next = clone $this;
@@ -760,6 +924,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Requests a shared row lock when the query is evaluated inside a transaction.
+     */
     public function sharedLock(): self
     {
         $next = clone $this;
@@ -778,11 +945,17 @@ final class QueryBuilder
         return $rows[0] ?? null;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function count_all_results(): int
     {
         return $this->countAllResults();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function countAllResults(): int
     {
         [$sql, $bindings] = $this->compileSelect('COUNT(*) AS numrows');
@@ -997,11 +1170,17 @@ final class QueryBuilder
         return $result !== false;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function increment(string $column, int|float $amount = 1): bool
     {
         return $this->applyArithmeticUpdate($column, '+', $amount);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function decrement(string $column, int|float $amount = 1): bool
     {
         return $this->applyArithmeticUpdate($column, '-', $amount);
@@ -1115,6 +1294,11 @@ final class QueryBuilder
     /**
      * @return array{0:string,1:list<mixed>}
      */
+    /**
+     * Compiles the current select state and returns SQL with bindings in placeholder order.
+     *
+     * @return array{string, list<mixed>}
+     */
     private function compileSelect(?string $selectOverride = null): array
     {
         if ($this->from === '') {
@@ -1176,6 +1360,11 @@ final class QueryBuilder
     /**
      * @return array{0:string,1:list<mixed>}
      */
+    /**
+     * Joins accumulated WHERE predicates and preserves their binding sequence.
+     *
+     * @return array{string, list<mixed>}
+     */
     private function compileWhere(): array
     {
         if ($this->where === []) {
@@ -1199,6 +1388,11 @@ final class QueryBuilder
 
     /**
      * @param string|array<string, mixed> $column
+     */
+    /**
+     * Adds scalar or associative WHERE predicates to a cloned builder without mutating prior query state.
+     *
+     * @param array<string, mixed>|string $column
      */
     private function addWhere(string $boolean, string|array $column, mixed $value): self
     {
@@ -1241,6 +1435,11 @@ final class QueryBuilder
     /**
      * @return array{0:string,1:list<mixed>}
      */
+    /**
+     * Joins accumulated HAVING predicates and preserves their binding sequence.
+     *
+     * @return array{string, list<mixed>}
+     */
     private function compileHaving(): array
     {
         if ($this->having === []) {
@@ -1264,6 +1463,11 @@ final class QueryBuilder
 
     /**
      * @param string|array<string, mixed> $column
+     */
+    /**
+     * Adds scalar or associative HAVING predicates to a cloned builder.
+     *
+     * @param array<string, mixed>|string $column
      */
     private function addHaving(string $boolean, string|array $column, mixed $value): self
     {
@@ -1306,6 +1510,11 @@ final class QueryBuilder
     /**
      * @param list<mixed> $bindings
      */
+    /**
+     * Adds an explicit HAVING fragment with bindings supplied by the caller.
+     *
+     * @param list<mixed> $bindings
+     */
     private function addHavingRaw(string $boolean, string $sql, array $bindings = []): self
     {
         $next = clone $this;
@@ -1326,6 +1535,11 @@ final class QueryBuilder
     /**
      * @param list<mixed> $values
      */
+    /**
+     * Adds a HAVING membership predicate and expands its values into bound placeholders.
+     *
+     * @param list<mixed> $values
+     */
     private function addHavingIn(string $boolean, string $column, array $values, bool $not): self
     {
         $next = clone $this;
@@ -1343,6 +1557,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Adds an inclusive HAVING range predicate with two ordered bindings.
+     */
     private function addHavingBetween(string $boolean, string $column, mixed $from, mixed $to, bool $not): self
     {
         $next = clone $this;
@@ -1356,6 +1573,11 @@ final class QueryBuilder
     }
 
     /**
+     * @param list<mixed> $values
+     */
+    /**
+     * Adds a WHERE membership predicate and expands its values into bound placeholders.
+     *
      * @param list<mixed> $values
      */
     private function addWhereIn(string $boolean, string $column, array $values, bool $not = false): self
@@ -1375,6 +1597,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Adds a NULL or NOT NULL predicate without allocating a binding.
+     */
     private function addWhereNull(string $boolean, string $column, bool $not): self
     {
         $next = clone $this;
@@ -1387,6 +1612,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Adds an inclusive WHERE range predicate with two ordered bindings.
+     */
     private function addWhereBetween(string $boolean, string $column, mixed $from, mixed $to, bool $not): self
     {
         $next = clone $this;
@@ -1399,6 +1627,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Adds a LIKE predicate after applying the requested wildcard placement to the bound value.
+     */
     private function addWhereLike(string $boolean, string $column, string $value, string $side, bool $not): self
     {
         $next = clone $this;
@@ -1412,6 +1643,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Embeds a compiled subquery in a WHERE membership predicate while retaining its bindings.
+     */
     private function addWhereInSubquery(string $boolean, string $column, self $query, bool $not): self
     {
         $next = clone $this;
@@ -1425,6 +1659,9 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Appends a compiled query as UNION or UNION ALL while retaining immutable builder state.
+     */
     private function addUnion(self $query, bool $all): self
     {
         $next = clone $this;
@@ -1439,6 +1676,11 @@ final class QueryBuilder
     }
 
     /**
+     * @param list<mixed> $bindings
+     */
+    /**
+     * Adds an explicit WHERE fragment with bindings supplied by the caller.
+     *
      * @param list<mixed> $bindings
      */
     private function addWhereRaw(string $boolean, string $sql, array $bindings = []): self
@@ -1458,11 +1700,17 @@ final class QueryBuilder
         return $next;
     }
 
+    /**
+     * Protects a table reference through the active driver's identifier rules.
+     */
     private function protectTable(string $table): string
     {
         return $this->db->protect_identifiers($table, true, null, false);
     }
 
+    /**
+     * Protects a column reference while allowing the builder's supported aliases and wildcards.
+     */
     private function protectColumn(string $column): string
     {
         $column = trim($column);
@@ -1478,11 +1726,20 @@ final class QueryBuilder
      * @param list<mixed> $bindings
      * @return \Generator<int, array<string, mixed>, void, void>
      */
+    /**
+     * Delegates streaming to the driver with bindings in placeholder order.
+     *
+     * @param list<mixed> $bindings
+     * @return \Generator<int, array<string, mixed>, void, void>
+     */
     private function dbCursor(string $sql, array $bindings): \Generator
     {
         yield from $this->db->cursor($sql, $bindings);
     }
 
+    /**
+     * Executes an atomic arithmetic update using a protected identifier and a bound delta.
+     */
     private function applyArithmeticUpdate(string $column, string $operator, int|float $amount): bool
     {
         if ($this->from === '') {
@@ -1510,6 +1767,9 @@ final class QueryBuilder
         return $result !== false;
     }
 
+    /**
+     * Protects one bare identifier and rejects empty caller input through the driver.
+     */
     private function protectIdentifier(string $column): string
     {
         $column = trim($column);
@@ -1524,6 +1784,9 @@ final class QueryBuilder
         return $this->db->protect_identifiers($column, true, null, false);
     }
 
+    /**
+     * Applies leading and trailing wildcard policy before a LIKE value is bound.
+     */
     private function wildcardValue(string $value, string $side): string
     {
         $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);

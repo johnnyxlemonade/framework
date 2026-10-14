@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Database\Driver\Pdo;
 
 use Lemonade\Framework\Database\Result\ArrayDatabaseResult;
 
+/**
+ * Provides the pdo result contract for the database subsystem.
+ */
 final class PdoResult extends ArrayDatabaseResult
 {
     /**
@@ -24,6 +27,9 @@ final class PdoResult extends ArrayDatabaseResult
         return new self($rows);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function num_fields(): int
     {
         if (!isset($this->rows[0])) {

@@ -15,56 +15,20 @@ use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
 
-final class MysqlDatabaseServiceProvider implements ServiceProviderInterface
+/**
+ * Registers MySQL-specific connection adapters, driver services, and schema grammar factories.
+ */
+final readonly class MysqlDatabaseServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Binds MySQL services and registers factories that reject non-MySQL configured connections.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(MysqlConnectionInterface::class, static function (ContainerInterface $container): MysqlConnectionInterface {
-            $connection = $container->get(ConnectionInterface::class);
-
-            if (!$connection instanceof MysqlConnectionInterface) {
-                throw DatabaseException::invalidConfiguration(
-                    'Current database connection is not a MySQL connection.',
-                );
-            }
-
-            return $connection;
-        });
-
-        $container->singleton(MysqlDatabaseDriver::class, static function (ContainerInterface $container): MysqlDatabaseDriver {
-            $connection = $container->get(MysqlConnectionInterface::class);
-            $config = $container->get(DatabaseConfig::class);
-            $identifierEscaper = $container->get(MysqlIdentifierEscaper::class);
-            $identifierProtector = new IdentifierProtector($identifierEscaper);
-
-            return new MysqlDatabaseDriver(
-                connection: $connection,
-                config: $config,
-                identifierEscaper: $identifierEscaper,
-                identifierProtector: $identifierProtector,
-            );
-        });
-
-        $container->singleton(MysqlIdentifierEscaper::class, static function (ContainerInterface $container): MysqlIdentifierEscaper {
+        $container->set(MysqlIdentifierEscaper::class, static function (ContainerInterface $container): MysqlIdentifierEscaper {
             $config = $container->get(DatabaseConfig::class);
 
             return new MysqlIdentifierEscaper($config->prefix());
-        });
-
-        $container->singleton(MysqlSqlEscaper::class, static function (ContainerInterface $container): MysqlSqlEscaper {
-            return new MysqlSqlEscaper(
-                $container->get(MysqlIdentifierEscaper::class),
-            );
-        });
-
-        $container->singleton(MysqlSchemaGrammar::class, static function (ContainerInterface $container): MysqlSchemaGrammar {
-            $escaper = $container->get(MysqlSqlEscaper::class);
-            $config = $container->get(DatabaseConfig::class);
-
-            return new MysqlSchemaGrammar(
-                escaper: $escaper,
-                config: $config,
-            );
         });
 
         $registry = $container->get(DatabaseDriverRegistry::class);

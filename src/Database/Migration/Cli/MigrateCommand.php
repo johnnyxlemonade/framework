@@ -17,15 +17,18 @@ use function is_resource;
  *
  * The migration runner is resolved lazily when the command is executed.
  */
-final class MigrateCommand implements CommandInterface
+final readonly class MigrateCommand implements CommandInterface
 {
     /** @var resource */
-    private $stdout;
+    private mixed $stdout;
     /** @var resource */
-    private $stderr;
+    private mixed $stderr;
 
+    /**
+     * Initializes this MigrateCommand with the collaborators and state required by its database contract.
+     */
     public function __construct(
-        private readonly ContainerInterface $container,
+        private ContainerInterface $container,
         mixed $stdout = null,
         mixed $stderr = null,
     ) {
@@ -40,16 +43,25 @@ final class MigrateCommand implements CommandInterface
         $this->stderr = $stderr ?? STDERR;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function name(): string
     {
         return 'database:migrate';
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function description(): string
     {
         return 'Runs pending database migrations.';
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function run(array $args): int
     {
         unset($args);

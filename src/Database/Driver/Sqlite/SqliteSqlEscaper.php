@@ -6,13 +6,22 @@ namespace Lemonade\Framework\Database\Driver\Sqlite;
 
 use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
 
-final class SqliteSqlEscaper
+/**
+ * Escapes SQLite string literals and LIKE patterns through the PDO connection.
+ */
+final readonly class SqliteSqlEscaper
 {
+    /**
+     * Initializes this SqliteSqlEscaper with the collaborators and state required by its database contract.
+     */
     public function __construct(
-        private readonly SqliteIdentifierEscaper $identifierEscaper,
+        private SqliteIdentifierEscaper $identifierEscaper,
     ) {
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function value(mixed $value): string
     {
         if ($value instanceof SqlExpression) {
@@ -38,11 +47,17 @@ final class SqliteSqlEscaper
         return "'" . str_replace("'", "''", (string) $value) . "'";
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function identifier(string $identifier): string
     {
         return $this->identifierEscaper->identifier($identifier);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function table(string $table): string
     {
         return $this->identifierEscaper->table($table);

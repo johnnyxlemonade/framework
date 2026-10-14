@@ -16,6 +16,9 @@ use Throwable;
 /**
  * Executes framework database operations through an ODBC connection.
  */
+/**
+ * Provides ODBC query execution and identifier handling through an ODBC connection.
+ */
 final class OdbcDatabaseDriver implements DatabaseDriverInterface
 {
     use EscapesValues;
@@ -24,6 +27,9 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
     /** @var array<string, mixed> */
     private array $dataCache = [];
 
+    /**
+     * Initializes this OdbcDatabaseDriver with the collaborators and state required by its database contract.
+     */
     public function __construct(
         private readonly OdbcConnection $connection,
         private readonly IdentifierEscaperInterface $identifierEscaper,
@@ -31,6 +37,9 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
     ) {
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function initialize(): bool
     {
         $this->connection->resource();
@@ -38,21 +47,33 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         return true;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function reconnect(): void
     {
         $this->connection->reconnect();
     }
 
+    /**
+     * Releases resources retained by this database object so they cannot be reused.
+     */
     public function close(): void
     {
         $this->connection->close();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function platform(): string
     {
         return 'odbc';
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function version(): string
     {
         if (isset($this->dataCache['version']) && is_string($this->dataCache['version'])) {
@@ -126,6 +147,9 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         }
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function simple_query(string $sql): bool
     {
         try {
@@ -139,16 +163,25 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         }
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function affected_rows(): int
     {
         return $this->connection->affectedRows();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function insert_id(): int|string|null
     {
         return $this->connection->lastInsertId();
     }
 
+    /**
+     * Escapes the supplied value or identifier for safe inclusion in driver-generated SQL.
+     */
     public function escape_str(string $value, bool $like = false): string
     {
         $escaped = $this->connection->escapeString($value);
@@ -160,11 +193,17 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         return $escaped;
     }
 
+    /**
+     * Escapes the supplied value or identifier for safe inclusion in driver-generated SQL.
+     */
     public function escape_identifiers(string $item): string
     {
         return $this->identifierEscaper->identifier($item);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function protect_identifiers(
         string $item,
         bool $prefixSingle = false,
@@ -174,6 +213,9 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         return $this->identifierProtector->protect($item, $prefixSingle, $protectIdentifiers, $fieldExists);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function prepQuery(string $sql): string
     {
         if (preg_match('/^\s*DELETE\s+FROM\s+(\S+)\s*$/i', $sql) === 1) {
@@ -183,16 +225,25 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         return $sql;
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     protected function beginTransaction(): void
     {
         $this->connection->beginTransaction();
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     protected function commitTransaction(): void
     {
         $this->connection->commit();
     }
 
+    /**
+     * Performs the requested transaction transition on the active database connection.
+     */
     protected function rollbackTransaction(): void
     {
         $this->connection->rollBack();

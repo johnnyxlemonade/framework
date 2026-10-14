@@ -6,9 +6,14 @@ namespace Lemonade\Framework\Database\Connection;
 
 use Lemonade\Framework\Database\Exception\DatabaseException;
 
+/**
+ * Carries normalized connection settings independently of configuration source format.
+ */
 final readonly class DatabaseConfig
 {
     /**
+     * Captures all connection options after their caller-selected defaults have been applied.
+     *
      * @param array<int|string, mixed> $options
      */
     public function __construct(
@@ -30,7 +35,10 @@ final readonly class DatabaseConfig
     }
 
     /**
+     * Normalizes an untrusted connection mapping into a validated immutable configuration.
+     *
      * @param array<string, mixed> $config
+     * @throws DatabaseException When the driver or dialect cannot be resolved.
      */
     public static function fromArray(array $config): self
     {
@@ -56,61 +64,97 @@ final readonly class DatabaseConfig
         );
     }
 
+    /**
+     * Returns the selected connection driver family.
+     */
     public function driver(): Driver
     {
         return $this->driver;
     }
 
+    /**
+     * Returns the configured network host for network-capable drivers.
+     */
     public function host(): string
     {
         return $this->host;
     }
 
+    /**
+     * Returns the configured network port for network-capable drivers.
+     */
     public function port(): int
     {
         return $this->port;
     }
 
+    /**
+     * Returns the selected database or catalog name.
+     */
     public function database(): string
     {
         return $this->database;
     }
 
+    /**
+     * Returns the configured database login name.
+     */
     public function username(): string
     {
         return $this->username;
     }
 
+    /**
+     * Returns the configured database login secret.
+     */
     public function password(): string
     {
         return $this->password;
     }
 
+    /**
+     * Returns the connection character set requested from the driver.
+     */
     public function charset(): string
     {
         return $this->charset;
     }
 
+    /**
+     * Returns the optional collation requested after connection setup.
+     */
     public function collation(): string
     {
         return $this->collation;
     }
 
+    /**
+     * Returns the table-name prefix applied by driver-level identifier protection.
+     */
     public function prefix(): string
     {
         return $this->prefix;
     }
 
+    /**
+     * Indicates whether the connection should request strict SQL behavior where supported.
+     */
     public function strict(): bool
     {
         return $this->strict;
     }
 
+    /**
+     * Indicates whether the driver may reuse a persistent physical connection.
+     */
     public function persistent(): bool
     {
         return $this->persistent;
     }
 
+    /**
+     * Returns an explicitly configured dialect or the dialect implied by a concrete driver.
+     */
     public function dialect(): ?DatabaseDialect
     {
         if ($this->dialect instanceof DatabaseDialect) {
@@ -124,12 +168,17 @@ final readonly class DatabaseConfig
         };
     }
 
+    /**
+     * Returns an explicit DSN when it overrides host-based DSN construction.
+     */
     public function dsn(): ?string
     {
         return $this->dsn;
     }
 
     /**
+     * Returns driver-specific connection options retained without framework interpretation.
+     *
      * @return array<int|string, mixed>
      */
     public function options(): array
@@ -137,6 +186,9 @@ final readonly class DatabaseConfig
         return $this->options;
     }
 
+    /**
+     * Converts a scalar optional setting to a trimmed value and treats blank or structured input as absent.
+     */
     private static function normalizeNullableString(mixed $value): ?string
     {
         if ($value === null) {
@@ -152,6 +204,9 @@ final readonly class DatabaseConfig
         return $value === '' ? null : $value;
     }
 
+    /**
+     * Converts a scalar setting to text or preserves the supplied fallback for structured input.
+     */
     private static function toString(mixed $value, string $default): string
     {
         if (!is_scalar($value)) {
@@ -161,6 +216,9 @@ final readonly class DatabaseConfig
         return (string) $value;
     }
 
+    /**
+     * Accepts numeric configuration values while retaining the fallback for non-numeric input.
+     */
     private static function toInt(mixed $value, int $default): int
     {
         if (is_int($value)) {
@@ -178,6 +236,9 @@ final readonly class DatabaseConfig
         return $default;
     }
 
+    /**
+     * Parses supported boolean configuration syntax without coercing arbitrary values.
+     */
     private static function toBool(mixed $value, bool $default): bool
     {
         if (is_bool($value)) {
@@ -197,6 +258,11 @@ final readonly class DatabaseConfig
         return $default;
     }
 
+    /**
+     * Resolves an optional dialect name and rejects names unsupported by the framework.
+     *
+     * @throws DatabaseException When a non-empty dialect name is unsupported.
+     */
     private static function resolveDialect(mixed $value): ?DatabaseDialect
     {
         $rawDialect = self::normalizeNullableString($value);
@@ -216,6 +282,11 @@ final readonly class DatabaseConfig
         return $dialect;
     }
 
+    /**
+     * Resolves the required driver name and rejects unsupported driver families.
+     *
+     * @throws DatabaseException When the configured driver name is unsupported.
+     */
     private static function resolveDriver(string $driver): Driver
     {
         $normalizedDriver = self::normalizeNullableString($driver);

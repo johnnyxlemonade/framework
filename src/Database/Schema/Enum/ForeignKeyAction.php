@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Schema\Enum;
 
+/**
+ * Provides the foreign key action contract for the database subsystem.
+ */
 enum ForeignKeyAction: string
 {
     case Cascade = 'CASCADE';

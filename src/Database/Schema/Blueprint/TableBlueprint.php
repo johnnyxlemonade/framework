@@ -37,6 +37,9 @@ final class TableBlueprint
 
     private ?TableOptions $options = null;
 
+    /**
+     * Initializes this TableBlueprint with the collaborators and state required by its database contract.
+     */
     public function __construct(
         private readonly string $name,
     ) {
@@ -45,6 +48,9 @@ final class TableBlueprint
         }
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function id(string $name = 'id'): ColumnBlueprint
     {
         $column = $this->bigInteger($name)
@@ -56,111 +62,177 @@ final class TableBlueprint
         return $column;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function uuid(string $name = 'uuid'): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Uuid, 36);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function char(string $name, int $length = 255): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Char, $length);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function string(string $name, int $length = 255): ColumnBlueprint
     {
         return $this->column($name, ColumnType::String, $length);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function text(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Text);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function mediumText(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::MediumText);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function longText(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::LongText);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function integer(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Integer);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function unsignedInteger(string $name): ColumnBlueprint
     {
         return $this->integer($name)->unsigned();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function tinyInteger(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::TinyInteger);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function smallInteger(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::SmallInteger);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function mediumInteger(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::MediumInteger);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function bigInteger(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::BigInteger);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function unsignedBigInteger(string $name): ColumnBlueprint
     {
         return $this->bigInteger($name)->unsigned();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function boolean(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Boolean, 1);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function decimal(string $name, int $precision = 10, int $scale = 2): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Decimal, $precision . ',' . $scale);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function float(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Float);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function double(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Double);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function date(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Date);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function datetime(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::DateTime);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function timestamp(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Timestamp);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function time(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Time);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function json(string $name): ColumnBlueprint
     {
         return $this->column($name, ColumnType::Json);
@@ -174,22 +246,34 @@ final class TableBlueprint
         return $this->column($name, ColumnType::Binary, $length);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function timestamps(): void
     {
         $this->datetime('created_at')->nullable();
         $this->datetime('updated_at')->nullable();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function softDeletes(string $column = 'deleted_at'): ColumnBlueprint
     {
         return $this->datetime($column)->nullable();
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function raw(string $definition): void
     {
         $this->columns[] = ColumnBlueprint::raw($definition);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function modify(string $name, ColumnType|string $type, int|string|null $length = null): ColumnBlueprint
     {
         $column = new ColumnBlueprint($name, $type, $length, $this);
@@ -198,6 +282,9 @@ final class TableBlueprint
         return $column;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function renameColumn(string $from, string $to): ColumnBlueprint
     {
         $column = $this->modify($from, '')->renameTo($to);
@@ -205,6 +292,9 @@ final class TableBlueprint
         return $column;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function dropColumn(string $column): void
     {
         $column = trim($column);
@@ -256,11 +346,17 @@ final class TableBlueprint
         $this->indexes[] = IndexDefinition::spatial($columns, $name, $ifNotExists);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function dropIndex(string $name): void
     {
         $this->droppedIndexes[] = $name;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function dropPrimary(?string $name = null): void
     {
         $this->droppedIndexes[] = $name ?? 'PRIMARY';
@@ -282,36 +378,57 @@ final class TableBlueprint
         return $foreignKey;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function dropForeign(string $name): void
     {
         $this->droppedForeignKeys[] = $name;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function options(TableOptions $options): void
     {
         $this->options = $options;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function engine(string $engine): void
     {
         $this->options = ($this->options ?? TableOptions::make())->engine($engine);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function charset(string $charset): void
     {
         $this->options = ($this->options ?? TableOptions::make())->charset($charset);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function collation(string $collation): void
     {
         $this->options = ($this->options ?? TableOptions::make())->collation($collation);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function comment(string $comment): void
     {
         $this->options = ($this->options ?? TableOptions::make())->comment($comment);
     }
 
+    /**
+     * Converts the current database value into the representation required by its consumer.
+     */
     public function toDefinition(): TableDefinition
     {
         $definition = TableDefinition::create($this->name)->withOptions($this->options);
@@ -347,6 +464,9 @@ final class TableBlueprint
         return $definition;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function column(string $name, ColumnType|string $type, int|string|null $length = null): ColumnBlueprint
     {
         $column = new ColumnBlueprint($name, $type, $length, $this);

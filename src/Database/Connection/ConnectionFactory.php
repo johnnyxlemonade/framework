@@ -9,14 +9,23 @@ use Lemonade\Framework\Database\Driver\Odbc\OdbcConnection;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 
-final class ConnectionFactory
+/**
+ * Selects the concrete connection implementation for a resolved driver configuration.
+ */
+final readonly class ConnectionFactory
 {
+    /**
+     * Creates a factory with shared benchmark instrumentation and optional query-detail capture.
+     */
     public function __construct(
-        private readonly Benchmark $benchmark,
-        private readonly bool $captureQueryDetails = false,
+        private Benchmark $benchmark,
+        private bool $captureQueryDetails = false,
     ) {
     }
 
+    /**
+     * Instantiates the connection adapter selected by the resolved driver enum.
+     */
     public function create(DatabaseConfig $config): ConnectionInterface
     {
         return match ($config->driver()) {

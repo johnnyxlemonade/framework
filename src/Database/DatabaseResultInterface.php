@@ -4,10 +4,19 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database;
 
+/**
+ * Defines the legacy-compatible result cursor and projection operations exposed by database drivers.
+ */
 interface DatabaseResultInterface
 {
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function num_rows(): int;
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function num_fields(): int;
 
     /**
@@ -40,6 +49,9 @@ interface DatabaseResultInterface
      */
     public function custom_result_object(string $className): array;
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function row(int|string $n = 0, string $type = 'object'): mixed;
 
     /**
@@ -47,17 +59,38 @@ interface DatabaseResultInterface
      */
     public function row_array(int $n = 0): ?array;
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function row_object(int $n = 0): ?object;
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function first_row(string $type = 'object'): mixed;
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function last_row(string $type = 'object'): mixed;
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function next_row(string $type = 'object'): mixed;
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function previous_row(string $type = 'object'): mixed;
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function data_seek(int $n = 0): bool;
 
+    /**
+     * Releases resources retained by this database object so they cannot be reused.
+     */
     public function free_result(): void;
 }

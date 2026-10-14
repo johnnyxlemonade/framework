@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Sql;
 
-final class IdentifierProtector
+/**
+ * Protects compound table and column references while preserving supported SQL aliases and expressions.
+ */
+final readonly class IdentifierProtector
 {
+    /**
+     * Initializes this IdentifierProtector with the collaborators and state required by its database contract.
+     */
     public function __construct(
-        private readonly IdentifierEscaperInterface $escaper,
+        private IdentifierEscaperInterface $escaper,
     ) {
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function protect(
         string $item,
         bool $prefixSingle = false,

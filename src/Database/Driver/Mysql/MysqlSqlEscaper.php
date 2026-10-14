@@ -6,13 +6,22 @@ namespace Lemonade\Framework\Database\Driver\Mysql;
 
 use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
 
-final class MysqlSqlEscaper
+/**
+ * Renders MySQL literals, expressions, and identifiers for schema compilation.
+ */
+final readonly class MysqlSqlEscaper
 {
+    /**
+     * Creates an escaper using the configured MySQL identifier rules.
+     */
     public function __construct(
-        private readonly MysqlIdentifierEscaper $identifierEscaper,
+        private MysqlIdentifierEscaper $identifierEscaper,
     ) {
     }
 
+    /**
+     * Converts a scalar, nullable value, or explicit SQL expression to a MySQL literal.
+     */
     public function value(mixed $value): string
     {
         if ($value instanceof SqlExpression) {
@@ -42,11 +51,17 @@ final class MysqlSqlEscaper
         ) . "'";
     }
 
+    /**
+     * Escapes one identifier for use in generated MySQL DDL.
+     */
     public function identifier(string $identifier): string
     {
         return $this->identifierEscaper->identifier($identifier);
     }
 
+    /**
+     * Escapes a table name and applies its configured prefix.
+     */
     public function table(string $table): string
     {
         return $this->identifierEscaper->table($table);

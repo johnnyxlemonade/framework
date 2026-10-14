@@ -15,14 +15,23 @@ use Lemonade\Framework\Database\Schema\Enum\IndexType;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 use LogicException;
 
-final class SqliteSchemaGrammar implements SchemaGrammarInterface
+/**
+ * Provides the sqlite schema grammar contract for the database subsystem.
+ */
+final readonly class SqliteSchemaGrammar implements SchemaGrammarInterface
 {
+    /**
+     * Initializes this SqliteSchemaGrammar with the collaborators and state required by its database contract.
+     */
     public function __construct(
-        private readonly SqliteSqlEscaper $escaper,
-        private readonly DatabaseConfig $config,
+        private SqliteSqlEscaper $escaper,
+        private DatabaseConfig $config,
     ) {
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileCreateDatabase(string $database): string
     {
         unset($database);
@@ -30,6 +39,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         throw new LogicException('SQLite schema grammar does not support CREATE DATABASE.');
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileDropDatabase(string $database): string
     {
         unset($database);
@@ -37,6 +49,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         throw new LogicException('SQLite schema grammar does not support DROP DATABASE.');
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileCreateTable(TableDefinition $table): string
     {
         $definitions = [];
@@ -143,6 +158,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         return $statements;
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileDropTable(string $table, bool $ifExists = false): string
     {
         return sprintf(
@@ -152,6 +170,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileRenameTable(string $from, string $to): string
     {
         return sprintf(
@@ -161,6 +182,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileAddColumn(string $table, ColumnDefinition $column): string
     {
         return sprintf(
@@ -170,6 +194,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileModifyColumn(string $table, ColumnDefinition $column): string
     {
         unset($table, $column);
@@ -177,6 +204,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         throw new LogicException('SQLite schema grammar does not support MODIFY COLUMN directly.');
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileDropColumn(string $table, string $column): string
     {
         unset($table, $column);
@@ -184,6 +214,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         throw new LogicException('SQLite schema grammar does not support DROP COLUMN directly.');
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileAddIndex(string $table, IndexDefinition $index): string
     {
         return match ($index->type()) {
@@ -212,6 +245,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         };
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileDropIndex(string $table, string $index): string
     {
         unset($table);
@@ -222,6 +258,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileAddForeignKey(string $table, ForeignKeyDefinition $foreignKey): string
     {
         unset($table, $foreignKey);
@@ -229,6 +268,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         throw new LogicException('SQLite schema grammar does not support adding foreign keys after table creation.');
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     public function compileDropForeignKey(string $table, string $foreignKey): string
     {
         unset($table, $foreignKey);
@@ -236,6 +278,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         throw new LogicException('SQLite schema grammar does not support dropping foreign keys directly.');
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileColumn(ColumnDefinition $column): string
     {
         if ($column->isLiteral()) {
@@ -257,6 +302,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         return $sql;
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileColumnType(ColumnDefinition $column): string
     {
         return match ($column->type()) {
@@ -275,6 +323,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         };
     }
 
+    /**
+     * Reports whether the requested condition holds for the current database state.
+     */
     private function isPrimaryIndexCoveredByAutoIncrementColumn(IndexDefinition $index, TableDefinition $table): bool
     {
         if ($index->type() !== IndexType::Primary || count($index->columns()) !== 1) {
@@ -292,6 +343,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         return false;
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileLength(ColumnDefinition $column): string
     {
         $length = $column->length();
@@ -301,11 +355,17 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
             : '';
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileNullability(ColumnDefinition $column): string
     {
         return $column->nullableFlag() ? ' NULL' : ' NOT NULL';
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileDefault(ColumnDefinition $column): string
     {
         if (!$column->hasDefault()) {
@@ -315,6 +375,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         return ' DEFAULT ' . $this->compileValue($column->defaultValue());
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileCreateTableIndex(IndexDefinition $index): string
     {
         return match ($index->type()) {
@@ -338,6 +401,9 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         };
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileForeignKeyConstraint(ForeignKeyDefinition $foreignKey): string
     {
         $sql = sprintf(
@@ -361,11 +427,17 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         return $sql;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function foreignKeyAction(ForeignKeyAction $action): string
     {
         return $action->value;
     }
 
+    /**
+     * Compiles the requested schema operation into SQL supported by this database dialect.
+     */
     private function compileValue(mixed $value): string
     {
         return $this->escaper->value($value);
@@ -382,16 +454,25 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         ));
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function indexName(IndexDefinition $index): string
     {
         return $this->applyPrefix($index->resolvedName());
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function foreignKeyName(ForeignKeyDefinition $foreignKey): string
     {
         return $this->applyPrefix($foreignKey->resolvedName());
     }
 
+    /**
+     * Updates the query or object state used by subsequent database operations.
+     */
     private function applyPrefix(string $name): string
     {
         $prefix = $this->config->prefix();
@@ -403,11 +484,17 @@ final class SqliteSchemaGrammar implements SchemaGrammarInterface
         return $prefix . $name;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function identifier(string $identifier): string
     {
         return $this->escaper->identifier($identifier);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     private function table(string $table): string
     {
         return $this->escaper->table($table);

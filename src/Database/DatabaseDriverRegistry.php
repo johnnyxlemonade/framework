@@ -11,6 +11,9 @@ use Lemonade\Framework\Database\Connection\Driver;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 
+/**
+ * Owns driver and schema-grammar factories registered for supported connection drivers.
+ */
 final class DatabaseDriverRegistry
 {
     /**
@@ -39,6 +42,9 @@ final class DatabaseDriverRegistry
         $this->schemaGrammarFactories[$driver->value] = $factory;
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     public function resolveDriver(
         Driver $driver,
         ConnectionInterface $connection,
@@ -54,6 +60,9 @@ final class DatabaseDriverRegistry
         return $factory($connection, $config, $container);
     }
 
+    /**
+     * Resolves the effective value from the configured database dependencies and input.
+     */
     public function resolveSchemaGrammar(
         Driver $driver,
         DatabaseConfig $config,

@@ -15,12 +15,15 @@ use Lemonade\Framework\Database\Schema\Enum\ForeignKeyAction;
 use Lemonade\Framework\Database\Schema\Enum\IndexType;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
 
-final class MysqlSchemaGrammar implements SchemaGrammarInterface
+/**
+ * Compiles framework schema definitions to MySQL and MariaDB DDL with configured table prefixes.
+ */
+final readonly class MysqlSchemaGrammar implements SchemaGrammarInterface
 {
     /**
      * @var list<string>
      */
-    private const UNSIGNED_TYPES = [
+    private const array UNSIGNED_TYPES = [
         'TINYINT',
         'SMALLINT',
         'MEDIUMINT',
@@ -35,12 +38,18 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         'NUMERIC',
     ];
 
+    /**
+     * Creates a grammar with the configured table prefix and SQL value escaper.
+     */
     public function __construct(
-        private readonly MysqlSqlEscaper $escaper,
-        private readonly DatabaseConfig $config,
+        private MysqlSqlEscaper $escaper,
+        private DatabaseConfig $config,
     ) {
     }
 
+    /**
+     * Compiles MySQL database creation with a validated database identifier.
+     */
     public function compileCreateDatabase(string $database): string
     {
         $sql = 'CREATE DATABASE ' . $this->identifier($database);
@@ -56,11 +65,17 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return $sql;
     }
 
+    /**
+     * Compiles MySQL database removal with a validated database identifier.
+     */
     public function compileDropDatabase(string $database): string
     {
         return 'DROP DATABASE ' . $this->identifier($database);
     }
 
+    /**
+     * Compiles the primary CREATE TABLE statement for one immutable table definition.
+     */
     public function compileCreateTable(TableDefinition $table): string
     {
         $definitions = [];
@@ -87,6 +102,8 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
     }
 
     /**
+     * Compiles every statement required to create a table and its deferred constraints.
+     *
      * @return non-empty-list<string>
      */
     public function compileCreateTableStatements(TableDefinition $table): array
@@ -95,6 +112,8 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
     }
 
     /**
+     * Compiles ordered MySQL ALTER TABLE statements for all operations in a blueprint definition.
+     *
      * @return list<string>
      */
     public function compileAlterTable(TableDefinition $table): array
@@ -132,6 +151,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return $statements;
     }
 
+    /**
+     * Compiles a DROP TABLE statement with optional MySQL existence protection.
+     */
     public function compileDropTable(string $table, bool $ifExists = false): string
     {
         return sprintf(
@@ -141,6 +163,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL table rename while applying configured prefixes to both names.
+     */
     public function compileRenameTable(string $from, string $to): string
     {
         return sprintf(
@@ -150,6 +175,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL ALTER TABLE clause that adds a column.
+     */
     public function compileAddColumn(string $table, ColumnDefinition $column): string
     {
         return sprintf(
@@ -159,6 +187,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL ALTER TABLE clause that modifies or renames a column.
+     */
     public function compileModifyColumn(string $table, ColumnDefinition $column): string
     {
         $operation = $column->renameTarget() !== null ? 'CHANGE' : 'MODIFY';
@@ -171,6 +202,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL ALTER TABLE clause that drops a column.
+     */
     public function compileDropColumn(string $table, string $column): string
     {
         return sprintf(
@@ -180,6 +214,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL ALTER TABLE clause that adds an index.
+     */
     public function compileAddIndex(string $table, IndexDefinition $index): string
     {
         return sprintf(
@@ -189,6 +226,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL ALTER TABLE clause that drops an index.
+     */
     public function compileDropIndex(string $table, string $index): string
     {
         if (strtolower($index) === 'primary') {
@@ -202,6 +242,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL ALTER TABLE clause that adds a foreign-key constraint.
+     */
     public function compileAddForeignKey(string $table, ForeignKeyDefinition $foreignKey): string
     {
         return sprintf(
@@ -211,6 +254,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Compiles a MySQL ALTER TABLE clause that drops a foreign-key constraint.
+     */
     public function compileDropForeignKey(string $table, string $foreignKey): string
     {
         return sprintf(
@@ -220,6 +266,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         );
     }
 
+    /**
+     * Combines every supported column attribute into one MySQL column definition.
+     */
     private function compileColumn(ColumnDefinition $column): string
     {
         if ($column->isLiteral()) {
@@ -241,6 +290,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
             . $this->compilePosition($column);
     }
 
+    /**
+     * Maps a framework column type and optional length to MySQL type syntax.
+     */
     private function compileColumnType(ColumnDefinition $column): string
     {
         return match ($column->type()) {
@@ -250,6 +302,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         };
     }
 
+    /**
+     * Compiles the target identifier appended to a MySQL column rename operation.
+     */
     private function compileRenameTarget(ColumnDefinition $column): string
     {
         $target = $column->renameTarget();
@@ -259,6 +314,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
             : '';
     }
 
+    /**
+     * Formats an optional column length or precision fragment.
+     */
     private function compileLength(ColumnDefinition $column): string
     {
         $length = $column->length();
@@ -268,6 +326,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
             : '';
     }
 
+    /**
+     * Adds UNSIGNED only for compatible numeric MySQL column types.
+     */
     private function compileUnsigned(ColumnDefinition $column, string $type): string
     {
         return $column->isUnsigned() && in_array($type, self::UNSIGNED_TYPES, true)
@@ -275,11 +336,17 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
             : '';
     }
 
+    /**
+     * Compiles the explicit NULL or NOT NULL constraint for a column.
+     */
     private function compileNullability(ColumnDefinition $column): string
     {
         return $column->nullableFlag() ? ' NULL' : ' NOT NULL';
     }
 
+    /**
+     * Compiles a declared default value while preserving the distinction between absent and NULL defaults.
+     */
     private function compileDefault(ColumnDefinition $column): string
     {
         if (!$column->hasDefault()) {
@@ -289,11 +356,17 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return ' DEFAULT ' . $this->compileValue($column->defaultValue());
     }
 
+    /**
+     * Adds AUTO_INCREMENT when requested by the column definition.
+     */
     private function compileAutoIncrement(ColumnDefinition $column): string
     {
         return $column->isAutoIncrement() ? ' AUTO_INCREMENT' : '';
     }
 
+    /**
+     * Compiles an optional escaped MySQL column comment.
+     */
     private function compileComment(ColumnDefinition $column): string
     {
         $comment = $column->commentText();
@@ -303,6 +376,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
             : '';
     }
 
+    /**
+     * Compiles FIRST or AFTER placement for a column alteration.
+     */
     private function compilePosition(ColumnDefinition $column): string
     {
         $afterColumn = $column->afterColumn();
@@ -313,6 +389,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return $column->firstPosition() ? ' FIRST' : '';
     }
 
+    /**
+     * Compiles an index clause embedded in a CREATE TABLE statement.
+     */
     private function compileCreateTableIndex(IndexDefinition $index): string
     {
         return match ($index->type()) {
@@ -343,6 +422,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         };
     }
 
+    /**
+     * Compiles a complete MySQL foreign-key constraint including reference actions.
+     */
     private function compileForeignKeyConstraint(ForeignKeyDefinition $foreignKey): string
     {
         $sql = sprintf(
@@ -366,11 +448,17 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return $sql;
     }
 
+    /**
+     * Converts a framework foreign-key action enum to its MySQL keyword sequence.
+     */
     private function foreignKeyAction(ForeignKeyAction $action): string
     {
         return $action->value;
     }
 
+    /**
+     * Compiles supported CREATE TABLE options after validating option names.
+     */
     private function compileTableOptions(?TableOptions $options): string
     {
         $sql = '';
@@ -408,12 +496,17 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return $sql;
     }
 
+    /**
+     * Converts a schema default value to a MySQL literal through the configured escaper.
+     */
     private function compileValue(mixed $value): string
     {
         return $this->escaper->value($value);
     }
 
     /**
+     * Escapes and joins a non-empty list of identifiers for index or foreign-key clauses.
+     *
      * @param non-empty-list<string> $columns
      */
     private function columnList(array $columns): string
@@ -424,16 +517,25 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         ));
     }
 
+    /**
+     * Resolves the explicit or derived name used for an index definition.
+     */
     private function indexName(IndexDefinition $index): string
     {
         return $this->applyPrefix($index->resolvedName());
     }
 
+    /**
+     * Resolves the explicit or derived name used for a foreign-key definition.
+     */
     private function foreignKeyName(ForeignKeyDefinition $foreignKey): string
     {
         return $this->applyPrefix($foreignKey->resolvedName());
     }
 
+    /**
+     * Applies the configured table prefix exactly once to a table or derived constraint name.
+     */
     private function applyPrefix(string $name): string
     {
         $prefix = $this->config->prefix();
@@ -445,16 +547,25 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return $prefix . $name;
     }
 
+    /**
+     * Escapes one MySQL identifier through the configured identifier escaper.
+     */
     private function identifier(string $identifier): string
     {
         return $this->escaper->identifier($identifier);
     }
 
+    /**
+     * Applies the configured prefix and escapes a table identifier.
+     */
     private function table(string $table): string
     {
         return $this->escaper->table($table);
     }
 
+    /**
+     * Rejects unsafe identifier fragments before they enter generated DDL.
+     */
     private function sanitizeIdentifierPart(string $value): string
     {
         $sanitized = preg_replace('/[^a-zA-Z0-9_]/', '', $value);
@@ -462,6 +573,9 @@ final class MysqlSchemaGrammar implements SchemaGrammarInterface
         return is_string($sanitized) ? $sanitized : '';
     }
 
+    /**
+     * Restricts table-option names to the identifier grammar accepted by generated DDL.
+     */
     private function sanitizeOptionName(string $name): string
     {
         $name = preg_replace('/[^a-zA-Z0-9_]/', '', $name);

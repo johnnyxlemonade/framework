@@ -8,6 +8,9 @@ use Lemonade\Framework\Database\Schema\Definition\ColumnDefinition;
 use Lemonade\Framework\Database\Schema\Definition\SqlExpression;
 use Lemonade\Framework\Database\Schema\Enum\ColumnType;
 
+/**
+ * Collects modifiers for one column while its owning table blueprint is being defined.
+ */
 final class ColumnBlueprint
 {
     private bool $unsigned = false;
@@ -21,6 +24,9 @@ final class ColumnBlueprint
     private ?string $renameTo = null;
     private ?string $literal = null;
 
+    /**
+     * Initializes this ColumnBlueprint with the collaborators and state required by its database contract.
+     */
     public function __construct(
         private readonly string $name,
         private readonly ColumnType|string $type,
@@ -32,6 +38,9 @@ final class ColumnBlueprint
         }
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public static function raw(string $definition): self
     {
         $column = new self($definition, '');
@@ -40,6 +49,9 @@ final class ColumnBlueprint
         return $column;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function unsigned(bool $unsigned = true): self
     {
         $this->unsigned = $unsigned;
@@ -47,6 +59,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function nullable(bool $nullable = true): self
     {
         $this->nullable = $nullable;
@@ -54,6 +69,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function default(mixed $value): self
     {
         $this->hasDefault = true;
@@ -62,11 +80,17 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function defaultExpression(string $expression): self
     {
         return $this->default(SqlExpression::raw($expression));
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function autoIncrement(bool $autoIncrement = true): self
     {
         $this->autoIncrement = $autoIncrement;
@@ -74,6 +98,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function comment(string $comment): self
     {
         $this->comment = $comment;
@@ -81,6 +108,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function after(string $column): self
     {
         $this->after = $column;
@@ -89,6 +119,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function first(): self
     {
         $this->first = true;
@@ -97,6 +130,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function renameTo(string $name): self
     {
         $this->renameTo = $name;
@@ -104,6 +140,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function primary(?string $name = null): self
     {
         $this->table?->primary($this->name, $name);
@@ -111,6 +150,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function index(?string $name = null): self
     {
         $this->table?->index($this->name, $name);
@@ -118,6 +160,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function unique(?string $name = null): self
     {
         $this->table?->unique($this->name, $name);
@@ -125,6 +170,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function fulltext(?string $name = null): self
     {
         $this->table?->fulltext($this->name, $name);
@@ -132,6 +180,9 @@ final class ColumnBlueprint
         return $this;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function definition(): ColumnDefinition
     {
         if ($this->literal !== null) {

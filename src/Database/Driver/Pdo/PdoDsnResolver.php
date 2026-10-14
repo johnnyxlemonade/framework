@@ -7,8 +7,16 @@ namespace Lemonade\Framework\Database\Driver\Pdo;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 
-final class PdoDsnResolver
+/**
+ * Derives a PDO DSN from explicit configuration while preserving an explicitly supplied DSN.
+ */
+final readonly class PdoDsnResolver
 {
+    /**
+     * Returns an explicit DSN or constructs the supported MySQL fallback from normalized connection settings.
+     *
+     * @throws DatabaseException When neither an explicit DSN nor a database name can form the fallback.
+     */
     public static function resolve(DatabaseConfig $config): string
     {
         $dsn = $config->dsn();
@@ -32,11 +40,17 @@ final class PdoDsnResolver
         );
     }
 
+    /**
+     * Indicates whether the resolved DSN selects the MySQL PDO driver.
+     */
     public static function isMysql(DatabaseConfig $config): bool
     {
         return str_starts_with(strtolower(self::resolve($config)), 'mysql:');
     }
 
+    /**
+     * Indicates whether the resolved DSN selects the SQLite PDO driver.
+     */
     public static function isSqlite(DatabaseConfig $config): bool
     {
         return str_starts_with(strtolower(self::resolve($config)), 'sqlite:');

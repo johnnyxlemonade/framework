@@ -8,15 +8,24 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Database\Connection\ConnectionFactory;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 
-final class DatabaseFactory
+/**
+ * Builds a Database facade with a matching connection and registered driver implementation.
+ */
+final readonly class DatabaseFactory
 {
+    /**
+     * Initializes this DatabaseFactory with the collaborators and state required by its database contract.
+     */
     public function __construct(
-        private readonly ConnectionFactory $connectionFactory,
-        private readonly DatabaseDriverRegistry $registry,
-        private readonly ContainerInterface $container,
+        private ConnectionFactory $connectionFactory,
+        private DatabaseDriverRegistry $registry,
+        private ContainerInterface $container,
     ) {
     }
 
+    /**
+     * Builds the requested database value while preserving its framework contract.
+     */
     public function create(DatabaseConfig $config): Database
     {
         $connection = $this->connectionFactory->create($config);

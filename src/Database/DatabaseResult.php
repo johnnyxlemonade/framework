@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database;
 
+/**
+ * Supplies cached array and object projections over a driver-specific result cursor.
+ */
 abstract class DatabaseResult implements DatabaseResultInterface
 {
     /** @var list<array<string, mixed>>|null */
@@ -101,6 +104,9 @@ abstract class DatabaseResult implements DatabaseResultInterface
         return $this->customResultObject[$className] = $objects;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function row(int|string $n = 0, string $type = 'object'): mixed
     {
         if (!is_numeric($n)) {
@@ -126,6 +132,9 @@ abstract class DatabaseResult implements DatabaseResultInterface
         return $rows[$n] ?? null;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function row_object(int $n = 0): ?object
     {
         $rows = $this->result_object();
@@ -133,11 +142,17 @@ abstract class DatabaseResult implements DatabaseResultInterface
         return $rows[$n] ?? null;
     }
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function first_row(string $type = 'object'): mixed
     {
         return $this->row(0, $type);
     }
 
+    /**
+     * Retrieves the requested value without changing the current database state.
+     */
     public function last_row(string $type = 'object'): mixed
     {
         $index = $this->num_rows() - 1;
@@ -145,6 +160,9 @@ abstract class DatabaseResult implements DatabaseResultInterface
         return $index >= 0 ? $this->row($index, $type) : null;
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function next_row(string $type = 'object'): mixed
     {
         $this->currentRow++;
@@ -152,6 +170,9 @@ abstract class DatabaseResult implements DatabaseResultInterface
         return $this->row($this->currentRow, $type);
     }
 
+    /**
+     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     */
     public function previous_row(string $type = 'object'): mixed
     {
         $this->currentRow = max(0, $this->currentRow - 1);
