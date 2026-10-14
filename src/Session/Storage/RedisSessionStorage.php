@@ -7,6 +7,9 @@ namespace Lemonade\Framework\Session\Storage;
 use Redis;
 use RuntimeException;
 
+/**
+ * Persists a request-scoped session payload in Redis with key-level expiry
+ */
 final class RedisSessionStorage implements SessionStorageInterface
 {
     private bool $started = false;
@@ -18,6 +21,9 @@ final class RedisSessionStorage implements SessionStorageInterface
      */
     private array $data = [];
 
+    /**
+     * Defines the Redis endpoint, key namespace, retention period and transport cookie name
+     */
     public function __construct(
         private readonly string $host = '127.0.0.1',
         private readonly int $port = 6379,
@@ -30,6 +36,9 @@ final class RedisSessionStorage implements SessionStorageInterface
     ) {
     }
 
+    /**
+     * Loads or creates the Redis-backed session and refreshes its key expiry
+     */
     public function start(): void
     {
         if ($this->started) {
@@ -44,11 +53,17 @@ final class RedisSessionStorage implements SessionStorageInterface
         $this->started = true;
     }
 
+    /**
+     * Reports whether the Redis-backed session has been loaded for this request
+     */
     public function started(): bool
     {
         return $this->started;
     }
 
+    /**
+     * Checks the in-memory session payload for the key
+     */
     public function has(string $key): bool
     {
         $this->start();
@@ -56,6 +71,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         return array_key_exists($key, $this->data);
     }
 
+    /**
+     * Reads a value from the in-memory payload or returns the supplied fallback
+     */
     public function get(string $key, mixed $default = null): mixed
     {
         $this->start();
@@ -63,6 +81,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         return $this->data[$key] ?? $default;
     }
 
+    /**
+     * Updates a value and immediately writes the serialized payload to Redis
+     */
     public function set(string $key, mixed $value): void
     {
         $this->start();
@@ -71,6 +92,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         $this->writeSession();
     }
 
+    /**
+     * Removes a value and immediately writes the serialized payload to Redis
+     */
     public function remove(string $key): void
     {
         $this->start();
@@ -79,6 +103,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         $this->writeSession();
     }
 
+    /**
+     * Replaces the active payload with an empty Redis session
+     */
     public function clear(): void
     {
         $this->start();
@@ -87,6 +114,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         $this->writeSession();
     }
 
+    /**
+     * Assigns a fresh identifier and optionally removes the former Redis key
+     */
     public function regenerate(bool $deleteOldSession = true): void
     {
         $this->start();
@@ -109,6 +139,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Accepts only framework-generated session identifiers from the request cookie
+     */
     private function resolveSessionId(): string
     {
         $sessionId = $_COOKIE[$this->cookieName] ?? null;
@@ -120,12 +153,17 @@ final class RedisSessionStorage implements SessionStorageInterface
         return $this->generateSessionId();
     }
 
+    /**
+     * Generates a cryptographically random session identifier
+     */
     private function generateSessionId(): string
     {
         return bin2hex(random_bytes(32));
     }
 
     /**
+     * Loads a serialized Redis payload and retains only string-keyed values
+     *
      * @return array<string, mixed>
      */
     private function readSession(string $sessionId): array
@@ -159,6 +197,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Serializes the current payload with a renewed Redis expiry
+     */
     private function writeSession(): void
     {
         $redis = $this->connect();
@@ -175,6 +216,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Extends an existing key or creates one while preserving the loaded payload
+     */
     private function touchSession(): void
     {
         $redis = $this->connect();
@@ -197,11 +241,17 @@ final class RedisSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Builds the namespaced Redis key for a validated session identifier
+     */
     private function key(string $sessionId): string
     {
         return $this->prefix . $sessionId;
     }
 
+    /**
+     * Opens and authenticates a Redis connection for one storage operation
+     */
     private function connect(): Redis
     {
         if (!class_exists(Redis::class)) {
@@ -233,6 +283,9 @@ final class RedisSessionStorage implements SessionStorageInterface
         return $redis;
     }
 
+    /**
+     * Sends the active identifier with the storage retention period when headers remain mutable
+     */
     private function sendCookie(): void
     {
         if (headers_sent()) {

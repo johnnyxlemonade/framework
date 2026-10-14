@@ -6,15 +6,24 @@ namespace Lemonade\Framework\Session\Storage;
 
 use RuntimeException;
 
-final class NativeSessionStorage implements SessionStorageInterface
+/**
+ * Adapts PHP's native session runtime to the framework storage contract
+ */
+final readonly class NativeSessionStorage implements SessionStorageInterface
 {
+    /**
+     * Defines the cookie identity, shared retention period and optional PHP session save path
+     */
     public function __construct(
-        private readonly string $cookieName = 'LEMONADE_SESSION',
-        private readonly int $lifetimeSeconds = 7200,
-        private readonly ?string $savePath = null,
+        private string $cookieName = 'LEMONADE_SESSION',
+        private int $lifetimeSeconds = 7200,
+        private ?string $savePath = null,
     ) {
     }
 
+    /**
+     * Configures native PHP session settings and starts the active session
+     */
     public function start(): void
     {
         if ($this->started()) {
@@ -40,6 +49,8 @@ final class NativeSessionStorage implements SessionStorageInterface
             session_save_path($this->savePath);
         }
 
+        ini_set('session.gc_maxlifetime', (string) $this->lifetimeSeconds);
+
         session_name($this->cookieName);
 
         session_set_cookie_params([
@@ -55,11 +66,17 @@ final class NativeSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Reports PHP's process-level native session initialization state
+     */
     public function started(): bool
     {
         return session_status() === PHP_SESSION_ACTIVE;
     }
 
+    /**
+     * Checks the native session payload for the key
+     */
     public function has(string $key): bool
     {
         $this->start();
@@ -67,6 +84,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         return array_key_exists($key, $_SESSION);
     }
 
+    /**
+     * Reads a native session value or returns the supplied fallback
+     */
     public function get(string $key, mixed $default = null): mixed
     {
         $this->start();
@@ -74,6 +94,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         return $_SESSION[$key] ?? $default;
     }
 
+    /**
+     * Stores a value in the native session payload
+     */
     public function set(string $key, mixed $value): void
     {
         $this->start();
@@ -81,6 +104,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         $_SESSION[$key] = $value;
     }
 
+    /**
+     * Removes a key from the native session payload
+     */
     public function remove(string $key): void
     {
         $this->start();
@@ -88,6 +114,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         unset($_SESSION[$key]);
     }
 
+    /**
+     * Clears every value from the active native session payload
+     */
     public function clear(): void
     {
         $this->start();
@@ -95,6 +124,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         $_SESSION = [];
     }
 
+    /**
+     * Rotates the native session identifier and can delete the prior payload
+     */
     public function regenerate(bool $deleteOldSession = true): void
     {
         $this->start();
@@ -104,6 +136,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Creates the configured save directory before PHP attempts to write session data
+     */
     private function ensureDirectoryExists(string $directory): void
     {
         if (is_dir($directory)) {
@@ -118,6 +153,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Rejects a configured save directory that cannot persist native session data
+     */
     private function ensureDirectoryIsWritable(string $directory): void
     {
         if (is_writable($directory)) {
@@ -130,6 +168,9 @@ final class NativeSessionStorage implements SessionStorageInterface
         ));
     }
 
+    /**
+     * Detects HTTPS from PHP request globals for the Secure cookie attribute
+     */
     private function isSecureRequest(): bool
     {
         $serverPort = $_SERVER['SERVER_PORT'] ?? null;

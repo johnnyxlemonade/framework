@@ -7,6 +7,9 @@ namespace Lemonade\Framework\Session\Storage;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use RuntimeException;
 
+/**
+ * Persists a request-scoped session payload in a database table with expiry metadata
+ */
 final class DatabaseSessionStorage implements SessionStorageInterface
 {
     private bool $started = false;
@@ -18,6 +21,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
      */
     private array $data = [];
 
+    /**
+     * Defines the connection, table, retention period and transport cookie name
+     */
     public function __construct(
         private readonly ConnectionInterface $connection,
         private readonly string $table = 'sessions',
@@ -26,6 +32,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
     ) {
     }
 
+    /**
+     * Loads or creates the database-backed session and refreshes its expiry metadata
+     */
     public function start(): void
     {
         if ($this->started) {
@@ -41,11 +50,17 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         $this->started = true;
     }
 
+    /**
+     * Reports whether the database-backed session has been loaded for this request
+     */
     public function started(): bool
     {
         return $this->started;
     }
 
+    /**
+     * Checks the in-memory session payload for the key
+     */
     public function has(string $key): bool
     {
         $this->start();
@@ -53,6 +68,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         return array_key_exists($key, $this->data);
     }
 
+    /**
+     * Reads a value from the in-memory payload or returns the supplied fallback
+     */
     public function get(string $key, mixed $default = null): mixed
     {
         $this->start();
@@ -60,6 +78,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         return $this->data[$key] ?? $default;
     }
 
+    /**
+     * Updates a value and immediately writes the serialized payload to the table
+     */
     public function set(string $key, mixed $value): void
     {
         $this->start();
@@ -68,6 +89,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         $this->writeSession();
     }
 
+    /**
+     * Removes a value and immediately writes the serialized payload to the table
+     */
     public function remove(string $key): void
     {
         $this->start();
@@ -76,6 +100,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         $this->writeSession();
     }
 
+    /**
+     * Replaces the active payload with an empty persisted session
+     */
     public function clear(): void
     {
         $this->start();
@@ -84,6 +111,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         $this->writeSession();
     }
 
+    /**
+     * Assigns a fresh identifier and optionally deletes the former database record
+     */
     public function regenerate(bool $deleteOldSession = true): void
     {
         $this->start();
@@ -98,6 +128,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         }
     }
 
+    /**
+     * Accepts only framework-generated session identifiers from the request cookie
+     */
     private function resolveSessionId(): string
     {
         $sessionId = $_COOKIE[$this->cookieName] ?? null;
@@ -109,12 +142,17 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         return $this->generateSessionId();
     }
 
+    /**
+     * Generates a cryptographically random session identifier
+     */
     private function generateSessionId(): string
     {
         return bin2hex(random_bytes(32));
     }
 
     /**
+     * Loads a non-expired row and retains only string-keyed serialized values
+     *
      * @return array<string, mixed>
      */
     private function readSession(string $sessionId): array
@@ -164,6 +202,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         return $normalized;
     }
 
+    /**
+     * Upserts the current payload together with a refreshed storage deadline
+     */
     private function writeSession(): void
     {
         $table = $this->tableName();
@@ -186,6 +227,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         );
     }
 
+    /**
+     * Refreshes the expiry deadline without changing the loaded payload
+     */
     private function touchSession(): void
     {
         $table = $this->tableName();
@@ -207,6 +251,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         );
     }
 
+    /**
+     * Deletes one session record by its validated identifier
+     */
     private function deleteSession(string $sessionId): void
     {
         $table = $this->tableName();
@@ -217,6 +264,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         );
     }
 
+    /**
+     * Removes expired session rows before the active session is loaded
+     */
     private function cleanupExpired(): void
     {
         $table = $this->tableName();
@@ -227,6 +277,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         );
     }
 
+    /**
+     * Validates the configured identifier before interpolating it into SQL
+     */
     private function tableName(): string
     {
         if (preg_match('/^[a-zA-Z0-9_]+$/', $this->table) !== 1) {
@@ -239,6 +292,9 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         return $this->table;
     }
 
+    /**
+     * Sends the active identifier with the storage retention period when headers remain mutable
+     */
     private function sendCookie(): void
     {
         if (headers_sent()) {
