@@ -49,6 +49,8 @@ final class DatabaseServiceProviderTest extends TestCase
 
         self::assertSame($connection, $database->connection());
         self::assertSame($driver, $model->driver());
+        self::assertTrue($database->tableExists('framework_model_transaction_records'));
+        self::assertFalse($database->tableExists('missing_framework_table'));
 
         try {
             $database->transaction(function () use ($model): void {

@@ -95,6 +95,13 @@ final class RecordingDatabaseDriver implements DatabaseDriverInterface
     public array $queries = [];
     public ?string $failOn = null;
 
+    public function tableExists(string $table): bool
+    {
+        unset($table);
+
+        return false;
+    }
+
     public function query(string $sql, array|false $binds = false): DatabaseResultInterface|bool
     {
         unset($binds);

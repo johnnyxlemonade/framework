@@ -15,6 +15,9 @@ use Lemonade\Framework\Database\Sql\IdentifierProtector;
 use mysqli_result;
 use Throwable;
 
+/**
+ * Executes framework database operations through the legacy MySQL connection.
+ */
 final class MysqlDatabaseDriver implements DatabaseDriverInterface
 {
     use EscapesValues;
@@ -60,6 +63,15 @@ final class MysqlDatabaseDriver implements DatabaseDriverInterface
         }
 
         return $this->dataCache['version'] = $this->connection->serverVersion();
+    }
+
+    /**
+     * Determines whether a table exists in the configured MySQL or MariaDB database.
+     */
+    public function tableExists(string $table): bool
+    {
+        return in_array($this->config->prefix() . $table, $this->list_tables(), true)
+            || in_array($table, $this->list_tables(), true);
     }
 
     public function db_select(string $database = ''): bool
@@ -250,10 +262,12 @@ final class MysqlDatabaseDriver implements DatabaseDriverInterface
         return $this->dataCache['table_names'] = $this->connection->listTables($constrainByPrefix);
     }
 
+    /**
+     * Retains the legacy snake_case table lookup API.
+     */
     public function table_exists(string $tableName): bool
     {
-        return in_array($this->config->prefix() . $tableName, $this->list_tables(), true)
-            || in_array($tableName, $this->list_tables(), true);
+        return $this->tableExists($tableName);
     }
 
     /**

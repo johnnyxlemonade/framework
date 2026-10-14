@@ -4,8 +4,16 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database;
 
+/**
+ * Defines the database driver operations used by the framework database layer.
+ */
 interface DatabaseDriverInterface
 {
+    /**
+     * Determines whether a table is available in the current database schema.
+     */
+    public function tableExists(string $table): bool;
+
     /**
      * @param array<int|string, mixed>|false $binds
      */

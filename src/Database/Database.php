@@ -6,6 +6,9 @@ namespace Lemonade\Framework\Database;
 
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 
+/**
+ * Provides database operations and driver capabilities to framework consumers.
+ */
 final class Database
 {
     /** @var list<callable():void> */
@@ -128,6 +131,14 @@ final class Database
     public function escapeString(string $value): string
     {
         return $this->connection->escapeString($value);
+    }
+
+    /**
+     * Determines whether a table is available in the current database schema.
+     */
+    public function tableExists(string $table): bool
+    {
+        return $this->driver->tableExists($table);
     }
 
     public function table(string $table): QueryBuilder

@@ -13,6 +13,9 @@ use Lemonade\Framework\Database\Sql\IdentifierEscaperInterface;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
 use Throwable;
 
+/**
+ * Executes framework database operations through a PDO connection.
+ */
 final class PdoDatabaseDriver implements DatabaseDriverInterface
 {
     use EscapesValues;
@@ -60,6 +63,22 @@ final class PdoDatabaseDriver implements DatabaseDriverInterface
         }
 
         return $this->dataCache['version'] = $this->connection->serverVersion();
+    }
+
+    /**
+     * Determines whether a table exists for the connected PDO database dialect.
+     */
+    public function tableExists(string $table): bool
+    {
+        $driverName = $this->connection->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
+
+        $sql = match ($driverName) {
+            'mysql' => 'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1',
+            'sqlite' => "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+            default => throw DatabaseException::unsupportedDriver('pdo/' . $driverName),
+        };
+
+        return $this->connection->select($sql, [$table]) !== [];
     }
 
     /**

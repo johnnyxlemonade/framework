@@ -13,6 +13,9 @@ use Lemonade\Framework\Database\Sql\IdentifierEscaperInterface;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
 use Throwable;
 
+/**
+ * Executes framework database operations through an ODBC connection.
+ */
 final class OdbcDatabaseDriver implements DatabaseDriverInterface
 {
     use EscapesValues;
@@ -57,6 +60,23 @@ final class OdbcDatabaseDriver implements DatabaseDriverInterface
         }
 
         return $this->dataCache['version'] = $this->connection->serverVersion();
+    }
+
+    /**
+     * Determines whether a table exists in the current ODBC database schema.
+     */
+    public function tableExists(string $table): bool
+    {
+        $result = $this->query(
+            'SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?',
+            [$table],
+        );
+
+        if (!$result instanceof DatabaseResultInterface) {
+            return false;
+        }
+
+        return $result->num_rows() > 0;
     }
 
     /**

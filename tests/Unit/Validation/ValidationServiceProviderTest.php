@@ -216,6 +216,13 @@ final class ValidationServiceProviderConnection implements ConnectionInterface
 
 final class ValidationServiceProviderDatabaseDriver implements DatabaseDriverInterface
 {
+    public function tableExists(string $table): bool
+    {
+        unset($table);
+
+        return false;
+    }
+
     public function query(string $sql, array|false $binds = false): DatabaseResultInterface|bool
     {
         unset($sql, $binds);

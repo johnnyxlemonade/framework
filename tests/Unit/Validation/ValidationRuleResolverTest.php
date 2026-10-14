@@ -225,6 +225,13 @@ final class ResolverConnection implements ConnectionInterface
 
 final class ResolverDatabaseDriver implements DatabaseDriverInterface
 {
+    public function tableExists(string $table): bool
+    {
+        unset($table);
+
+        return false;
+    }
+
     public function query(string $sql, array|false $binds = false): DatabaseResultInterface|bool
     {
         unset($sql, $binds);

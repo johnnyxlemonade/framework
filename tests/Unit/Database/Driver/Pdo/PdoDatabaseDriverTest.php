@@ -71,4 +71,24 @@ final class PdoDatabaseDriverTest extends TestCase
         self::assertSame('"users"."id"', $driver->protect_identifiers('users.id'));
         self::assertSame('"users"."id"', $driver->escape_identifiers('users.id'));
     }
+
+    public function testTableExistsUsesTheConnectedPdoDialect(): void
+    {
+        $config = DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'sqlite',
+            'dsn' => 'sqlite::memory:',
+        ]);
+        $escaper = new SqliteIdentifierEscaper('');
+        $driver = new PdoDatabaseDriver(
+            connection: new PdoConnection($config, new Benchmark()),
+            identifierEscaper: $escaper,
+            identifierProtector: new IdentifierProtector($escaper),
+        );
+
+        $driver->simple_query('CREATE TABLE rate_limits (id INTEGER PRIMARY KEY)');
+
+        self::assertTrue($driver->tableExists('rate_limits'));
+        self::assertFalse($driver->tableExists('missing_rate_limits'));
+    }
 }

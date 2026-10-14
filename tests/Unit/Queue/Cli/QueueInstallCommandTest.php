@@ -232,6 +232,13 @@ final class QueueInstallCommandDatabaseDriverSpy implements DatabaseDriverInterf
     /** @var list<string> */
     public array $queries = [];
 
+    public function tableExists(string $table): bool
+    {
+        unset($table);
+
+        return false;
+    }
+
     /**
      * @param array<int|string, mixed>|false $binds
      */

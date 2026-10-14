@@ -361,6 +361,7 @@ final class RecordingDriver implements DatabaseDriverInterface
 {
     /** @var list<string> */
     public array $queries = [];
+    public function tableExists(string $table): bool { unset($table); return false; }
     public function query(string $sql, array|false $binds = false): DatabaseResultInterface|bool { unset($binds); $this->queries[] = $sql; return true; }
     public function cursor(string $sql, array|false $binds = false): \Generator { unset($sql, $binds); yield from []; }
     public function simple_query(string $sql): bool { unset($sql); return true; }
