@@ -12,6 +12,7 @@ use Lemonade\Framework\Database\Database;
 final class DatabaseRateLimiter implements RateLimiterInterface
 {
     private const string TABLE = 'framework_rate_limit';
+    private const int SCOPE_MAX_LENGTH = 100;
 
     /**
      * Initializes database persistence and the application secret used for bucket HMACs.
@@ -27,9 +28,13 @@ final class DatabaseRateLimiter implements RateLimiterInterface
 
     /**
      * Reads the current bucket state without creating or modifying a database row.
+     *
+     * Scope is validated but never persisted or otherwise applied by a status read.
      */
-    public function status(string $key, RateLimitPolicy $policy): RateLimitResult
+    public function status(string $key, string $scope, RateLimitPolicy $policy): RateLimitResult
     {
+        $this->validateScope($scope);
+
         $row = $this->row($this->keyHash($key));
         if ($row === null || $this->isExpired($row)) {
             return new RateLimitResult(true, $policy->attempts(), 0);
@@ -40,18 +45,22 @@ final class DatabaseRateLimiter implements RateLimiterInterface
 
     /**
      * Atomically records an attempt and locks the resulting row until its decision is read.
+     *
+     * Scope replaces prior bucket metadata for the same HMAC-addressed bucket.
      */
-    public function hit(string $key, RateLimitPolicy $policy): RateLimitResult
+    public function hit(string $key, string $scope, RateLimitPolicy $policy): RateLimitResult
     {
+        $this->validateScope($scope);
         $keyHash = $this->keyHash($key);
 
-        return $this->database->transaction(function () use ($keyHash, $policy): RateLimitResult {
+        return $this->database->transaction(function () use ($keyHash, $policy, $scope): RateLimitResult {
             $this->database->statement(
-                'INSERT INTO ' . self::TABLE . ' (key_hash, attempts, expires_at) VALUES (?, 1, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND)) '
+                'INSERT INTO ' . self::TABLE . ' (key_hash, scope, attempts, expires_at) VALUES (?, ?, 1, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND)) '
                 . 'ON DUPLICATE KEY UPDATE '
                 . 'attempts = IF(expires_at <= UTC_TIMESTAMP(), 1, attempts + 1), '
-                . 'expires_at = IF(expires_at <= UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND), expires_at)',
-                [$keyHash, $policy->windowSeconds(), $policy->windowSeconds()],
+                . 'expires_at = IF(expires_at <= UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? SECOND), expires_at), '
+                . 'scope = VALUES(scope)',
+                [$keyHash, $scope, $policy->windowSeconds(), $policy->windowSeconds()],
             );
 
             $row = $this->row($keyHash, true);
@@ -84,6 +93,16 @@ final class DatabaseRateLimiter implements RateLimiterInterface
         }
 
         return hash_hmac('sha256', $key, $this->secret, true);
+    }
+
+    /**
+     * Ensures diagnostic metadata is a short, non-sensitive identifier.
+     */
+    private function validateScope(string $scope): void
+    {
+        if ($scope === '' || strlen($scope) > self::SCOPE_MAX_LENGTH || preg_match('/\\A[A-Za-z0-9._:-]+\\z/', $scope) !== 1) {
+            throw new \InvalidArgumentException('Rate limit scope must be a non-empty identifier up to ' . self::SCOPE_MAX_LENGTH . ' characters.');
+        }
     }
 
     /**

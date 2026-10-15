@@ -69,9 +69,14 @@ policy or key semantics.
 
 The limiter provides `status()`, `hit()`, and `clear()`. `status()` is read-only,
 while `hit()` atomically records one attempt using a fixed window. The database
-table requires a binary `key_hash` primary key, integer `attempts`, and
-`expires_at` columns. Expired buckets are reset by a subsequent `hit()` and may
-be cleaned up opportunistically by the host application.
+table requires a binary `key_hash` primary key, `scope` column, integer
+`attempts`, and `expires_at` columns. Every `status()` and `hit()` call requires
+a scope as diagnostic metadata. It must be a short identifier containing only
+letters, numbers, `.`, `_`, `-`, or `:` and must never contain a limiter key or a
+sensitive identifier. It does not affect the HMAC bucket identity or rate-limit
+decision. `hit()` replaces prior metadata for the same bucket. Expired buckets
+are reset by a subsequent `hit()` and may be cleaned up opportunistically by the
+host application.
 
 ## Container-managed database services and models
 
