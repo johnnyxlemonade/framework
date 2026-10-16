@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Discovery\Config;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use Lemonade\Framework\Discovery\Sitemap\SitemapException;
 use Lemonade\Framework\Discovery\Sitemap\SitemapProviderInterface;
 
@@ -37,28 +38,37 @@ final class DiscoveryConfigResolver
 
         foreach ($definitions as $definition) {
             $data = $definition->toArray();
-            $robots = $this->assoc($data['robots'] ?? null);
-            $sitemap = $this->assoc($data['sitemap'] ?? null);
+            $robots = ConfigValueNormalizer::assoc($data['robots'] ?? null);
+            $sitemap = ConfigValueNormalizer::assoc($data['sitemap'] ?? null);
 
             if (array_key_exists('enabled', $robots)) {
-                $robotsEnabled = $this->toBool($robots['enabled'], $robotsEnabled);
+                $robotsEnabled = ConfigValueNormalizer::boolOr($robots['enabled'], $robotsEnabled);
             }
 
             if (array_key_exists('route', $robots)) {
-                $robotsRoute = $this->stringOr($robots['route'], $robotsRoute);
+                $robotsRoute = ConfigValueNormalizer::nonEmptyStringOr($robots['route'], $robotsRoute);
             }
 
-            $header = $this->assoc($robots['header'] ?? null);
+            $header = ConfigValueNormalizer::assoc($robots['header'] ?? null);
             if (array_key_exists('enabled', $header)) {
-                $robotsHeaderEnabled = $this->toBool($header['enabled'], $robotsHeaderEnabled);
+                $robotsHeaderEnabled = ConfigValueNormalizer::boolOr(
+                    $header['enabled'],
+                    $robotsHeaderEnabled,
+                );
             }
 
             if (array_key_exists('generator', $header)) {
-                $robotsHeaderGenerator = $this->stringOr($header['generator'], $robotsHeaderGenerator);
+                $robotsHeaderGenerator = ConfigValueNormalizer::nonEmptyStringOr(
+                    $header['generator'],
+                    $robotsHeaderGenerator,
+                );
             }
 
             if (array_key_exists('date_format', $header)) {
-                $robotsHeaderDateFormat = $this->stringOr($header['date_format'], $robotsHeaderDateFormat);
+                $robotsHeaderDateFormat = ConfigValueNormalizer::nonEmptyStringOr(
+                    $header['date_format'],
+                    $robotsHeaderDateFormat,
+                );
             }
 
             if (array_key_exists('rules', $robots)) {
@@ -66,19 +76,22 @@ final class DiscoveryConfigResolver
             }
 
             if (array_key_exists('sitemaps', $robots)) {
-                $robotsSitemaps = $this->normalizeStringList($robots['sitemaps']);
+                $robotsSitemaps = ConfigValueNormalizer::stringList($robots['sitemaps']);
             }
 
             if (array_key_exists('enabled', $sitemap)) {
-                $sitemapEnabled = $this->toBool($sitemap['enabled'], $sitemapEnabled);
+                $sitemapEnabled = ConfigValueNormalizer::boolOr($sitemap['enabled'], $sitemapEnabled);
             }
 
             if (array_key_exists('route', $sitemap)) {
-                $sitemapRoute = $this->stringOr($sitemap['route'], $sitemapRoute);
+                $sitemapRoute = ConfigValueNormalizer::nonEmptyStringOr($sitemap['route'], $sitemapRoute);
             }
 
             if (array_key_exists('cli_output', $sitemap)) {
-                $sitemapCliOutput = $this->toBool($sitemap['cli_output'], $sitemapCliOutput);
+                $sitemapCliOutput = ConfigValueNormalizer::boolOr(
+                    $sitemap['cli_output'],
+                    $sitemapCliOutput,
+                );
             }
 
             if (array_key_exists('mode', $sitemap)) {
@@ -86,7 +99,7 @@ final class DiscoveryConfigResolver
             }
 
             if (array_key_exists('base_url', $sitemap)) {
-                $sitemapBaseUrl = $this->nullableString($sitemap['base_url']);
+                $sitemapBaseUrl = ConfigValueNormalizer::nullableString($sitemap['base_url']);
             }
 
             if (array_key_exists('routes', $sitemap)) {
@@ -98,31 +111,52 @@ final class DiscoveryConfigResolver
             }
 
             if (array_key_exists('cache_path', $sitemap)) {
-                $sitemapCachePath = $this->stringOr($sitemap['cache_path'], $sitemapCachePath);
+                $sitemapCachePath = ConfigValueNormalizer::nonEmptyStringOr(
+                    $sitemap['cache_path'],
+                    $sitemapCachePath,
+                );
             }
 
             if (array_key_exists('filename', $sitemap)) {
-                $sitemapFilename = $this->stringOr($sitemap['filename'], $sitemapFilename);
+                $sitemapFilename = ConfigValueNormalizer::nonEmptyStringOr(
+                    $sitemap['filename'],
+                    $sitemapFilename,
+                );
             }
 
             if (array_key_exists('index_filename', $sitemap)) {
-                $sitemapIndexFilename = $this->stringOr($sitemap['index_filename'], $sitemapIndexFilename);
+                $sitemapIndexFilename = ConfigValueNormalizer::nonEmptyStringOr(
+                    $sitemap['index_filename'],
+                    $sitemapIndexFilename,
+                );
             }
 
             if (array_key_exists('gzip', $sitemap)) {
-                $sitemapGzip = $this->toBool($sitemap['gzip'], $sitemapGzip);
+                $sitemapGzip = ConfigValueNormalizer::boolOr($sitemap['gzip'], $sitemapGzip);
             }
 
             if (array_key_exists('max_urls_per_file', $sitemap)) {
-                $sitemapMaxUrlsPerFile = max(1, $this->intOr($sitemap['max_urls_per_file'], $sitemapMaxUrlsPerFile));
+                $sitemapMaxUrlsPerFile = max(
+                    1,
+                    ConfigValueNormalizer::intOr($sitemap['max_urls_per_file'], $sitemapMaxUrlsPerFile),
+                );
             }
 
             if (array_key_exists('max_uncompressed_bytes', $sitemap)) {
-                $sitemapMaxUncompressedBytes = max(1, $this->intOr($sitemap['max_uncompressed_bytes'], $sitemapMaxUncompressedBytes));
+                $sitemapMaxUncompressedBytes = max(
+                    1,
+                    ConfigValueNormalizer::intOr(
+                        $sitemap['max_uncompressed_bytes'],
+                        $sitemapMaxUncompressedBytes,
+                    ),
+                );
             }
 
             if (array_key_exists('deduplicate', $sitemap)) {
-                $sitemapDeduplicate = $this->toBool($sitemap['deduplicate'], $sitemapDeduplicate);
+                $sitemapDeduplicate = ConfigValueNormalizer::boolOr(
+                    $sitemap['deduplicate'],
+                    $sitemapDeduplicate,
+                );
             }
 
             if (array_key_exists('on_invalid_url', $sitemap)) {
@@ -163,111 +197,14 @@ final class DiscoveryConfigResolver
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    private function assoc(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($value as $key => $item) {
-            if (is_string($key)) {
-                $normalized[$key] = $item;
-            }
-        }
-
-        return $normalized;
-    }
-
-    private function toBool(mixed $value, bool $default): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-        return $resolved ?? $default;
-    }
-
-    private function nullableString(mixed $value): ?string
-    {
-        if ($value === null || !is_scalar($value)) {
-            return null;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? null : $normalized;
-    }
-
-    private function stringOr(mixed $value, string $default): string
-    {
-        $normalized = $this->nullableString($value);
-
-        return $normalized ?? $default;
-    }
-
-    private function intOr(mixed $value, int $default): int
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-
-        if (is_float($value)) {
-            return (int) $value;
-        }
-
-        if (is_string($value) && is_numeric($value)) {
-            return (int) $value;
-        }
-
-        return $default;
-    }
-
-    /**
      * @param list<string> $allowed
      */
     private function normalizeMode(mixed $value, array $allowed, string $default): string
     {
-        $normalized = $this->nullableString($value);
+        $normalized = ConfigValueNormalizer::nullableString($value);
 
         if ($normalized === null || !in_array($normalized, $allowed, true)) {
             return $default;
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * @return list<non-empty-string>
-     */
-    private function normalizeStringList(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($value as $item) {
-            if (!is_scalar($item)) {
-                continue;
-            }
-
-            $string = trim((string) $item);
-            if ($string === '' || in_array($string, $normalized, true)) {
-                continue;
-            }
-
-            $normalized[] = $string;
         }
 
         return $normalized;
@@ -291,8 +228,8 @@ final class DiscoveryConfigResolver
 
             $rules[] = new RobotsRuleConfig(
                 agent: trim($agent),
-                allow: $this->normalizeStringList($rule['allow'] ?? []),
-                disallow: $this->normalizeStringList($rule['disallow'] ?? []),
+                allow: ConfigValueNormalizer::stringList($rule['allow'] ?? []),
+                disallow: ConfigValueNormalizer::stringList($rule['disallow'] ?? []),
             );
         }
 

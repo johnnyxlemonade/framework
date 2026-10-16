@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Api\Config;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\BuiltInApiScope;
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use LogicException;
 
 final class ApiConfigResolver
@@ -43,7 +44,7 @@ final class ApiConfigResolver
             $data = $definition->toArray();
 
             if (array_key_exists('enabled', $data)) {
-                $enabled = $this->toBool($data['enabled'], $enabled);
+                $enabled = ConfigValueNormalizer::boolOr($data['enabled'], $enabled);
             }
 
             if (array_key_exists('prefix', $data)) {
@@ -54,15 +55,18 @@ final class ApiConfigResolver
                 $endpointProviders = $this->mergeEndpointProviders($endpointProviders, $data['endpoint_providers']);
             }
 
-            $security = $this->assoc($data['security'] ?? null);
-            $staticBearer = $this->assoc($security['static_bearer'] ?? null);
+            $security = ConfigValueNormalizer::assoc($data['security'] ?? null);
+            $staticBearer = ConfigValueNormalizer::assoc($security['static_bearer'] ?? null);
 
             if (array_key_exists('enabled', $staticBearer)) {
-                $staticBearerEnabled = $this->toBool($staticBearer['enabled'], $staticBearerEnabled);
+                $staticBearerEnabled = ConfigValueNormalizer::boolOr(
+                    $staticBearer['enabled'],
+                    $staticBearerEnabled,
+                );
             }
 
             if (array_key_exists('token', $staticBearer)) {
-                $staticBearerToken = $this->normalizeNullableString($staticBearer['token']);
+                $staticBearerToken = ConfigValueNormalizer::nullableString($staticBearer['token']);
             }
 
             if (array_key_exists('scopes', $staticBearer)) {
@@ -72,10 +76,10 @@ final class ApiConfigResolver
                 );
             }
 
-            $framework = $this->assoc($data['framework'] ?? null);
+            $framework = ConfigValueNormalizer::assoc($data['framework'] ?? null);
 
             if (array_key_exists('enabled', $framework)) {
-                $frameworkEnabled = $this->toBool($framework['enabled'], $frameworkEnabled);
+                $frameworkEnabled = ConfigValueNormalizer::boolOr($framework['enabled'], $frameworkEnabled);
             }
 
             if (array_key_exists('health', $framework)) {
@@ -172,10 +176,10 @@ final class ApiConfigResolver
      */
     private function mergeEndpointConfig(array $state, mixed $value): array
     {
-        $config = $this->assoc($value);
+        $config = ConfigValueNormalizer::assoc($value);
 
         if (array_key_exists('enabled', $config)) {
-            $state['enabled'] = $this->toBool($config['enabled'], $state['enabled']);
+            $state['enabled'] = ConfigValueNormalizer::boolOr($config['enabled'], $state['enabled']);
         }
 
         if (array_key_exists('route', $config)) {
@@ -214,7 +218,7 @@ final class ApiConfigResolver
 
     private function resolveAccess(mixed $value, ApiAccess $default): ApiAccess
     {
-        $normalized = $this->normalizeNullableString($value);
+        $normalized = ConfigValueNormalizer::nullableString($value);
         if ($normalized === null) {
             return $default;
         }
@@ -228,31 +232,14 @@ final class ApiConfigResolver
      */
     private function normalizeScopes(mixed $value, array $default): array
     {
-        if (!is_array($value)) {
-            return $default;
-        }
-
-        $scopes = [];
-
-        foreach ($value as $scope) {
-            if (!is_scalar($scope)) {
-                continue;
-            }
-
-            $normalized = trim((string) $scope);
-            if ($normalized === '' || in_array($normalized, $scopes, true)) {
-                continue;
-            }
-
-            $scopes[] = $normalized;
-        }
+        $scopes = ConfigValueNormalizer::stringList($value);
 
         return $scopes !== [] ? $scopes : $default;
     }
 
     private function normalizePrefix(mixed $value): string
     {
-        $prefix = $this->normalizeNullableString($value) ?? '/api';
+        $prefix = ConfigValueNormalizer::nullableString($value) ?? '/api';
         $normalized = '/' . trim($prefix, '/');
 
         return $normalized === '/' ? '' : rtrim($normalized, '/');
@@ -264,7 +251,7 @@ final class ApiConfigResolver
      */
     private function normalizeRoute(mixed $value, string $default): string
     {
-        $route = $this->normalizeNullableString($value);
+        $route = ConfigValueNormalizer::nullableString($value);
         if ($route === null) {
             return $default;
         }
@@ -276,49 +263,4 @@ final class ApiConfigResolver
         return $resolved;
     }
 
-    private function normalizeNullableString(mixed $value): ?string
-    {
-        if ($value === null || !is_scalar($value)) {
-            return null;
-        }
-
-        $value = trim((string) $value);
-
-        return $value === '' ? null : $value;
-    }
-
-    private function toBool(mixed $value, bool $default): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-        return $resolved ?? $default;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function assoc(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($value as $key => $item) {
-            if (is_string($key)) {
-                $normalized[$key] = $item;
-            }
-        }
-
-        return $normalized;
-    }
 }

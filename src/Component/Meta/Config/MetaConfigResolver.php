@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Component\Meta\Config;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
+
 /**
  * Merges ordered metadata definitions into defaults consumable by the metadata component.
  */
@@ -24,19 +26,22 @@ final class MetaConfigResolver
             $data = $definition->toArray();
 
             if (array_key_exists('website_name', $data)) {
-                $websiteName = $this->stringOr($data['website_name'], $websiteName);
+                $websiteName = ConfigValueNormalizer::scalarStringOr($data['website_name'], $websiteName);
             }
             if (array_key_exists('charset', $data)) {
-                $charset = $this->stringOr($data['charset'], $charset);
+                $charset = ConfigValueNormalizer::scalarStringOr($data['charset'], $charset);
             }
             if (array_key_exists('viewport', $data)) {
-                $viewport = $this->stringOr($data['viewport'], $viewport);
+                $viewport = ConfigValueNormalizer::scalarStringOr($data['viewport'], $viewport);
             }
             if (array_key_exists('rating', $data)) {
-                $rating = $this->stringOr($data['rating'], $rating);
+                $rating = ConfigValueNormalizer::scalarStringOr($data['rating'], $rating);
             }
             if (array_key_exists('title_separator', $data)) {
-                $titleSeparator = $this->stringOr($data['title_separator'], $titleSeparator);
+                $titleSeparator = ConfigValueNormalizer::scalarStringOr(
+                    $data['title_separator'],
+                    $titleSeparator,
+                );
             }
         }
 
@@ -49,12 +54,4 @@ final class MetaConfigResolver
         );
     }
 
-    private function stringOr(mixed $value, string $default): string
-    {
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        return (string) $value;
-    }
 }

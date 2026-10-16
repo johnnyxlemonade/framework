@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use RuntimeException;
 
 /**
@@ -124,15 +125,7 @@ final class Config
     {
         $value = $this->get($key, $default);
 
-        if (is_int($value)) {
-            return $value;
-        }
-
-        if (is_float($value) || (is_string($value) && is_numeric($value))) {
-            return (int) $value;
-        }
-
-        return $default;
+        return ConfigValueNormalizer::intOr($value, $default);
     }
 
     /**
@@ -147,17 +140,7 @@ final class Config
     {
         $value = $this->get($key, $default);
 
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        $result = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-        return $result ?? $default;
+        return ConfigValueNormalizer::boolOr($value, $default);
     }
 
     /**

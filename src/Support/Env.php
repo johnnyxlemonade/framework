@@ -4,8 +4,16 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Support;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
+
+/**
+ * Reads typed environment values from framework-supported process sources in precedence order.
+ */
 final class Env
 {
+    /**
+     * Returns a non-empty scalar environment value as text or the supplied fallback.
+     */
     public static function string(string $key, ?string $default = null): ?string
     {
         $value = self::get($key);
@@ -21,44 +29,29 @@ final class Env
         return (string) $value;
     }
 
+    /**
+     * Returns an integer-compatible environment value or the supplied fallback.
+     */
     public static function int(string $key, int $default): int
     {
         $value = self::get($key);
 
-        if ($value === null || $value === '') {
-            return $default;
-        }
-
-        if (is_int($value)) {
-            return $value;
-        }
-
-        if (is_float($value) || (is_string($value) && is_numeric($value))) {
-            return (int) $value;
-        }
-
-        return $default;
+        return ConfigValueNormalizer::intOr($value, $default);
     }
 
+    /**
+     * Returns a floating-point-compatible environment value or the supplied fallback.
+     */
     public static function float(string $key, float $default): float
     {
         $value = self::get($key);
 
-        if ($value === null || $value === '') {
-            return $default;
-        }
-
-        if (is_float($value) || is_int($value)) {
-            return (float) $value;
-        }
-
-        if (is_string($value) && is_numeric($value)) {
-            return (float) $value;
-        }
-
-        return $default;
+        return ConfigValueNormalizer::floatOr($value, $default);
     }
 
+    /**
+     * Returns a supported boolean environment value or the supplied fallback.
+     */
     public static function bool(string $key, bool $default = false): bool
     {
         $value = self::get($key);
@@ -81,6 +74,8 @@ final class Env
     }
 
     /**
+     * Splits a comma-separated environment value into unique non-empty items.
+     *
      * @param list<string> $default
      * @return list<string>
      */

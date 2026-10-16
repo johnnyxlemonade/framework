@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Observability\Benchmark\Config;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
+
 final class BenchmarkConfigResolver
 {
     public function resolve(BenchmarkConfigDefinition ...$definitions): BenchmarkConfig
@@ -14,25 +16,14 @@ final class BenchmarkConfigResolver
             $data = $definition->toArray();
 
             if (array_key_exists('inject_html_comment', $data)) {
-                $injectHtmlComment = $this->toBool($data['inject_html_comment'], $injectHtmlComment);
+                $injectHtmlComment = ConfigValueNormalizer::boolOr(
+                    $data['inject_html_comment'],
+                    $injectHtmlComment,
+                );
             }
         }
 
         return new BenchmarkConfig($injectHtmlComment);
     }
 
-    private function toBool(mixed $value, bool $default): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-        return $resolved ?? $default;
-    }
 }

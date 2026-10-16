@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Config;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 
 /**
@@ -23,7 +24,7 @@ final readonly class DatabaseConfigResolver
             $data = $definition->toArray();
 
             if (array_key_exists('default', $data)) {
-                $defaultConnection = $this->nullableString($data['default']);
+                $defaultConnection = ConfigValueNormalizer::nullableString($data['default']);
             }
 
             if (array_key_exists('connections', $data) && is_array($data['connections'])) {
@@ -32,7 +33,9 @@ final readonly class DatabaseConfigResolver
                         continue;
                     }
 
-                    $connections[trim($name)] = DatabaseConfig::fromArray($this->normalizeAssoc($connectionConfig));
+                    $connections[trim($name)] = DatabaseConfig::fromArray(
+                        ConfigValueNormalizer::assoc($connectionConfig),
+                    );
                 }
             }
         }
@@ -40,36 +43,4 @@ final readonly class DatabaseConfigResolver
         return new DatabaseRuntimeConfig($defaultConnection, $connections);
     }
 
-    /**
-     * Normalizes an optional scalar connection name while treating blank and non-scalar values as no selection.
-     */
-    private function nullableString(mixed $value): ?string
-    {
-        if ($value === null || !is_scalar($value)) {
-            return null;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? null : $normalized;
-    }
-
-    /**
-     * Retains string-keyed connection options and discards positional or otherwise invalid configuration entries.
-     *
-     * @param array<mixed> $values
-     * @return array<string, mixed>
-     */
-    private function normalizeAssoc(array $values): array
-    {
-        $normalized = [];
-
-        foreach ($values as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
-            }
-        }
-
-        return $normalized;
-    }
 }

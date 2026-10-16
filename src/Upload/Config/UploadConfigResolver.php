@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Upload\Config;
 
 use InvalidArgumentException;
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use Lemonade\Framework\Mime\MimeTypeCatalog;
 use Lemonade\Framework\Support\ByteSizeParser;
 
@@ -68,7 +69,10 @@ final readonly class UploadConfigResolver
             $this->rejectLegacyMimePolicy($profile, $profileName);
 
             $current[$profileName] = new FileUploadProfileConfig(
-                targetDirectory: $this->stringOr($profile['target_directory'] ?? '', ''),
+                targetDirectory: ConfigValueNormalizer::nonEmptyStringOr(
+                    $profile['target_directory'] ?? '',
+                    '',
+                ),
                 maxBytes: $this->maxBytes($profile['max_bytes'] ?? 10_485_760, $profileName),
                 allowedExtensions: $this->allowedExtensions($profile['allowed_extensions'] ?? [], $profileName),
             );
@@ -93,14 +97,17 @@ final readonly class UploadConfigResolver
             $this->rejectLegacyMimePolicy($profile, $profileName);
 
             $current[$profileName] = new ImageUploadProfileConfig(
-                targetDirectory: $this->stringOr($profile['target_directory'] ?? '', ''),
+                targetDirectory: ConfigValueNormalizer::nonEmptyStringOr(
+                    $profile['target_directory'] ?? '',
+                    '',
+                ),
                 maxBytes: $this->maxBytes($profile['max_bytes'] ?? 5_242_880, $profileName),
                 allowedExtensions: $this->allowedExtensions($profile['allowed_extensions'] ?? ['jpg', 'jpeg', 'png', 'webp'], $profileName),
-                reencode: $this->toBool($profile['reencode'] ?? true, true),
-                minWidth: $this->nullableInt($profile['min_width'] ?? null),
-                maxWidth: $this->nullableInt($profile['max_width'] ?? null),
-                minHeight: $this->nullableInt($profile['min_height'] ?? null),
-                maxHeight: $this->nullableInt($profile['max_height'] ?? null),
+                reencode: ConfigValueNormalizer::boolOr($profile['reencode'] ?? true, true),
+                minWidth: ConfigValueNormalizer::nullableInt($profile['min_width'] ?? null),
+                maxWidth: ConfigValueNormalizer::nullableInt($profile['max_width'] ?? null),
+                minHeight: ConfigValueNormalizer::nullableInt($profile['min_height'] ?? null),
+                maxHeight: ConfigValueNormalizer::nullableInt($profile['max_height'] ?? null),
             );
         }
 
@@ -133,16 +140,6 @@ final readonly class UploadConfigResolver
         return $profiles;
     }
 
-    private function stringOr(mixed $value, string $default): string
-    {
-        if (!is_scalar($value)) {
-            return $default;
-        }
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? $default : $normalized;
-    }
-
     private function maxBytes(mixed $value, string $profile): int
     {
         try {
@@ -154,38 +151,6 @@ final readonly class UploadConfigResolver
                 $exception->getMessage(),
             ), previous: $exception);
         }
-    }
-
-    private function nullableInt(mixed $value): ?int
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_float($value)) {
-            return (int) $value;
-        }
-        if (is_string($value) && is_numeric($value)) {
-            return (int) $value;
-        }
-
-        return null;
-    }
-
-    private function toBool(mixed $value, bool $default): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-        if (!is_scalar($value)) {
-            return $default;
-        }
-        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-        return $resolved ?? $default;
     }
 
     /** @return list<string> */

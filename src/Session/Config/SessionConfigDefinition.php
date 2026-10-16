@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Session\Config;
 
 use InvalidArgumentException;
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
 
 /**
@@ -177,7 +178,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
         $redis = is_array($data['redis'] ?? null) ? $data['redis'] : [];
 
         $redisPassword = array_key_exists('password', $redis)
-            ? $this->nullableString($redis['password'])
+            ? ConfigValueNormalizer::nullableString($redis['password'])
             : $current->redis()->password();
         $driver = array_key_exists('driver', $data)
             ? strtolower($this->configuredString($data['driver']))
@@ -191,27 +192,48 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
 
         return new SessionConfig(
             driver: $driver,
-            lifetime: $this->intOr($data['lifetime'] ?? null, $current->lifetime()),
+            lifetime: ConfigValueNormalizer::intOr($data['lifetime'] ?? null, $current->lifetime()),
             cookie: new SessionCookieConfig(
                 name: $cookieName,
                 sameSite: $cookieSameSite,
             ),
             native: new SessionNativeConfig(
-                $this->stringOr($native['path'] ?? null, $current->native()->path()),
+                ConfigValueNormalizer::nonEmptyStringOr(
+                    $native['path'] ?? null,
+                    $current->native()->path(),
+                ),
             ),
             file: new SessionFileConfig(
-                $this->stringOr($file['path'] ?? null, $current->file()->path()),
+                ConfigValueNormalizer::nonEmptyStringOr(
+                    $file['path'] ?? null,
+                    $current->file()->path(),
+                ),
             ),
             database: new SessionDatabaseConfig(
-                $this->stringOr($database['table'] ?? null, $current->database()->table()),
+                ConfigValueNormalizer::nonEmptyStringOr(
+                    $database['table'] ?? null,
+                    $current->database()->table(),
+                ),
             ),
             redis: new SessionRedisConfig(
-                host: $this->stringOr($redis['host'] ?? null, $current->redis()->host()),
-                port: $this->intOr($redis['port'] ?? null, $current->redis()->port()),
-                database: $this->intOr($redis['database'] ?? null, $current->redis()->database()),
+                host: ConfigValueNormalizer::nonEmptyStringOr(
+                    $redis['host'] ?? null,
+                    $current->redis()->host(),
+                ),
+                port: ConfigValueNormalizer::intOr($redis['port'] ?? null, $current->redis()->port()),
+                database: ConfigValueNormalizer::intOr(
+                    $redis['database'] ?? null,
+                    $current->redis()->database(),
+                ),
                 password: $redisPassword,
-                prefix: $this->stringOr($redis['prefix'] ?? null, $current->redis()->prefix()),
-                timeout: $this->floatOr($redis['timeout'] ?? null, $current->redis()->timeout()),
+                prefix: ConfigValueNormalizer::nonEmptyStringOr(
+                    $redis['prefix'] ?? null,
+                    $current->redis()->prefix(),
+                ),
+                timeout: ConfigValueNormalizer::floatOr(
+                    $redis['timeout'] ?? null,
+                    $current->redis()->timeout(),
+                ),
             ),
         );
     }
@@ -256,72 +278,11 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     }
 
     /**
-     * Normalizes a scalar value to a non-empty string or preserves the current value.
-     */
-    private function stringOr(mixed $value, string $current): string
-    {
-        if (!is_scalar($value)) {
-            return $current;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? $current : $normalized;
-    }
-
-    /**
      * Normalizes an explicitly configured scalar and leaves semantic validation to its value object.
      */
     private function configuredString(mixed $value): string
     {
         return is_scalar($value) ? trim((string) $value) : '';
-    }
-
-    /**
-     * Normalizes an optional scalar value to a trimmed nullable string.
-     */
-    private function nullableString(mixed $value): ?string
-    {
-        if ($value === null || !is_scalar($value)) {
-            return null;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? null : $normalized;
-    }
-
-    /**
-     * Converts a numeric value to an integer without accepting arbitrary scalars.
-     */
-    private function intOr(mixed $value, int $current): int
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_float($value)) {
-            return (int) $value;
-        }
-        if (is_string($value) && is_numeric($value)) {
-            return (int) $value;
-        }
-
-        return $current;
-    }
-
-    /**
-     * Converts a numeric value to a float without accepting arbitrary scalars.
-     */
-    private function floatOr(mixed $value, float $current): float
-    {
-        if (is_float($value) || is_int($value)) {
-            return (float) $value;
-        }
-        if (is_string($value) && is_numeric($value)) {
-            return (float) $value;
-        }
-
-        return $current;
     }
 
     /**

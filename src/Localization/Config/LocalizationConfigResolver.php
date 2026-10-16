@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Localization\Config;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use RuntimeException;
 
 final class LocalizationConfigResolver
@@ -37,23 +38,32 @@ final class LocalizationConfigResolver
             $url = is_array($data['url'] ?? null) ? $data['url'] : [];
 
             if (array_key_exists('enabled', $url)) {
-                $urlEnabled = $this->toBool($url['enabled'], $urlEnabled);
+                $urlEnabled = ConfigValueNormalizer::boolOr($url['enabled'], $urlEnabled);
             }
 
             if (array_key_exists('localized_route_name_prefix', $url)) {
-                $localizedRouteNamePrefix = $this->stringOr($url['localized_route_name_prefix'], $localizedRouteNamePrefix);
+                $localizedRouteNamePrefix = ConfigValueNormalizer::nonEmptyStringOr(
+                    $url['localized_route_name_prefix'],
+                    $localizedRouteNamePrefix,
+                );
             }
 
             if (array_key_exists('route_prefix', $url)) {
-                $routePrefix = $this->stringOr($url['route_prefix'], $routePrefix);
+                $routePrefix = ConfigValueNormalizer::nonEmptyStringOr($url['route_prefix'], $routePrefix);
             }
 
             if (array_key_exists('locale_parameter', $url)) {
-                $localeParameter = $this->stringOr($url['locale_parameter'], $localeParameter);
+                $localeParameter = ConfigValueNormalizer::nonEmptyStringOr(
+                    $url['locale_parameter'],
+                    $localeParameter,
+                );
             }
 
             if (array_key_exists('include_default_locale', $url)) {
-                $includeDefaultLocale = $this->toBool($url['include_default_locale'], $includeDefaultLocale);
+                $includeDefaultLocale = ConfigValueNormalizer::boolOr(
+                    $url['include_default_locale'],
+                    $includeDefaultLocale,
+                );
             }
         }
 
@@ -113,29 +123,4 @@ final class LocalizationConfigResolver
         return $normalized === '' ? null : $normalized;
     }
 
-    private function stringOr(mixed $value, string $default): string
-    {
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? $default : $normalized;
-    }
-
-    private function toBool(mixed $value, bool $default): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-        return $resolved ?? $default;
-    }
 }

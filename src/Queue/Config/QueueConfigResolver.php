@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Queue\Config;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
+
 final class QueueConfigResolver
 {
     public function resolve(QueueConfigDefinition ...$definitions): QueueConfig
@@ -18,10 +20,10 @@ final class QueueConfigResolver
             $data = $definition->toArray();
 
             if (array_key_exists('default', $data)) {
-                $defaultTransport = $this->stringOr($data['default'], $defaultTransport);
+                $defaultTransport = ConfigValueNormalizer::nonEmptyStringOr($data['default'], $defaultTransport);
             }
             if (array_key_exists('transports', $data)) {
-                $transports = $this->stringList($data['transports']);
+                $transports = ConfigValueNormalizer::stringList($data['transports']);
             }
             if (isset($data['handlers']) && is_array($data['handlers'])) {
                 foreach ($data['handlers'] as $messageClass => $handler) {
@@ -33,10 +35,10 @@ final class QueueConfigResolver
 
             $database = is_array($data['database'] ?? null) ? $data['database'] : [];
             if (array_key_exists('table', $database)) {
-                $table = $this->stringOr($database['table'], $table);
+                $table = ConfigValueNormalizer::nonEmptyStringOr($database['table'], $table);
             }
             if (array_key_exists('failed_table', $database)) {
-                $failedTable = $this->stringOr($database['failed_table'], $failedTable);
+                $failedTable = ConfigValueNormalizer::nonEmptyStringOr($database['failed_table'], $failedTable);
             }
         }
 
@@ -52,37 +54,4 @@ final class QueueConfigResolver
         );
     }
 
-    private function stringOr(mixed $value, string $default): string
-    {
-        if (!is_scalar($value)) {
-            return $default;
-        }
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? $default : $normalized;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function stringList(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $list = [];
-        foreach ($value as $item) {
-            if (!is_scalar($item)) {
-                continue;
-            }
-            $normalized = trim((string) $item);
-            if ($normalized === '' || in_array($normalized, $list, true)) {
-                continue;
-            }
-            $list[] = $normalized;
-        }
-
-        return $list;
-    }
 }

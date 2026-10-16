@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Connection;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use Lemonade\Framework\Database\Exception\DatabaseException;
 
 /**
@@ -42,24 +43,24 @@ final readonly class DatabaseConfig
      */
     public static function fromArray(array $config): self
     {
-        $driver = self::toString($config['driver'] ?? 'mysql', 'mysql');
+        $driver = ConfigValueNormalizer::scalarStringOr($config['driver'] ?? 'mysql', 'mysql');
         $resolvedDriver = self::resolveDriver($driver);
         $dialect = self::resolveDialect($config['dialect'] ?? null);
 
         return new self(
             driver: $resolvedDriver,
-            host: self::toString($config['host'] ?? '127.0.0.1', '127.0.0.1'),
-            port: self::toInt($config['port'] ?? 3306, 3306),
-            database: self::toString($config['database'] ?? '', ''),
-            username: self::toString($config['username'] ?? '', ''),
-            password: self::toString($config['password'] ?? '', ''),
-            charset: self::toString($config['charset'] ?? 'utf8mb4', 'utf8mb4'),
-            collation: self::toString($config['collation'] ?? '', ''),
-            prefix: self::toString($config['prefix'] ?? '', ''),
+            host: ConfigValueNormalizer::scalarStringOr($config['host'] ?? '127.0.0.1', '127.0.0.1'),
+            port: ConfigValueNormalizer::intOr($config['port'] ?? 3306, 3306),
+            database: ConfigValueNormalizer::scalarStringOr($config['database'] ?? '', ''),
+            username: ConfigValueNormalizer::scalarStringOr($config['username'] ?? '', ''),
+            password: ConfigValueNormalizer::scalarStringOr($config['password'] ?? '', ''),
+            charset: ConfigValueNormalizer::scalarStringOr($config['charset'] ?? 'utf8mb4', 'utf8mb4'),
+            collation: ConfigValueNormalizer::scalarStringOr($config['collation'] ?? '', ''),
+            prefix: ConfigValueNormalizer::scalarStringOr($config['prefix'] ?? '', ''),
             strict: self::toBool($config['strict'] ?? true, true),
             persistent: self::toBool($config['persistent'] ?? false, false),
             dialect: $dialect,
-            dsn: self::normalizeNullableString($config['dsn'] ?? null),
+            dsn: ConfigValueNormalizer::nullableString($config['dsn'] ?? null),
             options: is_array($config['options'] ?? null) ? $config['options'] : [],
         );
     }
@@ -187,56 +188,6 @@ final readonly class DatabaseConfig
     }
 
     /**
-     * Converts a scalar optional setting to a trimmed value and treats blank or structured input as absent.
-     */
-    private static function normalizeNullableString(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if (!is_scalar($value)) {
-            return null;
-        }
-
-        $value = trim((string) $value);
-
-        return $value === '' ? null : $value;
-    }
-
-    /**
-     * Converts a scalar setting to text or preserves the supplied fallback for structured input.
-     */
-    private static function toString(mixed $value, string $default): string
-    {
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        return (string) $value;
-    }
-
-    /**
-     * Accepts numeric configuration values while retaining the fallback for non-numeric input.
-     */
-    private static function toInt(mixed $value, int $default): int
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-
-        if (is_float($value)) {
-            return (int) $value;
-        }
-
-        if (is_string($value) && is_numeric($value)) {
-            return (int) $value;
-        }
-
-        return $default;
-    }
-
-    /**
      * Parses supported boolean configuration syntax without coercing arbitrary values.
      */
     private static function toBool(mixed $value, bool $default): bool
@@ -265,7 +216,7 @@ final readonly class DatabaseConfig
      */
     private static function resolveDialect(mixed $value): ?DatabaseDialect
     {
-        $rawDialect = self::normalizeNullableString($value);
+        $rawDialect = ConfigValueNormalizer::nullableString($value);
 
         if ($rawDialect === null) {
             return null;
@@ -289,7 +240,7 @@ final readonly class DatabaseConfig
      */
     private static function resolveDriver(string $driver): Driver
     {
-        $normalizedDriver = self::normalizeNullableString($driver);
+        $normalizedDriver = ConfigValueNormalizer::nullableString($driver);
         $resolvedDriver = is_string($normalizedDriver) ? Driver::tryFrom(strtolower($normalizedDriver)) : null;
 
         if (!$resolvedDriver instanceof Driver) {

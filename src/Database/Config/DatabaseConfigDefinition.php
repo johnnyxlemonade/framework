@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Database\Config;
 
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 
 /**
  * Collects named database connection contributions for layered framework configuration.
@@ -50,13 +51,7 @@ final class DatabaseConfigDefinition extends AbstractConfigDefinition
             return $this;
         }
 
-        $normalized = [];
-
-        foreach ($config as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
-            }
-        }
+        $normalized = ConfigValueNormalizer::assoc($config);
 
         if (!isset($this->data['connections']) || !is_array($this->data['connections'])) {
             $this->data['connections'] = [];

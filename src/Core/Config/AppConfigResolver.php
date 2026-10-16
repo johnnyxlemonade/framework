@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config;
 
+use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
+
 /**
  * Resolves ordered application configuration definitions into immutable runtime configuration.
  */
@@ -88,19 +90,19 @@ final class AppConfigResolver
             }
 
             if ($key === 'debug') {
-                $values['debug'] = $this->toBool($value, $values['debug']);
+                $values['debug'] = ConfigValueNormalizer::boolOr($value, $values['debug']);
 
                 continue;
             }
 
             if (in_array($key, self::NULLABLE_STRING_FIELDS, true)) {
-                $values[$key] = $this->normalizeNullableString($value);
+                $values[$key] = ConfigValueNormalizer::nullableString($value);
 
                 continue;
             }
 
             if (in_array($key, self::STRING_FIELDS, true)) {
-                $values[$key] = $this->normalizeString($value, (string) $values[$key]);
+                $values[$key] = ConfigValueNormalizer::nonEmptyStringOr($value, (string) $values[$key]);
             }
         }
 
@@ -120,45 +122,4 @@ final class AppConfigResolver
         return $values;
     }
 
-    /**
-     * Converts a scalar configuration value into a trimmed nullable string.
-     */
-    private function normalizeNullableString(mixed $value): ?string
-    {
-        if ($value === null || !is_scalar($value)) {
-            return null;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? null : $normalized;
-    }
-
-    /**
-     * Converts a configuration value into a string or preserves its fallback.
-     */
-    private function normalizeString(mixed $value, string $default): string
-    {
-        $normalized = $this->normalizeNullableString($value);
-
-        return $normalized ?? $default;
-    }
-
-    /**
-     * Converts a scalar configuration value into a boolean or preserves its fallback.
-     */
-    private function toBool(mixed $value, bool $default): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (!is_scalar($value)) {
-            return $default;
-        }
-
-        $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-
-        return $resolved ?? $default;
-    }
 }
