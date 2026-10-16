@@ -18,9 +18,9 @@ HTTP request
    -> register application providers
    -> register ApiServiceProvider
 -> ApiServiceProvider
-   -> register ApiEndpointRegistry
-   -> register framework API endpoint provider
-   -> register app API endpoint providers from ApiConfig
+   -> define the complete API service graph during register()
+   -> during HTTP boot, add API authorization before OPTIONS handling
+   -> register framework and application endpoints in the canonical ApiEndpointRegistry
    -> register API routes under configured ApiConfig::prefix()
 -> API middleware
    -> resolve request path against ApiEndpointRegistry
@@ -43,6 +43,16 @@ unexpected handler failures use `application/problem+json`. An unexpected API fa
 generic Problem Details body, including in debug mode; exception details remain available through
 the framework error log. HTML applications and non-registered requests keep the standard HTML error
 responses.
+
+The HTTP error middleware depends only on the optional HTTP
+`ExceptionResponseResolverInterface`. `ApiServiceProvider` aliases that contract to the transient
+`ApiExceptionResponseResolver`, whose dependencies use the canonical API endpoint resolver and
+Problem Details factory. Without the API provider, the HTTP runtime has no API bindings and retains
+its HTML error fallback.
+
+`ApiServiceProvider::boot()` contributes authorization middleware and routes only in an HTTP
+runtime with API enabled. CLI boot still validates configured endpoint provider classes, but it does
+not mutate an HTTP middleware stack or register HTTP routes.
 
 ## Framework endpoints
 

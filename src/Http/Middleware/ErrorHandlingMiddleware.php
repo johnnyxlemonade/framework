@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
-use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
-use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Http\Error\ErrorPageRenderer;
+use Lemonade\Framework\Http\Error\ExceptionResponseResolverInterface;
 use Lemonade\Framework\Http\Exception\NotFoundHttpException;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Logging\HttpLogContext;
@@ -25,15 +24,14 @@ use Throwable;
 final readonly class ErrorHandlingMiddleware implements MiddlewareInterface
 {
     /**
-     * Connects response rendering, error logging and API problem-detail handling.
+     * Connects response rendering, error logging and an optional integration response resolver.
      */
     public function __construct(
         private Psr17Factory $responseFactory,
         private LogManager $logs,
         private HttpLogContext $httpLogContext,
         private ErrorPageRenderer $errorPageRenderer,
-        private ApiEndpointRequestResolver $apiEndpointResolver,
-        private ProblemDetailsFactory $problems,
+        private ?ExceptionResponseResolverInterface $exceptionResponseResolver = null,
     ) {
     }
 
@@ -47,8 +45,9 @@ final readonly class ErrorHandlingMiddleware implements MiddlewareInterface
         } catch (RouteNotFoundException|NotFoundHttpException $exception) {
             $this->logException($exception, $request);
 
-            if ($this->apiEndpointResolver->resolve($request) !== null) {
-                return $this->problems->notFound($request);
+            $resolved = $this->resolveExceptionResponse($exception, $request);
+            if ($resolved instanceof ResponseInterface) {
+                return $resolved;
             }
 
             return $this->htmlResponse(
@@ -58,8 +57,9 @@ final readonly class ErrorHandlingMiddleware implements MiddlewareInterface
         } catch (Throwable $exception) {
             $this->logException($exception, $request);
 
-            if ($this->apiEndpointResolver->resolve($request) !== null) {
-                return $this->problems->internalServerError($request);
+            $resolved = $this->resolveExceptionResponse($exception, $request);
+            if ($resolved instanceof ResponseInterface) {
+                return $resolved;
             }
 
             return $this->htmlResponse(
@@ -75,6 +75,16 @@ final readonly class ErrorHandlingMiddleware implements MiddlewareInterface
             ->createResponse($statusCode)
             ->withHeader('Content-Type', 'text/html; charset=utf-8')
             ->withBody($this->responseFactory->createStream($body));
+    }
+
+    private function resolveExceptionResponse(
+        Throwable $exception,
+        ServerRequestInterface $request,
+    ): ?ResponseInterface {
+        return $this->exceptionResponseResolver?->resolve(
+            $exception,
+            $request,
+        );
     }
 
     private function logException(Throwable $exception, ServerRequestInterface $request): void

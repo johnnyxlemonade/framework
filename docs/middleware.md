@@ -16,6 +16,11 @@ The default middleware stack contains framework middleware for:
 - HTML minification
 - OPTIONS handling
 
+This is the standalone HTTP stack. When the API module is enabled in an HTTP runtime,
+`ApiServiceProvider` contributes `ApiAuthorizationMiddleware` immediately before
+`OptionsMiddleware`. The contribution is added once during provider boot; an HTTP-only runtime has
+no API middleware or API service fallback graph.
+
 ## Global middleware
 
 Application code can add middleware globally during framework configuration:

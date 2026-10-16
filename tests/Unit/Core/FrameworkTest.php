@@ -234,7 +234,6 @@ final class FrameworkTest extends TestCase
             \Lemonade\Framework\Http\Middleware\CorsMiddleware::class,
             \Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class,
             \Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class,
-            \Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class,
             \Lemonade\Framework\Http\Middleware\OptionsMiddleware::class,
         ], $stack->all());
     }
@@ -268,7 +267,6 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
-                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkStackTraceMiddleware::class)
                 ->add(FrameworkStackTerminalMiddleware::class);
         });
@@ -377,7 +375,6 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
-                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkBenchmarkCaptureMiddleware::class)
                 ->add(FrameworkStackTerminalMiddleware::class);
         });
@@ -412,7 +409,6 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
-                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkQueuedTerminalMiddleware::class);
         });
 
@@ -442,7 +438,6 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
-                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkQueuedTerminalMiddleware::class);
         });
 
@@ -471,7 +466,6 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
-                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkMutableTerminalMiddleware::class);
         });
 
@@ -508,7 +502,6 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
-                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(FrameworkOrderStartMiddleware::class)
                 ->add(FrameworkOrderEndMiddleware::class)
                 ->insertBefore(FrameworkOrderEndMiddleware::class, FrameworkOrderMiddleMiddleware::class)
@@ -549,7 +542,6 @@ final class FrameworkTest extends TestCase
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
-                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
                 ->add(CorsMiddleware::class)
                 ->add(FrameworkCorsTerminalMiddleware::class);
         });

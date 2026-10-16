@@ -18,6 +18,7 @@ use Lemonade\Framework\Api\Endpoint\ApiRoutePathResolver;
 use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
 use Lemonade\Framework\Api\Framework\Health\HealthController;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
+use Lemonade\Framework\Api\Http\Response\ApiExceptionResponseResolver;
 use Lemonade\Framework\Api\Http\Response\ApiResponseFactory;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
@@ -30,6 +31,9 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\BootableServiceProviderInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Error\ExceptionResponseResolverInterface;
+use Lemonade\Framework\Http\Middleware\MiddlewareStack;
+use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use LogicException;
 
 final class ApiServiceProvider implements ServiceProviderInterface, BootableServiceProviderInterface
@@ -66,6 +70,10 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
 
         $container->singleton(ApiResponseFactory::class, ApiResponseFactory::class);
         $container->singleton(ProblemDetailsFactory::class, ProblemDetailsFactory::class);
+        $container->alias(
+            ExceptionResponseResolverInterface::class,
+            ApiExceptionResponseResolver::class,
+        );
 
         $container->singleton(ScopeVoter::class, ScopeVoter::class);
         $container->singleton(OpenApiGenerator::class, OpenApiGenerator::class);
@@ -91,6 +99,8 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
             return;
         }
 
+        $this->contributeHttpMiddleware($container);
+
         /** @var ApiEndpointRegistry $registry */
         $registry = $container->get(ApiEndpointRegistry::class);
 
@@ -114,6 +124,29 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
         $container->get(ApiEndpointRegistrar::class)->registerRoutes(
             $config->prefix(),
         );
+    }
+
+    private function contributeHttpMiddleware(ContainerInterface $container): void
+    {
+        if (!$container->has(MiddlewareStack::class)) {
+            return;
+        }
+
+        $stack = $container->get(MiddlewareStack::class);
+        if (in_array(ApiAuthorizationMiddleware::class, $stack->all(), true)) {
+            return;
+        }
+
+        if (in_array(OptionsMiddleware::class, $stack->all(), true)) {
+            $stack->insertBefore(
+                OptionsMiddleware::class,
+                ApiAuthorizationMiddleware::class,
+            );
+
+            return;
+        }
+
+        $stack->add(ApiAuthorizationMiddleware::class);
     }
 
     private function isCliRuntime(ContainerInterface $container): bool

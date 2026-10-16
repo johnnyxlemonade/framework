@@ -10,8 +10,9 @@ use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
-use Lemonade\Framework\Api\Endpoint\ApiRoutePathResolver;
-use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
+use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
+use Lemonade\Framework\Api\Http\Response\ApiExceptionResponseResolver;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\Config;
@@ -25,7 +26,10 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
+use Lemonade\Framework\Http\Error\ExceptionResponseResolverInterface;
+use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
+use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\Router;
@@ -197,6 +201,20 @@ final class FrameworkApiEndpointsTest extends TestCase
         self::assertArrayHasKey('/app/ping', $paths);
     }
 
+    public function testApiControllerFailureUsesProblemDetailsBridge(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  endpoint_providers:\n    - " . TestFailingApiEndpointProvider::class . "\n",
+        );
+
+        $response = $this->kernel()->run(new ServerRequest('GET', '/api/app/failure'));
+
+        self::assertSame(500, $response->getStatusCode());
+        self::assertSame('application/problem+json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+        self::assertStringNotContainsString('Controller failure detail.', (string) $response->getBody());
+    }
+
     public function testConfiguredApiEndpointProviderMustImplementInterface(): void
     {
         $context = new ApplicationContext(
@@ -218,7 +236,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $framework->bootProviders();
     }
 
-    public function testApiServiceProviderExplicitlyBindsFrameworkApiEndpointProvider(): void
+    public function testApiServiceProviderUsesOneCanonicalEndpointRegistryGraph(): void
     {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -228,11 +246,54 @@ final class FrameworkApiEndpointsTest extends TestCase
         $container = new Container();
         $framework = new Framework($container, $context);
 
-        $framework->register(new ApiServiceProvider());
+        $framework->register(
+            new HttpServiceProvider(),
+            new ApiServiceProvider(),
+        );
+        $framework->bootProviders();
 
-        self::assertTrue($container->isBound(FrameworkApiEndpointProvider::class));
-        self::assertTrue($container->isBound(ApiConfig::class));
-        self::assertTrue($container->isBound(ApiRoutePathResolver::class));
+        $registry = $container->get(ApiEndpointRegistry::class);
+        $requestResolver = $container->get(ApiEndpointRequestResolver::class);
+        $healthEndpoint = $registry->findByName('framework.health');
+
+        self::assertNotNull($healthEndpoint);
+        self::assertSame(
+            $healthEndpoint,
+            $requestResolver->resolve(new ServerRequest('GET', '/api/framework/health')),
+        );
+        self::assertSame($requestResolver, $container->get(ApiEndpointRequestResolver::class));
+
+        $firstExceptionResolver = $container->get(ExceptionResponseResolverInterface::class);
+        $secondExceptionResolver = $container->get(ExceptionResponseResolverInterface::class);
+
+        self::assertInstanceOf(ApiExceptionResponseResolver::class, $firstExceptionResolver);
+        self::assertNotSame($firstExceptionResolver, $secondExceptionResolver);
+    }
+
+    public function testApiServiceProviderContributesAuthorizationMiddlewareOnceBeforeOptions(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $container = new Container();
+        $framework = new Framework($container, $context);
+
+        $framework->register(
+            new HttpServiceProvider(),
+            new ApiServiceProvider(),
+        );
+        $framework->bootProviders();
+
+        $middlewares = $container->get(MiddlewareStack::class)->all();
+        $authorizationIndex = array_search(ApiAuthorizationMiddleware::class, $middlewares, true);
+        $optionsIndex = array_search(OptionsMiddleware::class, $middlewares, true);
+
+        self::assertSame(1, count(array_keys($middlewares, ApiAuthorizationMiddleware::class, true)));
+        self::assertIsInt($authorizationIndex);
+        self::assertIsInt($optionsIndex);
+        self::assertSame($optionsIndex - 1, $authorizationIndex);
     }
 
     public function testApiServiceProviderSkipsHttpRouteRegistrationInCliRuntime(): void
@@ -247,9 +308,9 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         $framework->register(new ConsoleServiceProvider());
         $framework->register(new ApiServiceProvider());
+        $framework->bootProviders();
 
-        self::assertTrue($container->isBound(FrameworkApiEndpointProvider::class));
-        self::assertTrue($container->isBound(ApiConfig::class));
+        self::assertFalse($container->has(MiddlewareStack::class));
         self::assertFalse($framework->container()->get(Router::class)->hasExplicitRouteForPath('GET', '/api/framework/health'));
     }
 
@@ -660,9 +721,32 @@ final class TestAppApiEndpointProvider implements ApiEndpointProviderInterface
     }
 }
 
+final class TestFailingApiEndpointProvider implements ApiEndpointProviderInterface
+{
+    public function register(ApiEndpointRegistry $registry): void
+    {
+        $registry->get(
+            path: '/app/failure',
+            controllerAction: ControllerAction::for(FailingApiController::class, 'show'),
+            name: 'app.failure',
+            summary: 'App failure',
+            description: 'Throws an unexpected exception',
+            access: ApiAccess::Public,
+        );
+    }
+}
+
 final class TestInvalidApiEndpointProvider {}
 
 final class AppPingController
 {
     public function show(): void {}
+}
+
+final class FailingApiController
+{
+    public function show(): never
+    {
+        throw new \RuntimeException('Controller failure detail.');
+    }
 }

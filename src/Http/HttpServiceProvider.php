@@ -4,12 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http;
 
-use Lemonade\Framework\Api\Config\ApiConfig;
-use Lemonade\Framework\Api\Config\ApiConfigDefinition;
-use Lemonade\Framework\Api\Config\ApiConfigResolver;
-use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
-use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
-use Lemonade\Framework\Api\Security\NullApiAuthenticator;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
@@ -48,7 +42,6 @@ final readonly class HttpServiceProvider implements ServiceProviderInterface
     public function register(ContainerBuilderInterface $container): void
     {
         $this->registerConfiguration($container);
-        $this->registerApiFallbacks($container);
         $this->registerMiddleware($container);
         $this->registerRequestServices($container);
     }
@@ -93,29 +86,6 @@ final readonly class HttpServiceProvider implements ServiceProviderInterface
     }
 
     /**
-     * Keeps the API-aware default pipeline resolvable when the optional API provider is absent.
-     *
-     * The standard bootstrap later lets ApiServiceProvider replace these fallbacks with configured bindings.
-     */
-    private function registerApiFallbacks(ContainerBuilderInterface $container): void
-    {
-        $container->singleton(
-            ApiAuthenticatorInterface::class,
-            static fn(): ApiAuthenticatorInterface => new NullApiAuthenticator(),
-        );
-        $container->singleton(ApiConfig::class, static function (ContainerInterface $container): ApiConfig {
-            $resolver = $container->get(ApiConfigResolver::class);
-            $registry = $container->get(ConfigDefinitionRegistry::class);
-            $definitions = $registry->typedEntriesFor(
-                ApiConfigDefinition::moduleKey(),
-                ApiConfigDefinition::class,
-            );
-
-            return $resolver->resolve(...$definitions);
-        });
-    }
-
-    /**
      * Registers the mutable global ordering policy while middleware remains autowired.
      */
     private function registerMiddleware(ContainerBuilderInterface $container): void
@@ -127,7 +97,6 @@ final readonly class HttpServiceProvider implements ServiceProviderInterface
             CorsMiddleware::class,
             PoweredByMiddleware::class,
             HtmlMinifyMiddleware::class,
-            ApiAuthorizationMiddleware::class,
             OptionsMiddleware::class,
         ]));
     }
