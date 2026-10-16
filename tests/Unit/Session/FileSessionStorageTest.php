@@ -197,6 +197,29 @@ final class FileSessionStorageTest extends TestCase
         self::assertSame([], $this->existingFiles($expiredIds));
     }
 
+    public function testGarbageCollectionCursorAccountsForRemovedEntries(): void
+    {
+        $expiredIds = [];
+
+        for ($index = 0; $index < 4; ++$index) {
+            $sessionId = hash('sha256', 'cursor-expired-' . $index);
+            $expiredIds[] = $sessionId;
+            $this->writeFixture($sessionId, ['index' => $index], time() - 61);
+        }
+
+        $emissions = [];
+        $storage = $this->storage(
+            emissions: $emissions,
+            gcBatchSize: 2,
+        );
+        $collectGarbageBatch = (new \ReflectionObject($storage))->getMethod('collectGarbageBatch');
+
+        $collectGarbageBatch->invoke($storage);
+        $collectGarbageBatch->invoke($storage);
+
+        self::assertSame([], $this->existingFiles($expiredIds));
+    }
+
     public function testRecordRemovedBetweenReadAndTouchGetsFreshIdentity(): void
     {
         $sessionId = str_repeat('d', 64);

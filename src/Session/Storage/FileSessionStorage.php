@@ -403,24 +403,26 @@ final class FileSessionStorage implements SessionStorageInterface
         $this->unlinkPath($file);
     }
 
-    private function deleteExpiredSessionFile(string $file): void
+    private function deleteExpiredSessionFile(string $file): bool
     {
         if (is_link($file)) {
             $this->unlinkPath($file);
 
-            return;
+            return true;
         }
         if (!is_file($file)) {
-            return;
+            return false;
         }
 
         $modifiedAt = filemtime($file);
 
         if ($modifiedAt === false || $modifiedAt + $this->lifetimeSeconds >= time()) {
-            return;
+            return false;
         }
 
         $this->unlinkPath($file);
+
+        return true;
     }
 
     private function unlinkPath(string $file): void
@@ -468,6 +470,7 @@ final class FileSessionStorage implements SessionStorageInterface
             }
 
             $processed = 0;
+            $removed = 0;
 
             while ($iterator->valid() && $processed < $this->gcBatchSize) {
                 $name = $iterator->getFilename();
@@ -475,16 +478,25 @@ final class FileSessionStorage implements SessionStorageInterface
                 if (!$iterator->isDot() && $name !== self::GC_CURSOR_FILE) {
                     ++$processed;
                 }
+
+                $removedEntry = false;
+
                 if ($this->isSessionFileName($name)) {
-                    $this->deleteExpiredSessionFile($iterator->getPathname());
+                    $removedEntry = $this->deleteExpiredSessionFile($iterator->getPathname());
                 } elseif ($this->isTemporaryFileName($name)) {
-                    $this->deleteAbandonedTemporaryFile($iterator->getPathname());
+                    $removedEntry = $this->deleteAbandonedTemporaryFile($iterator->getPathname());
+                }
+
+                if ($removedEntry) {
+                    ++$removed;
                 }
 
                 $iterator->next();
             }
 
-            $nextPosition = $iterator->valid() ? (int) $iterator->key() : 0;
+            $nextPosition = $iterator->valid()
+                ? max(0, (int) $iterator->key() - $removed)
+                : 0;
             $this->writeGcCursor($cursor, $nextPosition);
             flock($cursor, LOCK_UN);
         } finally {
@@ -537,20 +549,22 @@ final class FileSessionStorage implements SessionStorageInterface
         return str_starts_with($name, self::TEMPORARY_FILE_PREFIX);
     }
 
-    private function deleteAbandonedTemporaryFile(string $file): void
+    private function deleteAbandonedTemporaryFile(string $file): bool
     {
         $metadata = lstat($file);
 
         if (!is_array($metadata) || !isset($metadata['mtime']) || !is_int($metadata['mtime'])) {
-            return;
+            return false;
         }
 
         $minimumAge = max($this->lifetimeSeconds, self::MINIMUM_TEMPORARY_FILE_AGE_SECONDS);
 
         if ($metadata['mtime'] + $minimumAge >= time()) {
-            return;
+            return false;
         }
 
         $this->unlinkPath($file);
+
+        return true;
     }
 }
