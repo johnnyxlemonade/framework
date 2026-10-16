@@ -1660,16 +1660,16 @@
         },
         {
             "name": "giorgiosironi/eris",
-            "version": "1.2.0",
+            "version": "1.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/giorgiosironi/eris.git",
-                "reference": "90a317156ff522845d092cb261d92914d32ba49a"
+                "reference": "350b1481181618138931c0fe6a0d8d387fe3c3b4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/giorgiosironi/eris/zipball/90a317156ff522845d092cb261d92914d32ba49a",
-                "reference": "90a317156ff522845d092cb261d92914d32ba49a",
+                "url": "https://api.github.com/repos/giorgiosironi/eris/zipball/350b1481181618138931c0fe6a0d8d387fe3c3b4",
+                "reference": "350b1481181618138931c0fe6a0d8d387fe3c3b4",
                 "shasum": ""
             },
             "require": {
@@ -1718,9 +1718,9 @@
             "description": "PHP library for property-based testing. Integrates with PHPUnit.",
             "support": {
                 "issues": "https://github.com/giorgiosironi/eris/issues",
-                "source": "https://github.com/giorgiosironi/eris/tree/1.2.0"
+                "source": "https://github.com/giorgiosironi/eris/tree/1.2.1"
             },
-            "time": "2026-09-30T09:36:57+00:00"
+            "time": "2026-10-10T08:24:03+00:00"
         },
         {
             "name": "guzzlehttp/guzzle",
