@@ -34,7 +34,7 @@ final class ValidationServiceProvider implements ServiceProviderInterface
         );
         $container->singleton(RuleRegistry::class, RuleRegistry::class);
         $container->singleton('validation.rules', RuleRegistry::class);
-        $container->singleton(ValidationRuleResolver::class, ValidationRuleResolver::class);
+        $container->transient(ValidationRuleResolver::class, ValidationRuleResolver::class);
 
         foreach (RuleRegistry::builtInRules() as $ruleClass) {
             $container->transient($ruleClass, $ruleClass);

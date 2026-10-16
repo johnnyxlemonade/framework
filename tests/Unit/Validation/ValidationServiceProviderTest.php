@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Tests\Unit\Validation;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Database;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
@@ -22,6 +23,7 @@ use Lemonade\Framework\Validation\Rule\ValidationRuleInterface;
 use Lemonade\Framework\Validation\Rule\ValidDicActiveRule;
 use Lemonade\Framework\Validation\Rule\ValidEmailHeavyRule;
 use Lemonade\Framework\Validation\Rule\ValidIcoActiveRule;
+use Lemonade\Framework\Validation\ValidationRuleResolver;
 use Lemonade\Framework\Validation\ValidationServiceProvider;
 use Lemonade\Framework\Tests\Unit\Validation\Support\ValidationQueueHttpClient;
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -138,6 +140,32 @@ final class ValidationServiceProviderTest extends TestCase
             self::assertSame($ruleClass, $registry->get($name));
             self::assertInstanceOf(ValidationRuleInterface::class, $container->get($ruleClass));
         }
+    }
+
+    public function testRuleResolverUsesCurrentScopeWithoutCachingRulesAcrossScopes(): void
+    {
+        $container = $this->container();
+        (new ValidationServiceProvider())->register($container);
+        $container->scoped(
+            ValidationServiceProviderScopedRuleDependency::class,
+            ValidationServiceProviderScopedRuleDependency::class,
+        );
+
+        $registry = $container->get(RuleRegistry::class);
+        $registry->addRule('scoped_rule', ValidationServiceProviderScopedRule::class);
+
+        $firstScope = $container->beginScope(ScopeKind::Request);
+        $secondScope = $container->beginScope(ScopeKind::Request);
+
+        $firstRule = $firstScope->get(ValidationRuleResolver::class)->resolve('scoped_rule');
+        $secondRule = $secondScope->get(ValidationRuleResolver::class)->resolve('scoped_rule');
+
+        self::assertInstanceOf(ValidationServiceProviderScopedRule::class, $firstRule);
+        self::assertInstanceOf(ValidationServiceProviderScopedRule::class, $secondRule);
+        self::assertSame($firstScope->get(ValidationServiceProviderScopedRuleDependency::class), $firstRule->dependency);
+        self::assertSame($secondScope->get(ValidationServiceProviderScopedRuleDependency::class), $secondRule->dependency);
+        self::assertNotSame($firstRule, $secondRule);
+        self::assertNotSame($firstRule->dependency, $secondRule->dependency);
     }
 
     private function container(): Container
@@ -360,5 +388,21 @@ final class ValidationServiceProviderCustomVatEndpointProvider implements VatVal
             . rawurlencode($countryCode)
             . '/'
             . rawurlencode($vatNumber);
+    }
+}
+
+final class ValidationServiceProviderScopedRuleDependency {}
+
+final class ValidationServiceProviderScopedRule implements ValidationRuleInterface
+{
+    public function __construct(
+        public readonly ValidationServiceProviderScopedRuleDependency $dependency,
+    ) {}
+
+    public function validate(mixed $value, ?string $param, array $data): bool
+    {
+        unset($value, $param, $data);
+
+        return true;
     }
 }
