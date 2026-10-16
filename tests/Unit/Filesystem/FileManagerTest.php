@@ -12,9 +12,14 @@ use PHPUnit\Framework\TestCase;
 final class FileManagerTest extends TestCase
 {
     private string $root = '';
-    /** @var FileManager */
+    /**
+     * @var FileManager
+     */
     private $manager;
-    /** @var DirectoryManager */
+
+    /**
+     * @var DirectoryManager
+     */
     private $dir;
 
     protected function setUp(): void
@@ -97,6 +102,33 @@ final class FileManagerTest extends TestCase
     {
         $this->expectException(FilesystemException::class);
         $this->manager->hash($this->path('missing.txt'));
+    }
+
+    public function testHashRejectsInvalidAlgorithmAsFilesystemException(): void
+    {
+        $file = $this->path('hash-invalid.txt');
+        $this->dir->write($file, 'content');
+
+        try {
+            $this->manager->hash($file, 'not-a-real-hash');
+            self::fail('An unavailable hash algorithm must be rejected.');
+        } catch (FilesystemException $exception) {
+            self::assertSame(FilesystemException::CODE_HASH_ALGORITHM_INVALID, $exception->getCode());
+            self::assertNull($exception->getPrevious());
+        }
+    }
+
+    public function testDirectoryIsReportedAsNotARegularFile(): void
+    {
+        $directory = $this->path('not-a-file');
+        $this->dir->create($directory);
+
+        try {
+            $this->manager->size($directory);
+            self::fail('A directory must not be accepted as a regular file.');
+        } catch (FilesystemException $exception) {
+            self::assertSame(FilesystemException::CODE_FILE_NOT_A_FILE, $exception->getCode());
+        }
     }
 
     public function testMimeThrowsForMissingFile(): void

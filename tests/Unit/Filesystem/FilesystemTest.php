@@ -25,7 +25,7 @@ final class FilesystemTest extends TestCase
         $filesystem->copy('/tmp/src', '/tmp/dst', true);
         $filesystem->write('/tmp/f.txt', 'x', 0644);
         $filesystem->move('/tmp/temporary', '/tmp/final');
-        iterator_to_array($filesystem->stream('/tmp', true));
+        iterator_to_array($filesystem->stream('/tmp'));
         iterator_to_array($filesystem->find('*.txt', '/tmp'));
         iterator_to_array($filesystem->tree('/tmp', false));
 
@@ -80,7 +80,9 @@ final class FilesystemTest extends TestCase
 
 final class DirectoryManagerSpy implements DirectoryManagerInterface
 {
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     */
     public array $calls = [];
 
     public function create(string $path, int $mode = 0775): void
@@ -129,7 +131,9 @@ final class DirectoryManagerSpy implements DirectoryManagerInterface
 
 final class FileManagerSpy implements FileManagerInterface
 {
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     */
     public array $calls = [];
 
     public function read(string $file): string
@@ -171,7 +175,9 @@ final class FileManagerSpy implements FileManagerInterface
 
 final class LockManagerSpy implements LockManagerInterface
 {
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     */
     public array $calls = [];
 
     /**

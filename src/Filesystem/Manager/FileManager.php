@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Filesystem\Manager;
 
+use Exception;
 use Lemonade\Framework\Filesystem\Contract\FileManagerInterface;
 use Lemonade\Framework\Filesystem\Exception\FilesystemException;
 
@@ -19,10 +20,14 @@ use function finfo_file;
 use function finfo_open;
 use function fopen;
 use function fread;
+use function hash_algos;
 use function hash_file;
+use function in_array;
 use function is_file;
+use function is_link;
 use function is_readable;
 use function mime_content_type;
+use function strtolower;
 
 use const FILEINFO_MIME_TYPE;
 
@@ -36,12 +41,7 @@ final class FileManager implements FileManagerInterface
      */
     public function read(string $file): string
     {
-        if (!is_file($file)) {
-            throw new FilesystemException(
-                "File '{$file}' not found.",
-                FilesystemException::CODE_FILE_NOT_FOUND,
-            );
-        }
+        $this->assertRegularFile($file);
 
         if (!is_readable($file)) {
             throw new FilesystemException(
@@ -50,7 +50,16 @@ final class FileManager implements FileManagerInterface
             );
         }
 
-        $handle = fopen($file, 'rb');
+        try {
+            $handle = @fopen($file, 'rb');
+        } catch (Exception $exception) {
+            throw new FilesystemException(
+                "Failed to open file '{$file}' for reading.",
+                FilesystemException::CODE_FILE_READ_FAILED,
+                $exception,
+            );
+        }
+
         if ($handle === false) {
             throw new FilesystemException(
                 "Failed to open file '{$file}' for reading.",
@@ -61,7 +70,16 @@ final class FileManager implements FileManagerInterface
         $buffer = '';
         try {
             while (!feof($handle)) {
-                $chunk = fread($handle, 8192);
+                try {
+                    $chunk = @fread($handle, 8192);
+                } catch (Exception $exception) {
+                    throw new FilesystemException(
+                        "Failed to read chunk from '{$file}'.",
+                        FilesystemException::CODE_FILE_READ_FAILED,
+                        $exception,
+                    );
+                }
+
                 if ($chunk === false) {
                     throw new FilesystemException(
                         "Failed to read chunk from '{$file}'.",
@@ -71,7 +89,11 @@ final class FileManager implements FileManagerInterface
                 $buffer .= $chunk;
             }
         } finally {
-            fclose($handle);
+            try {
+                @fclose($handle);
+            } catch (Exception) {
+                // A read failure remains primary; closing the resource is best-effort cleanup.
+            }
         }
 
         return $buffer;
@@ -82,14 +104,18 @@ final class FileManager implements FileManagerInterface
      */
     public function size(string $file): int
     {
-        if (!is_file($file)) {
+        $this->assertRegularFile($file);
+
+        try {
+            $size = @filesize($file);
+        } catch (Exception $exception) {
             throw new FilesystemException(
-                "File '{$file}' not found or is not a file.",
-                FilesystemException::CODE_FILE_NOT_FOUND,
+                "Failed to get size of file '{$file}'.",
+                FilesystemException::CODE_FILE_READ_FAILED,
+                $exception,
             );
         }
 
-        $size = filesize($file);
         if ($size === false) {
             throw new FilesystemException(
                 "Failed to get size of file '{$file}'.",
@@ -108,11 +134,20 @@ final class FileManager implements FileManagerInterface
         if (!file_exists($file)) {
             throw new FilesystemException(
                 "Path '{$file}' not found.",
-                FilesystemException::CODE_FILE_NOT_FOUND,
+                FilesystemException::CODE_PATH_NOT_FOUND,
             );
         }
 
-        $mtime = filemtime($file);
+        try {
+            $mtime = @filemtime($file);
+        } catch (Exception $exception) {
+            throw new FilesystemException(
+                "Failed to get modified time of '{$file}'.",
+                FilesystemException::CODE_FILE_READ_FAILED,
+                $exception,
+            );
+        }
+
         if ($mtime === false) {
             throw new FilesystemException(
                 "Failed to get modified time of '{$file}'.",
@@ -128,14 +163,26 @@ final class FileManager implements FileManagerInterface
      */
     public function hash(string $file, string $algo = 'sha256'): string
     {
-        if (!is_file($file)) {
+        $algorithm = strtolower($algo);
+        if (!in_array($algorithm, hash_algos(), true)) {
             throw new FilesystemException(
-                "File '{$file}' not found or is not a file.",
-                FilesystemException::CODE_FILE_NOT_FOUND,
+                "Hash algorithm '{$algo}' is not available.",
+                FilesystemException::CODE_HASH_ALGORITHM_INVALID,
             );
         }
 
-        $hash = hash_file($algo, $file);
+        $this->assertRegularFile($file);
+
+        try {
+            $hash = @hash_file($algorithm, $file);
+        } catch (Exception $exception) {
+            throw new FilesystemException(
+                "Failed to hash file '{$file}' with algorithm '{$algo}'.",
+                FilesystemException::CODE_FILE_READ_FAILED,
+                $exception,
+            );
+        }
+
         if ($hash === false) {
             throw new FilesystemException(
                 "Failed to hash file '{$file}' with algorithm '{$algo}'.",
@@ -151,31 +198,36 @@ final class FileManager implements FileManagerInterface
      */
     public function mime(string $file): string
     {
-        if (!is_file($file)) {
-            throw new FilesystemException(
-                "File '{$file}' not found or is not a file.",
-                FilesystemException::CODE_FILE_NOT_FOUND,
-            );
-        }
+        $this->assertRegularFile($file);
 
         $mime = false;
+        $previous = null;
 
         if (extension_loaded('fileinfo')) {
-            $finfo = finfo_open(FILEINFO_MIME_TYPE);
-            if ($finfo !== false) {
-                $mime = finfo_file($finfo, $file);
-                finfo_close($finfo);
+            try {
+                $finfo = @finfo_open(FILEINFO_MIME_TYPE);
+                if ($finfo !== false) {
+                    $mime = @finfo_file($finfo, $file);
+                    finfo_close($finfo);
+                }
+            } catch (Exception $exception) {
+                $previous = $exception;
             }
         }
 
         if ($mime === false) {
-            $mime = mime_content_type($file);
+            try {
+                $mime = @mime_content_type($file);
+            } catch (Exception $exception) {
+                $previous = $exception;
+            }
         }
 
         if ($mime === false) {
             throw new FilesystemException(
                 "Failed to determine MIME type for '{$file}'.",
                 FilesystemException::CODE_FILE_READ_FAILED,
+                $previous,
             );
         }
 
@@ -190,11 +242,20 @@ final class FileManager implements FileManagerInterface
         if (!file_exists($file)) {
             throw new FilesystemException(
                 "Path '{$file}' not found.",
-                FilesystemException::CODE_FILE_NOT_FOUND,
+                FilesystemException::CODE_PATH_NOT_FOUND,
             );
         }
 
-        $perms = fileperms($file);
+        try {
+            $perms = @fileperms($file);
+        } catch (Exception $exception) {
+            throw new FilesystemException(
+                "Failed to get permissions for '{$file}'.",
+                FilesystemException::CODE_FILE_READ_FAILED,
+                $exception,
+            );
+        }
+
         if ($perms === false) {
             throw new FilesystemException(
                 "Failed to get permissions for '{$file}'.",
@@ -203,5 +264,24 @@ final class FileManager implements FileManagerInterface
         }
 
         return $perms & 0777;
+    }
+
+    private function assertRegularFile(string $file): void
+    {
+        if (is_file($file)) {
+            return;
+        }
+
+        if (file_exists($file) || is_link($file)) {
+            throw new FilesystemException(
+                "Path '{$file}' is not a regular file.",
+                FilesystemException::CODE_FILE_NOT_A_FILE,
+            );
+        }
+
+        throw new FilesystemException(
+            "File '{$file}' not found.",
+            FilesystemException::CODE_FILE_NOT_FOUND,
+        );
     }
 }

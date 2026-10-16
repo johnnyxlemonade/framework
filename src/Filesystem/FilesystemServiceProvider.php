@@ -14,10 +14,13 @@ use Lemonade\Framework\Filesystem\Manager\DirectoryManager;
 use Lemonade\Framework\Filesystem\Manager\FileManager;
 use Lemonade\Framework\Filesystem\Manager\LockManager;
 
+/**
+ * Registers the shared local-filesystem contracts, facade, path generator, and legacy service IDs.
+ */
 final class FilesystemServiceProvider implements ServiceProviderInterface
 {
     /**
-     * Registers shared filesystem contracts and their legacy container aliases
+     * Adds filesystem services to the application container with singleton lifetimes.
      */
     public function register(ContainerBuilderInterface $container): void
     {

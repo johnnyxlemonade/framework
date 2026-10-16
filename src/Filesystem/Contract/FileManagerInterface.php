@@ -38,8 +38,8 @@ interface FileManagerInterface
     /**
      * Calculates a file hash using the given algorithm.
      *
-     * @throws FilesystemException If the file does not exist, is not a regular file,
-     *                             or the hash cannot be calculated.
+     * @throws FilesystemException If the algorithm is unavailable, the file does not exist,
+     *                             is not a regular file, or the hash cannot be calculated.
      */
     public function hash(string $file, string $algo = 'sha256'): string;
 
