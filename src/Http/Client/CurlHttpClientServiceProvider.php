@@ -6,28 +6,33 @@ namespace Lemonade\Framework\Http\Client;
 
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
-use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Client\Internal\HttpClientConfigServices;
 use Lemonade\Framework\Http\Config\HttpClientConfig;
-use Lemonade\Framework\Http\Config\HttpClientConfigDefinition;
-use Lemonade\Framework\Http\Config\HttpClientConfigResolver;
+use LogicException;
 use Psr\Http\Client\ClientInterface;
 
-final class CurlHttpClientServiceProvider implements ServiceProviderInterface
+/**
+ * Registers the optional PHP-HTTP cURL adapter as the configured PSR-18 client.
+ */
+final readonly class CurlHttpClientServiceProvider implements ServiceProviderInterface
 {
     private const string CURL_CLIENT_CLASS = 'Http\\Client\\Curl\\Client';
 
+    /**
+     * Binds client configuration and validates cURL dependencies when the client is first resolved.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(HttpClientConfigResolver::class, HttpClientConfigResolver::class);
-        $container->singleton(HttpClientConfig::class, static function (ContainerInterface $container): HttpClientConfig {
-            return $container
-                ->get(HttpClientConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    HttpClientConfigDefinition::moduleKey(),
-                    HttpClientConfigDefinition::class,
-                ));
-        });
+        if ($container->isBound(ClientInterface::class)) {
+            throw new LogicException(sprintf(
+                'Cannot register %s because %s is already bound. Configure exactly one PSR-18 transport provider.',
+                self::class,
+                ClientInterface::class,
+            ));
+        }
+
+        HttpClientConfigServices::register($container);
 
         $container->singleton(ClientInterface::class, static function (ContainerInterface $container): ClientInterface {
             if (!class_exists(self::CURL_CLIENT_CLASS)) {
@@ -63,10 +68,10 @@ final class CurlHttpClientServiceProvider implements ServiceProviderInterface
             return $client;
         });
 
-        $container->singleton(self::CURL_CLIENT_CLASS, ClientInterface::class);
+        $container->alias(self::CURL_CLIENT_CLASS, ClientInterface::class);
 
         if (interface_exists(\Http\Client\HttpClient::class)) {
-            $container->singleton(\Http\Client\HttpClient::class, ClientInterface::class);
+            $container->alias(\Http\Client\HttpClient::class, ClientInterface::class);
         }
     }
 }

@@ -14,7 +14,6 @@ use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Http\RequestData;
-use Lemonade\Framework\Core\ProviderContainerAssertions;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Config\CorsConfigDefinition;
@@ -25,8 +24,6 @@ use Lemonade\Framework\Http\Config\ErrorConfigResolver;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfig;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfigDefinition;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfigResolver;
-use Lemonade\Framework\Http\Error\ErrorPageRenderer;
-use Lemonade\Framework\Http\Logging\HttpLogContext;
 use Lemonade\Framework\Http\Middleware\BenchmarkMiddleware;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
@@ -38,63 +35,91 @@ use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Middleware\PoweredByMiddleware;
 use Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware;
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
-use Lemonade\Framework\Http\Response\HtmlMinifier;
 use Psr\Http\Message\ServerRequestInterface;
 
-final class HttpServiceProvider implements ServiceProviderInterface
+/**
+ * Registers the framework HTTP pipeline, request-scoped dispatch services, and resolved HTTP configuration.
+ */
+final readonly class HttpServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Defines HTTP service lifetimes and the default global middleware order.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $builder = ProviderContainerAssertions::builder($container, self::class, 'HTTP services');
+        $this->registerConfiguration($container);
+        $this->registerApiFallbacks($container);
+        $this->registerMiddleware($container);
+        $this->registerRequestServices($container);
+    }
 
-        $container->singleton(ErrorPageRenderer::class, ErrorPageRenderer::class);
-        $container->singleton(ApiAuthenticatorInterface::class, static fn(): ApiAuthenticatorInterface => new NullApiAuthenticator());
-        $container->singleton(ApiConfigResolver::class, ApiConfigResolver::class);
-        $container->singleton(ApiConfig::class, static function (ContainerInterface $container): ApiConfig {
-            return $container
-                ->get(ApiConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    ApiConfigDefinition::moduleKey(),
-                    ApiConfigDefinition::class,
-                ));
-        });
-        $container->singleton(HtmlMinifyConfigResolver::class, HtmlMinifyConfigResolver::class);
+    /**
+     * Registers lazy HTTP configuration snapshots while resolvers remain autowired concretes.
+     */
+    private function registerConfiguration(ContainerBuilderInterface $container): void
+    {
         $container->singleton(HtmlMinifyConfig::class, static function (ContainerInterface $container): HtmlMinifyConfig {
-            return $container
-                ->get(HtmlMinifyConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    HtmlMinifyConfigDefinition::moduleKey(),
-                    HtmlMinifyConfigDefinition::class,
-                ));
-        });
-        $container->singleton(CorsConfigResolver::class, CorsConfigResolver::class);
-        $container->singleton(CorsConfig::class, static function (ContainerInterface $container): CorsConfig {
-            return $container
-                ->get(CorsConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    CorsConfigDefinition::moduleKey(),
-                    CorsConfigDefinition::class,
-                ));
-        });
-        $container->singleton(ErrorConfigResolver::class, ErrorConfigResolver::class);
-        $container->singleton(ErrorConfig::class, static function (ContainerInterface $container): ErrorConfig {
-            return $container
-                ->get(ErrorConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    ErrorConfigDefinition::moduleKey(),
-                    ErrorConfigDefinition::class,
-                ));
+            $resolver = $container->get(HtmlMinifyConfigResolver::class);
+            $registry = $container->get(ConfigDefinitionRegistry::class);
+            $definitions = $registry->typedEntriesFor(
+                HtmlMinifyConfigDefinition::moduleKey(),
+                HtmlMinifyConfigDefinition::class,
+            );
+
+            return $resolver->resolve(...$definitions);
         });
 
-        $container->singleton(ErrorHandlingMiddleware::class, ErrorHandlingMiddleware::class);
-        $container->singleton(PoweredByMiddleware::class, PoweredByMiddleware::class);
-        $container->singleton(RequestLoggingMiddleware::class, RequestLoggingMiddleware::class);
-        $container->singleton(BenchmarkMiddleware::class, BenchmarkMiddleware::class);
-        $builder->scoped(DispatchRequestHandler::class, DispatchRequestHandler::class);
-        $container->singleton(CorsMiddleware::class, CorsMiddleware::class);
-        $container->singleton(HtmlMinifyMiddleware::class, HtmlMinifyMiddleware::class);
-        $container->singleton(OptionsMiddleware::class, OptionsMiddleware::class);
-        $builder->scoped(MiddlewareResolver::class, MiddlewareResolver::class);
+        $container->singleton(CorsConfig::class, static function (ContainerInterface $container): CorsConfig {
+            $resolver = $container->get(CorsConfigResolver::class);
+            $registry = $container->get(ConfigDefinitionRegistry::class);
+            $definitions = $registry->typedEntriesFor(
+                CorsConfigDefinition::moduleKey(),
+                CorsConfigDefinition::class,
+            );
+
+            return $resolver->resolve(...$definitions);
+        });
+
+        $container->singleton(ErrorConfig::class, static function (ContainerInterface $container): ErrorConfig {
+            $resolver = $container->get(ErrorConfigResolver::class);
+            $registry = $container->get(ConfigDefinitionRegistry::class);
+            $definitions = $registry->typedEntriesFor(
+                ErrorConfigDefinition::moduleKey(),
+                ErrorConfigDefinition::class,
+            );
+
+            return $resolver->resolve(...$definitions);
+        });
+    }
+
+    /**
+     * Keeps the API-aware default pipeline resolvable when the optional API provider is absent.
+     *
+     * The standard bootstrap later lets ApiServiceProvider replace these fallbacks with configured bindings.
+     */
+    private function registerApiFallbacks(ContainerBuilderInterface $container): void
+    {
+        $container->singleton(
+            ApiAuthenticatorInterface::class,
+            static fn(): ApiAuthenticatorInterface => new NullApiAuthenticator(),
+        );
+        $container->singleton(ApiConfig::class, static function (ContainerInterface $container): ApiConfig {
+            $resolver = $container->get(ApiConfigResolver::class);
+            $registry = $container->get(ConfigDefinitionRegistry::class);
+            $definitions = $registry->typedEntriesFor(
+                ApiConfigDefinition::moduleKey(),
+                ApiConfigDefinition::class,
+            );
+
+            return $resolver->resolve(...$definitions);
+        });
+    }
+
+    /**
+     * Registers the mutable global ordering policy while middleware remains autowired.
+     */
+    private function registerMiddleware(ContainerBuilderInterface $container): void
+    {
         $container->singleton(MiddlewareStack::class, static fn(): MiddlewareStack => new MiddlewareStack([
             RequestLoggingMiddleware::class,
             BenchmarkMiddleware::class,
@@ -105,10 +130,16 @@ final class HttpServiceProvider implements ServiceProviderInterface
             ApiAuthorizationMiddleware::class,
             OptionsMiddleware::class,
         ]));
-        $container->singleton(HtmlMinifier::class, HtmlMinifier::class);
+    }
 
-        $container->singleton(HttpRequestInspector::class, HttpRequestInspector::class);
-        $builder->scoped(
+    /**
+     * Keeps request-bound dispatch and request data inside the active request scope.
+     */
+    private function registerRequestServices(ContainerBuilderInterface $container): void
+    {
+        $container->scoped(DispatchRequestHandler::class, DispatchRequestHandler::class);
+        $container->scoped(MiddlewareResolver::class, MiddlewareResolver::class);
+        $container->scoped(
             RequestData::class,
             static function (ContainerInterface $container): RequestData {
                 return new RequestData(
@@ -117,7 +148,5 @@ final class HttpServiceProvider implements ServiceProviderInterface
                 );
             },
         );
-        $container->singleton(HttpLogContext::class, HttpLogContext::class);
     }
-
 }

@@ -12,14 +12,23 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-final class HtmlMinifyMiddleware implements MiddlewareInterface
+/**
+ * Minifies non-empty HTML responses when enabled while preserving response immutability.
+ */
+final readonly class HtmlMinifyMiddleware implements MiddlewareInterface
 {
+    /**
+     * Connects the HTML transformer with its resolved runtime switch.
+     */
     public function __construct(
-        private readonly HtmlMinifier $minifier,
-        private readonly HtmlMinifyConfig $config,
+        private HtmlMinifier $minifier,
+        private HtmlMinifyConfig $config,
     ) {
     }
 
+    /**
+     * Replaces eligible response bodies and recalculates their Content-Length header.
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $response = $handler->handle($request);

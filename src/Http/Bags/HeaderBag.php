@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Bags;
 
+/**
+ * Stores HTTP header values under case-insensitive canonical names.
+ */
 final class HeaderBag
 {
     /**
@@ -12,6 +15,8 @@ final class HeaderBag
     private array $headers = [];
 
     /**
+     * Initializes the bag while normalizing every supplied header name.
+     *
      * @param array<string, string> $headers
      */
     public function __construct(array $headers = [])
@@ -22,6 +27,8 @@ final class HeaderBag
     }
 
     /**
+     * Returns all headers keyed by their canonical names.
+     *
      * @return array<string, string>
      */
     public function all(): array
@@ -29,16 +36,25 @@ final class HeaderBag
         return $this->headers;
     }
 
+    /**
+     * Reports whether a header exists regardless of name casing or underscores.
+     */
     public function has(string $name): bool
     {
         return array_key_exists($this->normalize($name), $this->headers);
     }
 
+    /**
+     * Returns a header value by normalized name or the supplied fallback.
+     */
     public function get(string $name, mixed $default = null): mixed
     {
         return $this->headers[$this->normalize($name)] ?? $default;
     }
 
+    /**
+     * Replaces the value stored under a normalized header name.
+     */
     public function set(string $name, string $value): void
     {
         $this->headers[$this->normalize($name)] = $value;

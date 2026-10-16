@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * Emits PSR-7 responses by forwarding readable body chunks without materializing the full body
  */
-final class ResponseEmitter
+final readonly class ResponseEmitter
 {
     private const int READ_CHUNK_SIZE = 65536;
 

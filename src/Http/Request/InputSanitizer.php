@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Request;
 
-final class InputSanitizer
+/**
+ * Removes control bytes and unsafe key characters from nested request input maps.
+ */
+final readonly class InputSanitizer
 {
     /**
+     * Recursively sanitizes string values and string-keyed nested arrays without coercing other scalars.
+     *
      * @param array<string, mixed> $input
      * @return array<string, mixed>
      */

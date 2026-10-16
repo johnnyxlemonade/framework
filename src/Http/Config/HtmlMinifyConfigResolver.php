@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Http\Config;
 
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 
-final class HtmlMinifyConfigResolver
+/**
+ * Merges ordered HTML minification definitions into one runtime setting.
+ */
+final readonly class HtmlMinifyConfigResolver
 {
+    /**
+     * Resolves the last configured switch, defaulting to disabled.
+     */
     public function resolve(HtmlMinifyConfigDefinition ...$definitions): HtmlMinifyConfig
     {
         $enabled = false;
@@ -22,5 +28,4 @@ final class HtmlMinifyConfigResolver
 
         return new HtmlMinifyConfig($enabled);
     }
-
 }

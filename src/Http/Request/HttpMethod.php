@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Request;
 
+/**
+ * Enumerates standard request methods used by routing and HTTP middleware decisions.
+ */
 enum HttpMethod: string
 {
     case GET = 'GET';

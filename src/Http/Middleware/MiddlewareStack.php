@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Middleware;
 
+/**
+ * Maintains the ordered middleware class list used to build the global HTTP pipeline.
+ */
 final class MiddlewareStack
 {
     /**
+     * Initializes a mutable stack from middleware class names in execution order.
+     *
      * @param list<class-string> $middlewares
      */
     public function __construct(
@@ -15,6 +20,8 @@ final class MiddlewareStack
     }
 
     /**
+     * Appends middleware to the end of the execution order.
+     *
      * @param class-string $middleware
      */
     public function add(string $middleware): self
@@ -25,6 +32,8 @@ final class MiddlewareStack
     }
 
     /**
+     * Prepends middleware to the beginning of the execution order.
+     *
      * @param class-string $middleware
      */
     public function prepend(string $middleware): self
@@ -35,8 +44,12 @@ final class MiddlewareStack
     }
 
     /**
+     * Inserts middleware immediately before an existing target.
+     *
      * @param class-string $target
      * @param class-string $middleware
+     *
+     * @throws \InvalidArgumentException When the target is absent
      */
     public function insertBefore(string $target, string $middleware): self
     {
@@ -55,8 +68,12 @@ final class MiddlewareStack
     }
 
     /**
+     * Inserts middleware immediately after an existing target.
+     *
      * @param class-string $target
      * @param class-string $middleware
+     *
+     * @throws \InvalidArgumentException When the target is absent
      */
     public function insertAfter(string $target, string $middleware): self
     {
@@ -75,6 +92,8 @@ final class MiddlewareStack
     }
 
     /**
+     * Removes every occurrence of a middleware class while preserving remaining order.
+     *
      * @param class-string $middleware
      */
     public function remove(string $middleware): self
@@ -88,6 +107,8 @@ final class MiddlewareStack
     }
 
     /**
+     * Returns middleware class names in their current execution order.
+     *
      * @return list<class-string>
      */
     public function all(): array

@@ -10,12 +10,12 @@ use Lemonade\Framework\Http\HttpStatus;
 use Psr\Http\Message\ResponseInterface;
 
 /**
- * Provides application controllers with framework response factories including one-pass streamed bodies
+ * Provides application controllers with consistently typed responses and one-pass streamed bodies.
  */
 final readonly class Responses
 {
     /**
-     * Initializes the facade for standard HTTP responses
+     * Delegates response and body creation to the framework's PSR-17-backed builder.
      */
     public function __construct(
         private ResponseBuilder $builder,
@@ -23,7 +23,7 @@ final readonly class Responses
     }
 
     /**
-     * Creates a text response
+     * Returns UTF-8 plain text with the requested status.
      */
     public function text(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
@@ -31,7 +31,7 @@ final readonly class Responses
     }
 
     /**
-     * Creates an HTML response
+     * Returns UTF-8 HTML with the requested status.
      */
     public function html(string $content, int $status = HttpStatus::OK->value): ResponseInterface
     {
@@ -39,7 +39,7 @@ final readonly class Responses
     }
 
     /**
-     * Creates a JSON response using the framework encoding policy
+     * Encodes a JSON response while preserving Unicode characters and slashes.
      *
      * @param array<string, mixed> $payload
      *
@@ -51,7 +51,7 @@ final readonly class Responses
     }
 
     /**
-     * Creates a redirect response
+     * Returns an empty response carrying the target Location header.
      */
     public function redirect(string $to, int $status = HttpStatus::FOUND->value): ResponseInterface
     {
@@ -59,7 +59,7 @@ final readonly class Responses
     }
 
     /**
-     * Creates a file download response
+     * Opens a file-backed response with attachment and private no-store headers.
      */
     public function download(
         string $filePath,
@@ -70,7 +70,7 @@ final readonly class Responses
     }
 
     /**
-     * Creates a one-pass response from a lazy producer of string chunks
+     * Returns a one-pass response whose string-chunk producer starts on first read.
      *
      * @param callable(): iterable<string> $producer
      * @param array<string, string> $headers

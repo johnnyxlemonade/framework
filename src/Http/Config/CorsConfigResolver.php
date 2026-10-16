@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Http\Config;
 
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 
-final class CorsConfigResolver
+/**
+ * Merges ordered CORS definition layers into one normalized runtime policy.
+ */
+final readonly class CorsConfigResolver
 {
+    /**
+     * Resolves later definitions over earlier values while retaining framework defaults.
+     */
     public function resolve(CorsConfigDefinition ...$definitions): CorsConfig
     {
         $enabled = false;
@@ -63,5 +69,4 @@ final class CorsConfigResolver
             maxAge: $maxAge,
         );
     }
-
 }

@@ -22,18 +22,18 @@ use Throwable;
 /**
  * Translates expected HTTP failures and unexpected throwables into safe responses and error records.
  */
-final class ErrorHandlingMiddleware implements MiddlewareInterface
+final readonly class ErrorHandlingMiddleware implements MiddlewareInterface
 {
     /**
      * Connects response rendering, error logging and API problem-detail handling.
      */
     public function __construct(
-        private readonly Psr17Factory $responseFactory,
-        private readonly LogManager $logs,
-        private readonly HttpLogContext $httpLogContext,
-        private readonly ErrorPageRenderer $errorPageRenderer,
-        private readonly ApiEndpointRequestResolver $apiEndpointResolver,
-        private readonly ProblemDetailsFactory $problems,
+        private Psr17Factory $responseFactory,
+        private LogManager $logs,
+        private HttpLogContext $httpLogContext,
+        private ErrorPageRenderer $errorPageRenderer,
+        private ApiEndpointRequestResolver $apiEndpointResolver,
+        private ProblemDetailsFactory $problems,
     ) {
     }
 

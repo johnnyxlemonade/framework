@@ -12,10 +12,18 @@ use const FILTER_FLAG_NO_PRIV_RANGE;
 use const FILTER_FLAG_NO_RES_RANGE;
 use const FILTER_VALIDATE_IP;
 
-final class HttpRequestInspector
+/**
+ * Derives logging and content-negotiation metadata from immutable server requests.
+ *
+ * Forwarding headers are inspected as supplied; deployment configuration owns whether they are trustworthy.
+ */
+final readonly class HttpRequestInspector
 {
     private const string UNKNOWN = 'UNKNOWN';
 
+    /**
+     * Selects the first public forwarded address, falling back to the first valid private candidate.
+     */
     public function clientIp(ServerRequestInterface $request): ?string
     {
         $candidates = array_values(array_filter([
@@ -37,6 +45,9 @@ final class HttpRequestInspector
         return $candidates[0] ?? null;
     }
 
+    /**
+     * Masks the identifying suffix of the selected IPv4 or IPv6 client address.
+     */
     public function anonymizedIp(ServerRequestInterface $request): ?string
     {
         $ip = $this->clientIp($request);
@@ -61,6 +72,9 @@ final class HttpRequestInspector
         return null;
     }
 
+    /**
+     * Reports whether recognized forwarding metadata is present on the request.
+     */
     public function viaProxy(ServerRequestInterface $request): bool
     {
         return $request->hasHeader('Forwarded')
@@ -70,16 +84,25 @@ final class HttpRequestInspector
             || $request->hasHeader('X-Cluster-Client-IP');
     }
 
+    /**
+     * Returns the raw X-Forwarded-For header line.
+     */
     public function forwardedFor(ServerRequestInterface $request): string
     {
         return $request->getHeaderLine('X-Forwarded-For');
     }
 
+    /**
+     * Returns the request user-agent header line.
+     */
     public function userAgent(ServerRequestInterface $request): string
     {
         return $request->getHeaderLine('User-Agent');
     }
 
+    /**
+     * Returns the first available standard or forwarded referrer value.
+     */
     public function referer(ServerRequestInterface $request): ?string
     {
         foreach ([
@@ -97,6 +120,9 @@ final class HttpRequestInspector
         return null;
     }
 
+    /**
+     * Returns the URI host or an explicit unknown marker when it is absent.
+     */
     public function host(ServerRequestInterface $request): string
     {
         $host = $request->getUri()->getHost();
@@ -104,6 +130,9 @@ final class HttpRequestInspector
         return $host !== '' ? $host : self::UNKNOWN;
     }
 
+    /**
+     * Returns the Accept header or an explicit unknown marker when it is absent.
+     */
     public function accept(ServerRequestInterface $request): string
     {
         $accept = $request->getHeaderLine('Accept');
@@ -148,16 +177,25 @@ final class HttpRequestInspector
         return $jsonQuality !== null && ($otherQuality === null || $jsonQuality >= $otherQuality);
     }
 
+    /**
+     * Returns the raw Accept-Language header line.
+     */
     public function acceptLanguage(ServerRequestInterface $request): string
     {
         return $request->getHeaderLine('Accept-Language');
     }
 
+    /**
+     * Reports whether the request's encoding declaration contains gzip support.
+     */
     public function gzipAccepted(ServerRequestInterface $request): bool
     {
         return str_contains($request->getHeaderLine('Accept-Encoding'), 'gzip');
     }
 
+    /**
+     * Returns a numeric Content-Length value or zero for missing and invalid input.
+     */
     public function contentLength(ServerRequestInterface $request): int
     {
         $length = $request->getHeaderLine('Content-Length');
@@ -165,11 +203,17 @@ final class HttpRequestInspector
         return is_numeric($length) ? (int) $length : 0;
     }
 
+    /**
+     * Counts the request's parsed query parameters.
+     */
     public function queryParamsCount(ServerRequestInterface $request): int
     {
         return count($request->getQueryParams());
     }
 
+    /**
+     * Counts parsed body parameters when the body representation is an array.
+     */
     public function parsedBodyParamsCount(ServerRequestInterface $request): int
     {
         $body = $request->getParsedBody();
@@ -177,6 +221,9 @@ final class HttpRequestInspector
         return is_array($body) ? count($body) : 0;
     }
 
+    /**
+     * Resolves a request identifier from its header before consulting server parameters.
+     */
     public function requestId(ServerRequestInterface $request): ?string
     {
         $value = $request->getHeaderLine('X-Request-Id');
@@ -191,6 +238,9 @@ final class HttpRequestInspector
         return is_string($requestId) && $requestId !== '' ? $requestId : null;
     }
 
+    /**
+     * Hashes selected normalized request traits into a stable privacy-reduced fingerprint.
+     */
     public function fingerprint(ServerRequestInterface $request): string
     {
         $raw = implode('|', [

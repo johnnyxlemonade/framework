@@ -18,16 +18,25 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Throwable;
 
-final class BenchmarkMiddleware implements MiddlewareInterface
+/**
+ * Measures the HTTP lifecycle, records route metadata, and optionally injects benchmark output.
+ */
+final readonly class BenchmarkMiddleware implements MiddlewareInterface
 {
+    /**
+     * Connects request timing, configured benchmark logging, and response decoration.
+     */
     public function __construct(
-        private readonly Benchmark $benchmark,
-        private readonly LoggingConfig $config,
-        private readonly LogManager $logs,
-        private readonly BenchmarkResponseInjector $injector,
+        private Benchmark $benchmark,
+        private LoggingConfig $config,
+        private LogManager $logs,
+        private BenchmarkResponseInjector $injector,
     ) {
     }
 
+    /**
+     * Completes and records the active run for both successful responses and thrown failures.
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $run = $this->benchmark->currentOrStart([

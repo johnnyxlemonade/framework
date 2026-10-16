@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Http\Config;
 
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 
-final class ErrorConfigResolver
+/**
+ * Merges ordered error-page definitions into normalized runtime template names.
+ */
+final readonly class ErrorConfigResolver
 {
+    /**
+     * Resolves later non-empty template values over earlier values and defaults.
+     */
     public function resolve(ErrorConfigDefinition ...$definitions): ErrorConfig
     {
         $notFoundView = 'errors/404';
@@ -31,5 +37,4 @@ final class ErrorConfigResolver
 
         return new ErrorConfig($notFoundView, $internalServerErrorView);
     }
-
 }

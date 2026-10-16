@@ -10,14 +10,23 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-final class ControllerRequestHandler implements RequestHandlerInterface
+/**
+ * Terminates a matched middleware pipeline by invoking its selected controller action.
+ */
+final readonly class ControllerRequestHandler implements RequestHandlerInterface
 {
+    /**
+     * Binds controller resolution to one immutable route match.
+     */
     public function __construct(
-        private readonly ControllerResolver $resolver,
-        private readonly RouteMatch $match,
+        private ControllerResolver $resolver,
+        private RouteMatch $match,
     ) {
     }
 
+    /**
+     * Delegates the request to the controller selected by the bound route match.
+     */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         return $this->resolver->handle(

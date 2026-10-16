@@ -7,16 +7,26 @@ namespace Lemonade\Framework\Http\Middleware;
 use Lemonade\Framework\Container\ContainerInterface;
 use Psr\Http\Server\MiddlewareInterface;
 
-final class MiddlewareResolver
+/**
+ * Resolves middleware class names through the application container in declared order.
+ */
+final readonly class MiddlewareResolver
 {
+    /**
+     * Uses the active container scope for middleware resolution.
+     */
     public function __construct(
-        private readonly ContainerInterface $container,
+        private ContainerInterface $container,
     ) {
     }
 
     /**
+     * Resolves every class and rejects services that do not implement PSR-15 middleware.
+     *
      * @param list<class-string> $middlewareClasses
      * @return list<MiddlewareInterface>
+     *
+     * @throws \RuntimeException When a resolved service is not middleware
      */
     public function resolve(array $middlewareClasses): array
     {

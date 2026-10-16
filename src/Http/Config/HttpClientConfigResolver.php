@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Http\Config;
 
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 
-final class HttpClientConfigResolver
+/**
+ * Merges ordered HTTP client definitions into one normalized transport policy.
+ */
+final readonly class HttpClientConfigResolver
 {
+    /**
+     * Resolves later values over earlier settings and framework client defaults.
+     */
     public function resolve(HttpClientConfigDefinition ...$definitions): HttpClientConfig
     {
         $timeout = 10.0;
@@ -32,5 +38,4 @@ final class HttpClientConfigResolver
 
         return new HttpClientConfig($timeout, $connectTimeout, $verifySsl);
     }
-
 }

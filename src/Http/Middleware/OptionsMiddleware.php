@@ -16,14 +16,14 @@ use Psr\Http\Server\RequestHandlerInterface;
 /**
  * Supplies automatic OPTIONS responses when no explicit OPTIONS route owns a path.
  */
-final class OptionsMiddleware implements MiddlewareInterface
+final readonly class OptionsMiddleware implements MiddlewareInterface
 {
     /**
      * Initializes automatic OPTIONS handling against the shared route collection.
      */
     public function __construct(
-        private readonly Router $router,
-        private readonly ResponseFactoryInterface $responseFactory,
+        private Router $router,
+        private ResponseFactoryInterface $responseFactory,
     ) {
     }
 

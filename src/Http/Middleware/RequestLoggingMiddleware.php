@@ -13,15 +13,24 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-final class RequestLoggingMiddleware implements MiddlewareInterface
+/**
+ * Records completed HTTP exchanges that satisfy the configured request-log threshold.
+ */
+final readonly class RequestLoggingMiddleware implements MiddlewareInterface
 {
+    /**
+     * Connects logging policy, channel selection, and structured HTTP context generation.
+     */
     public function __construct(
-        private readonly LoggingConfig $config,
-        private readonly LogManager $logs,
-        private readonly HttpLogContext $context,
+        private LoggingConfig $config,
+        private LogManager $logs,
+        private HttpLogContext $context,
     ) {
     }
 
+    /**
+     * Measures delegated handling and records eligible responses at a status-derived log level.
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (!$this->logs->enabled('request', false)) {

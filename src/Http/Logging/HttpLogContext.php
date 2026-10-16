@@ -8,14 +8,22 @@ use Lemonade\Framework\Http\Request\HttpRequestInspector;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-final class HttpLogContext
+/**
+ * Produces structured, privacy-reduced request and response metadata for framework logs.
+ */
+final readonly class HttpLogContext
 {
+    /**
+     * Uses the shared request inspector to keep logging metadata normalization consistent.
+     */
     public function __construct(
-        private readonly HttpRequestInspector $inspector,
+        private HttpRequestInspector $inspector,
     ) {
     }
 
     /**
+     * Builds the structured context shared by request, error, and benchmark records.
+     *
      * @return array{
      *     method: string,
      *     uri: string,
@@ -64,6 +72,8 @@ final class HttpLogContext
     }
 
     /**
+     * Extends request context with response status, duration, and known body size.
+     *
      * @return array<string, mixed>
      */
     public function requestResponse(

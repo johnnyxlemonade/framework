@@ -9,7 +9,7 @@ namespace Lemonade\Framework\Http\Request;
  *
  * Forwarded scheme metadata is consumed as supplied; the hosting environment owns its trust boundary.
  */
-final class ServerHelper
+final readonly class ServerHelper
 {
     /**
      * Returns one string server value or the supplied fallback.

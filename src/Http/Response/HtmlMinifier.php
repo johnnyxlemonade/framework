@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Response;
 
-final class HtmlMinifier
+/**
+ * Compacts safe HTML whitespace while preserving raw-text blocks, text blocks, and conditional comments.
+ */
+final readonly class HtmlMinifier
 {
     /**
      * Tags whose raw text content must be preserved exactly.
@@ -26,6 +29,9 @@ final class HtmlMinifier
         'textarea',
     ];
 
+    /**
+     * Returns compact HTML, or an empty string for null and blank input.
+     */
     public function minify(?string $html): string
     {
         if ($html === null || trim($html) === '') {

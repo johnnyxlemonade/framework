@@ -10,15 +10,24 @@ use Lemonade\Framework\Http\Config\ErrorConfig;
 use Lemonade\Framework\View\View;
 use Throwable;
 
-final class ErrorPageRenderer
+/**
+ * Renders configured HTML error views with safe fallbacks and development-only diagnostics.
+ */
+final readonly class ErrorPageRenderer
 {
+    /**
+     * Connects environment context, resolved templates, and lazy view resolution.
+     */
     public function __construct(
-        private readonly ApplicationContext $context,
-        private readonly ErrorConfig $config,
-        private readonly ContainerInterface $container,
+        private ApplicationContext $context,
+        private ErrorConfig $config,
+        private ContainerInterface $container,
     ) {
     }
 
+    /**
+     * Renders a not-found page without exposing exception details outside development.
+     */
     public function notFound(Throwable $exception): string
     {
         $template = $this->config->notFoundView;
@@ -38,6 +47,9 @@ final class ErrorPageRenderer
         );
     }
 
+    /**
+     * Renders a server-error page and appends diagnostics only in development.
+     */
     public function internalServerError(Throwable $exception): string
     {
         $template = $this->config->internalServerErrorView;

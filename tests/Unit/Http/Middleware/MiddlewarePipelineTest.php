@@ -14,6 +14,17 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 final class MiddlewarePipelineTest extends TestCase
 {
+    public function testConstructorRejectsSparseMiddlewareArrays(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('MiddlewarePipeline stack must be a list.');
+
+        new MiddlewarePipeline(
+            [10 => new PipelineShortCircuitMiddleware()], // @phpstan-ignore argument.type (runtime list guard)
+            new PipelineFallbackHandler('fallback'),
+        );
+    }
+
     public function testEmptyStackCallsFallbackHandler(): void
     {
         $factory = new Psr17Factory();

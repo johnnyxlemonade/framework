@@ -12,14 +12,25 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-final class CorsMiddleware implements MiddlewareInterface
+/**
+ * Applies the resolved CORS policy and terminates valid preflight requests.
+ */
+final readonly class CorsMiddleware implements MiddlewareInterface
 {
+    /**
+     * Connects the immutable CORS policy with blank-response creation.
+     */
     public function __construct(
-        private readonly CorsConfig $config,
-        private readonly ResponseFactoryInterface $responseFactory,
+        private CorsConfig $config,
+        private ResponseFactoryInterface $responseFactory,
     ) {
     }
 
+    /**
+     * Delegates ordinary requests and adds CORS headers only for configured allowed origins.
+     *
+     * @throws \InvalidArgumentException When credentials are combined with a wildcard origin
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (!$this->config->enabled) {

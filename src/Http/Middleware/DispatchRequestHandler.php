@@ -19,17 +19,17 @@ use Psr\Http\Server\RequestHandlerInterface;
  * It honors a dispatch-only path attribute while keeping the original request URI
  * available to the selected controller and its middleware.
  */
-final class DispatchRequestHandler implements RequestHandlerInterface
+final readonly class DispatchRequestHandler implements RequestHandlerInterface
 {
     /**
      * Initializes the routing dispatch boundary for one application runtime.
      */
     public function __construct(
-        private readonly Router $router,
-        private readonly ControllerResolver $resolver,
-        private readonly MiddlewareResolver $middlewareResolver,
-        private readonly Benchmark $benchmark,
-        private readonly ?ScopedContainerInterface $scope = null,
+        private Router $router,
+        private ControllerResolver $resolver,
+        private MiddlewareResolver $middlewareResolver,
+        private Benchmark $benchmark,
+        private ?ScopedContainerInterface $scope = null,
     ) {
     }
 
