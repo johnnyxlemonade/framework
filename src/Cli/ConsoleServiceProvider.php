@@ -9,8 +9,14 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
+/**
+ * Registers the shared command registry and command-scope invoker services.
+ */
 final class ConsoleServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Adds the singleton CLI runtime services to the application container.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(CommandRegistry::class, static fn(ContainerInterface $container): CommandRegistry => new CommandRegistry($container));

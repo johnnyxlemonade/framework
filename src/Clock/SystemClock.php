@@ -7,13 +7,22 @@ namespace Lemonade\Framework\Clock;
 use DateTimeImmutable;
 use DateTimeZone;
 
-final class SystemClock implements ClockInterface
+/**
+ * Reads wall-clock time in an explicitly configured timezone or PHP's current default timezone.
+ */
+final readonly class SystemClock implements ClockInterface
 {
+    /**
+     * Selects the timezone applied to generated timestamps while leaving the PHP default untouched.
+     */
     public function __construct(
-        private readonly ?DateTimeZone $timezone = null,
+        private ?DateTimeZone $timezone = null,
     ) {
     }
 
+    /**
+     * Returns a new immutable timestamp for the current system time.
+     */
     public function now(): DateTimeImmutable
     {
         if ($this->timezone instanceof DateTimeZone) {

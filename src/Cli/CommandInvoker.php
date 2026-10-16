@@ -7,16 +7,28 @@ namespace Lemonade\Framework\Cli;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Container\ScopeKind;
 
+/**
+ * Executes a command inside a fresh command scope with invocation-specific services.
+ */
 final class CommandInvoker
 {
+    /**
+     * Creates an invoker backed by the application's scope factory.
+     */
     public function __construct(
         private readonly ScopeFactoryInterface $scopeFactory,
     ) {
     }
 
     /**
-     * @param list<string> $argv
-     * @param list<string> $args
+     * Resolves and runs the selected command, always closing its scope afterward.
+     *
+     * Exceptions from command resolution or execution propagate after the scope is closed.
+     *
+     * @param list<string> $argv Complete argument vector received by the CLI kernel.
+     * @param list<string> $args Arguments after the executable and command name.
+     *
+     * @throws \RuntimeException When the resolved service does not implement the command contract.
      */
     public function invoke(CommandDefinition $definition, array $argv, array $args, CommandOutput $output): int
     {

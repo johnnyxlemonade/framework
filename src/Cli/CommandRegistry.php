@@ -7,24 +7,37 @@ namespace Lemonade\Framework\Cli;
 use Lemonade\Framework\Container\ContainerInterface;
 use RuntimeException;
 
+/**
+ * Registers command metadata and resolves command names and aliases for execution.
+ */
 final class CommandRegistry
 {
-    /** @var array<string, CommandDefinition> */
+    /**
+     * @var array<string, CommandDefinition>
+     */
     private array $definitions = [];
 
-    /** @var array<string, string> */
+    /**
+     * @var array<string, string>
+     */
     private array $names = [];
 
+    /**
+     * Creates a registry that resolves command implementations through the container.
+     */
     public function __construct(
         private readonly ContainerInterface $container,
     ) {
     }
 
     /**
-     * Legacy registration for commands whose metadata is only available from
-     * an instance. New code should use registerDefinition().
+     * Registers a legacy command whose metadata must be read from an instance.
+     *
+     * New code should register a definition so listing commands remains lazy.
      *
      * @param class-string<CommandInterface>|CommandInterface $command
+     *
+     * @throws RuntimeException When the class cannot be resolved as a command.
      */
     public function register(string|CommandInterface $command): void
     {
@@ -58,6 +71,11 @@ final class CommandRegistry
         $this->register($resolved);
     }
 
+    /**
+     * Registers command metadata and all aliases as one atomic namespace entry.
+     *
+     * @throws RuntimeException When the primary name or an alias is already registered.
+     */
     public function registerDefinition(CommandDefinition $definition): void
     {
         $registeredNames = [];
@@ -81,11 +99,21 @@ final class CommandRegistry
         }
     }
 
+    /**
+     * Reports whether a primary command name or alias is registered.
+     */
     public function has(string $name): bool
     {
         return isset($this->names[$name]);
     }
 
+    /**
+     * Resolves a registered command implementation by primary name or alias.
+     *
+     * This legacy lookup resolves through the root container; normal execution should use the CLI kernel.
+     *
+     * @throws RuntimeException When the name is unknown or the service does not implement the command contract.
+     */
     public function get(string $name): CommandInterface
     {
         $definition = $this->definition($name);
@@ -102,6 +130,11 @@ final class CommandRegistry
         return $command;
     }
 
+    /**
+     * Returns command metadata by primary name or alias without instantiating the command.
+     *
+     * @throws RuntimeException When the name is not registered.
+     */
     public function definition(string $name): CommandDefinition
     {
         $primaryName = $this->names[$name] ?? null;
@@ -117,6 +150,8 @@ final class CommandRegistry
     }
 
     /**
+     * Returns all definitions sorted by their primary command name.
+     *
      * @return list<CommandDefinition>
      */
     public function allDefinitions(): array
@@ -132,6 +167,8 @@ final class CommandRegistry
     }
 
     /**
+     * Resolves all registered commands in primary-name order.
+     *
      * @return list<CommandInterface>
      */
     public function all(): array

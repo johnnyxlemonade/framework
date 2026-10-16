@@ -6,11 +6,18 @@ namespace Lemonade\Framework\Cli;
 
 use InvalidArgumentException;
 
+/**
+ * Holds validated metadata used to register and lazily resolve a CLI command.
+ */
 final readonly class CommandDefinition
 {
     /**
-     * @param class-string<CommandInterface> $commandClass
-     * @param list<string> $aliases
+     * Creates a command definition after validating its name, implementation, and aliases.
+     *
+     * @param class-string<CommandInterface> $commandClass Command implementation resolved for execution.
+     * @param list<string> $aliases Additional names that resolve to the primary command name.
+     *
+     * @throws InvalidArgumentException When metadata cannot describe a valid command.
      */
     public function __construct(
         public string $name,

@@ -172,12 +172,13 @@ final class CliKernel
         }
 
         $registry = $this->container->get(CommandRegistry::class);
+        $commands = $this->container->get(CommandsConfig::class);
 
-        foreach ($this->container->get(CommandsConfig::class)->definitions as $definition) {
+        foreach ($commands->definitions() as $definition) {
             $registry->registerDefinition($definition);
         }
 
-        foreach ($this->container->get(CommandsConfig::class)->legacyCommandClasses as $commandClass) {
+        foreach ($commands->commandClasses() as $commandClass) {
             $registry->register($commandClass);
         }
 

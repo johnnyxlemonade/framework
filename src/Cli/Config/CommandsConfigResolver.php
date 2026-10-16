@@ -8,18 +8,28 @@ use Lemonade\Framework\Cli\CommandDefinition;
 use Lemonade\Framework\Cli\CommandInterface;
 use LogicException;
 
+/**
+ * Validates raw command configuration and produces runtime command metadata.
+ */
 final class CommandsConfigResolver
 {
+    /**
+     * Resolves command entries from the last supplied configuration definition.
+     *
+     * Later definitions replace earlier ones in accordance with module configuration semantics.
+     *
+     * @throws LogicException When an entry is malformed or does not identify a command implementation.
+     */
     public function resolve(CommandsConfigDefinition ...$configDefinitions): CommandsConfig
     {
         $definitions = [];
-        $legacyCommandClasses = [];
+        $commandClasses = [];
 
         foreach ($configDefinitions as $definition) {
-            [$definitions, $legacyCommandClasses] = $this->resolveCommands($definition->toArray());
+            [$definitions, $commandClasses] = $this->resolveCommands($definition->toArray());
         }
 
-        return new CommandsConfig($definitions, $legacyCommandClasses);
+        return new CommandsConfig($definitions, $commandClasses);
     }
 
     /**
@@ -29,11 +39,11 @@ final class CommandsConfigResolver
     private function resolveCommands(array $value): array
     {
         $definitions = [];
-        $legacyCommandClasses = [];
+        $commandClasses = [];
 
         foreach ($value as $command) {
             if (is_string($command)) {
-                $legacyCommandClasses[] = $this->commandClass($command);
+                $commandClasses[] = $this->commandClass($command);
 
                 continue;
             }
@@ -68,7 +78,7 @@ final class CommandsConfigResolver
             );
         }
 
-        return [$definitions, array_values(array_unique($legacyCommandClasses))];
+        return [$definitions, array_values(array_unique($commandClasses))];
     }
 
     /**
@@ -84,7 +94,9 @@ final class CommandsConfigResolver
             ));
         }
 
-        /** @var class-string<CommandInterface> $commandClass */
+        /**
+         * @var class-string<CommandInterface> $commandClass
+         */
         return $commandClass;
     }
 }
