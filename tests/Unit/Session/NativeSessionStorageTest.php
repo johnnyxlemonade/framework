@@ -116,7 +116,6 @@ final class NativeSessionStorageTest extends TestCase
             $emissions,
             new SessionGarbageCollectionPolicy(2, 101),
         );
-        $startedAt = time();
 
         $storage->start();
 
@@ -126,8 +125,8 @@ final class NativeSessionStorageTest extends TestCase
         self::assertSame('1', ini_get('session.use_strict_mode'));
         self::assertSame('1', ini_get('session.use_cookies'));
         self::assertSame('1', ini_get('session.use_only_cookies'));
-        self::assertSame(session_id(), $this->lastCookieValue($emissions));
-        self::assertGreaterThanOrEqual($startedAt + 60, $this->lastCookieOptions($emissions)['expires']);
+        self::assertSame([], $emissions);
+        self::assertSame(60, session_get_cookie_params()['lifetime']);
         self::assertSame(0700, fileperms($this->directory) & 0777);
     }
 
@@ -140,7 +139,23 @@ final class NativeSessionStorageTest extends TestCase
         $this->storage($emissions)->start();
 
         self::assertNotSame($staleId, session_id());
-        self::assertSame(session_id(), $this->lastCookieValue($emissions));
+        self::assertSame([], $emissions);
+    }
+
+    public function testResumedSessionRefreshesItsSlidingCookieOnce(): void
+    {
+        $emissions = [];
+        $storage = $this->storage($emissions);
+
+        $storage->start();
+        $sessionId = $this->currentSessionId();
+        session_write_close();
+
+        $_COOKIE['TEST_NATIVE_SESSION'] = $sessionId;
+        $storage->start();
+
+        self::assertSame($sessionId, $this->lastCookieValue($emissions));
+        self::assertCount(1, $emissions);
     }
 
     public function testNativeRuntimeReceivesTheConfiguredSameSiteValue(): void
@@ -210,6 +225,7 @@ final class NativeSessionStorageTest extends TestCase
         $retainedOldId = $this->currentSessionId();
 
         self::assertNotSame($originalId, $retainedOldId);
+        self::assertCount(1, $emissions);
         self::assertFileExists($this->nativeFile($originalId));
         self::assertSame('Ada', $storage->get('name'));
         session_write_close();
@@ -219,6 +235,7 @@ final class NativeSessionStorageTest extends TestCase
         $storage->regenerate(true);
 
         self::assertNotSame($retainedOldId, session_id());
+        self::assertCount(2, $emissions);
         self::assertFileDoesNotExist($this->nativeFile($retainedOldId));
         self::assertFileExists($this->nativeFile($originalId));
         self::assertSame('Ada', $storage->get('name'));

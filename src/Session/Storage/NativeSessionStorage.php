@@ -8,7 +8,7 @@ use Lemonade\Framework\Session\SessionGarbageCollectionPolicy;
 use RuntimeException;
 
 /**
- * Adapts PHP's native session runtime with framework-owned cookie and garbage-collection policy.
+ * Adapts PHP's native session runtime with framework-configured cookie and garbage-collection policy.
  *
  * The active PHP save handler owns persistence and timestamp renewal when the session is closed at
  * traditional request shutdown; gc_maxlifetime supplies a GC threshold, not read-time expiration.
@@ -57,12 +57,16 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
 
         $this->cookie->assertCanChange();
         $this->configureRuntime();
+        $requestedSessionId = $_COOKIE[$this->cookieName] ?? null;
 
         if (session_start() === false) {
             throw new RuntimeException('Failed to start native PHP session.');
         }
 
-        $this->cookie->send($this->activeSessionId());
+        $activeSessionId = $this->activeSessionId();
+        if (is_string($requestedSessionId) && hash_equals($activeSessionId, $requestedSessionId)) {
+            $this->cookie->send($activeSessionId);
+        }
     }
 
     /**
@@ -155,8 +159,6 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
         if (session_regenerate_id($deleteOldSession) === false) {
             throw new RuntimeException('Failed to regenerate native PHP session ID.');
         }
-
-        $this->cookie->send($this->activeSessionId());
     }
 
     private function configureRuntime(): void
