@@ -25,6 +25,7 @@ use Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\RouteRegistrarRegistry;
@@ -34,6 +35,9 @@ use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionProperty;
 
 final class KernelTest extends TestCase
@@ -43,6 +47,7 @@ final class KernelTest extends TestCase
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-kernel-' . uniqid('', true);
+        KernelBenchmarkCaptureMiddleware::reset();
         $this->writeDefaultConfigFiles();
     }
 
@@ -513,6 +518,77 @@ final class KernelTest extends TestCase
         \App\Controllers\RequestScopeKernelController::$containers[0]->get(RequestScopeKernelService::class);
     }
 
+    public function testEachRequestUsesAFreshBenchmarkRunAndDetachesItAfterward(): void
+    {
+        $kernel = $this->kernel(false);
+        $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
+            $stack->prepend(KernelBenchmarkCaptureMiddleware::class);
+        });
+
+        self::assertSame(404, $kernel->run(new ServerRequest('GET', '/first'))->getStatusCode());
+        self::assertNull($kernel->container()->get(Benchmark::class)->current());
+        self::assertSame(404, $kernel->run(new ServerRequest('GET', '/second'))->getStatusCode());
+
+        self::assertCount(2, KernelBenchmarkCaptureMiddleware::$runs);
+        [$first, $second] = KernelBenchmarkCaptureMiddleware::$runs;
+        self::assertNotSame($first, $second);
+        self::assertTrue($first->isStopped());
+        self::assertTrue($second->isStopped());
+        self::assertSame('/first', $first->toArray()['context']['path'] ?? null);
+        self::assertSame('/second', $second->toArray()['context']['path'] ?? null);
+        self::assertNull($kernel->container()->get(Benchmark::class)->current());
+    }
+
+    public function testExceptionRunIsDetachedBeforeTheNextRequest(): void
+    {
+        KernelBenchmarkCaptureMiddleware::$throwNext = true;
+        $kernel = $this->kernel(false);
+        $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
+            $stack->prepend(KernelBenchmarkCaptureMiddleware::class);
+        });
+
+        self::assertSame(500, $kernel->run(new ServerRequest('GET', '/failure'))->getStatusCode());
+        self::assertNull($kernel->container()->get(Benchmark::class)->current());
+        self::assertSame(404, $kernel->run(new ServerRequest('GET', '/clean'))->getStatusCode());
+
+        self::assertCount(2, KernelBenchmarkCaptureMiddleware::$runs);
+        [$failed, $clean] = KernelBenchmarkCaptureMiddleware::$runs;
+        self::assertNotSame($failed, $clean);
+        self::assertSame(\RuntimeException::class, $failed->toArray()['context']['exception'] ?? null);
+        self::assertArrayNotHasKey('exception', $clean->toArray()['context']);
+        self::assertSame('/clean', $clean->toArray()['context']['path'] ?? null);
+        self::assertNull($kernel->container()->get(Benchmark::class)->current());
+    }
+
+    public function testHealthRunIsDetachedBeforeTheNextOrdinaryRequest(): void
+    {
+        $context = new ApplicationContext(
+            Environment::Testing,
+            new Path($this->root),
+            DebugMode::disabled(),
+        );
+        $kernel = (new KernelFactory())->create($context);
+        $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
+            $stack->prepend(KernelBenchmarkCaptureMiddleware::class);
+        });
+
+        self::assertSame(200, $kernel->run(new ServerRequest('GET', '/api/framework/health'))->getStatusCode());
+        self::assertNull($kernel->container()->get(Benchmark::class)->current());
+        self::assertSame(404, $kernel->run(new ServerRequest('GET', '/ordinary'))->getStatusCode());
+
+        self::assertCount(1, KernelBenchmarkCaptureMiddleware::$runs);
+        $ordinary = KernelBenchmarkCaptureMiddleware::$runs[0];
+        self::assertSame('/ordinary', $ordinary->toArray()['context']['path'] ?? null);
+        self::assertSame(
+            1,
+            count(array_filter(
+                array_column($ordinary->marks(), 'name'),
+                static fn(string $name): bool => $name === 'health_fast_path_start',
+            )),
+        );
+        self::assertNull($kernel->container()->get(Benchmark::class)->current());
+    }
+
     public function testRequestScopeClosesAfterRouteNotFound(): void
     {
         KernelScopeCaptureMiddleware::reset();
@@ -726,6 +802,42 @@ final class KernelTest extends TestCase
         }
 
         @rmdir($path);
+    }
+}
+
+final class KernelBenchmarkCaptureMiddleware implements MiddlewareInterface
+{
+    /** @var list<BenchmarkRun> */
+    public static array $runs = [];
+
+    public static bool $throwNext = false;
+
+    public static function reset(): void
+    {
+        self::$runs = [];
+        self::$throwNext = false;
+    }
+
+    public function __construct(
+        private readonly Benchmark $benchmark,
+    ) {
+    }
+
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    {
+        $run = $this->benchmark->current();
+        if (!$run instanceof BenchmarkRun) {
+            throw new \LogicException('Expected an active benchmark run.');
+        }
+
+        self::$runs[] = $run;
+
+        if (self::$throwNext) {
+            self::$throwNext = false;
+            throw new \RuntimeException('Benchmark lifecycle test failure.');
+        }
+
+        return $handler->handle($request);
     }
 }
 

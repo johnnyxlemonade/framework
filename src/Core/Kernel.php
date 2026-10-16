@@ -97,9 +97,36 @@ final class Kernel
      */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
+        return $this->runLifecycle($request, 'kernel.run');
+    }
+
+    /**
+     * Handles an incoming HTTP request and emits the resulting response.
+     *
+     * The method executes the same isolated benchmark and request-scope lifecycle
+     * as {@see run()} before passing the response to the configured emitter.
+     */
+    public function handle(?ServerRequestInterface $request = null): void
+    {
+        $request ??= $this->container
+            ->get(ServerRequestFactory::class)
+            ->fromGlobals();
+
+        $this->emitter->emit(
+            $this->runLifecycle($request, 'kernel.handle'),
+            $request,
+        );
+    }
+
+    private function runLifecycle(?ServerRequestInterface $request, string $startedAt): ResponseInterface
+    {
         /** @var PhpDiagnostics $phpDiagnostics */
         $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
         $phpDiagnostics->install();
+        $this->benchmark->start([
+            'entrypoint' => 'http',
+            'started_at' => $startedAt,
+        ])->mark('kernel_start');
 
         try {
             $this->bootstrapper->loadConfiguration(BootstrapEntrypoint::Http);
@@ -126,55 +153,17 @@ final class Kernel
                 $scope->close();
             }
         } catch (RouteNotFoundException $exception) {
-            $this->benchmark->currentOrStart()->with('exception', $exception::class);
-            $this->markBenchmark('kernel_exception');
-            $this->benchmark->currentOrStart()->stop();
+            $this->recordBenchmarkException($exception);
             $this->logException($exception);
 
             return $this->notFoundResponse($exception);
         } catch (Throwable $exception) {
-            $this->benchmark->currentOrStart()->with('exception', $exception::class);
-            $this->markBenchmark('kernel_exception');
-            $this->benchmark->currentOrStart()->stop();
+            $this->recordBenchmarkException($exception);
             $this->logException($exception);
 
             return $this->errorResponse($exception);
         } finally {
-            $phpDiagnostics->uninstall();
-        }
-    }
-
-    /**
-     * Handles an incoming HTTP request and emits the resulting response.
-     *
-     * The method starts the HTTP benchmark, creates a request from PHP globals
-     * through the server request factory when none is supplied, runs the kernel,
-     * and emits the final response through the configured response emitter.
-     *
-     * This is the HTTP entrypoint and has the side effect of writing the
-     * response to the output.
-     */
-    public function handle(?ServerRequestInterface $request = null): void
-    {
-        /** @var PhpDiagnostics $phpDiagnostics */
-        $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
-        $phpDiagnostics->install();
-
-        try {
-            $this->benchmark->currentOrStart([
-                'entrypoint' => 'http',
-                'started_at' => 'kernel.handle',
-            ])->mark('kernel_start');
-
-            $request ??= $this->container
-                ->get(ServerRequestFactory::class)
-                ->fromGlobals();
-
-            $this->emitter->emit(
-                $this->run($request),
-                $request,
-            );
-        } finally {
+            $this->benchmark->end();
             $phpDiagnostics->uninstall();
         }
     }
@@ -215,9 +204,16 @@ final class Kernel
         return $this->container->beginScope(ScopeKind::Request);
     }
 
-    private function markBenchmark(string $name): void
+    private function recordBenchmarkException(Throwable $exception): void
     {
-        $this->benchmark->currentOrStart()->mark($name);
+        $run = $this->benchmark->current();
+        if ($run === null || $run->isStopped()) {
+            return;
+        }
+
+        $run->with('exception', $exception::class);
+        $run->mark('kernel_exception');
+        $run->stop();
     }
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface

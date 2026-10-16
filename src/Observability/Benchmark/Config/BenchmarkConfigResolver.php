@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Observability\Benchmark\Config;
 
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 
-final class BenchmarkConfigResolver
+/**
+ * Resolves immutable benchmark response settings from ordered definitions.
+ */
+final readonly class BenchmarkConfigResolver
 {
+    /**
+     * Applies later definitions over framework defaults without retaining resolver state.
+     */
     public function resolve(BenchmarkConfigDefinition ...$definitions): BenchmarkConfig
     {
         $injectHtmlComment = true;
@@ -25,5 +31,4 @@ final class BenchmarkConfigResolver
 
         return new BenchmarkConfig($injectHtmlComment);
     }
-
 }

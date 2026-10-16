@@ -190,6 +190,11 @@ final class ApplicationBootstrapper
 
     private function markBenchmark(string $name): void
     {
-        $this->benchmark->currentOrStart()->mark($name);
+        $run = $this->benchmark->current();
+        if ($run === null || $run->isStopped()) {
+            return;
+        }
+
+        $run->mark($name);
     }
 }

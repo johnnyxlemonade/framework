@@ -11,6 +11,7 @@ public/index.php
 -> Kernel::handle()
    -> create ServerRequest from globals when no request is provided
 -> Kernel::run()
+   -> start a fresh benchmark run for this invocation
    -> load HTTP config definitions once into the root config registry
    -> create a Request scope
    -> bind the provided ServerRequestInterface only in that scope
@@ -26,7 +27,7 @@ public/index.php
    -> resolve tagged RouteRegistrarInterface services
    -> finalize and freeze routing
 -> Framework::runInScope()
-   -> start or continue benchmark run
+   -> continue the benchmark run owned by Kernel
    -> resolve global middleware stack
    -> execute PSR-15 middleware pipeline
    -> DispatchRequestHandler
@@ -41,6 +42,7 @@ public/index.php
       -> call controller action
       -> normalize result to PSR response
 -> ResponseEmitter
+-> stop and detach the benchmark run
 ```
 
 ## Entrypoint example
@@ -68,6 +70,11 @@ Each `Kernel::run()` call creates a `Request` scope and binds its exact
 remain requestless: the root container never stores a request-specific binding. The scope is closed
 in a `finally` block after a normal response, a not-found response, or any middleware/controller
 exception. This also applies to the health fast path.
+
+`Benchmark` is a root singleton so bootstrap and root-owned database connections can report to the
+same active run. Every `Kernel::run()` invocation nevertheless starts a fresh `BenchmarkRun` and
+stops and detaches it in `finally`. `Framework::run()` owns the same lifecycle when used directly;
+`Framework::runInScope()` requires the caller's active run and never creates a second one.
 
 Configuration definitions are loaded before the Request scope is created. The health fast-path runs
 after the request is bound locally but before `Kernel::bootstrap()`: a matching public health request

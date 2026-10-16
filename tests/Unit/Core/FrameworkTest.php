@@ -39,6 +39,8 @@ use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Image\ImageServiceProvider;
 use Lemonade\Framework\Localization\LocalizationServiceProvider;
 use Lemonade\Framework\Mime\MimeServiceProvider;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
 use Lemonade\Framework\Queue\QueueServiceProvider;
 use Lemonade\Framework\RateLimit\RateLimitServiceProvider;
 use Lemonade\Framework\Routing\RoutingServiceProvider;
@@ -47,6 +49,7 @@ use Lemonade\Framework\Session\SessionServiceProvider;
 use Lemonade\Framework\Upload\UploadServiceProvider;
 use Lemonade\Framework\Validation\ValidationServiceProvider;
 use Lemonade\Framework\View\ViewServiceProvider;
+use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -342,6 +345,55 @@ final class FrameworkTest extends TestCase
         } finally {
             $scope->close();
         }
+    }
+
+    public function testRunInScopeRequiresAnOuterBenchmarkLifecycle(): void
+    {
+        $framework = $this->framework();
+        $request = (new Psr17Factory())->createServerRequest('GET', '/');
+        $scope = $this->scopeFactory($framework)->beginScope(ScopeKind::Request);
+        $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+
+        try {
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage('requires an active benchmark run');
+            $framework->runInScope($scope, $request);
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testStandaloneRunOwnsAndDetachesAFreshBenchmarkLifecycle(): void
+    {
+        FrameworkBenchmarkCaptureMiddleware::reset();
+        $framework = $this->framework();
+        $framework->register(new HttpServiceProvider());
+        $container = $framework->container();
+        $framework->middleware(static function (MiddlewareStack $stack): void {
+            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
+                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
+                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
+                ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
+                ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
+                ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
+                ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
+                ->remove(\Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware::class)
+                ->add(FrameworkBenchmarkCaptureMiddleware::class)
+                ->add(FrameworkStackTerminalMiddleware::class);
+        });
+
+        self::assertSame(200, $framework->run(new \Nyholm\Psr7\ServerRequest('GET', '/first'))->getStatusCode());
+        self::assertNull($container->get(Benchmark::class)->current());
+        self::assertSame(200, $framework->run(new \Nyholm\Psr7\ServerRequest('GET', '/second'))->getStatusCode());
+
+        self::assertCount(2, FrameworkBenchmarkCaptureMiddleware::$runs);
+        self::assertNotSame(
+            FrameworkBenchmarkCaptureMiddleware::$runs[0],
+            FrameworkBenchmarkCaptureMiddleware::$runs[1],
+        );
+        self::assertTrue(FrameworkBenchmarkCaptureMiddleware::$runs[0]->isStopped());
+        self::assertTrue(FrameworkBenchmarkCaptureMiddleware::$runs[1]->isStopped());
+        self::assertNull($container->get(Benchmark::class)->current());
     }
 
     public function testMiddlewareQueuedBeforeHttpServiceProviderRegistrationIsAppliedInRun(): void
@@ -643,6 +695,34 @@ final class FrameworkCorsTerminalMiddleware implements MiddlewareInterface
         $factory = new Psr17Factory();
 
         return $factory->createResponse(200)->withBody($factory->createStream('cors-terminal'));
+    }
+}
+
+final class FrameworkBenchmarkCaptureMiddleware implements MiddlewareInterface
+{
+    /** @var list<BenchmarkRun> */
+    public static array $runs = [];
+
+    public function __construct(
+        private readonly Benchmark $benchmark,
+    ) {
+    }
+
+    public static function reset(): void
+    {
+        self::$runs = [];
+    }
+
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    {
+        $run = $this->benchmark->current();
+        if (!$run instanceof BenchmarkRun) {
+            throw new LogicException('Expected an active framework benchmark run.');
+        }
+
+        self::$runs[] = $run;
+
+        return $handler->handle($request);
     }
 }
 

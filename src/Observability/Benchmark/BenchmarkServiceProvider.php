@@ -12,11 +12,16 @@ use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
 use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigDefinition;
 use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigResolver;
 
-final class BenchmarkServiceProvider implements ServiceProviderInterface
+/**
+ * Registers global benchmark configuration and the root lifecycle coordinator.
+ */
+final readonly class BenchmarkServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Keeps configuration and lifecycle identity shared while stateless helpers remain autowired.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(BenchmarkConfigResolver::class, BenchmarkConfigResolver::class);
         $container->singleton(BenchmarkConfig::class, static function (ContainerInterface $container): BenchmarkConfig {
             return $container
                 ->get(BenchmarkConfigResolver::class)
@@ -26,6 +31,5 @@ final class BenchmarkServiceProvider implements ServiceProviderInterface
                 ));
         });
         $container->singleton(Benchmark::class, Benchmark::class);
-        $container->singleton(BenchmarkResponseInjector::class, BenchmarkResponseInjector::class);
     }
 }

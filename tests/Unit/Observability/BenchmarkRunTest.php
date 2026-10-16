@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Observability;
 
 use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
+use LogicException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class BenchmarkRunTest extends TestCase
@@ -26,5 +28,43 @@ final class BenchmarkRunTest extends TestCase
                 'elapsed_ms' => 0.25,
             ]],
         ], $run->database());
+    }
+
+    /**
+     * @param callable(BenchmarkRun):void $mutation
+     */
+    #[DataProvider('stoppedRunMutationProvider')]
+    public function testStoppedRunRejectsMutation(callable $mutation): void
+    {
+        $run = new BenchmarkRun();
+        $run->stop();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('A stopped benchmark run cannot be mutated.');
+
+        $mutation($run);
+    }
+
+    /**
+     * @return iterable<string, array{callable(BenchmarkRun):void}>
+     */
+    public static function stoppedRunMutationProvider(): iterable
+    {
+        yield 'mark' => [static function (BenchmarkRun $run): void {
+            $run->mark('late');
+        }];
+        yield 'context' => [static function (BenchmarkRun $run): void {
+            $run->with('late', true);
+        }];
+        yield 'database query' => [
+            static function (BenchmarkRun $run): void {
+                $run->recordDatabaseQuery('SELECT 1', [], 1.0, true);
+            },
+        ];
+        yield 'database connection' => [
+            static function (BenchmarkRun $run): void {
+                $run->recordDatabaseConnection(1.0);
+            },
+        ];
     }
 }

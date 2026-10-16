@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Observability\Benchmark;
 
+use LogicException;
+
+/**
+ * Collects timing, memory, context, and database measurements for one runtime lifecycle.
+ *
+ * A stopped run is immutable and remains available only for reporting.
+ */
 final class BenchmarkRun
 {
     private float $startedAt;
@@ -45,6 +52,8 @@ final class BenchmarkRun
     private array $databaseQueries = [];
 
     /**
+     * Captures the initial process measurements and records the starting mark.
+     *
      * @param array<string, scalar|array<int|string, mixed>|null> $context
      */
     public function __construct(array $context = [])
@@ -58,6 +67,9 @@ final class BenchmarkRun
         $this->mark('start');
     }
 
+    /**
+     * Freezes elapsed time and records the final mark exactly once.
+     */
     public function stop(): void
     {
         if ($this->finishedAt > 0.0) {
@@ -65,10 +77,29 @@ final class BenchmarkRun
         }
 
         $this->finishedAt = microtime(true);
-        $this->mark('finish');
+        $this->recordMark('finish');
     }
 
+    /**
+     * Reports whether this run has completed and rejects further mutation.
+     */
+    public function isStopped(): bool
+    {
+        return $this->finishedAt > 0.0;
+    }
+
+    /**
+     * Records a named lifecycle milestone on an active run.
+     *
+     * @throws LogicException When the run has already stopped
+     */
     public function mark(string $name): void
+    {
+        $this->assertRunning();
+        $this->recordMark($name);
+    }
+
+    private function recordMark(string $name): void
     {
         $memoryNow = memory_get_usage(false);
         $allocatedMemoryNow = memory_get_usage(true);
@@ -90,15 +121,26 @@ final class BenchmarkRun
         ];
     }
 
+    /**
+     * Adds a serializable context value while silently ignoring unsupported objects or resources.
+     *
+     * @throws LogicException When the run has already stopped
+     */
     public function with(string $key, mixed $value): void
     {
+        $this->assertRunning();
+
         if (is_scalar($value) || $value === null || is_array($value)) {
             $this->context[$key] = $value;
         }
     }
 
     /**
+     * Accumulates query timing and optionally retains SQL and bindings for diagnostics.
+     *
      * @param array<int|string, mixed> $bindings
+     *
+     * @throws LogicException When the run has already stopped
      */
     public function recordDatabaseQuery(
         string $sql,
@@ -106,6 +148,7 @@ final class BenchmarkRun
         float $elapsedMs,
         bool $captureDetails,
     ): void {
+        $this->assertRunning();
         $elapsedMs = max(0.0, $elapsedMs);
         $this->databaseQueryCount++;
         $this->databaseQueryMs += $elapsedMs;
@@ -121,12 +164,20 @@ final class BenchmarkRun
         ];
     }
 
+    /**
+     * Accumulates lazy database connection time for the active run.
+     *
+     * @throws LogicException When the run has already stopped
+     */
     public function recordDatabaseConnection(float $elapsedMs): void
     {
+        $this->assertRunning();
         $this->databaseConnectionMs += max(0.0, $elapsedMs);
     }
 
     /**
+     * Returns the accumulated database summary and retained query details.
+     *
      * @return array{
      *     connection_ms:float,
      *     query_ms:float,
@@ -144,6 +195,9 @@ final class BenchmarkRun
         ];
     }
 
+    /**
+     * Returns elapsed milliseconds using the fixed completion time after stop.
+     */
     public function elapsedMs(): float
     {
         $end = $this->finishedAt > 0.0 ? $this->finishedAt : microtime(true);
@@ -151,27 +205,41 @@ final class BenchmarkRun
         return max(0.0, ($end - $this->startedAt) * 1000);
     }
 
+    /**
+     * Returns the current used-memory difference from the start of the run.
+     */
     public function memoryDeltaBytes(): int
     {
         return memory_get_usage(false) - $this->memoryStartBytes;
     }
 
+    /**
+     * Returns the current allocated-memory difference from the start of the run.
+     */
     public function allocatedMemoryDeltaBytes(): int
     {
         return memory_get_usage(true) - $this->allocatedMemoryStartBytes;
     }
 
+    /**
+     * Returns the process peak used-memory value observed by PHP.
+     */
     public function peakMemoryBytes(): int
     {
         return memory_get_peak_usage(false);
     }
 
+    /**
+     * Returns the process peak allocated-memory value observed by PHP.
+     */
     public function peakAllocatedMemoryBytes(): int
     {
         return memory_get_peak_usage(true);
     }
 
     /**
+     * Returns lifecycle marks in insertion order.
+     *
      * @return list<array{
      *     name: string,
      *     since_previous_ms: float,
@@ -190,6 +258,8 @@ final class BenchmarkRun
     }
 
     /**
+     * Produces the structured diagnostic snapshot used by benchmark logging.
+     *
      * @return array{
      *     context: array<string, scalar|array<int|string, mixed>|null>,
      *     elapsed_ms: float,
@@ -245,5 +315,12 @@ final class BenchmarkRun
             'database' => $this->database(),
             'marks' => $this->marks,
         ];
+    }
+
+    private function assertRunning(): void
+    {
+        if ($this->isStopped()) {
+            throw new LogicException('A stopped benchmark run cannot be mutated.');
+        }
     }
 }

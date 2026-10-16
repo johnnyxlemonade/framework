@@ -9,14 +9,23 @@ use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
 use Nyholm\Psr7\Stream;
 use Psr\Http\Message\ResponseInterface;
 
-final class BenchmarkResponseInjector
+/**
+ * Adds development-only benchmark diagnostics without retaining response state.
+ */
+final readonly class BenchmarkResponseInjector
 {
+    /**
+     * Configures response exposure from immutable application settings and context.
+     */
     public function __construct(
-        private readonly BenchmarkConfig $config,
-        private readonly ApplicationContext $context,
+        private BenchmarkConfig $config,
+        private ApplicationContext $context,
     ) {
     }
 
+    /**
+     * Returns a response enriched with configured development diagnostics.
+     */
     public function inject(ResponseInterface $response, BenchmarkRun $run): ResponseInterface
     {
         if (!$this->context->isDevelopment()) {

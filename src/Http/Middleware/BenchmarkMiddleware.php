@@ -12,6 +12,7 @@ use Lemonade\Framework\Observability\Benchmark\BenchmarkResponseInjector;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
 use Lemonade\Framework\Routing\RouteMatch;
 use Lemonade\Framework\Routing\RouteRequestAttributes;
+use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -35,19 +36,24 @@ final readonly class BenchmarkMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Completes and records the active run for both successful responses and thrown failures.
+     * Completes and reports the lifecycle-owned run for successful responses and thrown failures.
+     *
+     * @throws LogicException When the outer HTTP lifecycle did not start a benchmark run
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $run = $this->benchmark->currentOrStart([
-            'method' => $request->getMethod(),
-            'path' => $request->getUri()->getPath(),
-            'host' => $request->getUri()->getHost(),
-            'content_type' => $request->getHeaderLine('Content-Type'),
-            'accept' => $request->getHeaderLine('Accept'),
-            'query_keys' => array_map('strval', array_keys($request->getQueryParams())),
-            'query_count' => count($request->getQueryParams()),
-        ]);
+        $run = $this->benchmark->current();
+        if ($run === null || $run->isStopped()) {
+            throw new LogicException('BenchmarkMiddleware requires an active HTTP benchmark run.');
+        }
+
+        $run->with('method', $request->getMethod());
+        $run->with('path', $request->getUri()->getPath());
+        $run->with('host', $request->getUri()->getHost());
+        $run->with('content_type', $request->getHeaderLine('Content-Type'));
+        $run->with('accept', $request->getHeaderLine('Accept'));
+        $run->with('query_keys', array_map('strval', array_keys($request->getQueryParams())));
+        $run->with('query_count', count($request->getQueryParams()));
 
         self::captureRouteMetadata($run, $request);
 

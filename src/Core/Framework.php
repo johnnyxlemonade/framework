@@ -31,6 +31,7 @@ use Lemonade\Framework\Observability\Benchmark\BenchmarkServiceProvider;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\RouteRegistrarRegistry;
+use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -295,29 +296,39 @@ final class Framework
      * When no request is supplied, a server request is created from global PHP
      * state through the server request factory. Any deferred middleware
      * configuration is applied before middleware is resolved. This convenience
-     * entrypoint creates and closes its own request scope; Kernel callers pass
-     * their already-active scope to {@see runInScope()} instead.
+     * entrypoint creates and closes its own benchmark lifecycle and request scope;
+     * Kernel callers pass their already-active lifecycle and scope to
+     * {@see runInScope()} instead.
      */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
-        $request ??= $this->container
-            ->get(ServerRequestFactory::class)
-            ->fromGlobals();
-
-        if (!$this->container instanceof ScopeFactoryInterface) {
-            throw new RuntimeException(sprintf(
-                'Framework container must implement %s to run an HTTP request.',
-                ScopeFactoryInterface::class,
-            ));
-        }
-
-        $scope = $this->container->beginScope(ScopeKind::Request);
-        $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+        /** @var Benchmark $benchmark */
+        $benchmark = $this->container->get(Benchmark::class);
+        $benchmark->start([
+            'entrypoint' => 'http',
+            'started_at' => 'framework.run',
+        ])->mark('framework_start');
+        $scope = null;
 
         try {
+            $request ??= $this->container
+                ->get(ServerRequestFactory::class)
+                ->fromGlobals();
+
+            if (!$this->container instanceof ScopeFactoryInterface) {
+                throw new RuntimeException(sprintf(
+                    'Framework container must implement %s to run an HTTP request.',
+                    ScopeFactoryInterface::class,
+                ));
+            }
+
+            $scope = $this->container->beginScope(ScopeKind::Request);
+            $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+
             return $this->runInScope($scope, $request);
         } finally {
-            $scope->close();
+            $scope?->close();
+            $benchmark->end();
         }
     }
 
@@ -326,9 +337,11 @@ final class Framework
      *
      * The scope must be {@see ScopeKind::Request}, must hold a scope-local
      * {@see ServerRequestInterface} binding, and that binding must be the same
-     * object as the request argument. Kernel owns this integration boundary.
+     * object as the request argument. An active benchmark run must already be
+     * owned by the Kernel or {@see run()}; this method never starts another run.
      *
      * @throws InvalidRequestScopeException When the supplied scope does not satisfy the request contract.
+     * @throws LogicException When no active benchmark run exists
      */
     public function runInScope(ScopedContainerInterface $scope, ServerRequestInterface $request): ResponseInterface
     {
@@ -366,7 +379,10 @@ final class Framework
 
         /** @var Benchmark $benchmark */
         $benchmark = $runtimeContainer->get(Benchmark::class);
-        $run = $benchmark->currentOrStart();
+        $run = $benchmark->current();
+        if ($run === null || $run->isStopped()) {
+            throw new LogicException('Framework request dispatch requires an active benchmark run.');
+        }
         $run->mark('request_received');
 
         $stack = $runtimeContainer->get(MiddlewareStack::class);
@@ -382,10 +398,8 @@ final class Framework
 
         $run->mark('middleware_resolved');
         $run->mark('middleware_enter');
-        $response = $pipeline->handle($request);
-        $run->mark('response_ready');
 
-        return $response;
+        return $pipeline->handle($request);
     }
 
     /**

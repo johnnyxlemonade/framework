@@ -77,7 +77,8 @@ final class CliKernel
      * command list and return `0`. Unknown commands print an error and return
      * `1`. Known commands return their own exit code. Uncaught exceptions are
      * logged, written to stderr, and converted to exit code `1`, with a stack
-     * trace included in debug mode.
+     * trace included in debug mode. Every invocation owns a fresh benchmark run
+     * that is stopped and detached before the method returns.
      *
      * @param list<string> $argv
      */
@@ -87,12 +88,12 @@ final class CliKernel
         $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
         $phpDiagnostics->install();
 
-        try {
-            $this->benchmark->currentOrStart([
-                'entrypoint' => 'cli',
-                'started_at' => 'cli-kernel.handle',
-            ])->mark('kernel_start');
+        $this->benchmark->start([
+            'entrypoint' => 'cli',
+            'started_at' => 'cli-kernel.handle',
+        ])->mark('kernel_start');
 
+        try {
             $this->bootstrap();
 
             $registry = $this->buildCommandRegistry();
@@ -122,6 +123,13 @@ final class CliKernel
                     output: new CommandOutput($this->stdout, $this->stderr),
                 );
         } catch (Throwable $exception) {
+            $run = $this->benchmark->current();
+            if ($run !== null && !$run->isStopped()) {
+                $run->with('exception', $exception::class);
+                $run->mark('kernel_exception');
+                $run->stop();
+            }
+
             $this->logException($exception);
 
             $this->writeStderr(sprintf("CLI error: %s\n", $exception->getMessage()));
@@ -132,6 +140,7 @@ final class CliKernel
 
             return 1;
         } finally {
+            $this->benchmark->end();
             $phpDiagnostics->uninstall();
         }
     }

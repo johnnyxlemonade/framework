@@ -42,7 +42,13 @@ final class FrameworkHealthFastPath
             return null;
         }
 
-        $this->benchmark->currentOrStart()->mark('health_fast_path_start');
+        $run = $this->benchmark->current();
+        if ($run !== null && $run->isStopped()) {
+            $run = null;
+        }
+        if ($run !== null) {
+            $run->mark('health_fast_path_start');
+        }
 
         $snapshot = (new FrameworkHealthConfigSnapshotLoader($this->definitions))->load();
         if (!$snapshot instanceof FrameworkHealthConfigSnapshot) {
@@ -92,10 +98,11 @@ final class FrameworkHealthFastPath
             );
         }
 
-        $this->benchmark->currentOrStart()->mark('response_created');
-        $this->benchmark->currentOrStart()->mark('response_ready');
-        $run = $this->benchmark->current();
-        $run?->stop();
+        if ($run !== null) {
+            $run->mark('response_created');
+            $run->mark('response_ready');
+            $run->stop();
+        }
 
         if ($run instanceof BenchmarkRun) {
             $response = (new BenchmarkResponseInjector(

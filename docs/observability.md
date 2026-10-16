@@ -4,6 +4,12 @@ The framework includes benchmark integration for HTTP and CLI runtime.
 
 Benchmark marks are used to make the lifecycle visible during development and diagnostics.
 
+The `Benchmark` coordinator is shared by the root container so bootstrap and long-lived infrastructure
+services can report to the active lifecycle. Each HTTP request or CLI handle invocation owns a fresh
+`BenchmarkRun`; completion stops the run and detaches it from the coordinator in `finally`, including
+health fast-path and exception responses. A completed run cannot accept further context, marks, or
+database measurements.
+
 ## Runtime marks
 
 The kernels and dispatch flow mark important lifecycle points such as:

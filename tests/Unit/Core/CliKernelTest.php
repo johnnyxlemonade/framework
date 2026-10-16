@@ -15,6 +15,8 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
 use PHPUnit\Framework\TestCase;
 
 final class CliKernelTest extends TestCase
@@ -34,6 +36,7 @@ final class CliKernelTest extends TestCase
         CliKernelLazyAlphaCommand::reset();
         CliKernelLazyZuluCommand::reset();
         CliKernelScopedCommand::reset();
+        CliKernelBenchmarkCommand::reset();
         $this->writeConfigFile(
             'Config.yaml',
             "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
@@ -155,6 +158,25 @@ final class CliKernelTest extends TestCase
         self::assertSame(12, $exit);
         self::assertSame(['first', 'second'], CliKernelRecorderCommand::$lastArgs);
         self::assertSame(1, CliKernelRecorderCommand::$runCount);
+    }
+
+    public function testEachHandleInvocationUsesAFreshDetachedBenchmarkRun(): void
+    {
+        $this->writeCommandsConfig([CliKernelBenchmarkCommand::class]);
+        $kernel = $this->kernel();
+
+        self::assertSame(0, $kernel->handle(['bin/lemonade', 'benchmark:capture', 'first']));
+        self::assertNull(CliKernelBenchmarkCommand::$benchmark?->current());
+        self::assertSame(0, $kernel->handle(['bin/lemonade', 'benchmark:capture', 'second']));
+
+        self::assertCount(2, CliKernelBenchmarkCommand::$runs);
+        [$first, $second] = CliKernelBenchmarkCommand::$runs;
+        self::assertNotSame($first, $second);
+        self::assertTrue($first->isStopped());
+        self::assertTrue($second->isStopped());
+        self::assertSame('first', $first->toArray()['context']['command_argument'] ?? null);
+        self::assertSame('second', $second->toArray()['context']['command_argument'] ?? null);
+        self::assertNull(CliKernelBenchmarkCommand::$benchmark?->current());
     }
 
     public function testCommandsConfigFileMustReturnDefinition(): void
@@ -641,5 +663,47 @@ final class CliKernelScopedCommand implements CommandInterface
         $this->output->errorln('scoped stderr');
 
         return 29;
+    }
+}
+
+final class CliKernelBenchmarkCommand implements CommandInterface
+{
+    /** @var list<BenchmarkRun> */
+    public static array $runs = [];
+
+    public static ?Benchmark $benchmark = null;
+
+    public function __construct(Benchmark $benchmark)
+    {
+        self::$benchmark = $benchmark;
+    }
+
+    public static function reset(): void
+    {
+        self::$runs = [];
+        self::$benchmark = null;
+    }
+
+    public function name(): string
+    {
+        return 'benchmark:capture';
+    }
+
+    public function description(): string
+    {
+        return 'Captures the active benchmark run.';
+    }
+
+    public function run(array $args): int
+    {
+        $run = self::$benchmark?->current();
+        if (!$run instanceof BenchmarkRun) {
+            throw new \LogicException('Expected an active CLI benchmark run.');
+        }
+
+        $run->with('command_argument', $args[0] ?? null);
+        self::$runs[] = $run;
+
+        return 0;
     }
 }
