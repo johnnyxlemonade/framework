@@ -13,23 +13,37 @@ use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
 use Lemonade\Framework\Support\BaseUrlResolver;
 
-final class ViewHelpers
+/**
+ * Exposes URL, localization, image, and session-backed CSRF operations to one request's views.
+ */
+final readonly class ViewHelpers
 {
+    /**
+     * Binds app-scoped utilities and the current request's CSRF helper into one template API.
+     */
     public function __construct(
-        private readonly BaseUrlResolver $baseUrl,
-        private readonly UrlGenerator $urlGenerator,
-        private readonly CsrfViewHelper $csrf,
-        private readonly TranslatorInterface $translator,
-        private readonly LocalizationConfig $config,
-        private readonly ?ImageViewHelper $images = null,
+        private BaseUrlResolver $baseUrl,
+        private UrlGenerator $urlGenerator,
+        private CsrfViewHelper $csrf,
+        private TranslatorInterface $translator,
+        private LocalizationConfig $config,
+        private ?ImageViewHelper $images = null,
     ) {
     }
 
+    /**
+     * Resolves an application asset path against the configured public base URL.
+     */
     public function asset(string $path): string
     {
         return $this->baseUrl->baseUrl($path);
     }
 
+    /**
+     * Renders an image reference through the optional image integration.
+     *
+     * @throws \LogicException when image services are not configured
+     */
     public function image(?ImageReference $reference, ?ImageViewOptions $options = null): string
     {
         if ($this->images === null) {
@@ -39,6 +53,8 @@ final class ViewHelpers
     }
 
     /**
+     * Generates a URL for a named route.
+     *
      * @param array<string, scalar|null> $params
      */
     public function url(string $route, array $params = []): string
@@ -47,6 +63,8 @@ final class ViewHelpers
     }
 
     /**
+     * Generates a locale-aware URL for a named route.
+     *
      * @param array<string, scalar|null> $params
      */
     public function localizedUrl(string $route, array $params = [], ?string $locale = null): string
@@ -54,17 +72,25 @@ final class ViewHelpers
         return $this->urlGenerator->localizedRoute($route, $params, $locale);
     }
 
+    /**
+     * Renders an escaped hidden field containing a token from the current session.
+     */
     public function csrfField(string $name = 'default'): string
     {
         return $this->csrf->field($name);
     }
 
+    /**
+     * Returns a named CSRF token from the current session.
+     */
     public function csrfToken(string $name = 'default'): string
     {
         return $this->csrf->token($name);
     }
 
     /**
+     * Translates one message with scalar replacements.
+     *
      * @param array<string, scalar|null> $replacements
      */
     public function lang(string $key, array $replacements = [], ?string $locale = null): string
@@ -72,6 +98,9 @@ final class ViewHelpers
         return $this->translator->get($key, $replacements, $locale);
     }
 
+    /**
+     * Returns the active runtime locale or a configured or caller-provided fallback.
+     */
     public function currentLocale(string $default = 'en'): string
     {
         $runtime = $this->translator->locale();
@@ -85,6 +114,8 @@ final class ViewHelpers
     }
 
     /**
+     * Returns one complete translation group for a locale.
+     *
      * @return array<string, string>
      */
     public function langGroup(string $group, ?string $locale = null): array
@@ -93,6 +124,8 @@ final class ViewHelpers
     }
 
     /**
+     * Returns every translation group for a locale.
+     *
      * @return array<string, array<string, string>>
      */
     public function langAll(?string $locale = null): array

@@ -21,8 +21,16 @@ use RuntimeException;
 
 use function sprintf;
 
+/**
+ * Registers typed cache configuration, the supported PSR-6 pools, and cache convenience services.
+ *
+ * The configured default pool is also exposed through the canonical pool and manager aliases.
+ */
 final class CacheServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Defines lazy singleton bindings without resolving cache configuration during registration.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(CacheConfigResolver::class, CacheConfigResolver::class);
@@ -42,7 +50,7 @@ final class CacheServiceProvider implements ServiceProviderInterface
             $context = $container->get(ApplicationContext::class);
 
             $path = $context->resolveStoragePath(
-                $config->fileStore->path,
+                $config->fileStore()->path,
             );
 
             return new FileCacheItemPool(
@@ -53,7 +61,7 @@ final class CacheServiceProvider implements ServiceProviderInterface
 
         $container->singleton(CacheItemPoolInterface::class, static function (ContainerInterface $container): CacheItemPoolInterface {
             $config = $container->get(CacheConfig::class);
-            $default = $config->defaultStore;
+            $default = $config->defaultStore();
 
             return match ($default) {
                 'array' => $container->get(ArrayCacheItemPool::class),

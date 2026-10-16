@@ -26,8 +26,14 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 
+/**
+ * Registers the reusable view prototype and request-scoped rendering graph.
+ */
 final class ViewServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Keeps filesystem resources app-scoped while isolating request, session, and CSRF state per scope.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(ViewResourceRegistry::class, ViewResourceRegistry::class);
@@ -37,6 +43,7 @@ final class ViewServiceProvider implements ServiceProviderInterface
             $session = $container->has(SessionInterface::class) ? $container->get(SessionInterface::class) : null;
 
             $view->share('helpers', $container->get(ViewHelpers::class));
+            $view->share('csrf', $container->get(CsrfViewHelper::class));
             $view->share('requestHelpers', new RequestViewHelpers(
                 request: $container->get(ServerRequestInterface::class),
                 urlGenerator: $container->get(UrlGenerator::class),
@@ -63,7 +70,7 @@ final class ViewServiceProvider implements ServiceProviderInterface
                 ));
         });
 
-        $container->singleton(ViewHelpers::class, static fn(ContainerInterface $container): ViewHelpers => new ViewHelpers(
+        $container->scoped(ViewHelpers::class, static fn(ContainerInterface $container): ViewHelpers => new ViewHelpers(
             baseUrl: $container->get(BaseUrlResolver::class),
             urlGenerator: $container->get(UrlGenerator::class),
             csrf: $container->get(CsrfViewHelper::class),
@@ -87,11 +94,9 @@ final class ViewServiceProvider implements ServiceProviderInterface
                 $container->get(ViewResourceRegistry::class),
             );
 
-            $view->share('helpers', $container->get(ViewHelpers::class));
             $view->share('component', $container->get(ComponentRegistry::class));
             $view->share('baseUrl', $container->get(BaseUrlResolver::class));
             $view->share('url', $container->get(UrlGenerator::class));
-            $view->share('csrf', $container->get(CsrfViewHelper::class));
 
             return $view;
         });

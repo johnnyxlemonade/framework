@@ -534,7 +534,7 @@ final class CliKernelApiConfigProbeCommand implements CommandInterface
     public function run(array $args): int
     {
         unset($args);
-        self::$lastPrefix = $this->config->prefix;
+        self::$lastPrefix = $this->config->prefix();
 
         return 0;
     }

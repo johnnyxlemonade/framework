@@ -59,6 +59,6 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
 
     private function isDebug(): bool
     {
-        return $this->appConfig->debug;
+        return $this->appConfig->debug();
     }
 }

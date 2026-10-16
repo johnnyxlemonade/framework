@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Config;
 
+use InvalidArgumentException;
+
 /**
  * Carries the resolved settings used to construct the configured session storage
  */
@@ -14,13 +16,22 @@ final readonly class SessionConfig
      */
     public function __construct(
         private string $driver,
-        private string $cookie,
         private int $lifetime,
+        private SessionCookieConfig $cookie,
         private SessionNativeConfig $native,
         private SessionFileConfig $file,
         private SessionDatabaseConfig $database,
         private SessionRedisConfig $redis,
     ) {
+        if (trim($driver) === '' || strtolower($driver) !== $driver || preg_match('/^[a-z][a-z0-9_-]*$/D', $driver) !== 1) {
+            throw new InvalidArgumentException(
+                'Session driver must be a non-empty canonical lowercase identifier.',
+            );
+        }
+
+        if ($lifetime < 1) {
+            throw new InvalidArgumentException('Session lifetime must be positive.');
+        }
     }
 
     /**
@@ -32,9 +43,9 @@ final readonly class SessionConfig
     }
 
     /**
-     * Returns the browser cookie name carrying the session identifier.
+     * Returns the browser identity and cross-site delivery settings.
      */
-    public function cookie(): string
+    public function cookie(): SessionCookieConfig
     {
         return $this->cookie;
     }

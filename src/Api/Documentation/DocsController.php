@@ -24,7 +24,7 @@ final class DocsController
     {
         $openApiUrl = $this->joinPath(
             $this->apiPrefix(),
-            $this->config->framework->openapi->route,
+            $this->config->framework()->openapi->route,
         );
         $openApiJson = json_encode($openApiUrl, JSON_THROW_ON_ERROR);
         $swaggerCssUrl = $this->swaggerUiAssetUrl('swagger-ui.css');
@@ -57,7 +57,7 @@ final class DocsController
 
     private function apiPrefix(): string
     {
-        return $this->config->prefix;
+        return $this->config->prefix();
     }
 
     private function joinPath(string $prefix, string $route): string

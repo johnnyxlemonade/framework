@@ -7,22 +7,39 @@ namespace Lemonade\Framework\View;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
+use Lemonade\Framework\Session\SessionNamespace;
 use Psr\Http\Message\ServerRequestInterface;
 
-final class RequestViewHelpers
+/**
+ * Exposes request-local URL, old-input and flash operations to rendered views.
+ */
+final readonly class RequestViewHelpers
 {
+    private const string OLD_INPUT_NAMESPACE = 'old_input';
+
+    private ?SessionNamespace $oldInput;
+
+    /**
+     * Captures one request and optional default-session state for the renderer's active scope.
+     */
     public function __construct(
-        private readonly ServerRequestInterface $request,
-        private readonly UrlGenerator $urlGenerator,
-        private readonly ?FlashBagInterface $flash = null,
-        private readonly ?SessionInterface $session = null,
+        private ServerRequestInterface $request,
+        private UrlGenerator $urlGenerator,
+        private ?FlashBagInterface $flash = null,
+        ?SessionInterface $session = null,
     ) {
+        $this->oldInput = $session instanceof SessionInterface
+            ? new SessionNamespace($session, self::OLD_INPUT_NAMESPACE)
+            : null;
     }
 
+    /**
+     * Resolves canonical session old input before flash and caller fallbacks.
+     */
     public function old(string $key, mixed $default = ''): mixed
     {
-        if ($this->session instanceof SessionInterface) {
-            $value = $this->session->get('_old_input.' . $key, null);
+        if ($this->oldInput instanceof SessionNamespace) {
+            $value = $this->oldInput->get($key);
             if ($value !== null) {
                 return $value;
             }
@@ -40,6 +57,9 @@ final class RequestViewHelpers
         return $values[$key] ?? $default;
     }
 
+    /**
+     * Pulls one transient value from the optional flash bag.
+     */
     public function flash(string $key, mixed $default = null): mixed
     {
         if (!$this->flash instanceof FlashBagInterface) {
@@ -49,16 +69,25 @@ final class RequestViewHelpers
         return $this->flash->pull($key, $default);
     }
 
+    /**
+     * Returns the active request path without its query string.
+     */
     public function currentPath(): string
     {
         return $this->request->getUri()->getPath();
     }
 
+    /**
+     * Returns the active request query string without a leading question mark.
+     */
     public function currentQuery(): string
     {
         return $this->request->getUri()->getQuery();
     }
 
+    /**
+     * Returns the active request URI or only its normalized path.
+     */
     public function currentUrl(bool $withQuery = true): string
     {
         $uri = $this->request->getUri();
@@ -71,6 +100,9 @@ final class RequestViewHelpers
         return $path !== '' ? $path : '/';
     }
 
+    /**
+     * Returns the active absolute request URL with optional query removal.
+     */
     public function currentFullUrl(bool $withQuery = true): string
     {
         $uri = $this->request->getUri();
@@ -82,6 +114,9 @@ final class RequestViewHelpers
         return $uri->getScheme() . '://' . $uri->getAuthority() . $uri->getPath();
     }
 
+    /**
+     * Compares a URL against the active path using exact or prefix matching.
+     */
     public function isUrlActive(string $url, bool $startsWith = false): bool
     {
         $current = $this->currentUrl(false);
@@ -94,6 +129,8 @@ final class RequestViewHelpers
     }
 
     /**
+     * Generates a route URL and compares it with the active request path.
+     *
      * @param array<string, scalar|null> $params
      */
     public function isRouteActive(string $route, array $params = [], bool $startsWith = false): bool

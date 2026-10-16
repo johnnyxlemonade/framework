@@ -4,16 +4,23 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Storage;
 
+use InvalidArgumentException;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
+use Lemonade\Framework\Session\SessionGarbageCollectionPolicy;
+use Lemonade\Framework\Session\SessionIdGenerator;
 use RuntimeException;
+use Throwable;
 
 /**
- * Persists a request-scoped session payload in a database table with expiry metadata
+ * Persists sliding sessions in a consumer-owned table with bounded opportunistic cleanup.
+ *
+ * Concurrent payload mutations use last-writer-wins semantics.
  */
 final class DatabaseSessionStorage implements SessionStorageInterface
 {
-    private bool $started = false;
+    private const int DEFAULT_GC_BATCH_SIZE = 100;
 
+    private bool $started = false;
     private string $sessionId = '';
 
     /**
@@ -21,19 +28,33 @@ final class DatabaseSessionStorage implements SessionStorageInterface
      */
     private array $data = [];
 
+    private readonly SessionCookie $cookie;
+    private readonly SessionGarbageCollectionPolicy $garbageCollectionPolicy;
+    private readonly SessionIdGenerator $sessionIdGenerator;
+
     /**
-     * Defines the connection, table, retention period and transport cookie name
+     * Defines the table, sliding retention, browser identity, and bounded request GC policy.
      */
     public function __construct(
         private readonly ConnectionInterface $connection,
         private readonly string $table = 'sessions',
         private readonly int $lifetimeSeconds = 7200,
         private readonly string $cookieName = 'LEMONADE_SESSION',
+        private readonly int $gcBatchSize = self::DEFAULT_GC_BATCH_SIZE,
+        ?SessionCookie $cookie = null,
+        ?SessionGarbageCollectionPolicy $garbageCollectionPolicy = null,
     ) {
+        if ($gcBatchSize < 1) {
+            throw new InvalidArgumentException('Database session GC batch size must be positive.');
+        }
+
+        $this->cookie = $cookie ?? new SessionCookie($cookieName, $lifetimeSeconds);
+        $this->garbageCollectionPolicy = $garbageCollectionPolicy ?? new SessionGarbageCollectionPolicy();
+        $this->sessionIdGenerator = new SessionIdGenerator();
     }
 
     /**
-     * Loads or creates the database-backed session and refreshes its expiry metadata
+     * Loads a live row or creates a fresh identity, then refreshes row and cookie expiry.
      */
     public function start(): void
     {
@@ -41,17 +62,33 @@ final class DatabaseSessionStorage implements SessionStorageInterface
             return;
         }
 
-        $this->sessionId = $this->resolveSessionId();
-        $this->cleanupExpired();
-        $this->data = $this->readSession($this->sessionId);
-        $this->touchSession();
-        $this->sendCookie();
+        $this->cookie->assertCanChange();
+        $this->cleanupExpiredIfSelected();
 
+        $candidate = $this->resolveSessionId();
+        $data = $candidate === null ? null : $this->readSession($candidate);
+
+        if ($candidate === null || $data === null) {
+            $this->sessionId = $this->sessionIdGenerator->generate();
+            $this->data = [];
+            $this->touchSession();
+        } else {
+            $this->sessionId = $candidate;
+            $this->data = $data;
+
+            if (!$this->touchExistingSession()) {
+                $this->sessionId = $this->sessionIdGenerator->generate();
+                $this->data = [];
+                $this->touchSession();
+            }
+        }
+
+        $this->cookie->send($this->sessionId);
         $this->started = true;
     }
 
     /**
-     * Reports whether the database-backed session has been loaded for this request
+     * Reports whether this request has established its database-backed identity.
      */
     public function started(): bool
     {
@@ -59,7 +96,7 @@ final class DatabaseSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Checks the in-memory session payload for the key
+     * Checks the payload loaded for this request.
      */
     public function has(string $key): bool
     {
@@ -69,17 +106,19 @@ final class DatabaseSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Reads a value from the in-memory payload or returns the supplied fallback
+     * Returns a loaded value or the supplied fallback.
      */
     public function get(string $key, mixed $default = null): mixed
     {
         $this->start();
 
-        return $this->data[$key] ?? $default;
+        return array_key_exists($key, $this->data)
+            ? $this->data[$key]
+            : $default;
     }
 
     /**
-     * Updates a value and immediately writes the serialized payload to the table
+     * Persists a value and renews the row expiry.
      */
     public function set(string $key, mixed $value): void
     {
@@ -90,7 +129,7 @@ final class DatabaseSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Removes a value and immediately writes the serialized payload to the table
+     * Removes one value and renews the row expiry.
      */
     public function remove(string $key): void
     {
@@ -101,7 +140,7 @@ final class DatabaseSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Replaces the active payload with an empty persisted session
+     * Persists an empty payload while retaining the active identity and cookie.
      */
     public function clear(): void
     {
@@ -112,50 +151,59 @@ final class DatabaseSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Assigns a fresh identifier and optionally deletes the former database record
+     * Deletes the active row and expires its cookie so later access starts a new identity.
+     */
+    public function destroy(): void
+    {
+        $this->start();
+        $this->cookie->assertCanChange();
+
+        $this->deleteSession($this->sessionId);
+        $this->cookie->expire();
+        $this->reset();
+    }
+
+    /**
+     * Copies the payload to a fresh identity and optionally invalidates the old row.
      */
     public function regenerate(bool $deleteOldSession = true): void
     {
         $this->start();
+        $this->cookie->assertCanChange();
 
         $oldSessionId = $this->sessionId;
-        $this->sessionId = $this->generateSessionId();
+        $this->sessionId = $this->sessionIdGenerator->generate();
         $this->writeSession();
-        $this->sendCookie();
 
         if ($deleteOldSession) {
             $this->deleteSession($oldSessionId);
         }
+
+        $this->cookie->send($this->sessionId);
     }
 
-    /**
-     * Accepts only framework-generated session identifiers from the request cookie
-     */
-    private function resolveSessionId(): string
+    private function reset(): void
+    {
+        $this->started = false;
+        $this->sessionId = '';
+        $this->data = [];
+    }
+
+    private function resolveSessionId(): ?string
     {
         $sessionId = $_COOKIE[$this->cookieName] ?? null;
 
-        if (is_string($sessionId) && preg_match('/^[a-f0-9]{64}$/', $sessionId) === 1) {
+        if (is_string($sessionId) && $this->sessionIdGenerator->isValid($sessionId)) {
             return $sessionId;
         }
 
-        return $this->generateSessionId();
+        return null;
     }
 
     /**
-     * Generates a cryptographically random session identifier
+     * @return null|array<string, mixed>
      */
-    private function generateSessionId(): string
-    {
-        return bin2hex(random_bytes(32));
-    }
-
-    /**
-     * Loads a non-expired row and retains only string-keyed serialized values
-     *
-     * @return array<string, mixed>
-     */
-    private function readSession(string $sessionId): array
+    private function readSession(string $sessionId): ?array
     {
         $table = $this->tableName();
         $rows = $this->connection->select(
@@ -164,31 +212,32 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         );
 
         if ($rows === []) {
-            return [];
+            return null;
         }
 
         $row = $rows[0];
-        $expiresAtRaw = $row['expires_at'] ?? 0;
-        $expiresAt = is_int($expiresAtRaw)
-            ? $expiresAtRaw
-            : ((is_float($expiresAtRaw) || (is_string($expiresAtRaw) && is_numeric($expiresAtRaw))) ? (int) $expiresAtRaw : 0);
+        $expiresAt = $this->integerValue($row['expires_at'] ?? null);
 
-        if ($expiresAt !== 0 && $expiresAt < time()) {
+        if ($expiresAt === null || $expiresAt < time()) {
             $this->deleteSession($sessionId);
 
-            return [];
+            return null;
         }
 
         $payload = $row['payload'] ?? null;
 
         if (!is_string($payload) || $payload === '') {
-            return [];
+            $this->deleteSession($sessionId);
+
+            return null;
         }
 
-        $data = unserialize($payload, ['allowed_classes' => false]);
+        $data = @unserialize($payload, ['allowed_classes' => false]);
 
         if (!is_array($data)) {
-            return [];
+            $this->deleteSession($sessionId);
+
+            return null;
         }
 
         $normalized = [];
@@ -202,87 +251,171 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         return $normalized;
     }
 
-    /**
-     * Upserts the current payload together with a refreshed storage deadline
-     */
     private function writeSession(): void
     {
-        $table = $this->tableName();
         $now = time();
         $expiresAt = $now + $this->lifetimeSeconds;
         $payload = serialize($this->data);
 
-        $updated = $this->connection->statement(
-            "UPDATE {$table} SET payload = ?, updated_at = ?, expires_at = ? WHERE session_id = ?",
-            [$payload, $now, $expiresAt, $this->sessionId],
-        );
-
-        if ($updated > 0) {
-            return;
-        }
-
-        $this->connection->statement(
-            "INSERT INTO {$table} (session_id, payload, updated_at, expires_at) VALUES (?, ?, ?, ?)",
-            [$this->sessionId, $payload, $now, $expiresAt],
+        $this->updateOrInsert(
+            updateSql: sprintf(
+                'UPDATE %s SET payload = ?, updated_at = ?, expires_at = ? WHERE session_id = ?',
+                $this->tableName(),
+            ),
+            updateBindings: [$payload, $now, $expiresAt, $this->sessionId],
+            insertBindings: [$this->sessionId, $payload, $now, $expiresAt],
         );
     }
 
-    /**
-     * Refreshes the expiry deadline without changing the loaded payload
-     */
     private function touchSession(): void
     {
-        $table = $this->tableName();
         $now = time();
         $expiresAt = $now + $this->lifetimeSeconds;
 
-        $updated = $this->connection->statement(
-            "UPDATE {$table} SET updated_at = ?, expires_at = ? WHERE session_id = ?",
-            [$now, $expiresAt, $this->sessionId],
+        $this->updateOrInsert(
+            updateSql: sprintf(
+                'UPDATE %s SET updated_at = ?, expires_at = ? WHERE session_id = ?',
+                $this->tableName(),
+            ),
+            updateBindings: [$now, $expiresAt, $this->sessionId],
+            insertBindings: [$this->sessionId, serialize($this->data), $now, $expiresAt],
+        );
+    }
+
+    private function touchExistingSession(): bool
+    {
+        $now = time();
+        $affectedRows = $this->connection->statement(
+            sprintf(
+                'UPDATE %s SET updated_at = ?, expires_at = ? WHERE session_id = ?',
+                $this->tableName(),
+            ),
+            [$now, $now + $this->lifetimeSeconds, $this->sessionId],
         );
 
-        if ($updated > 0) {
+        return $affectedRows > 0 || $this->sessionExists($this->sessionId);
+    }
+
+    /**
+     * @param list<mixed> $updateBindings
+     * @param list<mixed> $insertBindings
+     */
+    private function updateOrInsert(
+        string $updateSql,
+        array $updateBindings,
+        array $insertBindings,
+    ): void {
+        if ($this->connection->statement($updateSql, $updateBindings) > 0) {
+            return;
+        }
+        if ($this->sessionExists($this->sessionId)) {
             return;
         }
 
-        $this->connection->statement(
-            "INSERT INTO {$table} (session_id, payload, updated_at, expires_at) VALUES (?, ?, ?, ?)",
-            [$this->sessionId, serialize($this->data), $now, $expiresAt],
+        $insertSql = sprintf(
+            'INSERT INTO %s (session_id, payload, updated_at, expires_at) VALUES (?, ?, ?, ?)',
+            $this->tableName(),
         );
+
+        try {
+            $this->connection->statement($insertSql, $insertBindings);
+
+            if (!$this->sessionExists($this->sessionId)) {
+                throw new RuntimeException(sprintf(
+                    'Failed to create database session "%s".',
+                    $this->sessionId,
+                ));
+            }
+        } catch (Throwable $insertFailure) {
+            if (
+                $this->connection->statement($updateSql, $updateBindings) > 0
+                || $this->sessionExists($this->sessionId)
+            ) {
+                return;
+            }
+
+            throw $insertFailure;
+        }
     }
 
     /**
-     * Deletes one session record by its validated identifier
+     * @phpstan-impure
      */
-    private function deleteSession(string $sessionId): void
+    private function sessionExists(string $sessionId): bool
     {
-        $table = $this->tableName();
-
-        $this->connection->statement(
-            "DELETE FROM {$table} WHERE session_id = ?",
+        $rows = $this->connection->select(
+            sprintf('SELECT session_id FROM %s WHERE session_id = ? LIMIT 1', $this->tableName()),
             [$sessionId],
         );
+
+        return $rows !== [];
     }
 
-    /**
-     * Removes expired session rows before the active session is loaded
-     */
-    private function cleanupExpired(): void
+    private function deleteSession(string $sessionId): void
     {
+        $this->connection->statement(
+            sprintf('DELETE FROM %s WHERE session_id = ?', $this->tableName()),
+            [$sessionId],
+        );
+
+        if ($this->sessionExists($sessionId)) {
+            throw new RuntimeException(sprintf(
+                'Failed to invalidate database session "%s".',
+                $sessionId,
+            ));
+        }
+    }
+
+    private function cleanupExpiredIfSelected(): void
+    {
+        if (!$this->garbageCollectionPolicy->shouldRun()) {
+            return;
+        }
+
         $table = $this->tableName();
+        $now = time();
+        $rows = $this->connection->select(
+            "SELECT session_id FROM {$table} WHERE expires_at < ? ORDER BY expires_at ASC LIMIT {$this->gcBatchSize}",
+            [$now],
+        );
+        $sessionIds = [];
+
+        foreach ($rows as $row) {
+            $sessionId = $row['session_id'] ?? null;
+
+            if (is_string($sessionId) || is_int($sessionId)) {
+                $sessionIds[] = $sessionId;
+            }
+        }
+
+        if ($sessionIds === []) {
+            return;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($sessionIds), '?'));
+        $bindings = [...$sessionIds, $now];
 
         $this->connection->statement(
-            "DELETE FROM {$table} WHERE expires_at < ?",
-            [time()],
+            "DELETE FROM {$table} WHERE session_id IN ({$placeholders}) AND expires_at < ?",
+            $bindings,
         );
     }
 
-    /**
-     * Validates the configured identifier before interpolating it into SQL
-     */
+    private function integerValue(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_float($value) || (is_string($value) && is_numeric($value))) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
     private function tableName(): string
     {
-        if (preg_match('/^[a-zA-Z0-9_]+$/', $this->table) !== 1) {
+        if (preg_match('/^[a-zA-Z0-9_]+$/D', $this->table) !== 1) {
             throw new RuntimeException(sprintf(
                 'Invalid session table name "%s".',
                 $this->table,
@@ -290,23 +423,5 @@ final class DatabaseSessionStorage implements SessionStorageInterface
         }
 
         return $this->table;
-    }
-
-    /**
-     * Sends the active identifier with the storage retention period when headers remain mutable
-     */
-    private function sendCookie(): void
-    {
-        if (headers_sent()) {
-            return;
-        }
-
-        setcookie($this->cookieName, $this->sessionId, [
-            'expires' => time() + $this->lifetimeSeconds,
-            'path' => '/',
-            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== '' && $_SERVER['HTTPS'] !== 'off',
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
     }
 }

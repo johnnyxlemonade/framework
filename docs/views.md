@@ -87,7 +87,9 @@ scope.
 
 ## Explicit View Helpers
 
-The view service provider shares an explicit `$helpers` object with templates. `$helpers` contains app-scoped helpers only, so it does not hold request, session or flash state.
+The request-scoped renderer shares an explicit `$helpers` object with templates. It combines
+application utilities with the current request's session-backed CSRF helper and therefore is never
+captured by the root `View` singleton.
 
 ```php
 <link rel="stylesheet" href="<?= htmlspecialchars($helpers->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
@@ -109,9 +111,11 @@ name manually.
 
 ## Request View Helpers
 
-Request/session-dependent helpers are exposed through `$requestHelpers`. This object is created for the current controller request, shared into the next view render, and then cleared after the top-level `render()`, `template()` or `partial()` call.
+Request URL, old-input and flash operations are exposed through `$requestHelpers`. This object is
+created for the current renderer scope and is not shared with another request.
 
-`$requestHelpers` is separate from `$helpers` so the app-scoped helper object never stores a stale request or session.
+`$requestHelpers` remains separate from `$helpers` so request metadata and transient input APIs do
+not expand the general template helper surface.
 
 ```php
 <input
@@ -135,7 +139,7 @@ Request/session-dependent helpers are exposed through `$requestHelpers`. This ob
 
 ## Shared services
 
-Shared view services include:
+Every request-local renderer clone receives:
 
 - view helpers
 - component registry
@@ -143,4 +147,6 @@ Shared view services include:
 - URL generator
 - CSRF helper
 
-The view layer is intentionally simple. It is suitable for classic server-rendered PHP templates and administration interfaces.
+The root `View` prototype retains only application-scoped collaborators; the helper objects above
+are attached to its request-local clone. The view layer is intentionally simple. It is suitable for
+classic server-rendered PHP templates and administration interfaces.

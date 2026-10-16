@@ -19,7 +19,7 @@ final class ApiEndpointRequestResolver
     public function resolve(ServerRequestInterface $request): ?ApiEndpoint
     {
         $path = $this->pathResolver->resolveRequestPath(
-            prefix: $this->config->prefix,
+            prefix: $this->config->prefix(),
             requestPath: $request->getUri()->getPath(),
         );
 

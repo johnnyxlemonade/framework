@@ -22,56 +22,58 @@ final class FrameworkApiEndpointProvider implements ApiEndpointProviderInterface
 
     public function register(ApiEndpointRegistry $registry): void
     {
-        if ($this->config->framework->health->enabled) {
+        $framework = $this->config->framework();
+
+        if ($framework->health->enabled) {
             /** @var non-empty-string $healthRoute */
-            $healthRoute = $this->config->framework->health->route;
+            $healthRoute = $framework->health->route;
             $registry->get(
                 path: $healthRoute,
                 controllerAction: ControllerAction::for(HealthController::class, 'show'),
                 name: 'framework.health',
                 summary: 'Framework health check',
                 description: 'Returns basic framework runtime availability status.',
-                access: $this->config->framework->health->access,
+                access: $framework->health->access,
                 metadata: new ApiEndpointMetadata(
                     tags: ['Framework', 'Health'],
                 ),
             );
         }
 
-        if (!$this->config->framework->enabled) {
+        if (!$framework->enabled) {
             return;
         }
 
-        if ($this->config->framework->openapi->enabled) {
+        if ($framework->openapi->enabled) {
             /** @var non-empty-string $openApiRoute */
-            $openApiRoute = $this->config->framework->openapi->route;
+            $openApiRoute = $framework->openapi->route;
             $registry->get(
                 path: $openApiRoute,
                 controllerAction: ControllerAction::for(OpenApiController::class, 'show'),
                 name: 'framework.openapi',
                 summary: 'OpenAPI specification',
                 description: 'Returns generated OpenAPI specification for registered API endpoints.',
-                access: $this->config->framework->openapi->access,
+                access: $framework->openapi->access,
                 metadata: new ApiEndpointMetadata(
                     tags: ['Framework', 'Documentation'],
-                    scopes: $this->config->framework->openapi->scopes,
+                    scopes: $framework->openapi->scopes,
                 ),
             );
         }
 
-        if ($this->config->framework->docs->enabled) {
+        if ($framework->docs->enabled) {
             /** @var non-empty-string $docsRoute */
-            $docsRoute = $this->config->framework->docs->route;
+            $docsRoute = $framework->docs->route;
             $registry->get(
                 path: $docsRoute,
                 controllerAction: ControllerAction::for(DocsController::class, 'show'),
                 name: 'framework.docs',
                 summary: 'Framework API docs',
                 description: 'Returns simple human-readable API documentation.',
-                access: $this->config->framework->docs->access,
+                access: $framework->docs->access,
                 metadata: new ApiEndpointMetadata(
                     tags: ['Framework', 'Documentation'],
-                    scopes: $this->config->framework->docs->scopes,
+                    scopes: $framework->docs->scopes,
                     responseContentType: 'text/html; charset=utf-8',
                 ),
             );

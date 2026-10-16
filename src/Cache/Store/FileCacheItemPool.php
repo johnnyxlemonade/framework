@@ -31,6 +31,11 @@ use function var_export;
 use const DIRECTORY_SEPARATOR;
 use const LOCK_EX;
 
+/**
+ * Persists PSR-6 cache entries as isolated PHP payload files with atomic replacement.
+ *
+ * Missing, expired, or unreadable payloads resolve as misses; deferred writes remain instance-local until commit.
+ */
 final class FileCacheItemPool implements CacheItemPoolInterface
 {
     /**
@@ -38,6 +43,9 @@ final class FileCacheItemPool implements CacheItemPoolInterface
      */
     private array $deferred = [];
 
+    /**
+     * Binds cache persistence to one directory managed through the filesystem abstraction.
+     */
     public function __construct(
         private readonly string $directory,
         private readonly DirectoryManagerInterface $directoryManager,
@@ -45,6 +53,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Loads and validates one payload, returning a miss for absent, expired, or corrupted state.
+     *
      * @throws InvalidCacheKeyException
      */
     public function getItem(string $key): CacheItemInterface
@@ -82,6 +92,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Returns requested entries keyed by their original cache keys.
+     *
      * @throws InvalidCacheKeyException
      * @return iterable<string, CacheItemInterface>
      */
@@ -97,6 +109,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Reports whether a live, readable payload exists for the validated key.
+     *
      * @throws InvalidCacheKeyException
      */
     public function hasItem(string $key): bool
@@ -104,6 +118,9 @@ final class FileCacheItemPool implements CacheItemPoolInterface
         return $this->getItem($key)->isHit();
     }
 
+    /**
+     * Attempts to remove every cache payload file and clears deferred writes.
+     */
     public function clear(): bool
     {
         if (!is_dir($this->directory)) {
@@ -136,6 +153,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Removes one persisted or deferred entry and reports filesystem deletion failures.
+     *
      * @throws InvalidCacheKeyException
      */
     public function deleteItem(string $key): bool
@@ -158,6 +177,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Removes each requested entry and reports whether every deletion succeeded.
+     *
      * @throws InvalidCacheKeyException
      */
     public function deleteItems(array $keys): bool
@@ -174,6 +195,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Serializes and atomically replaces one framework cache item payload.
+     *
      * @throws InvalidCacheKeyException
      */
     public function save(CacheItemInterface $item): bool
@@ -218,6 +241,8 @@ final class FileCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Queues a framework cache item for a later commit without writing its payload yet.
+     *
      * @throws InvalidCacheKeyException
      */
     public function saveDeferred(CacheItemInterface $item): bool
@@ -233,6 +258,9 @@ final class FileCacheItemPool implements CacheItemPoolInterface
         return true;
     }
 
+    /**
+     * Writes every deferred payload and reports whether all saves succeeded.
+     */
     public function commit(): bool
     {
         $ok = true;

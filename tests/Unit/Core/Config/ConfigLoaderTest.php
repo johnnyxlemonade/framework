@@ -101,7 +101,7 @@ YAML,
                 \Lemonade\Framework\Api\Config\ApiConfigDefinition::class,
             ),
         );
-        self::assertSame('/yaml-api', $apiConfig->prefix);
+        self::assertSame('/yaml-api', $apiConfig->prefix());
     }
 
     public function testLoadWithEntrypointAwareManifestLoadsSharedAndHttpForHttpEntrypoint(): void

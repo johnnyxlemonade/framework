@@ -17,7 +17,7 @@ final class AppConfigResolverTest extends TestCase
             AppConfigDefinition::create()->secret('second-secret'),
         );
 
-        self::assertSame('second-secret', $config->secret);
+        self::assertSame('second-secret', $config->secret());
     }
 
     public function testEmptyApplicationSecretResolvesToNull(): void
@@ -26,7 +26,7 @@ final class AppConfigResolverTest extends TestCase
             AppConfigDefinition::create()->secret('   '),
         );
 
-        self::assertNull($config->secret);
+        self::assertNull($config->secret());
     }
 
     public function testMergePreservesTypedFallbacksAndAllowsNullableValuesToReset(): void
@@ -58,15 +58,15 @@ final class AppConfigResolverTest extends TestCase
             ]),
         );
 
-        self::assertNull($config->timezone);
-        self::assertNull($config->baseUrl);
-        self::assertNull($config->secret);
-        self::assertSame('/first', $config->basePath);
-        self::assertSame('/second/public', $config->publicPath);
-        self::assertSame('development', $config->env);
-        self::assertTrue($config->debug);
-        self::assertSame('/first/app', $config->appPath);
-        self::assertSame('/second/config', $config->configPath);
-        self::assertSame('/first/storage', $config->storagePath);
+        self::assertNull($config->timezone());
+        self::assertNull($config->baseUrl());
+        self::assertNull($config->secret());
+        self::assertSame('/first', $config->basePath());
+        self::assertSame('/second/public', $config->publicPath());
+        self::assertSame('development', $config->env());
+        self::assertTrue($config->debug());
+        self::assertSame('/first/app', $config->appPath());
+        self::assertSame('/second/config', $config->configPath());
+        self::assertSame('/first/storage', $config->storagePath());
     }
 }

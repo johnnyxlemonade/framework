@@ -10,6 +10,11 @@ use Lemonade\Framework\Cache\Exception\InvalidCacheKeyException;
 use Psr\Cache\CacheItemInterface;
 use Psr\Cache\CacheItemPoolInterface;
 
+/**
+ * Stores PSR-6 cache entries in request-local memory with lazy expiration.
+ *
+ * Deferred entries become visible only after commit, and no state survives the pool instance.
+ */
 final class ArrayCacheItemPool implements CacheItemPoolInterface
 {
     /**
@@ -23,6 +28,8 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
     private array $deferred = [];
 
     /**
+     * Returns a hit for a live entry or a new miss item while removing expired state.
+     *
      * @throws InvalidCacheKeyException
      */
     public function getItem(string $key): CacheItemInterface
@@ -51,6 +58,8 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Returns requested entries keyed by their original cache keys.
+     *
      * @throws InvalidCacheKeyException
      * @return iterable<string, CacheItemInterface>
      */
@@ -66,6 +75,8 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Reports whether a live entry exists for the validated key.
+     *
      * @throws InvalidCacheKeyException
      */
     public function hasItem(string $key): bool
@@ -73,6 +84,9 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
         return $this->getItem($key)->isHit();
     }
 
+    /**
+     * Removes all stored and deferred entries from this pool instance.
+     */
     public function clear(): bool
     {
         $this->items = [];
@@ -82,6 +96,8 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Removes one stored or deferred entry and succeeds when it is already absent.
+     *
      * @throws InvalidCacheKeyException
      */
     public function deleteItem(string $key): bool
@@ -94,6 +110,8 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Removes each requested entry and succeeds when all keys are valid.
+     *
      * @throws InvalidCacheKeyException
      */
     public function deleteItems(array $keys): bool
@@ -106,6 +124,8 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Stores a framework cache item immediately and rejects foreign item implementations.
+     *
      * @throws InvalidCacheKeyException
      */
     public function save(CacheItemInterface $item): bool
@@ -129,6 +149,8 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
     }
 
     /**
+     * Queues a framework cache item for a later commit without making it visible yet.
+     *
      * @throws InvalidCacheKeyException
      */
     public function saveDeferred(CacheItemInterface $item): bool
@@ -144,6 +166,9 @@ final class ArrayCacheItemPool implements CacheItemPoolInterface
         return true;
     }
 
+    /**
+     * Persists every deferred entry and reports whether all saves succeeded.
+     */
     public function commit(): bool
     {
         $ok = true;

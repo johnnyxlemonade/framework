@@ -5,75 +5,70 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Security\Csrf;
 
 use Lemonade\Framework\Session\Contract\SessionInterface;
+use Lemonade\Framework\Session\SessionNamespace;
 
-final class CsrfTokenManager
+/**
+ * Maintains independently named tokens inside the default session's CSRF namespace.
+ */
+final readonly class CsrfTokenManager
 {
-    private const string SESSION_TOKENS_KEY = '_csrf_tokens';
+    private const string NAMESPACE_NAME = 'csrf';
 
+    private SessionNamespace $tokens;
+
+    /**
+     * Connects token persistence to the supplied physical session without owning its lifecycle.
+     */
     public function __construct(
-        private readonly SessionInterface $session,
+        SessionInterface $session,
     ) {
+        $this->tokens = new SessionNamespace($session, self::NAMESPACE_NAME);
     }
 
+    /**
+     * Returns the stable token for a name, creating it when absent or corrupt.
+     */
     public function token(string $name = 'default'): string
     {
-        $tokens = $this->tokens();
+        $token = $this->tokens->get($name);
 
-        if (!isset($tokens[$name])) {
-            $tokens[$name] = bin2hex(random_bytes(32));
-            $this->session->set(self::SESSION_TOKENS_KEY, $tokens);
+        if (!is_string($token)) {
+            $token = bin2hex(random_bytes(32));
+            $this->tokens->set($name, $token);
         }
 
-        return $tokens[$name];
+        return $token;
     }
 
+    /**
+     * Compares a submitted value with the token stored for the requested name.
+     */
     public function validate(string $token, string $name = 'default'): bool
     {
-        $expected = $this->tokens()[$name] ?? null;
+        $expected = $this->tokens->get($name);
 
         return is_string($expected)
             && $token !== ''
             && hash_equals($expected, $token);
     }
 
+    /**
+     * Replaces and returns only the token associated with the requested name.
+     */
     public function regenerate(string $name = 'default'): string
     {
-        $tokens = $this->tokens();
-        $tokens[$name] = bin2hex(random_bytes(32));
+        $token = bin2hex(random_bytes(32));
 
-        $this->session->set(self::SESSION_TOKENS_KEY, $tokens);
+        $this->tokens->set($name, $token);
 
-        return $tokens[$name];
-    }
-
-    public function forget(string $name = 'default'): void
-    {
-        $tokens = $this->tokens();
-
-        unset($tokens[$name]);
-
-        $this->session->set(self::SESSION_TOKENS_KEY, $tokens);
+        return $token;
     }
 
     /**
-     * @return array<string, string>
+     * Removes one named token while preserving every other CSRF token.
      */
-    private function tokens(): array
+    public function forget(string $name = 'default'): void
     {
-        $tokens = $this->session->get(self::SESSION_TOKENS_KEY, []);
-
-        if (!is_array($tokens)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($tokens as $key => $value) {
-            if (is_string($key) && is_string($value)) {
-                $normalized[$key] = $value;
-            }
-        }
-
-        return $normalized;
+        $this->tokens->remove($name);
     }
 }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Config;
 
+use InvalidArgumentException;
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
+use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
 
 /**
  * Builds declarative session configuration entries for application config sources
@@ -26,7 +28,8 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     {
         return self::create()
             ->driver('native')
-            ->cookie('LEMONADE_SESSION')
+            ->cookieName('LEMONADE_SESSION')
+            ->cookieSameSite(SessionCookieSameSite::Lax)
             ->lifetime(7200)
             ->nativePath('sessions')
             ->filePath('sessions')
@@ -66,9 +69,17 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     /**
      * Sets the browser cookie name that carries the session identifier
      */
-    public function cookie(string $cookie): self
+    public function cookieName(string $cookie): self
     {
-        return $this->set('cookie', $cookie);
+        return $this->set('cookie.name', $cookie);
+    }
+
+    /**
+     * Sets the browser cross-site delivery policy for the session cookie.
+     */
+    public function cookieSameSite(SessionCookieSameSite $sameSite): self
+    {
+        return $this->set('cookie.same_site', strtolower($sameSite->value));
     }
 
     /**
@@ -159,6 +170,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     public function applyTo(SessionConfig $current): SessionConfig
     {
         $data = $this->toArray();
+        $cookie = $this->cookieConfiguration($data);
         $native = is_array($data['native'] ?? null) ? $data['native'] : [];
         $file = is_array($data['file'] ?? null) ? $data['file'] : [];
         $database = is_array($data['database'] ?? null) ? $data['database'] : [];
@@ -167,11 +179,23 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
         $redisPassword = array_key_exists('password', $redis)
             ? $this->nullableString($redis['password'])
             : $current->redis()->password();
+        $driver = array_key_exists('driver', $data)
+            ? strtolower($this->configuredString($data['driver']))
+            : $current->driver();
+        $cookieName = array_key_exists('name', $cookie)
+            ? $this->configuredString($cookie['name'])
+            : $current->cookie()->name();
+        $cookieSameSite = array_key_exists('same_site', $cookie)
+            ? $this->cookieSameSiteValue($cookie['same_site'])
+            : $current->cookie()->sameSite();
 
         return new SessionConfig(
-            driver: strtolower($this->stringOr($data['driver'] ?? null, $current->driver())),
-            cookie: $this->stringOr($data['cookie'] ?? null, $current->cookie()),
-            lifetime: max(1, $this->intOr($data['lifetime'] ?? null, $current->lifetime())),
+            driver: $driver,
+            lifetime: $this->intOr($data['lifetime'] ?? null, $current->lifetime()),
+            cookie: new SessionCookieConfig(
+                name: $cookieName,
+                sameSite: $cookieSameSite,
+            ),
             native: new SessionNativeConfig(
                 $this->stringOr($native['path'] ?? null, $current->native()->path()),
             ),
@@ -193,6 +217,45 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     }
 
     /**
+     * Returns the configured cookie mapping and rejects the obsolete scalar shape.
+     *
+     * @param array<mixed> $data
+     * @return array<mixed>
+     */
+    private function cookieConfiguration(array $data): array
+    {
+        if (!array_key_exists('cookie', $data)) {
+            return [];
+        }
+
+        if (is_array($data['cookie'])) {
+            return $data['cookie'];
+        }
+
+        throw new InvalidArgumentException(
+            'Session cookie configuration must be a mapping with name and same_site fields.',
+        );
+    }
+
+    /**
+     * Converts one configured SameSite value to the supported typed policy.
+     */
+    private function cookieSameSiteValue(mixed $value): SessionCookieSameSite
+    {
+        $normalized = is_string($value) ? strtolower(trim($value)) : '';
+
+        return match ($normalized) {
+            'lax' => SessionCookieSameSite::Lax,
+            'strict' => SessionCookieSameSite::Strict,
+            'none' => SessionCookieSameSite::None,
+            default => throw new InvalidArgumentException(sprintf(
+                'Invalid session cookie same_site value "%s". Expected one of: lax, strict, none.',
+                is_scalar($value) ? (string) $value : get_debug_type($value),
+            )),
+        };
+    }
+
+    /**
      * Normalizes a scalar value to a non-empty string or preserves the current value.
      */
     private function stringOr(mixed $value, string $current): string
@@ -204,6 +267,14 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
         $normalized = trim((string) $value);
 
         return $normalized === '' ? $current : $normalized;
+    }
+
+    /**
+     * Normalizes an explicitly configured scalar and leaves semantic validation to its value object.
+     */
+    private function configuredString(mixed $value): string
+    {
+        return is_scalar($value) ? trim((string) $value) : '';
     }
 
     /**
@@ -260,6 +331,8 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     {
         $data = $this->toArray();
 
+        /** @var array{name: string, same_site: string} $cookie */
+        $cookie = $data['cookie'];
         /** @var array{path: string} $native */
         $native = $data['native'];
         /** @var array{path: string} $file */
@@ -279,15 +352,16 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
 
         /** @var string $driver */
         $driver = $data['driver'];
-        /** @var string $cookie */
-        $cookie = $data['cookie'];
         /** @var int $lifetime */
         $lifetime = $data['lifetime'];
 
         return new SessionConfig(
             driver: $driver,
-            cookie: $cookie,
             lifetime: $lifetime,
+            cookie: new SessionCookieConfig(
+                name: $cookie['name'],
+                sameSite: $this->cookieSameSiteValue($cookie['same_site']),
+            ),
             native: new SessionNativeConfig($native['path']),
             file: new SessionFileConfig($file['path']),
             database: new SessionDatabaseConfig($database['table']),

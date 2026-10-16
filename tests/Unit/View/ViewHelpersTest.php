@@ -137,6 +137,11 @@ final class ViewHelpersSessionStub implements SessionInterface
         $this->data = [];
     }
 
+    public function destroy(): void
+    {
+        $this->data = [];
+    }
+
     public function regenerate(bool $deleteOldSession = true): void
     {
         unset($deleteOldSession);

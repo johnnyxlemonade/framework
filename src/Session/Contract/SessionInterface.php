@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Session\Contract;
 
 /**
- * Provides request-scoped access to keyed session state
+ * Provides request-scoped access to keyed session state.
+ *
+ * Portable values are null, scalars, and arrays composed of portable values. Object restoration
+ * is deliberately not part of the storage-neutral contract.
  */
 interface SessionInterface
 {
@@ -43,6 +46,13 @@ interface SessionInterface
      * Removes every value from the current session
      */
     public function clear(): void;
+
+    /**
+     * Removes the active record, invalidates its identifier, and expires its browser cookie.
+     *
+     * A later access starts a new session identity.
+     */
+    public function destroy(): void;
 
     /**
      * Replaces the current identifier and can invalidate its prior storage record

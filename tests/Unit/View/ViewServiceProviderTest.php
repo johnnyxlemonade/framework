@@ -59,7 +59,7 @@ final class ViewServiceProviderTest extends TestCase
         $this->deleteRecursive($this->root);
     }
 
-    public function testRegisterBindsViewSingletonWithConfiguredBasePathAndHelpers(): void
+    public function testRegisterBindsViewSingletonWithApplicationScopedHelpers(): void
     {
         $container = $this->buildContainer($this->viewsPath, 'https://example.test');
         $provider = new ViewServiceProvider();
@@ -72,14 +72,12 @@ final class ViewServiceProviderTest extends TestCase
         $viewB = $container->get(View::class);
         self::assertSame($viewA, $viewB);
 
-        $this->writeView('helper', '<?= get_class($helpers) ?>|<?= get_class($component) ?>|<?= get_class($baseUrl) ?>|<?= get_class($url) ?>|<?= get_class($csrf) ?>');
+        $this->writeView('helper', '<?= get_class($component) ?>|<?= get_class($baseUrl) ?>|<?= get_class($url) ?>');
         $output = $viewA->render('helper');
 
-        self::assertStringContainsString(ViewHelpers::class, $output);
         self::assertStringContainsString(ComponentRegistry::class, $output);
         self::assertStringContainsString(BaseUrlResolver::class, $output);
         self::assertStringContainsString(UrlGenerator::class, $output);
-        self::assertStringContainsString(CsrfViewHelper::class, $output);
     }
 
     public function testRegisterProvidesSharedViewResourceRegistryToView(): void
@@ -98,16 +96,24 @@ final class ViewServiceProviderTest extends TestCase
 
     public function testRegisterSharesHelpersVariableIntoRenderedView(): void
     {
-        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
-        $provider = new ViewServiceProvider();
-        $provider->register($container);
+        $container = $this->rendererContainer();
 
         $this->writeView('helpers-variable', '<?= $helpers instanceof ' . '\\' . ViewHelpers::class . ' ? $helpers->asset("css/app.css") : "missing" ?>');
+        $scope = $container->beginScope(ScopeKind::Request);
 
-        self::assertSame(
-            'https://example.test/css/app.css',
-            $container->get(View::class)->render('helpers-variable'),
-        );
+        try {
+            $scope->bindScopedInstance(
+                \Psr\Http\Message\ServerRequestInterface::class,
+                new ServerRequest('GET', '/helpers'),
+            );
+
+            self::assertSame(
+                'https://example.test/css/app.css',
+                $scope->get(ViewRendererInterface::class)->content('helpers-variable'),
+            );
+        } finally {
+            $scope->close();
+        }
     }
 
     public function testRegisterResolvesRelativeConfiguredBasePathAgainstApplicationBasePath(): void
@@ -216,22 +222,31 @@ final class ViewServiceProviderTest extends TestCase
         self::assertInstanceOf(View::class, $view);
         self::assertTrue($this->hasContainerInstance($container, ViewConfigResolver::class));
         self::assertTrue($this->hasContainerInstance($container, \Lemonade\Framework\View\Config\ViewConfig::class));
-        self::assertTrue($this->hasContainerInstance($container, ViewHelpers::class));
+        self::assertFalse($this->hasContainerInstance($container, ViewHelpers::class));
         self::assertTrue($this->hasContainerInstance($container, View::class));
     }
 
-    public function testRepeatedViewResolutionRespectsSingletonLifecycle(): void
+    public function testViewAndHelpersRespectApplicationAndRequestLifecycles(): void
     {
         $container = $this->buildContainer($this->viewsPath, 'https://example.test');
         (new ViewServiceProvider())->register($container);
 
         $viewA = $container->get(View::class);
         $viewB = $container->get(View::class);
-        $helpersA = $container->get(ViewHelpers::class);
-        $helpersB = $container->get(ViewHelpers::class);
+        $firstScope = $container->beginScope(ScopeKind::Request);
+        $secondScope = $container->beginScope(ScopeKind::Request);
 
-        self::assertSame($viewA, $viewB);
-        self::assertSame($helpersA, $helpersB);
+        try {
+            $helpersA = $firstScope->get(ViewHelpers::class);
+            $helpersB = $secondScope->get(ViewHelpers::class);
+
+            self::assertSame($viewA, $viewB);
+            self::assertSame($helpersA, $firstScope->get(ViewHelpers::class));
+            self::assertNotSame($helpersA, $helpersB);
+        } finally {
+            $firstScope->close();
+            $secondScope->close();
+        }
     }
 
     public function testInvalidConfiguredBasePathFailsConsistentlyOnFirstRender(): void
@@ -346,9 +361,9 @@ final class ViewServiceProviderTest extends TestCase
             ),
         );
         $container->singleton(UrlGenerator::class, new UrlGenerator(new Router()));
-        $session = new InMemorySession();
-        $container->singleton(CsrfTokenManager::class, new CsrfTokenManager($session));
-        $container->singleton(CsrfViewHelper::class, new CsrfViewHelper($container->get(CsrfTokenManager::class)));
+        $container->scoped(SessionInterface::class, InMemorySession::class);
+        $container->scoped(CsrfTokenManager::class, CsrfTokenManager::class);
+        $container->scoped(CsrfViewHelper::class, CsrfViewHelper::class);
         $container->singleton(TranslatorInterface::class, new ViewServiceProviderTranslatorStub());
         $container->singleton(LocalizationConfig::class, new LocalizationConfig('en', 'en', ['en'], new LocalizationUrlConfig(false, 'localized.', '/{locale}', 'locale', false)));
 
@@ -557,6 +572,11 @@ final class InMemorySession implements SessionInterface
     }
 
     public function clear(): void
+    {
+        $this->data = [];
+    }
+
+    public function destroy(): void
     {
         $this->data = [];
     }

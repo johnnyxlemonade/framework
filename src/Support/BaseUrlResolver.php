@@ -7,18 +7,32 @@ namespace Lemonade\Framework\Support;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Http\Request\ServerHelper;
 
-final class BaseUrlResolver
+/**
+ * Resolves an application base URL from explicit configuration or current request metadata.
+ *
+ * Explicit configuration takes precedence, while relative paths are joined at one URL boundary.
+ */
+final readonly class BaseUrlResolver
 {
+    /**
+     * Binds URL resolution to the application's resolved configuration.
+     */
     public function __construct(
-        private readonly AppConfig $config,
+        private AppConfig $config,
     ) {
     }
 
+    /**
+     * Resolves the application base URL and optionally appends a relative path.
+     */
     public function __invoke(string $path = ''): string
     {
         return $this->baseUrl($path);
     }
 
+    /**
+     * Uses configured URL data when available and otherwise derives scheme and host from the request.
+     */
     public function baseUrl(string $path = ''): string
     {
         $baseUrl = $this->configuredBaseUrl() ?? $this->baseUrlFromServer();
@@ -32,7 +46,7 @@ final class BaseUrlResolver
 
     private function configuredBaseUrl(): ?string
     {
-        $baseUrl = $this->config->baseUrl;
+        $baseUrl = $this->config->baseUrl();
         if ($baseUrl === null || trim($baseUrl) === '') {
             return null;
         }
@@ -48,57 +62,11 @@ final class BaseUrlResolver
             return $baseUrl;
         }
 
-        return $this->scheme() . '://' . $baseUrl;
+        return ServerHelper::scheme() . '://' . $baseUrl;
     }
 
     private function baseUrlFromServer(): string
     {
-        return $this->scheme() . '://' . $this->host();
-    }
-
-    private function scheme(): string
-    {
-        $forwardedProto = strtolower(trim(ServerHelper::get('HTTP_X_FORWARDED_PROTO')));
-
-        if ($forwardedProto !== '') {
-            $proto = trim(explode(',', $forwardedProto)[0]);
-
-            if ($proto === 'https') {
-                return 'https';
-            }
-
-            if ($proto === 'http') {
-                return 'http';
-            }
-        }
-
-        $https = strtolower(ServerHelper::get('HTTPS'));
-
-        if ($https !== '' && $https !== 'off') {
-            return 'https';
-        }
-
-        if (ServerHelper::get('SERVER_PORT') === '443') {
-            return 'https';
-        }
-
-        return 'http';
-    }
-
-    private function host(): string
-    {
-        $host = trim(ServerHelper::get('HTTP_HOST'));
-
-        if ($host !== '') {
-            return $host;
-        }
-
-        $serverName = trim(ServerHelper::get('SERVER_NAME'));
-
-        if ($serverName !== '') {
-            return $serverName;
-        }
-
-        return 'localhost';
+        return ServerHelper::scheme() . '://' . ServerHelper::host();
     }
 }

@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Storage;
 
-use Redis;
+use Closure;
+use Lemonade\Framework\Session\SessionIdGenerator;
 use RuntimeException;
 
 /**
- * Persists a request-scoped session payload in Redis with key-level expiry
+ * Persists sliding sessions in Redis and delegates physical cleanup to key TTL.
+ *
+ * Concurrent payload mutations use last-writer-wins semantics.
  */
 final class RedisSessionStorage implements SessionStorageInterface
 {
     private bool $started = false;
-
     private string $sessionId = '';
 
     /**
@@ -21,8 +23,18 @@ final class RedisSessionStorage implements SessionStorageInterface
      */
     private array $data = [];
 
+    private readonly SessionCookie $cookie;
+    private readonly SessionIdGenerator $sessionIdGenerator;
+
     /**
-     * Defines the Redis endpoint, key namespace, retention period and transport cookie name
+     * @var Closure(): RedisSessionClientInterface
+     */
+    private readonly Closure $clientFactory;
+
+    /**
+     * Defines the Redis endpoint, key namespace, sliding retention, and browser identity.
+     *
+     * @param null|Closure(): RedisSessionClientInterface $clientFactory
      */
     public function __construct(
         private readonly string $host = '127.0.0.1',
@@ -33,11 +45,16 @@ final class RedisSessionStorage implements SessionStorageInterface
         private readonly int $lifetimeSeconds = 7200,
         private readonly string $cookieName = 'LEMONADE_SESSION',
         private readonly float $timeout = 2.5,
+        ?SessionCookie $cookie = null,
+        ?Closure $clientFactory = null,
     ) {
+        $this->cookie = $cookie ?? new SessionCookie($cookieName, $lifetimeSeconds);
+        $this->clientFactory = $clientFactory ?? static fn(): RedisSessionClientInterface => new PhpRedisSessionClient();
+        $this->sessionIdGenerator = new SessionIdGenerator();
     }
 
     /**
-     * Loads or creates the Redis-backed session and refreshes its key expiry
+     * Loads and touches a live key or replaces a missing identity with a fresh TTL-backed key.
      */
     public function start(): void
     {
@@ -45,16 +62,42 @@ final class RedisSessionStorage implements SessionStorageInterface
             return;
         }
 
-        $this->sessionId = $this->resolveSessionId();
-        $this->data = $this->readSession($this->sessionId);
-        $this->touchSession();
-        $this->sendCookie();
+        $this->cookie->assertCanChange();
+        $redis = $this->connect();
 
-        $this->started = true;
+        try {
+            $candidate = $this->resolveSessionId();
+
+            if ($candidate === null) {
+                $this->startNewSession($redis);
+            } else {
+                $payload = $redis->get($this->key($candidate));
+                $data = $payload === null ? null : $this->decodePayload($payload);
+
+                if ($data === null) {
+                    if ($payload !== null) {
+                        $this->deleteAndVerify($redis, $this->key($candidate));
+                    }
+
+                    $this->startNewSession($redis);
+                } elseif (!$redis->expire($this->key($candidate), $this->lifetimeSeconds)) {
+                    $this->deleteAndVerify($redis, $this->key($candidate));
+                    $this->startNewSession($redis);
+                } else {
+                    $this->sessionId = $candidate;
+                    $this->data = $data;
+                }
+            }
+
+            $this->cookie->send($this->sessionId);
+            $this->started = true;
+        } finally {
+            $redis->close();
+        }
     }
 
     /**
-     * Reports whether the Redis-backed session has been loaded for this request
+     * Reports whether this request has established its Redis-backed identity.
      */
     public function started(): bool
     {
@@ -62,7 +105,7 @@ final class RedisSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Checks the in-memory session payload for the key
+     * Checks the payload loaded for this request.
      */
     public function has(string $key): bool
     {
@@ -72,17 +115,19 @@ final class RedisSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Reads a value from the in-memory payload or returns the supplied fallback
+     * Returns a loaded value or the supplied fallback.
      */
     public function get(string $key, mixed $default = null): mixed
     {
         $this->start();
 
-        return $this->data[$key] ?? $default;
+        return array_key_exists($key, $this->data)
+            ? $this->data[$key]
+            : $default;
     }
 
     /**
-     * Updates a value and immediately writes the serialized payload to Redis
+     * Stores a value with a renewed Redis TTL.
      */
     public function set(string $key, mixed $value): void
     {
@@ -93,7 +138,7 @@ final class RedisSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Removes a value and immediately writes the serialized payload to Redis
+     * Removes one value and renews the Redis TTL.
      */
     public function remove(string $key): void
     {
@@ -104,7 +149,7 @@ final class RedisSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Replaces the active payload with an empty Redis session
+     * Persists an empty payload while retaining the active key and cookie.
      */
     public function clear(): void
     {
@@ -115,189 +160,155 @@ final class RedisSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Assigns a fresh identifier and optionally removes the former Redis key
+     * Deletes and verifies the active key, then expires its browser cookie.
+     */
+    public function destroy(): void
+    {
+        $this->start();
+        $this->cookie->assertCanChange();
+
+        $redis = $this->connect();
+
+        try {
+            $this->deleteAndVerify($redis, $this->key($this->sessionId));
+            $this->cookie->expire();
+            $this->reset();
+        } finally {
+            $redis->close();
+        }
+    }
+
+    /**
+     * Copies the payload to a fresh TTL-backed key and optionally invalidates the old key.
      */
     public function regenerate(bool $deleteOldSession = true): void
     {
         $this->start();
+        $this->cookie->assertCanChange();
 
         $redis = $this->connect();
 
         try {
-            $oldSessionId = $this->sessionId;
-            $oldKey = $this->key($oldSessionId);
-
-            $this->sessionId = $this->generateSessionId();
-            $this->writeSession();
-            $this->sendCookie();
+            $oldKey = $this->key($this->sessionId);
+            $this->sessionId = $this->sessionIdGenerator->generate();
+            $this->writeSessionWith($redis);
 
             if ($deleteOldSession) {
-                $redis->del($oldKey);
+                $this->deleteAndVerify($redis, $oldKey);
             }
+
+            $this->cookie->send($this->sessionId);
         } finally {
             $redis->close();
         }
     }
 
-    /**
-     * Accepts only framework-generated session identifiers from the request cookie
-     */
-    private function resolveSessionId(): string
+    private function reset(): void
+    {
+        $this->started = false;
+        $this->sessionId = '';
+        $this->data = [];
+    }
+
+    private function resolveSessionId(): ?string
     {
         $sessionId = $_COOKIE[$this->cookieName] ?? null;
 
-        if (is_string($sessionId) && preg_match('/^[a-f0-9]{64}$/', $sessionId) === 1) {
+        if (is_string($sessionId) && $this->sessionIdGenerator->isValid($sessionId)) {
             return $sessionId;
         }
 
-        return $this->generateSessionId();
+        return null;
+    }
+
+    private function startNewSession(RedisSessionClientInterface $redis): void
+    {
+        $this->sessionId = $this->sessionIdGenerator->generate();
+        $this->data = [];
+        $this->writeSessionWith($redis);
     }
 
     /**
-     * Generates a cryptographically random session identifier
+     * @return null|array<string, mixed>
      */
-    private function generateSessionId(): string
+    private function decodePayload(string $payload): ?array
     {
-        return bin2hex(random_bytes(32));
-    }
-
-    /**
-     * Loads a serialized Redis payload and retains only string-keyed values
-     *
-     * @return array<string, mixed>
-     */
-    private function readSession(string $sessionId): array
-    {
-        $redis = $this->connect();
-
-        try {
-            $value = $redis->get($this->key($sessionId));
-
-            if (!is_string($value) || $value === '') {
-                return [];
-            }
-
-            $data = unserialize($value, ['allowed_classes' => false]);
-
-            if (!is_array($data)) {
-                return [];
-            }
-
-            $normalized = [];
-
-            foreach ($data as $key => $item) {
-                if (is_string($key)) {
-                    $normalized[$key] = $item;
-                }
-            }
-
-            return $normalized;
-        } finally {
-            $redis->close();
+        if ($payload === '') {
+            return null;
         }
+
+        $data = @unserialize($payload, ['allowed_classes' => false]);
+
+        if (!is_array($data)) {
+            return null;
+        }
+
+        $normalized = [];
+
+        foreach ($data as $key => $value) {
+            if (is_string($key)) {
+                $normalized[$key] = $value;
+            }
+        }
+
+        return $normalized;
     }
 
-    /**
-     * Serializes the current payload with a renewed Redis expiry
-     */
     private function writeSession(): void
     {
         $redis = $this->connect();
 
         try {
-            $payload = serialize($this->data);
-            $ok = $redis->setex($this->key($this->sessionId), $this->lifetimeSeconds, $payload);
-
-            if ($ok !== true) {
-                throw new RuntimeException('Failed to write redis session payload.');
-            }
+            $this->writeSessionWith($redis);
         } finally {
             $redis->close();
         }
     }
 
-    /**
-     * Extends an existing key or creates one while preserving the loaded payload
-     */
-    private function touchSession(): void
+    private function writeSessionWith(RedisSessionClientInterface $redis): void
     {
-        $redis = $this->connect();
+        $payload = serialize($this->data);
 
-        try {
-            $key = $this->key($this->sessionId);
-            $existsResult = $redis->exists($key);
-            $exists = is_int($existsResult) ? $existsResult > 0 : $existsResult === true;
-
-            if ($exists) {
-                $redis->expire($key, $this->lifetimeSeconds);
-
-                return;
-            }
-
-            $payload = serialize($this->data);
-            $redis->setex($key, $this->lifetimeSeconds, $payload);
-        } finally {
-            $redis->close();
+        if (!$redis->setex($this->key($this->sessionId), $this->lifetimeSeconds, $payload)) {
+            throw new RuntimeException('Failed to write Redis session payload with expiry.');
         }
     }
 
-    /**
-     * Builds the namespaced Redis key for a validated session identifier
-     */
+    private function deleteAndVerify(RedisSessionClientInterface $redis, string $key): void
+    {
+        if (!$redis->delete($key) || $redis->exists($key)) {
+            throw new RuntimeException(sprintf(
+                'Failed to invalidate Redis session key "%s".',
+                $key,
+            ));
+        }
+    }
+
     private function key(string $sessionId): string
     {
         return $this->prefix . $sessionId;
     }
 
-    /**
-     * Opens and authenticates a Redis connection for one storage operation
-     */
-    private function connect(): Redis
+    private function connect(): RedisSessionClientInterface
     {
-        if (!class_exists(Redis::class)) {
-            throw new RuntimeException(
-                'Redis extension is not installed. Install ext-redis to use redis session storage.',
-            );
+        $redis = ($this->clientFactory)();
+
+        if (!$redis instanceof RedisSessionClientInterface) {
+            throw new RuntimeException('Redis session client factory returned an incompatible client.');
         }
-
-        $redis = new Redis();
-        $connected = $redis->connect($this->host, $this->port, $this->timeout);
-
-        if ($connected !== true) {
-            throw new RuntimeException('Failed to connect to redis session storage.');
+        if (!$redis->connect($this->host, $this->port, $this->timeout)) {
+            throw new RuntimeException('Failed to connect to Redis session storage.');
         }
-
-        if ($this->password !== null && $this->password !== '') {
-            if ($redis->auth($this->password) !== true) {
-                throw new RuntimeException('Redis authentication failed for session storage.');
-            }
+        if ($this->password !== null && $this->password !== '' && !$redis->authenticate($this->password)) {
+            throw new RuntimeException('Redis authentication failed for session storage.');
         }
-
-        if ($this->database > 0 && $redis->select($this->database) !== true) {
+        if ($this->database > 0 && !$redis->selectDatabase($this->database)) {
             throw new RuntimeException(sprintf(
-                'Failed to select redis database %d for session storage.',
+                'Failed to select Redis database %d for session storage.',
                 $this->database,
             ));
         }
 
         return $redis;
-    }
-
-    /**
-     * Sends the active identifier with the storage retention period when headers remain mutable
-     */
-    private function sendCookie(): void
-    {
-        if (headers_sent()) {
-            return;
-        }
-
-        setcookie($this->cookieName, $this->sessionId, [
-            'expires' => time() + $this->lifetimeSeconds,
-            'path' => '/',
-            'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== '' && $_SERVER['HTTPS'] !== 'off',
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
     }
 }

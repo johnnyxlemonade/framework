@@ -8,6 +8,7 @@ use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
+use Lemonade\Framework\Session\SessionNamespace;
 use Lemonade\Framework\View\RequestViewHelpers;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -53,13 +54,13 @@ final class RequestViewHelpersTest extends TestCase
         self::assertFalse($helpers->isRouteActive('articles.index'));
     }
 
-    public function testOldReadsSessionFirstThenFlashFallback(): void
+    public function testOldPrefersCanonicalNamespaceOverFlashValue(): void
     {
-        $session = new RequestViewHelpersSessionStub([
-            '_old_input.email' => 'session@example.test',
-        ]);
+        $session = new RequestViewHelpersSessionStub();
+        $oldInput = new SessionNamespace($session, 'old_input');
+        $oldInput->set('email', 'session@example.test');
         $flash = new RequestViewHelpersFlashBagStub([
-            'old_input' => ['email' => 'flash@example.test', 'name' => 'Flash Name'],
+            'old_input' => ['email' => 'flash@example.test'],
         ]);
 
         $helpers = $this->helpers(
@@ -69,7 +70,33 @@ final class RequestViewHelpersTest extends TestCase
         );
 
         self::assertSame('session@example.test', $helpers->old('email'));
-        self::assertSame('Flash Name', $helpers->old('name'));
+    }
+
+    public function testOldUsesFlashWhenCanonicalNamespaceValueIsMissing(): void
+    {
+        $session = new RequestViewHelpersSessionStub();
+        $oldInput = new SessionNamespace($session, 'old_input');
+        $oldInput->set('email', null);
+        $flash = new RequestViewHelpersFlashBagStub([
+            'old_input' => ['email' => 'flash@example.test'],
+        ]);
+        $helpers = $this->helpers(
+            new ServerRequest('GET', 'https://example.test/form'),
+            flash: $flash,
+            session: $session,
+        );
+
+        self::assertSame('flash@example.test', $helpers->old('email'));
+    }
+
+    public function testOldReturnsCallerDefaultAfterEveryStorageFallbackIsMissing(): void
+    {
+        $helpers = $this->helpers(
+            new ServerRequest('GET', 'https://example.test/form'),
+            flash: new RequestViewHelpersFlashBagStub(),
+            session: new RequestViewHelpersSessionStub(),
+        );
+
         self::assertSame('fallback', $helpers->old('missing', 'fallback'));
     }
 
@@ -139,6 +166,11 @@ final class RequestViewHelpersSessionStub implements SessionInterface
     }
 
     public function clear(): void
+    {
+        $this->data = [];
+    }
+
+    public function destroy(): void
     {
         $this->data = [];
     }

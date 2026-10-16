@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Cache\Config;
 
+/**
+ * Merges ordered cache definitions into one normalized immutable runtime configuration.
+ */
 final class CacheConfigResolver
 {
+    /**
+     * Applies later contributions over earlier values while preserving canonical fallbacks.
+     */
     public function resolve(CacheConfigDefinition ...$definitions): CacheConfig
     {
         $defaultStore = 'file';

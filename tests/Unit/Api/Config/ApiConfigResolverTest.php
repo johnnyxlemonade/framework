@@ -35,13 +35,13 @@ final class ApiConfigResolverTest extends TestCase
                 ->docsScopes(['openapi:read']),
         );
 
-        self::assertTrue($config->enabled);
-        self::assertSame('/api', $config->prefix);
-        self::assertNull($config->security->staticBearer);
-        self::assertTrue($config->framework->enabled);
-        self::assertTrue($config->framework->health->enabled);
-        self::assertFalse($config->framework->docs->enabled);
-        self::assertSame(['openapi:read'], $config->framework->openapi->scopes);
+        self::assertTrue($config->enabled());
+        self::assertSame('/api', $config->prefix());
+        self::assertNull($config->security()->staticBearer);
+        self::assertTrue($config->framework()->enabled);
+        self::assertTrue($config->framework()->health->enabled);
+        self::assertFalse($config->framework()->docs->enabled);
+        self::assertSame(['openapi:read'], $config->framework()->openapi->scopes);
     }
 
     public function testApplicationOverrideDefinitionOverridesDefaults(): void
@@ -57,11 +57,11 @@ final class ApiConfigResolverTest extends TestCase
                 ->docsEnabled(),
         );
 
-        self::assertSame('/internal', $config->prefix);
-        self::assertNotNull($config->security->staticBearer);
-        self::assertSame('secret-token', $config->security->staticBearer->token);
-        self::assertSame(['admin', 'openapi:read'], $config->security->staticBearer->scopes);
-        self::assertTrue($config->framework->docs->enabled);
+        self::assertSame('/internal', $config->prefix());
+        self::assertNotNull($config->security()->staticBearer);
+        self::assertSame('secret-token', $config->security()->staticBearer->token);
+        self::assertSame(['admin', 'openapi:read'], $config->security()->staticBearer->scopes);
+        self::assertTrue($config->framework()->docs->enabled);
     }
 
     public function testMultipleDefinitionsMergeEndpointProviders(): void
@@ -76,7 +76,7 @@ final class ApiConfigResolverTest extends TestCase
         self::assertSame([
             TestApiEndpointProviderOne::class,
             TestApiEndpointProviderTwo::class,
-        ], $config->endpointProviders);
+        ], $config->endpointProviders());
     }
 
     public function testInvalidEndpointProviderClassThrowsLogicException(): void
@@ -97,8 +97,8 @@ final class ApiConfigResolverTest extends TestCase
                 ->staticBearer('secret-token', ['', '   ', null]),
         );
 
-        self::assertNotNull($config->security->staticBearer);
-        self::assertSame(['api:admin'], $config->security->staticBearer->scopes);
+        self::assertNotNull($config->security()->staticBearer);
+        self::assertSame(['api:admin'], $config->security()->staticBearer->scopes);
     }
 
     public function testEndpointScopesOverrideUsesExplicitReplaceRule(): void
@@ -108,7 +108,7 @@ final class ApiConfigResolverTest extends TestCase
             ApiConfigDefinition::create()->docsScopes(['docs:read', 'openapi:read', 'docs:read']),
         );
 
-        self::assertSame(['docs:read', 'openapi:read'], $config->framework->docs->scopes);
+        self::assertSame(['docs:read', 'openapi:read'], $config->framework()->docs->scopes);
     }
 }
 

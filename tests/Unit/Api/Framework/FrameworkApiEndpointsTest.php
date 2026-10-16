@@ -339,8 +339,8 @@ final class FrameworkApiEndpointsTest extends TestCase
         $kernel->bootstrap();
         $config = $kernel->framework()->container()->get(ApiConfig::class);
 
-        self::assertSame('/typed', $config->prefix);
-        self::assertTrue($config->framework->docs->enabled);
+        self::assertSame('/typed', $config->prefix());
+        self::assertTrue($config->framework()->docs->enabled);
     }
 
     public function testProductionHealthFastPathReturnsSameContractWithoutHttpBootstrap(): void

@@ -53,7 +53,7 @@ final class FrameworkHealthFastPath
             return null;
         }
 
-        if ($snapshot->api->framework->health->access !== ApiAccess::Public) {
+        if ($snapshot->api->framework()->health->access !== ApiAccess::Public) {
             return null;
         }
 
@@ -119,13 +119,15 @@ final class FrameworkHealthFastPath
 
     private function matchesHealthRequest(ServerRequestInterface $request, ApiConfig $apiConfig): bool
     {
-        if (!$apiConfig->enabled || !$apiConfig->framework->health->enabled) {
+        $framework = $apiConfig->framework();
+
+        if (!$apiConfig->enabled() || !$framework->health->enabled) {
             return false;
         }
 
         $expectedPath = $this->pathResolver->compose(
-            $apiConfig->prefix,
-            $apiConfig->framework->health->route,
+            $apiConfig->prefix(),
+            $framework->health->route,
         );
         $requestPath = $this->pathResolver->normalizePath($request->getUri()->getPath());
 
@@ -134,7 +136,7 @@ final class FrameworkHealthFastPath
 
     private function resolveTimezone(AppConfig $config): ?DateTimeZone
     {
-        $value = $config->timezone;
+        $value = $config->timezone();
         if ($value === null || trim($value) === '') {
             return null;
         }

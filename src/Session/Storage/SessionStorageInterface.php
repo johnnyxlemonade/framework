@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Session\Storage;
 
 /**
- * Defines persistence and identifier lifecycle operations for session backends
+ * Defines persistence and identifier lifecycle operations used by the session facade.
+ *
+ * Storage implementations are construction details of {@see \Lemonade\Framework\Session\SessionFactory};
+ * consumers resolve {@see \Lemonade\Framework\Session\Contract\SessionInterface} instead.
+ *
+ * @internal
  */
 interface SessionStorageInterface
 {
@@ -43,6 +48,13 @@ interface SessionStorageInterface
      * Removes all values from the active session
      */
     public function clear(): void;
+
+    /**
+     * Removes the active record, invalidates its identifier, and expires its browser cookie.
+     *
+     * A later access starts a new session identity.
+     */
+    public function destroy(): void;
 
     /**
      * Replaces the active identifier and optionally removes its prior record

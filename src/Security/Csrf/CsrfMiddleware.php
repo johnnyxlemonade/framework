@@ -11,23 +11,32 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-final class CsrfMiddleware implements MiddlewareInterface
+/**
+ * Enforces the default CSRF token on unsafe requests and exposes it on every response.
+ */
+final readonly class CsrfMiddleware implements MiddlewareInterface
 {
     /**
      * @var list<string>
      */
-    private const SAFE_METHODS = [
+    private const array SAFE_METHODS = [
         'GET',
         'HEAD',
         'OPTIONS',
     ];
 
+    /**
+     * Connects request validation to session-backed tokens and PSR-17 error responses.
+     */
     public function __construct(
-        private readonly CsrfTokenManager $tokens,
-        private readonly Psr17Factory $responseFactory,
+        private CsrfTokenManager $tokens,
+        private Psr17Factory $responseFactory,
     ) {
     }
 
+    /**
+     * Validates unsafe requests before dispatch and attaches the current token to the response.
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (in_array(strtoupper($request->getMethod()), self::SAFE_METHODS, true)) {
@@ -49,6 +58,9 @@ final class CsrfMiddleware implements MiddlewareInterface
         return $handler->handle($request)->withHeader(CsrfTokenNames::HEADER, $this->tokens->token());
     }
 
+    /**
+     * Reads a submitted token from the canonical form field before falling back to the request header.
+     */
     private function tokenFromRequest(ServerRequestInterface $request): string
     {
         $parsedBody = $request->getParsedBody();

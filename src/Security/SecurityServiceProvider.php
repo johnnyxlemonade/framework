@@ -18,11 +18,14 @@ use Lemonade\Framework\Security\Totp\TotpVerifier;
  */
 final class SecurityServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers canonical CSRF services and the framework TOTP verifier.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(CsrfTokenManager::class, CsrfTokenManager::class);
-        $container->singleton(CsrfMiddleware::class, CsrfMiddleware::class);
-        $container->singleton(CsrfViewHelper::class, CsrfViewHelper::class);
+        $container->scoped(CsrfTokenManager::class, CsrfTokenManager::class);
+        $container->scoped(CsrfMiddleware::class, CsrfMiddleware::class);
+        $container->scoped(CsrfViewHelper::class, CsrfViewHelper::class);
         $container->singleton(TotpVerifier::class, static function (ContainerInterface $container): TotpVerifier {
             return new TotpVerifier(
                 $container->get(ClockInterface::class),

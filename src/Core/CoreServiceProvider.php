@@ -79,7 +79,7 @@ final class CoreServiceProvider implements ServiceProviderInterface
 
     private function resolveClockTimezone(AppConfig $config): ?DateTimeZone
     {
-        $value = $config->timezone;
+        $value = $config->timezone();
         if ($value === null || trim($value) === '') {
             return null;
         }

@@ -4,25 +4,36 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Storage;
 
+use Lemonade\Framework\Session\SessionGarbageCollectionPolicy;
 use RuntimeException;
 
 /**
- * Adapts PHP's native session runtime to the framework storage contract
+ * Adapts PHP's native session runtime with framework-owned cookie and garbage-collection policy.
+ *
+ * The active PHP save handler owns persistence and timestamp renewal when the session is closed at
+ * traditional request shutdown; gc_maxlifetime supplies a GC threshold, not read-time expiration.
  */
 final readonly class NativeSessionStorage implements SessionStorageInterface
 {
+    private SessionCookie $cookie;
+    private SessionGarbageCollectionPolicy $garbageCollectionPolicy;
+
     /**
-     * Defines the cookie identity, shared retention period and optional PHP session save path
+     * Defines the native identity, sliding retention, save path, and request-driven GC probability.
      */
     public function __construct(
         private string $cookieName = 'LEMONADE_SESSION',
         private int $lifetimeSeconds = 7200,
         private ?string $savePath = null,
+        ?SessionCookie $cookie = null,
+        ?SessionGarbageCollectionPolicy $garbageCollectionPolicy = null,
     ) {
+        $this->cookie = $cookie ?? new SessionCookie($cookieName, $lifetimeSeconds);
+        $this->garbageCollectionPolicy = $garbageCollectionPolicy ?? new SessionGarbageCollectionPolicy();
     }
 
     /**
-     * Configures native PHP session settings and starts the active session
+     * Starts or resumes the PHP session and refreshes both native storage and browser retention.
      */
     public function start(): void
     {
@@ -30,52 +41,41 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
             return;
         }
 
-        if (headers_sent($file, $line)) {
+        $sessionStatus = session_status();
+
+        if ($sessionStatus === PHP_SESSION_ACTIVE) {
             throw new RuntimeException(sprintf(
-                'Cannot start session because headers were already sent in %s on line %d.',
-                $file,
-                $line,
+                'Cannot start native PHP session "%s" because session "%s" is already active.',
+                $this->cookieName,
+                session_name(),
             ));
         }
 
-        if (session_status() !== PHP_SESSION_NONE) {
+        if ($sessionStatus !== PHP_SESSION_NONE) {
             throw new RuntimeException('Cannot start native PHP session because session status is not none.');
         }
 
-        if ($this->savePath !== null && $this->savePath !== '') {
-            $this->ensureDirectoryExists($this->savePath);
-            $this->ensureDirectoryIsWritable($this->savePath);
-
-            session_save_path($this->savePath);
-        }
-
-        ini_set('session.gc_maxlifetime', (string) $this->lifetimeSeconds);
-
-        session_name($this->cookieName);
-
-        session_set_cookie_params([
-            'lifetime' => $this->lifetimeSeconds,
-            'path' => '/',
-            'secure' => $this->isSecureRequest(),
-            'httponly' => true,
-            'samesite' => 'Lax',
-        ]);
+        $this->cookie->assertCanChange();
+        $this->configureRuntime();
 
         if (session_start() === false) {
             throw new RuntimeException('Failed to start native PHP session.');
         }
+
+        $this->cookie->send($this->activeSessionId());
     }
 
     /**
-     * Reports PHP's process-level native session initialization state
+     * Reports whether this cookie identity owns the active native PHP session.
      */
     public function started(): bool
     {
-        return session_status() === PHP_SESSION_ACTIVE;
+        return session_status() === PHP_SESSION_ACTIVE
+            && session_name() === $this->cookieName;
     }
 
     /**
-     * Checks the native session payload for the key
+     * Checks the active native payload for a key.
      */
     public function has(string $key): bool
     {
@@ -85,17 +85,19 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Reads a native session value or returns the supplied fallback
+     * Returns a native session value or the supplied fallback.
      */
     public function get(string $key, mixed $default = null): mixed
     {
         $this->start();
 
-        return $_SESSION[$key] ?? $default;
+        return array_key_exists($key, $_SESSION)
+            ? $_SESSION[$key]
+            : $default;
     }
 
     /**
-     * Stores a value in the native session payload
+     * Stores a value for persistence when PHP closes the active session.
      */
     public function set(string $key, mixed $value): void
     {
@@ -105,7 +107,7 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Removes a key from the native session payload
+     * Removes one value for persistence when PHP closes the active session.
      */
     public function remove(string $key): void
     {
@@ -115,7 +117,7 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Clears every value from the active native session payload
+     * Clears the payload while preserving the active identifier and cookie.
      */
     public function clear(): void
     {
@@ -125,37 +127,117 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Rotates the native session identifier and can delete the prior payload
+     * Deletes the native record and cookie so later access receives a fresh identity.
+     */
+    public function destroy(): void
+    {
+        $this->start();
+        $this->cookie->assertCanChange();
+
+        $_SESSION = [];
+
+        if (session_destroy() === false) {
+            throw new RuntimeException('Failed to destroy native PHP session.');
+        }
+
+        $_SESSION = [];
+        $this->cookie->expire();
+    }
+
+    /**
+     * Rotates the native identifier, preserves its payload, and optionally deletes the old record.
      */
     public function regenerate(bool $deleteOldSession = true): void
     {
         $this->start();
+        $this->cookie->assertCanChange();
 
         if (session_regenerate_id($deleteOldSession) === false) {
             throw new RuntimeException('Failed to regenerate native PHP session ID.');
         }
+
+        $this->cookie->send($this->activeSessionId());
     }
 
-    /**
-     * Creates the configured save directory before PHP attempts to write session data
-     */
-    private function ensureDirectoryExists(string $directory): void
+    private function configureRuntime(): void
     {
-        if (is_dir($directory)) {
+        if ($this->savePath !== null && $this->savePath !== '') {
+            $this->ensureDirectoryExists($this->savePath);
+            $this->ensureDirectoryIsWritable($this->savePath);
+
+            if (session_save_path($this->savePath) === false) {
+                throw new RuntimeException(sprintf(
+                    'Failed to configure native session directory "%s".',
+                    $this->savePath,
+                ));
+            }
+        }
+
+        $this->setIniDirective('session.gc_maxlifetime', (string) $this->lifetimeSeconds);
+        $this->setIniDirective(
+            'session.gc_probability',
+            (string) $this->garbageCollectionPolicy->probability(),
+        );
+        $this->setIniDirective(
+            'session.gc_divisor',
+            (string) $this->garbageCollectionPolicy->divisor(),
+        );
+        $this->setIniDirective('session.use_strict_mode', '1');
+        $this->setIniDirective('session.use_cookies', '1');
+        $this->setIniDirective('session.use_only_cookies', '1');
+
+        if (session_name($this->cookieName) === false) {
+            throw new RuntimeException(sprintf(
+                'Failed to configure native session name "%s".',
+                $this->cookieName,
+            ));
+        }
+
+        if (session_set_cookie_params($this->cookie->nativeParameters()) === false) {
+            throw new RuntimeException('Failed to configure native session cookie parameters.');
+        }
+    }
+
+    private function activeSessionId(): string
+    {
+        $sessionId = session_id();
+
+        if (is_string($sessionId) && $sessionId !== '') {
+            return $sessionId;
+        }
+
+        throw new RuntimeException('Native PHP session did not provide an active identifier.');
+    }
+
+    private function setIniDirective(string $name, string $value): void
+    {
+        if (ini_set($name, $value) !== false) {
             return;
         }
 
-        if (!mkdir($directory, 0775, true) && !is_dir($directory)) {
+        throw new RuntimeException(sprintf(
+            'Failed to configure PHP directive "%s" for native sessions.',
+            $name,
+        ));
+    }
+
+    private function ensureDirectoryExists(string $directory): void
+    {
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
             throw new RuntimeException(sprintf(
                 'Failed to create native session directory "%s".',
                 $directory,
             ));
         }
+
+        if (!chmod($directory, 0700)) {
+            throw new RuntimeException(sprintf(
+                'Failed to secure native session directory "%s".',
+                $directory,
+            ));
+        }
     }
 
-    /**
-     * Rejects a configured save directory that cannot persist native session data
-     */
     private function ensureDirectoryIsWritable(string $directory): void
     {
         if (is_writable($directory)) {
@@ -166,19 +248,5 @@ final readonly class NativeSessionStorage implements SessionStorageInterface
             'Native session directory "%s" is not writable.',
             $directory,
         ));
-    }
-
-    /**
-     * Detects HTTPS from PHP request globals for the Secure cookie attribute
-     */
-    private function isSecureRequest(): bool
-    {
-        $serverPort = $_SERVER['SERVER_PORT'] ?? null;
-        $isHttpsPort = is_int($serverPort)
-            ? $serverPort === 443
-            : (is_string($serverPort) && $serverPort === '443');
-
-        return (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== '' && $_SERVER['HTTPS'] !== 'off')
-            || $isHttpsPort;
     }
 }

@@ -21,7 +21,7 @@ HTTP request
    -> register ApiEndpointRegistry
    -> register framework API endpoint provider
    -> register app API endpoint providers from ApiConfig
-   -> register API routes under configured ApiConfig::prefix
+   -> register API routes under configured ApiConfig::prefix()
 -> API middleware
    -> resolve request path against ApiEndpointRegistry
    -> skip non-API requests

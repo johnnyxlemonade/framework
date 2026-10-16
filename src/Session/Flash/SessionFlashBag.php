@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Session\Flash;
 
 use Lemonade\Framework\Session\Contract\SessionInterface;
+use Lemonade\Framework\Session\SessionNamespace;
 
 /**
  * Stores flash values in one normalized namespace of the current session
  */
 final readonly class SessionFlashBag implements FlashBagInterface
 {
-    private const string SESSION_KEY = '_flash';
+    private const string NAMESPACE_NAME = 'flash';
+
+    private SessionNamespace $namespace;
 
     /**
      * Connects the bag to the session that persists its transient values
      */
     public function __construct(
-        private SessionInterface $session,
+        SessionInterface $session,
     ) {
+        $this->namespace = new SessionNamespace($session, self::NAMESPACE_NAME);
     }
 
     /**
@@ -26,11 +30,7 @@ final readonly class SessionFlashBag implements FlashBagInterface
      */
     public function set(string $key, mixed $value): void
     {
-        $flash = $this->read();
-
-        $flash[$key] = $value;
-
-        $this->session->set(self::SESSION_KEY, $flash);
+        $this->namespace->set($key, $value);
     }
 
     /**
@@ -38,11 +38,7 @@ final readonly class SessionFlashBag implements FlashBagInterface
      */
     public function get(string $key, mixed $default = null): mixed
     {
-        $flash = $this->read();
-
-        return array_key_exists($key, $flash)
-            ? $flash[$key]
-            : $default;
+        return $this->namespace->get($key, $default);
     }
 
     /**
@@ -50,7 +46,7 @@ final readonly class SessionFlashBag implements FlashBagInterface
      */
     public function has(string $key): bool
     {
-        return array_key_exists($key, $this->read());
+        return $this->namespace->has($key);
     }
 
     /**
@@ -58,29 +54,20 @@ final readonly class SessionFlashBag implements FlashBagInterface
      */
     public function remove(string $key): void
     {
-        $flash = $this->read();
-
-        unset($flash[$key]);
-
-        $this->session->set(self::SESSION_KEY, $flash);
+        $this->namespace->remove($key);
     }
 
     /**
-     * Returns a flash value and removes it atomically from the bag
+     * Returns a flash value and removes it during the current request.
      */
     public function pull(string $key, mixed $default = null): mixed
     {
-        $flash = $this->read();
-
-        if (!array_key_exists($key, $flash)) {
+        if (!$this->namespace->has($key)) {
             return $default;
         }
 
-        $value = $flash[$key];
-
-        unset($flash[$key]);
-
-        $this->session->set(self::SESSION_KEY, $flash);
+        $value = $this->namespace->get($key);
+        $this->namespace->remove($key);
 
         return $value;
     }
@@ -92,7 +79,7 @@ final readonly class SessionFlashBag implements FlashBagInterface
      */
     public function all(): array
     {
-        return $this->read();
+        return $this->namespace->all();
     }
 
     /**
@@ -100,30 +87,6 @@ final readonly class SessionFlashBag implements FlashBagInterface
      */
     public function clear(): void
     {
-        $this->session->remove(self::SESSION_KEY);
-    }
-
-    /**
-     * Reads only string-keyed flash values from the session namespace
-     *
-     * @return array<string, mixed>
-     */
-    private function read(): array
-    {
-        $flash = $this->session->get(self::SESSION_KEY, []);
-
-        if (!is_array($flash)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($flash as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
-            }
-        }
-
-        return $normalized;
+        $this->namespace->clear();
     }
 }

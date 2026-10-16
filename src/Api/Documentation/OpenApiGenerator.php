@@ -161,7 +161,7 @@ final class OpenApiGenerator
     private function servers(): array
     {
         $prefix = $this->apiPrefix();
-        $baseUrl = rtrim($this->appConfig->baseUrl ?? '', '/');
+        $baseUrl = rtrim($this->appConfig->baseUrl() ?? '', '/');
 
         if ($baseUrl !== '') {
             return [[
@@ -176,7 +176,7 @@ final class OpenApiGenerator
 
     private function apiPrefix(): string
     {
-        return $this->apiConfig->prefix;
+        return $this->apiConfig->prefix();
     }
 
     /**

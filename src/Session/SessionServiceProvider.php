@@ -7,40 +7,21 @@ namespace Lemonade\Framework\Session;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
-use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
-use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Session\Config\SessionConfig;
 use Lemonade\Framework\Session\Config\SessionConfigDefinition;
 use Lemonade\Framework\Session\Config\SessionConfigResolver;
 use Lemonade\Framework\Session\Contract\SessionInterface;
-use Lemonade\Framework\Session\Exception\UnsupportedSessionDriverException;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
 use Lemonade\Framework\Session\Flash\SessionFlashBag;
-use Lemonade\Framework\Session\Native\NativeSession;
-use Lemonade\Framework\Session\Storage\DatabaseSessionStorage;
-use Lemonade\Framework\Session\Storage\FileSessionStorage;
-use Lemonade\Framework\Session\Storage\NativeSessionStorage;
-use Lemonade\Framework\Session\Storage\RedisSessionStorage;
-use Lemonade\Framework\Session\Storage\SessionStorageInterface;
 
 /**
- * Registers resolved session configuration, storage and flash bag services
+ * Registers the host application's canonical session and flash bag services
  */
 final readonly class SessionServiceProvider implements ServiceProviderInterface
 {
     /**
-     * @var list<string>
-     */
-    private const array SUPPORTED_DRIVERS = [
-        'native',
-        'file',
-        'database',
-        'redis',
-    ];
-
-    /**
-     * Binds the configured storage backend and its session-facing facades
+     * Binds resolved host configuration to the default session and flash bag contracts
      */
     public function register(ContainerBuilderInterface $container): void
     {
@@ -52,54 +33,12 @@ final readonly class SessionServiceProvider implements ServiceProviderInterface
                     SessionConfigDefinition::class,
                 ));
         });
-        $container->singleton(SessionStorageInterface::class, static function (ContainerInterface $container): SessionStorageInterface {
-            $config = $container->get(SessionConfig::class);
-            $context = $container->get(ApplicationContext::class);
-
-            $driver = $config->driver();
-            $cookieName = $config->cookie();
-            $lifetime = $config->lifetime();
-
-            return match ($driver) {
-                'native' => new NativeSessionStorage(
-                    cookieName: $cookieName,
-                    lifetimeSeconds: $lifetime,
-                    savePath: $context->resolveSessionPath($config->native()->path()),
-                ),
-
-                'file' => new FileSessionStorage(
-                    directory: $context->resolveSessionPath($config->file()->path()),
-                    lifetimeSeconds: $lifetime,
-                    cookieName: $cookieName,
-                ),
-
-                'database' => new DatabaseSessionStorage(
-                    connection: $container->get(ConnectionInterface::class),
-                    table: $config->database()->table(),
-                    lifetimeSeconds: $lifetime,
-                    cookieName: $cookieName,
-                ),
-
-                'redis' => new RedisSessionStorage(
-                    host: $config->redis()->host(),
-                    port: $config->redis()->port(),
-                    database: $config->redis()->database(),
-                    password: $config->redis()->password(),
-                    prefix: $config->redis()->prefix(),
-                    lifetimeSeconds: $lifetime,
-                    cookieName: $cookieName,
-                    timeout: $config->redis()->timeout(),
-                ),
-
-                default => throw UnsupportedSessionDriverException::forDriver(
-                    $driver,
-                    self::SUPPORTED_DRIVERS,
-                ),
-            };
+        $container->scoped(SessionInterface::class, static function (ContainerInterface $container): SessionInterface {
+            return $container
+                ->get(SessionFactory::class)
+                ->create($container->get(SessionConfig::class));
         });
 
-        $container->singleton(SessionInterface::class, NativeSession::class);
-        $container->singleton(FlashBagInterface::class, SessionFlashBag::class);
+        $container->scoped(FlashBagInterface::class, SessionFlashBag::class);
     }
-
 }

@@ -52,14 +52,15 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
         $container->singleton(ApiEndpointRequestResolver::class, ApiEndpointRequestResolver::class);
         $container->singleton(ApiAuthenticatorInterface::class, static function (ContainerInterface $container): ApiAuthenticatorInterface {
             $config = $container->get(ApiConfig::class);
+            $security = $config->security();
 
-            if ($config->security->staticBearer === null) {
+            if ($security->staticBearer === null) {
                 return new NullApiAuthenticator();
             }
 
             return new StaticBearerTokenAuthenticator(
-                token: $config->security->staticBearer->token,
-                scopes: $config->security->staticBearer->scopes,
+                token: $security->staticBearer->token,
+                scopes: $security->staticBearer->scopes,
             );
         });
 
@@ -78,14 +79,15 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
     public function boot(ContainerInterface $container): void
     {
         $config = $container->get(ApiConfig::class);
+        $endpointProviders = $config->endpointProviders();
 
         if ($this->isCliRuntime($container)) {
-            $this->assertConfiguredProvidersImplementInterface($config->endpointProviders);
+            $this->assertConfiguredProvidersImplementInterface($endpointProviders);
 
             return;
         }
 
-        if (!$config->enabled) {
+        if (!$config->enabled()) {
             return;
         }
 
@@ -95,7 +97,7 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
         $frameworkProvider = $container->get(FrameworkApiEndpointProvider::class);
         $this->registerProvider($frameworkProvider, $registry);
 
-        foreach ($config->endpointProviders as $providerClass) {
+        foreach ($endpointProviders as $providerClass) {
             $provider = $container->get($providerClass);
 
             if (!$provider instanceof ApiEndpointProviderInterface) {
@@ -110,7 +112,7 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
         }
 
         $container->get(ApiEndpointRegistrar::class)->registerRoutes(
-            $config->prefix,
+            $config->prefix(),
         );
     }
 

@@ -50,6 +50,112 @@ interfaces. `EventDispatcherInterface::dispatch()` is intended for an active Req
 Job scope; resolving it from the root container is not a normal runtime model. The package does
 not prescribe event names, transports or application event-sourcing policy.
 
+## Sessions
+
+`SessionServiceProvider` resolves the host application's single `module: session` configuration and
+binds its canonical `SessionInterface` and `FlashBagInterface` as request-scoped services. Repeated
+resolution inside one request returns the same session identity and storage instance; a later
+request receives a fresh object graph. `SessionStorageInterface` is an internal construction
+boundary and is intentionally not container-bound. `SessionFactory::create()` can build another
+independent `SessionInterface` from an explicit `SessionConfig`; the consumer owns any additional
+DI registration. The framework does not keep a named-session registry.
+
+`SessionFactory` supports the `native`, `file`, `database` and `redis` drivers. Database connectivity
+is resolved only for the `database` driver. PHP native sessions still use process-global
+`session_start()`, `session_name()` and `$_SESSION` state, so consumers that need two concurrently
+active physical sessions should use `file`, `database` or `redis` for the additional session.
+
+The configured positive `lifetime` is a shared sliding lifetime for the browser identity and server-side
+record. It is always positive, so the session cookie is persistent rather than a browser-session
+cookie. Every successful `start()` of a live session refreshes both the cookie expiry and the
+server-side file mtime, database `expires_at`, Redis TTL or active native save-handler record. A syntactically
+valid cookie whose server-side record is missing, expired or unreadable is not reused: the storage
+creates a cryptographically random replacement identity. Cookies use path `/`, `HttpOnly` and
+the configured `SameSite` policy, which defaults to `Lax`. `Secure` is enabled for direct HTTPS
+requests or port 443. `SameSite=None` requires such a secure request and fails explicitly otherwise,
+because browsers reject an insecure `None` cookie. Trusted-proxy header interpretation is outside
+the session subsystem. Starting or changing a session identity after headers were sent fails
+explicitly instead of allowing browser and server state to diverge.
+
+```yaml
+module: session
+config:
+  cookie:
+    name: LEMONADE_SESSION
+    same_site: lax # lax, strict or none
+```
+
+Typed configuration rejects non-positive lifetimes, empty or non-canonical drivers, invalid cookie
+names, out-of-range Redis ports, negative Redis database numbers and non-positive Redis timeouts.
+
+The lifecycle operations have distinct meanings:
+
+- `clear()` writes an empty payload but keeps the current identifier, cookie and storage record;
+- `destroy()` removes the current record, invalidates the identifier and expires the cookie; a
+  later access on the same object starts a new identity;
+- `regenerate(false)` copies the payload to a new identifier and leaves the old record replayable
+  until its current retention expires;
+- `regenerate(true)` copies the payload to a new identifier and invalidates the old record.
+
+Cleanup belongs to each storage instance. No Session CLI command, cron job, scheduler or registry is
+required, including for a consumer-owned session returned by `SessionFactory`:
+
+- `native` configures `session.gc_maxlifetime`, a 2/100 request GC probability, strict identifier
+  mode and cookie-only transport before `session_start()`. PHP's active save handler performs the
+  physical GC in its configured storage; distro `sessionclean` jobs are not part of the contract.
+  The active handler also owns the physical write and any timestamp renewal when PHP closes the
+  session, normally during request shutdown. `gc_maxlifetime` is a collection threshold, not a
+  read-time expiry check or a guarantee of immediate deletion. The framework deliberately leaves
+  the native session writable for the traditional PHP request lifetime, so it does not call
+  `session_write_close()` early. It does not force `session.save_handler=files`.
+- `file` performs a 2/100 opportunistic scan with a private cursor and examines at most 100 session
+  files in one selected request. Active read-only sessions have their mtime refreshed. The session
+  directory is mode `0700`, files are mode `0600`, and writes use an atomic same-directory
+  replacement. The same bounded sweep removes sufficiently old `.session-write-*` files abandoned
+  by a process termination while leaving recent writes alone.
+- `database` performs a 2/100 opportunistic cleanup. A selected request first selects at most 100
+  expired identifiers and then deletes only that still-expired batch; it never issues a global
+  unbounded expiry delete on every session start.
+- `redis` relies on mandatory per-key TTL. `start()` verifies TTL renewal, and identity invalidation
+  verifies that the old key is absent. No application-level Redis sweep is needed.
+
+The 2/100 selection rate combined with the file/database batch size of 100 gives an expected scan
+capacity of two expired candidates per request. That is intentionally above the maximum creation
+rate of one new session per request while keeping each selected cleanup bounded.
+
+File, database and Redis requests load one payload snapshot. Atomic file replacement prevents
+partial-file reads, while concurrent payload changes remain last-writer-wins for all three drivers;
+sessions are not a distributed transactional data store.
+
+The portable session payload contract is `null`, scalar values and arrays composed from those
+values. Non-native drivers decode with `unserialize(..., ['allowed_classes' => false])`, so storing
+arbitrary objects is not a portable promise across drivers. Native PHP serialization behavior is
+owned by the active save handler, but applications should follow the same storage-neutral contract.
+
+The framework does not own a database session migration. A consumer-provided session table must
+provide this schema contract:
+
+```text
+session_id  string, primary key or unique and not null
+payload     text/blob large enough for the serialized payload and not null
+updated_at  integer timestamp and not null
+expires_at  integer timestamp and not null, indexed
+```
+
+The unique `session_id` constraint is required for race-safe identity creation, and the
+`expires_at` index keeps bounded cleanup and expiry lookup efficient.
+
+Native and file paths are resolved by `ApplicationContext::resolveSessionPath()`. A relative path is
+relative to `storage/writable`, so the canonical default is `sessions`, producing
+`storage/writable/sessions`; configuring `writable/sessions` would duplicate the writable path
+segment. Absolute paths are preserved.
+
+`SessionNamespace` provides `has()`, `get()`, `set()`, `remove()`, `all()` and `clear()` for a logical
+key space inside one physical session. Namespaces share the parent cookie, identifier, storage,
+retention and regeneration lifecycle; clearing one namespace leaves every other namespace and
+top-level session value intact. Framework flash values, CSRF tokens and session-backed old input use
+this same primitive while remaining separate logical namespaces.
+
 ## Queues
 
 `QueueBusInterface` dispatches object messages to configured handlers. The package offers `sync` and

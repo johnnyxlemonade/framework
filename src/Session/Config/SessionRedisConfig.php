@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Session\Config;
 
+use InvalidArgumentException;
+
 /**
  * Carries the connection and key namespace settings for Redis-backed sessions
  */
@@ -20,6 +22,17 @@ final readonly class SessionRedisConfig
         private string $prefix,
         private float $timeout,
     ) {
+        if ($port < 1 || $port > 65535) {
+            throw new InvalidArgumentException('Redis session port must be between 1 and 65535.');
+        }
+
+        if ($database < 0) {
+            throw new InvalidArgumentException('Redis session database must not be negative.');
+        }
+
+        if (!is_finite($timeout) || $timeout <= 0.0) {
+            throw new InvalidArgumentException('Redis session timeout must be a finite positive number.');
+        }
     }
 
     /**

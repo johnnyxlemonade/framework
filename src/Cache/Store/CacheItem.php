@@ -12,8 +12,16 @@ use Psr\Cache\CacheItemInterface;
 use function max;
 use function time;
 
+/**
+ * Holds one PSR-6 cache value together with its original hit state and optional expiration.
+ *
+ * Value and expiration are mutable as required by PSR-6, while key and hit origin remain fixed.
+ */
 final class CacheItem implements CacheItemInterface
 {
+    /**
+     * Captures the key, value, lookup result, and optional absolute expiration.
+     */
     public function __construct(
         private readonly string $key,
         private mixed $value = null,
@@ -22,16 +30,25 @@ final class CacheItem implements CacheItemInterface
     ) {
     }
 
+    /**
+     * Returns the immutable key associated with this item.
+     */
     public function getKey(): string
     {
         return $this->key;
     }
 
+    /**
+     * Returns the value currently held by this item.
+     */
     public function get(): mixed
     {
         return $this->value;
     }
 
+    /**
+     * Reports a hit only when the item originated as one and has not expired.
+     */
     public function isHit(): bool
     {
         if (!$this->hit) {
@@ -45,6 +62,9 @@ final class CacheItem implements CacheItemInterface
         return $this->expiresAt->getTimestamp() > time();
     }
 
+    /**
+     * Replaces the held value and returns this item for fluent mutation.
+     */
     public function set(mixed $value): static
     {
         $this->value = $value;
@@ -52,6 +72,9 @@ final class CacheItem implements CacheItemInterface
         return $this;
     }
 
+    /**
+     * Sets an absolute expiration using an immutable copy, or clears it with null.
+     */
     public function expiresAt(?DateTimeInterface $expiration): static
     {
         $this->expiresAt = $expiration instanceof DateTimeInterface
@@ -61,6 +84,9 @@ final class CacheItem implements CacheItemInterface
         return $this;
     }
 
+    /**
+     * Sets expiration relative to now, clamps negative seconds to zero, or clears it with null.
+     */
     public function expiresAfter(DateInterval|int|null $time): static
     {
         if ($time === null) {
@@ -88,6 +114,9 @@ final class CacheItem implements CacheItemInterface
         return $this;
     }
 
+    /**
+     * Exposes the normalized absolute expiration used by framework pool implementations.
+     */
     public function expiresAtDate(): ?DateTimeImmutable
     {
         return $this->expiresAt;

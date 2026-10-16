@@ -128,9 +128,9 @@ final class FrameworkTest extends TestCase
 
         $config = $framework->container()->get(ApiConfig::class);
 
-        self::assertTrue($config->enabled);
-        self::assertSame('/api', $config->prefix);
-        self::assertFalse($config->framework->docs->enabled);
+        self::assertTrue($config->enabled());
+        self::assertSame('/api', $config->prefix());
+        self::assertFalse($config->framework()->docs->enabled);
     }
 
     public function testConfigFromFileLoadsTypedDefinition(): void

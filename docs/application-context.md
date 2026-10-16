@@ -85,6 +85,8 @@ cache          -> storage/cache/
 ```
 
 Absolute paths are preserved and normalized. Relative paths are resolved against the appropriate base, public, application or storage directory.
+Session driver paths are resolved against `storage/writable`; use `sessions`, not
+`writable/sessions`, to obtain the canonical `storage/writable/sessions` directory.
 
 ## Usage
 

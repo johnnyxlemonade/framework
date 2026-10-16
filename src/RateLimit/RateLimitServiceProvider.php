@@ -21,7 +21,7 @@ final class RateLimitServiceProvider implements ServiceProviderInterface
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(RateLimiterInterface::class, static function (ContainerInterface $container): DatabaseRateLimiter {
-            $secret = $container->get(AppConfig::class)->secret;
+            $secret = $container->get(AppConfig::class)->secret();
             if ($secret === null || $secret === '') {
                 throw new \LogicException('APP_SECRET must be configured before using the database rate limiter.');
             }

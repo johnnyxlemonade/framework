@@ -77,6 +77,14 @@ final readonly class NativeSession implements SessionInterface
     }
 
     /**
+     * Destroys the delegated identity and permits a later access to start a new one.
+     */
+    public function destroy(): void
+    {
+        $this->storage->destroy();
+    }
+
+    /**
      * Regenerates the identifier through the delegated storage implementation
      */
     public function regenerate(bool $deleteOldSession = true): void

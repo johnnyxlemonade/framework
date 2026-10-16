@@ -69,6 +69,16 @@ final class BaseUrlResolverTest extends TestCase
         self::assertSame('https://secure.example', $resolver->baseUrl());
     }
 
+    public function testDisabledHttpsFlagKeepsHttpScheme(): void
+    {
+        $_SERVER['HTTPS'] = '0';
+        $_SERVER['HTTP_HOST'] = 'plain.example';
+
+        $resolver = new BaseUrlResolver($this->appConfig());
+
+        self::assertSame('http://plain.example', $resolver->baseUrl());
+    }
+
     public function testPort443ForcesHttpsScheme(): void
     {
         $_SERVER['SERVER_PORT'] = '443';
