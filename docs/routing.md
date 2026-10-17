@@ -109,7 +109,8 @@ return static function (Router $router): void {
 ```
 
 `ControllerAction::for()` requires both a controller class and public method name. The router never
-guesses either from a URL. Named routes continue to work with `url()` / `UrlGenerator`.
+guesses either from a URL. Named routes work with injected `UrlGenerator` instances and the view
+helper's `url()` method.
 
 ## Matched route request context
 
@@ -137,13 +138,17 @@ requests that do not match a route.
 Named routes can be used for URL generation:
 
 ```php
-$url = $this->url()->route('article.detail', ['id' => 123]);
+use Lemonade\Framework\Routing\UrlGenerator;
+
+$url = $urlGenerator->route('article.detail', ['id' => 123]);
 ```
+
+Inject `UrlGenerator` into the class that generates application URLs.
 
 Extra parameters become query parameters.
 
 ```php
-$url = $this->url()->route('article.detail', [
+$url = $urlGenerator->route('article.detail', [
     'id' => 123,
     'preview' => 1,
 ]);
@@ -157,8 +162,8 @@ In views, use the explicit shared helper object:
 </a>
 ```
 
-Legacy global helper resolving remains available for existing applications, but new code
-should prefer constructor DI or `$helpers` in views.
+Use constructor injection outside views and `$helpers` inside view templates; the framework does not
+provide a global service-backed URL helper.
 
 Result:
 

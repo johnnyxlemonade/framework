@@ -89,7 +89,7 @@ identifier, not a service alias; explicit aliases use `ContainerBuilderInterface
 
 namespace App\Providers;
 
-use App\Services\InvoiceImporter;
+use App\Services\InvoiceImportRegistry;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
@@ -123,7 +123,9 @@ This YAML payload is mapped into `ProvidersConfigDefinition`, and the existing t
 
 Framework providers are resolved from `FrameworkConfigDefinition`. Application providers are resolved from `ProvidersConfigDefinition`.
 
-During bootstrap, the kernel registers core framework providers first, then common framework providers, and finally application providers. This allows application code to extend or override services after the framework services have been registered.
+During bootstrap, the kernel registers core providers first, then the HTTP or CLI entrypoint
+provider, common framework providers and finally application providers. This allows application
+code to extend or override services after the framework services have been registered.
 
 Application providers register during requestless bootstrap. `Kernel::run($request)` creates the
 request scope only after configuration loading and binds the exact `ServerRequestInterface` only in

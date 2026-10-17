@@ -2,8 +2,7 @@
 
 [![PHPStan](https://github.com/johnnyxlemonade/framework/actions/workflows/phpstan.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpstan.yml)
 [![Tests](https://github.com/johnnyxlemonade/framework/actions/workflows/phpunit.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpunit.yml)
-[![Lint](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/lint.yml)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
 
 Lemonade Framework is a modular PHP 8.3+ application framework for maintainable web applications, administration systems, CMS projects and integration-oriented services.
 
@@ -212,7 +211,7 @@ runtime initialization additionally implement `BootableServiceProviderInterface`
 
 namespace App\Providers;
 
-use App\Services\InvoiceImporter;
+use App\Services\InvoiceImportRegistry;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 
@@ -317,7 +316,9 @@ final class ImportProductsCommand implements CommandInterface
 module: commands
 config:
   commands:
-    - App\Console\ImportProductsCommand
+    - name: products:import
+      class: App\Console\ImportProductsCommand
+      description: Import products from the configured source.
 ```
 
 Run commands through:
@@ -407,4 +408,6 @@ The framework package does not provide a standalone HTTP application entrypoint 
 
 ## License
 
-MIT License. See `LICENSE` for details.
+Licensed under the Apache License, Version 2.0. See `LICENSE` for details.
+
+Third-party components retain their respective licenses. See `NOTICE` for attribution and license details.

@@ -4,6 +4,7 @@ This project has not published tagged releases. This section summarizes notable 
 
 ## Unreleased
 
+- Changed the framework license from MIT to Apache License 2.0 while retaining the BSD 3-Clause terms for URLify-derived transliteration maps.
 - Raised the framework baseline to PHP 8.3 and expanded container/provider composition with scoped services, aliases, decorators, contextual bindings, tags, boot ordering, and dependency declarations.
 - Introduced typed configuration definitions and resolvers with YAML-first application configuration.
 - **Breaking:** Removed the global `service()` helper, service-backed global helpers, and the static service-locator runtime; use constructor DI, provider factories, `$helpers`, or `$requestHelpers` instead.

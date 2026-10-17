@@ -188,7 +188,7 @@
     "check": "Run full project validation.",
     "docs:api": "Regenerate local API documentation with Doctum."
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "support": {
     "email": "honzamudrak@gmail.com",
     "source": "https://github.com/johnnyxlemonade/framework",

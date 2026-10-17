@@ -10,18 +10,19 @@ namespace Lemonade\Framework\Support\Slug;
  * Inspired by the former URLify utility and its curated transliteration maps,
  * this is not a universal Unicode transliterator. Unknown or unsupported
  * characters are discarded, so an unsupported input can produce an empty slug.
+ * URLify-derived portions retain their BSD 3-Clause terms; see NOTICE.
  */
-final class Slugger
+final readonly class Slugger
 {
     /**
      * Default locale used to select the preferred transliteration map.
      */
-    public const DEFAULT_LOCALE = 'cs';
+    public const string DEFAULT_LOCALE = 'cs';
 
     /**
      * @var list<string>
      */
-    private const SUPPORTED_LOCALES = [
+    private const array SUPPORTED_LOCALES = [
         'de', 'el', 'tr', 'bg', 'ru', 'uk', 'kk', 'cs', 'pl', 'ro', 'lv', 'lt', 'vi', 'ar', 'fa', 'sr', 'az', 'sk',
     ];
 
@@ -30,7 +31,7 @@ final class Slugger
      *
      * @var array<string, array<string, string>>
      */
-    private const MAPS = [
+    private const array MAPS = [
         'de' => [
             'Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue', 'ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss',
             'ẞ' => 'SS',

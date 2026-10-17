@@ -196,12 +196,12 @@ $builder->set(ArticlesRouteRegistrar::class, ArticlesRouteRegistrar::class);
 $builder->tag(ArticlesRouteRegistrar::class, RouteRegistrarInterface::class);
 ```
 
-`tag()` accepts only an explicitly bound service (`set()` or `singleton()`); tagging an unbound
-concrete service fails fast. The same `serviceId + tag` pair is rejected, while one service may
-have multiple tags and one tag may contain multiple services. Runtime tag lookup is deliberately
-separate from PSR-11: a consumer that needs it depends on `TaggedServicesInterface`; its
-`tagged($tag)` method resolves services in declaration order and preserves ordinary singleton
-semantics.
+`tag()` accepts any explicitly bound service, including `set()`, `singleton()`, `scoped()`,
+`transient()` and `instance()` definitions; tagging an unbound concrete service fails fast. The same
+`serviceId + tag` pair is rejected, while one service may have multiple tags and one tag may contain
+multiple services. Runtime tag lookup is deliberately separate from PSR-11: a consumer that needs
+it depends on `TaggedServicesInterface`; its `tagged($tag)` method resolves services in declaration
+order and preserves each service's configured lifecycle.
 
 For the common singleton case, `singletonTagged()` is equivalent to `singleton()` followed by one
 or more `tag()` calls; it does not implement a second binding mechanism:

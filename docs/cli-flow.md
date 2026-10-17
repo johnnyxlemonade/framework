@@ -8,12 +8,13 @@ This makes console commands useful for cron jobs, imports, exports and backend i
 
 ```text
 bin/lemonade
+-> CliEnvironmentResolver::resolveBasePath()
 -> ApplicationContextFactory::fromGlobals()
--> KernelFactory / CliKernel wiring
+-> CliKernelFactory::create()
 -> CliKernel::handle($argv)
    -> start benchmark run with entrypoint=cli
 -> CliKernel::bootstrap()
-   -> load conventional YAML config files, including Commands.yaml
+   -> load the manifest-selected shared and CLI config definitions
    -> apply runtime app config
    -> register core providers
    -> register ConsoleServiceProvider

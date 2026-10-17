@@ -9,14 +9,15 @@ The framework API layer provides health checks, generated OpenAPI documentation,
 ```text
 HTTP request
 -> ApplicationContextFactory::fromGlobals()
--> KernelFactory / Kernel wiring
+-> KernelFactory::create()
+   -> create Framework with core services and framework config defaults
 -> Kernel::handle($request)
-   -> bootstrap application
-   -> load framework config defaults
-   -> load app config overrides
-   -> register framework providers
+   -> load application config definitions and apply runtime app values
+   -> build the provider plan
+   -> register core and HTTP providers
+   -> register common framework providers, including ApiServiceProvider
    -> register application providers
-   -> register ApiServiceProvider
+   -> boot all registered providers
 -> ApiServiceProvider
    -> define the complete API service graph during register()
    -> during HTTP boot, add API authorization before OPTIONS handling

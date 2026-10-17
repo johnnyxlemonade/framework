@@ -12,9 +12,15 @@ The framework resolves application configuration from the application context. B
 app/Config/
 ```
 
-## HTTP configuration files
+## Configuration files
 
-The HTTP kernel conventionally loads these configuration files:
+`app/Config/Config.yaml` (or `.yml`) is the required manifest. Its `shared` list is loaded for both
+entrypoints; the HTTP kernel additionally loads `http`, and the CLI kernel loads `cli`. Each list
+contains file specifications. Extensionless specifications try the exact path, `.yaml` and `.yml`;
+specifications with an extension use that exact path, including explicit PHP definition sources. A
+listed file that does not exist is skipped.
+
+A typical HTTP application can use aliases that resolve to files such as:
 
 ```text
 app/Config/Config.yaml
@@ -28,19 +34,20 @@ app/Config/Upload.yaml
 app/Config/Providers.yaml
 ```
 
-The HTTP kernel loads routes separately after providers have been registered:
+The HTTP kernel requires and loads routes separately after providers have been registered:
 
 ```text
 app/Config/Routing.php
 ```
 
-## CLI configuration files
-
-The CLI kernel conventionally loads the same application configuration files as the HTTP kernel, except routing, and additionally loads:
+The CLI manifest commonly adds:
 
 ```text
 app/Config/Commands.yaml
 ```
+
+CLI bootstrap also loads `app/Config/Routing.php` when the file exists, so route registrars can be
+initialized consistently without making the route file mandatory for console-only applications.
 
 ## Config manifest
 
@@ -57,7 +64,7 @@ cli:
   - Commands
 ```
 
-Each listed file is resolved by convention to `.yaml` / `.yml`.
+The manifest is authoritative; configuration aliases are not inferred from a fixed framework list.
 
 Every loaded application config file must still end up as an implementation of `ConfigDefinitionInterface`. Raw array config files are rejected as an internal runtime contract.
 
@@ -67,6 +74,7 @@ Runtime application values are injected from the current application context:
 
 ```text
 app.base_path
+app.public_path
 app.env
 app.debug
 app.app_path

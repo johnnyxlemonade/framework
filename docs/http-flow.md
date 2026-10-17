@@ -10,7 +10,10 @@ public/index.php
 -> KernelFactory::create()
 -> Kernel::handle()
    -> create ServerRequest from globals when no request is provided
--> Kernel::run()
+   -> enter the shared HTTP lifecycle
+or Kernel::run($request)
+   -> enter the same shared HTTP lifecycle
+-> shared HTTP lifecycle
    -> start a fresh benchmark run for this invocation
    -> load HTTP config definitions once into the root config registry
    -> create a Request scope
@@ -41,8 +44,8 @@ public/index.php
       -> resolve action arguments
       -> call controller action
       -> normalize result to PSR response
--> ResponseEmitter
 -> stop and detach the benchmark run
+-> ResponseEmitter for Kernel::handle()
 ```
 
 ## Entrypoint example
