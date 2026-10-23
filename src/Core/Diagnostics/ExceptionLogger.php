@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Core\Diagnostics;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
+use Lemonade\Framework\Core\Logging\LogFilePathResolver;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Core\Logging\RotatingFileLogger;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
@@ -167,7 +168,7 @@ final class ExceptionLogger
         }
 
         return new RotatingFileLogger(
-            file: $this->context->resolveLogPath('error.log'),
+            file: (new LogFilePathResolver($this->context))->resolve('error'),
             directoryManager: $this->container->get(DirectoryManagerInterface::class),
             retentionDays: $retentionDays,
         );

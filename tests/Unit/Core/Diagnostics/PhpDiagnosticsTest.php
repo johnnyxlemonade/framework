@@ -137,7 +137,7 @@ final class PhpDiagnosticsTest extends TestCase
     {
         $context = new ApplicationContext(
             $environment,
-            new Path($this->root),
+            new Path($this->root, $this->root . '/public'),
             DebugMode::disabled(),
         );
         $container = new Container();

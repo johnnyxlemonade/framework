@@ -247,7 +247,7 @@ final class ErrorHandlingMiddlewareTest extends TestCase
     ): ErrorHandlingMiddleware {
         $context = new ApplicationContext(
             $environment,
-            new Path($this->root),
+            new Path($this->root, $this->root . '/public'),
             DebugMode::disabled(),
         );
 

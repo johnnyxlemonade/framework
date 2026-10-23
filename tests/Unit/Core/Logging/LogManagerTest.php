@@ -68,7 +68,7 @@ final class LogManagerTest extends TestCase
     {
         $context = new ApplicationContext(
             Environment::Testing,
-            new Path($this->root),
+            new Path($this->root, $this->root . '/public'),
             DebugMode::disabled(),
         );
 

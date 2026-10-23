@@ -72,6 +72,20 @@ The framework owns the built-in channel convention and file location:
 - `storage/writable/logs/request-YYYY-MM-DD.log`
 - `storage/writable/logs/benchmark-YYYY-MM-DD.log`
 
+The path resolver keeps this directory outside the configured public web root. It rejects traversal,
+stream-wrapper paths, and symbolic-link components. The dedicated `storage/writable` and
+`storage/writable/logs` directories are created or repaired to mode `0700`; daily log files, including
+existing files encountered during append or rotation, are restricted to `0600`. A group- or world-writable
+application `storage` root is restricted before logging continues. If the process does not own these paths,
+cannot change their permissions, or encounters an unsafe filesystem object, logging fails with a
+`LogStorageException` instead of falling back to a less private location.
+
+Appending and rotation use exclusive file locks and verify that the opened file still has the same device and
+inode as its path. Rotation uses non-blocking locks for old files, so it skips a file still used by another
+writer and considers it again on a later write. Deployments must therefore keep application storage on a local
+filesystem with reliable advisory locks and must grant the PHP process ownership of its private writable
+directories. The framework does not recursively change permissions outside these logging-specific paths.
+
 All built-in channels use one retention period, with a framework default of seven days. Applications configure policy rather than filenames, sinks or per-channel rotation:
 
 ```yaml

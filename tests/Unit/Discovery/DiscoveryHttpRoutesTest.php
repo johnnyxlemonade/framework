@@ -27,7 +27,11 @@ final class DiscoveryHttpRoutesTest extends TestCase
     {
         $framework = new Framework(
             new Container(),
-            new ApplicationContext(Environment::Testing, new Path(__DIR__), DebugMode::disabled()),
+            new ApplicationContext(
+                Environment::Testing,
+                new Path(__DIR__, __DIR__ . '/public'),
+                DebugMode::disabled(),
+            ),
         );
         $framework->register(new CoreServiceProvider());
         $framework->register(new LoggingServiceProvider());
@@ -44,7 +48,11 @@ final class DiscoveryHttpRoutesTest extends TestCase
     {
         $framework = new Framework(
             new Container(),
-            new ApplicationContext(Environment::Testing, new Path(__DIR__), DebugMode::disabled()),
+            new ApplicationContext(
+                Environment::Testing,
+                new Path(__DIR__, __DIR__ . '/public'),
+                DebugMode::disabled(),
+            ),
         );
         $framework->config(
             AppConfigDefinition::create()->baseUrl('https://example.test'),

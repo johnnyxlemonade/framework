@@ -49,7 +49,7 @@ final class BenchmarkMiddlewareSecurityTest extends TestCase
         $factory = new Psr17Factory();
         $context = new ApplicationContext(
             Environment::Development,
-            new Path($this->root),
+            new Path($this->root, $this->root . '/public'),
             DebugMode::enabled(),
         );
         $config = new LoggingConfig(7, false, 0, true);
