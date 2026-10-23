@@ -435,10 +435,12 @@ final class FrameworkApiEndpointsTest extends TestCase
         $framework->bootProviders();
     }
 
-    public function testFrameworkRunsWithDefaultsWhenAppApiConfigFileIsMissing(): void
+    public function testFrameworkRunsWithDefaultsWhenAppApiConfigIsNotDeclared(): void
     {
-        $path = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Api.yaml';
-        @unlink($path);
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
+        );
 
         $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/health'));
 

@@ -17,7 +17,7 @@ use Throwable;
  */
 final readonly class ApplicationConfigCache
 {
-    private const int CACHE_VERSION = 2;
+    private const int CACHE_VERSION = 3;
     private const int KEY_BYTES = 32;
     private const int CREATE_ATTEMPTS = 10;
     private const int DEFAULT_MAX_FILE_BYTES = 16_777_216;
@@ -26,7 +26,7 @@ final readonly class ApplicationConfigCache
     private const string CACHE_DIRECTORY = 'cache/framework/config';
     private const string KEY_DIRECTORY = 'writable/config-cache';
     private const string KEY_FILE = 'application-config-cache.key';
-    private const string KEY_INFO = 'lemonade.application-config-cache.v2';
+    private const string KEY_INFO = 'lemonade.application-config-cache.v3';
 
     /**
      * Configures defensive limits for the generated cache without requiring application settings.

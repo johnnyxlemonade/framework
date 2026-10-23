@@ -1,5 +1,10 @@
 # Changelog
 
+- Made the application config manifest optional for zero-config HTTP and CLI bootstrap, treated
+  omitted or empty `shared`, `http`, and `cli` sections as empty lists, rejected unknown keys and
+  invalid section types, and made explicitly declared missing config files fail clearly across both
+  source loading and production config-cache rebuilds.
+
 This project has not published tagged releases. This section summarizes notable unreleased framework changes.
 
 ## Unreleased

@@ -131,7 +131,7 @@ final class ApplicationConfigCacheTest extends TestCase
 
         self::assertNull((new ApplicationConfigCache())->loadIfFresh($this->context(), 'http'));
 
-        $body['version'] = 2;
+        $body['version'] = 3;
         $body['payload'] = ['type' => 'object', 'value' => 'forbidden'];
         $this->writeSignedBody($body);
 

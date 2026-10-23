@@ -14,11 +14,16 @@ app/Config/
 
 ## Configuration files
 
-`app/Config/Config.yaml` (or `.yml`) is the required manifest. Its `shared` list is loaded for both
-entrypoints; the HTTP kernel additionally loads `http`, and the CLI kernel loads `cli`. Each list
-contains file specifications. Extensionless specifications try the exact path, `.yaml` and `.yml`;
-specifications with an extension use that exact path, including explicit PHP definition sources. A
-listed file that does not exist is skipped.
+`app/Config/Config.yaml` (or `.yml`) is an optional manifest for application overrides. When neither
+manifest exists, HTTP and CLI bootstrap use the framework's built-in secure defaults without loading
+application config files. The manifest's `shared` list is loaded for both entrypoints; the HTTP kernel
+then loads `http`, and the CLI kernel loads `cli`. All three sections are optional and omitted sections
+behave as empty lists. An empty manifest is therefore valid.
+
+Each list contains explicit file specifications. Extensionless specifications try the exact path,
+`.yaml` and `.yml`; specifications with an extension use that exact path, including explicit PHP
+definition sources. Once a file is listed, one of its resolved candidates must exist. A missing
+explicitly declared file fails bootstrap with a clear error instead of being silently ignored.
 
 A typical HTTP application can use aliases that resolve to files such as:
 
@@ -65,6 +70,9 @@ cli:
 ```
 
 The manifest is authoritative; configuration aliases are not inferred from a fixed framework list.
+Only `shared`, `http`, and `cli` are accepted as top-level keys, and every present section must be a
+YAML list of non-empty file names. Unknown keys, malformed YAML, and invalid section values fail
+explicitly. A minimal application does not need to create a manifest at all.
 
 Every loaded application config file must still end up as an implementation of `ConfigDefinitionInterface`. Raw array config files are rejected as an internal runtime contract.
 
@@ -195,6 +203,9 @@ The generated file contains a versioned JSON envelope and HMAC-SHA-256 over a ty
 - tracked environment values actually used during config resolution
 - scalar and array data for typed `ConfigDefinitionInterface` payloads
 
+Manifest validation changes invalidate older cache format versions. After a framework upgrade, the
+first production HTTP request or CLI command may therefore rebuild its entrypoint cache once.
+
 The cache does not store live services, container state, providers, routes, or middleware.
 String, integer, float, boolean, null, nested array, and integer/string array-key identity are encoded
 explicitly. PHP objects are not serialized, arbitrary classes are not reconstructed from raw cache
@@ -270,6 +281,8 @@ This means:
 - adding a config file that is already listed in `Config.yaml` invalidates the cache because a previously missing tracked candidate changes from `exists: false` to `exists: true`
 - removing a previously existing tracked config file invalidates the cache for the same reason
 - changing `Config.yaml` invalidates the cache because the manifest itself is tracked
+- adding `Config.yaml` or `Config.yml` to an application that previously had no manifest invalidates
+  the zero-config cache entry and loads the newly declared sources
 
 The cache does not rebuild when:
 
@@ -282,7 +295,7 @@ The cache does not rebuild when:
 
 `ConfigLoader` tracks:
 
-- `app/Config/Config.yaml` or `Config.yml`
+- both `app/Config/Config.yaml` and `Config.yml` candidates, including their missing state
 - every candidate config source path resolved from the manifest
 - every actual loaded YAML file or explicit PHP config-definition source
 - each YAML directory `ConfigMap.php` used during loading

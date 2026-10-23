@@ -14,8 +14,9 @@ use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Core\Framework;
 use LogicException;
-use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class ConfigLoaderTest extends TestCase
 {
@@ -204,7 +205,54 @@ YAML,
         self::assertSame([], $config->get('commands', []));
     }
 
-    public function testMissingYamlConfigFileIsSkipped(): void
+    public function testMissingManifestDeclaresNoApplicationConfigFiles(): void
+    {
+        $context = $this->context();
+        $framework = $this->framework($context);
+        $loader = new ConfigLoader();
+
+        self::assertSame([], $loader->resolveConfigFileSpecs($context, ConfigLoader::ENTRYPOINT_HTTP));
+        self::assertSame([], $loader->resolveConfigFileSpecs($context, ConfigLoader::ENTRYPOINT_CLI));
+
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        self::assertSame('/api', $framework->container()->get(Config::class)->string('api.prefix'));
+    }
+
+    public function testEmptyManifestDeclaresNoApplicationConfigFiles(): void
+    {
+        $this->writeConfigFile('Config.yaml', '');
+        $loader = new ConfigLoader();
+
+        self::assertSame(
+            [],
+            $loader->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP),
+        );
+        self::assertSame(
+            [],
+            $loader->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_CLI),
+        );
+    }
+
+    public function testPartialManifestDefaultsMissingSectionsToEmptyLists(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\nhttp:\n  - HtmlMinify\n",
+        );
+        $loader = new ConfigLoader();
+
+        self::assertSame(
+            ['App', 'HtmlMinify'],
+            $loader->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP),
+        );
+        self::assertSame(
+            ['App'],
+            $loader->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_CLI),
+        );
+    }
+
+    public function testMissingExplicitConfigFileThrowsLogicException(): void
     {
         $this->writeConfigFile(
             'Config.yaml',
@@ -216,10 +264,15 @@ cli: []
 YAML,
         );
 
-        $framework = $this->framework($this->context());
-        (new ConfigLoader())->loadApplication($framework, $this->context(), ConfigLoader::ENTRYPOINT_HTTP);
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Config file "Api" declared by manifest "Config.yaml" was not found.');
 
-        self::assertSame('/api', $framework->container()->get(Config::class)->string('api.prefix'));
+        $context = $this->context();
+        (new ConfigLoader())->loadApplication(
+            $this->framework($context),
+            $context,
+            ConfigLoader::ENTRYPOINT_HTTP,
+        );
     }
 
     public function testInvalidManifestNotReturningArrayThrowsLogicException(): void
@@ -234,19 +287,20 @@ YAML,
 
     public function testInvalidYamlManifestNotReturningMappingThrowsLogicException(): void
     {
-        $this->writeConfigFile('Config.yaml', "invalid\n");
+        $this->writeConfigFile('Config.yaml', "shared: [\n");
 
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('must contain a YAML mapping');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid YAML in config file');
 
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
 
-    public function testInvalidManifestWithoutEntrypointKeysThrowsLogicException(): void
+    public function testUnknownManifestKeyThrowsLogicException(): void
     {
         $this->writeConfigFile('Config.yaml', "invalid: []\n");
 
         $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('contains unknown key "invalid"');
 
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
@@ -256,6 +310,16 @@ YAML,
         $this->writeConfigFile('Config.yaml', "shared: []\nhttp: invalid\ncli: []\n");
 
         $this->expectException(LogicException::class);
+
+        (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
+    }
+
+    public function testManifestSectionMustBeAList(): void
+    {
+        $this->writeConfigFile('Config.yaml', "shared:\n  app: App\n");
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('section "shared" must be a list of file names');
 
         (new ConfigLoader())->resolveConfigFileSpecs($this->context(), ConfigLoader::ENTRYPOINT_HTTP);
     }
@@ -310,6 +374,34 @@ YAML,
 
         self::assertSame('https://cached.example.test', $framework->container()->get(Config::class)->string('app.base_url'));
         self::assertFileExists($this->cacheFile($context, ConfigLoader::ENTRYPOINT_HTTP));
+    }
+
+    public function testProductionCacheTracksAInitiallyMissingManifest(): void
+    {
+        $context = $this->context(Environment::Production);
+        $loader = new ConfigLoader();
+
+        $loader->loadApplication(
+            $this->framework($context),
+            $context,
+            ConfigLoader::ENTRYPOINT_HTTP,
+        );
+
+        self::assertFileExists($this->cacheFile($context, ConfigLoader::ENTRYPOINT_HTTP));
+
+        $this->writeConfigFile('Config.yaml', "http:\n  - App\n");
+        $this->writeConfigFile(
+            'App.yaml',
+            "module: app\nconfig:\n  base_url: https://manifest-added.example.test\n",
+        );
+        $framework = $this->framework($context);
+
+        $loader->loadApplication($framework, $context, ConfigLoader::ENTRYPOINT_HTTP);
+
+        self::assertSame(
+            'https://manifest-added.example.test',
+            $framework->container()->get(Config::class)->string('app.base_url'),
+        );
     }
 
     public function testDevelopmentLoadDoesNotCreateCompiledConfigCache(): void

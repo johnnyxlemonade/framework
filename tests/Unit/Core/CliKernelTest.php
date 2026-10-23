@@ -237,6 +237,18 @@ final class CliKernelTest extends TestCase
         self::assertSame(12, $exit);
     }
 
+    public function testMissingManifestUsesFrameworkDefaults(): void
+    {
+        $configPath = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
+        @unlink($configPath . DIRECTORY_SEPARATOR . 'Config.yaml');
+        $kernel = $this->kernel();
+
+        $exit = $kernel->handle(['bin/lemonade', 'list']);
+
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('Available commands:', $this->stdoutContents());
+    }
+
     public function testCliKernelLoadsApiConfigDefinition(): void
     {
         $this->writeConfigFile(
@@ -283,7 +295,7 @@ final class CliKernelTest extends TestCase
         self::assertSame(1, $kernel->handle(['bin/lemonade', 'list']));
     }
 
-    public function testInvalidManifestWithoutFilesKeyReturnsOne(): void
+    public function testUnknownManifestKeyReturnsOne(): void
     {
         $this->writeConfigFile('Config.yaml', "invalid: []\n");
         $kernel = $this->kernel();
@@ -323,7 +335,7 @@ final class CliKernelTest extends TestCase
     public function testDiscoverySitemapGenerateCommandUsesNamedRoutesInCliRuntime(): void
     {
         $this->writeConfigFile('App.yaml', "module: app\nconfig:\n  base_url: https://example.test\n");
-        $this->writeConfigFile('Config.yaml', "shared:\n  - App\n  - Discovery\nhttp: []\ncli:\n  - Commands\n");
+        $this->writeConfigFile('Config.yaml', "shared:\n  - App\n  - Discovery\nhttp: []\ncli: []\n");
         $this->writeConfigFile('Discovery.yaml', <<<'YAML'
 module: discovery
 config:

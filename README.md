@@ -237,7 +237,8 @@ config:
 
 Application config uses YAML as the primary app-level format, but the framework still loads typed config definitions internally.
 
-`app/Config/Config.yaml` declares the shared and entrypoint-specific config files:
+Applications that need configuration declare shared and entrypoint-specific files in the optional
+`app/Config/Config.yaml` manifest. Applications without a manifest use framework defaults:
 
 ```yaml
 shared:
@@ -249,6 +250,9 @@ http:
 cli:
   - Commands
 ```
+
+The `shared`, `http`, and `cli` sections are independently optional. Declared files must exist;
+unknown manifest keys and invalid section types fail bootstrap explicitly.
 
 Each YAML file is only an input adapter. It is mapped to a concrete `*ConfigDefinition` class, then resolved through the existing typed resolvers and runtime DTOs. YAML is not the internal core config model.
 

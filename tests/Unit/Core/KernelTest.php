@@ -98,7 +98,7 @@ final class KernelTest extends TestCase
         self::assertSame(500, $response->getStatusCode());
     }
 
-    public function testRunReturnsPreBootstrapErrorUsingEarlyPsr17Factory(): void
+    public function testRunWithoutConfigManifestUsesFrameworkDefaults(): void
     {
         @unlink($this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config' . DIRECTORY_SEPARATOR . 'Config.yaml');
         $kernel = $this->kernel(false);
@@ -106,7 +106,7 @@ final class KernelTest extends TestCase
 
         $response = $kernel->run(new ServerRequest('GET', '/anything'));
 
-        self::assertSame(500, $response->getStatusCode());
+        self::assertSame(404, $response->getStatusCode());
         self::assertSame($factory, $kernel->container()->get(Psr17Factory::class));
     }
 
@@ -297,7 +297,7 @@ final class KernelTest extends TestCase
         );
     }
 
-    public function testBootstrapSkipsMissingConventionalConfigFiles(): void
+    public function testBootstrapRejectsMissingExplicitlyDeclaredConfigFile(): void
     {
         $configDir = $this->root . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'Config';
         @unlink($configDir . DIRECTORY_SEPARATOR . 'Api.yaml');
@@ -305,7 +305,7 @@ final class KernelTest extends TestCase
         $kernel = $this->kernel(false);
         $response = $kernel->run(new ServerRequest('GET', '/missing'));
 
-        self::assertSame(404, $response->getStatusCode());
+        self::assertSame(500, $response->getStatusCode());
     }
 
     public function testKernelConventionalConfigDoesNotIncludeCommandsYaml(): void
