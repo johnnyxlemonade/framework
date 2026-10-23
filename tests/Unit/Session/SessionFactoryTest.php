@@ -11,6 +11,8 @@ use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Session\Config\SessionConfig;
+use Lemonade\Framework\Session\Config\SessionConfigDefinition;
+use Lemonade\Framework\Session\Config\SessionConfigResolver;
 use Lemonade\Framework\Session\Config\SessionCookieConfig;
 use Lemonade\Framework\Session\Config\SessionDatabaseConfig;
 use Lemonade\Framework\Session\Config\SessionFileConfig;
@@ -19,6 +21,7 @@ use Lemonade\Framework\Session\Config\SessionRedisConfig;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
 use Lemonade\Framework\Session\Exception\UnsupportedSessionDriverException;
+use Lemonade\Framework\Session\Exception\SessionStorageException;
 use Lemonade\Framework\Session\Native\NativeSession;
 use Lemonade\Framework\Session\SessionFactory;
 use Lemonade\Framework\Session\Storage\DatabaseSessionStorage;
@@ -66,6 +69,43 @@ final class SessionFactoryTest extends TestCase
         self::assertSame(1800, $this->readPrivateProperty($storage, 'lifetimeSeconds'));
         self::assertSame('CONSUMER_SESSION', $this->readPrivateProperty($storage, 'cookieName'));
         $this->assertStrictSameSiteCookie($storage);
+    }
+
+    public function testItPreservesSafeAbsoluteCustomFileStorageOutsidePublicRoot(): void
+    {
+        $session = $this->factory($this->containerWithoutDatabaseResolution())
+            ->create($this->config('file', '/var/lib/lemonade/private-sessions'));
+        $storage = $this->storageFrom($session);
+
+        self::assertInstanceOf(FileSessionStorage::class, $storage);
+        self::assertSame(
+            '/var/lib/lemonade/private-sessions',
+            $this->readPrivateProperty($storage, 'directory'),
+        );
+    }
+
+    public function testItRejectsFileStorageInsidePublicWebroot(): void
+    {
+        $this->expectException(SessionStorageException::class);
+        $this->expectExceptionMessage('must be separated from the public web root');
+
+        $this->factory($this->containerWithoutDatabaseResolution())
+            ->create($this->config('file', '/srv/application/public/sessions'));
+    }
+
+    public function testDefaultFilePathWorksWithoutAdditionalFileConfiguration(): void
+    {
+        $config = (new SessionConfigResolver())->resolve(
+            SessionConfigDefinition::create()->driver('file'),
+        );
+        $session = $this->factory($this->containerWithoutDatabaseResolution())->create($config);
+        $storage = $this->storageFrom($session);
+
+        self::assertInstanceOf(FileSessionStorage::class, $storage);
+        self::assertSame(
+            '/srv/application/storage/writable/sessions',
+            $this->readPrivateProperty($storage, 'directory'),
+        );
     }
 
     public function testItCreatesDatabaseStorageAndResolvesItsConnectionLazily(): void
@@ -147,7 +187,7 @@ final class SessionFactoryTest extends TestCase
         );
     }
 
-    private function config(string $driver): SessionConfig
+    private function config(string $driver, string $filePath = 'file-sessions'): SessionConfig
     {
         return new SessionConfig(
             driver: $driver,
@@ -157,7 +197,7 @@ final class SessionFactoryTest extends TestCase
                 sameSite: SessionCookieSameSite::Strict,
             ),
             native: new SessionNativeConfig('native-sessions'),
-            file: new SessionFileConfig('file-sessions'),
+            file: new SessionFileConfig($filePath),
             database: new SessionDatabaseConfig('consumer_sessions'),
             redis: new SessionRedisConfig(
                 host: 'redis.internal',

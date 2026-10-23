@@ -183,7 +183,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
         $data = $this->toArray();
         $cookie = $this->cookieConfiguration($data);
         $native = is_array($data['native'] ?? null) ? $data['native'] : [];
-        $file = is_array($data['file'] ?? null) ? $data['file'] : [];
+        $file = $this->fileConfiguration($data);
         $database = is_array($data['database'] ?? null) ? $data['database'] : [];
         $redis = is_array($data['redis'] ?? null) ? $data['redis'] : [];
 
@@ -217,12 +217,9 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
                     $current->native()->path(),
                 ),
             ),
-            file: new SessionFileConfig(
-                ConfigValueNormalizer::nonEmptyStringOr(
-                    $file['path'] ?? null,
-                    $current->file()->path(),
-                ),
-            ),
+            file: new SessionFileConfig(array_key_exists('path', $file)
+                ? $this->configuredString($file['path'])
+                : $current->file()->path()),
             database: new SessionDatabaseConfig(
                 ConfigValueNormalizer::nonEmptyStringOr(
                     $database['table'] ?? null,
@@ -270,6 +267,27 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
 
         throw new InvalidArgumentException(
             'Session cookie configuration must be a mapping with name, same_site, and secure fields.',
+        );
+    }
+
+    /**
+     * Returns the configured file-storage mapping without silently replacing invalid input.
+     *
+     * @param array<mixed> $data
+     * @return array<mixed>
+     */
+    private function fileConfiguration(array $data): array
+    {
+        if (!array_key_exists('file', $data)) {
+            return [];
+        }
+
+        if (is_array($data['file'])) {
+            return $data['file'];
+        }
+
+        throw new InvalidArgumentException(
+            'Session file configuration must be a mapping with a path field.',
         );
     }
 

@@ -10,6 +10,7 @@ use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Session\Config\SessionConfig;
 use Lemonade\Framework\Session\Contract\SessionInterface;
+use Lemonade\Framework\Session\Exception\SessionStorageException;
 use Lemonade\Framework\Session\Exception\UnsupportedSessionDriverException;
 use Lemonade\Framework\Session\Native\NativeSession;
 use Lemonade\Framework\Session\Storage\DatabaseSessionStorage;
@@ -50,6 +51,7 @@ final readonly class SessionFactory
      * Builds a session with the configured storage, cookie identity and retention settings.
      *
      * @throws UnsupportedSessionDriverException when the selected driver is not supported
+     * @throws SessionStorageException when file-backed storage cannot establish a private filesystem boundary
      */
     public function create(SessionConfig $config): SessionInterface
     {
@@ -83,6 +85,7 @@ final readonly class SessionFactory
 
             'file' => new FileSessionStorage(
                 directory: $this->context->resolveSessionPath($config->file()->path()),
+                publicRoot: $this->context->publicPath(),
                 lifetimeSeconds: $lifetime,
                 cookieName: $cookieName,
                 cookie: $cookie,

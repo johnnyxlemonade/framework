@@ -132,9 +132,13 @@ required, including for a consumer-owned session returned by `SessionFactory`:
   `session_write_close()` early. It does not force `session.save_handler=files`.
 - `file` performs a 2/100 opportunistic scan with a private cursor and examines at most 100 session
   files in one selected request. Active read-only sessions have their mtime refreshed. The session
-  directory is mode `0700`, files are mode `0600`, and writes use an atomic same-directory
-  replacement. The same bounded sweep removes sufficiently old `.session-write-*` files abandoned
-  by a process termination while leaving recent writes alone.
+  directory is mode `0700`, files and control locks are mode `0600`, and writes use an atomic
+  same-directory replacement. The root and every opened file must remain owned by the effective
+  process user; foreign-owned files, hardlinks, symbolic links, changed inode identities and unsafe
+  resulting permissions fail with `SessionStorageException`. A private boundary lock coordinates
+  inode validation with publication and deletion without holding a payload lock for the complete
+  request. The same bounded sweep removes sufficiently old `.session-write-*` files abandoned by a
+  process termination while leaving recent writes alone.
 - `database` performs a 2/100 opportunistic cleanup. A selected request first selects at most 100
   expired identifiers and then deletes only that still-expired batch; it never issues a global
   unbounded expiry delete on every session start.
@@ -170,7 +174,19 @@ The unique `session_id` constraint is required for race-safe identity creation, 
 Native and file paths are resolved by `ApplicationContext::resolveSessionPath()`. A relative path is
 relative to `storage/writable`, so the canonical default is `sessions`, producing
 `storage/writable/sessions`; configuring `writable/sessions` would duplicate the writable path
-segment. Absolute paths are preserved.
+segment. The file driver rejects empty paths, traversal segments, stream-wrapper paths and control
+characters instead of silently falling back to the default. An absolute custom file-session path is
+preserved, but it must be a local non-root path that neither contains symbolic-link components nor
+overlaps the configured public webroot lexically or canonically. The standard relative default needs
+no additional session setting. Applications whose document root is not the conventional `public/`
+directory must expose the real boundary through the existing `APP_PUBLIC_PATH` application setting.
+
+`FileSessionStorage` is an internal construction boundary and now requires the public root alongside
+its absolute session root. Application code should continue to resolve `SessionInterface` or use
+`SessionFactory`; neither public session workflow changed. Existing same-owner directories and files
+are restricted to `0700` and `0600` and verified after the change. Unsafe ownership or an inability
+to establish those exact permissions is a terminal storage error; the framework does not redirect
+the session to another path or backend.
 
 `SessionNamespace` provides `has()`, `get()`, `set()`, `remove()`, `all()` and `clear()` for a logical
 key space inside one physical session. Namespaces share the parent cookie, identifier, storage,

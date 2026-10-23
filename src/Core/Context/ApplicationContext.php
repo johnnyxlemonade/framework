@@ -139,7 +139,10 @@ final readonly class ApplicationContext
     }
 
     /**
-     * Preserves an absolute path or resolves a relative path below writable session storage.
+     * Preserves an absolute path or composes a relative path below writable session storage.
+     *
+     * File-backed session construction subsequently enforces traversal, symlink, ownership, permission,
+     * and public-webroot boundaries; this general context helper performs path composition only.
      */
     public function resolveSessionPath(string $path = 'sessions'): string
     {

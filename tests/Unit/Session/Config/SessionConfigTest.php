@@ -34,6 +34,15 @@ final class SessionConfigTest extends TestCase
         $this->config(lifetime: 0);
     }
 
+    #[DataProvider('invalidFileSessionPaths')]
+    public function testItRejectsUnsafeFileSessionPaths(string $path): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('File session path must be a non-empty local path without traversal');
+
+        new SessionFileConfig($path);
+    }
+
     #[DataProvider('invalidCookieNames')]
     public function testItRejectsInvalidCookieNames(string $name): void
     {
@@ -83,6 +92,20 @@ final class SessionConfigTest extends TestCase
         yield 'contains only numbers' => ['12345'];
         yield 'contains whitespace' => ['FRAMEWORK SESSION'];
         yield 'contains a separator' => ['FRAMEWORK=SESSION'];
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidFileSessionPaths(): iterable
+    {
+        yield 'empty' => [''];
+        yield 'leading whitespace' => [' sessions'];
+        yield 'trailing whitespace' => ['sessions '];
+        yield 'current-directory segment' => ['private/./sessions'];
+        yield 'parent traversal' => ['private/../public/sessions'];
+        yield 'stream wrapper' => ['php://filter'];
+        yield 'control character' => ["private\nsessions"];
     }
 
     /**

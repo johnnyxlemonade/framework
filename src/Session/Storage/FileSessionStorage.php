@@ -6,21 +6,28 @@ namespace Lemonade\Framework\Session\Storage;
 
 use DirectoryIterator;
 use InvalidArgumentException;
+use Lemonade\Framework\Session\Exception\SessionStorageException;
 use Lemonade\Framework\Session\SessionGarbageCollectionPolicy;
 use Lemonade\Framework\Session\SessionIdGenerator;
 use OutOfBoundsException;
-use RuntimeException;
+use Throwable;
+use UnexpectedValueException;
 
 /**
- * Persists a sliding session in one private, atomically replaced file per identifier.
+ * Persists sliding sessions as owner-only files below one private root outside the public webroot.
  *
- * Atomic replacement prevents partial reads; concurrent payload mutations remain last-writer-wins.
+ * Reads and path mutations coordinate around atomic same-directory replacement. Concurrent payload
+ * mutations remain last-writer-wins, while unsafe paths, ownership, and permissions fail closed.
+ *
+ * @internal Construct through SessionFactory so the active application public-root boundary is supplied.
  */
 final class FileSessionStorage implements SessionStorageInterface
 {
     private const string COOKIE_NAME = 'LEMONADE_SESSION';
     private const string GC_CURSOR_FILE = '.session-gc.cursor';
+    private const string MUTATION_LOCK_FILE = '.session-files.lock';
     private const string TEMPORARY_FILE_PREFIX = '.session-write-';
+    private const int CREATE_ATTEMPTS = 10;
     private const int DEFAULT_GC_BATCH_SIZE = 100;
     private const int MINIMUM_TEMPORARY_FILE_AGE_SECONDS = 300;
 
@@ -32,32 +39,56 @@ final class FileSessionStorage implements SessionStorageInterface
      */
     private array $data = [];
 
+    /**
+     * @var null|array{dev: int, ino: int}
+     */
+    private ?array $directoryIdentity = null;
+
+    private readonly string $directory;
+    private readonly string $publicRoot;
+    private readonly int $ownerId;
     private readonly SessionCookie $cookie;
     private readonly SessionGarbageCollectionPolicy $garbageCollectionPolicy;
     private readonly SessionIdGenerator $sessionIdGenerator;
 
     /**
-     * Defines the private directory, sliding retention, cookie, and bounded request GC policy.
+     * Defines a private absolute storage root, public-webroot boundary, retention, cookie, and bounded GC policy.
+     *
+     * @throws SessionStorageException When the configured filesystem boundary cannot be enforced safely
      */
     public function __construct(
-        private readonly string $directory,
+        string $directory,
+        string $publicRoot,
         private readonly int $lifetimeSeconds = 7200,
         private readonly string $cookieName = self::COOKIE_NAME,
         private readonly int $gcBatchSize = self::DEFAULT_GC_BATCH_SIZE,
         ?SessionCookie $cookie = null,
         ?SessionGarbageCollectionPolicy $garbageCollectionPolicy = null,
     ) {
+        if ($lifetimeSeconds < 1) {
+            throw new InvalidArgumentException('File session lifetime must be positive.');
+        }
+
         if ($gcBatchSize < 1) {
             throw new InvalidArgumentException('File session GC batch size must be positive.');
         }
 
+        $this->directory = $this->assertAbsoluteLocalPath($directory, 'File session root');
+        $this->publicRoot = $this->assertAbsoluteLocalPath($publicRoot, 'Public web root');
+        $this->assertNonRootDirectory($this->directory);
+        $this->assertSeparatedFromPublicRoot();
+        $this->assertNoSymbolicLinkComponents($this->directory);
+
+        $this->ownerId = $this->resolveProcessOwnerId();
         $this->cookie = $cookie ?? new SessionCookie($cookieName, $lifetimeSeconds);
         $this->garbageCollectionPolicy = $garbageCollectionPolicy ?? new SessionGarbageCollectionPolicy();
         $this->sessionIdGenerator = new SessionIdGenerator();
     }
 
     /**
-     * Loads a valid file identity, refreshes its mtime, and sends a sliding cookie.
+     * Establishes a safe file identity, refreshes its sliding retention, and sends its cookie.
+     *
+     * @throws SessionStorageException When storage safety or an atomic filesystem operation cannot be verified
      */
     public function start(): void
     {
@@ -113,7 +144,7 @@ final class FileSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Stores a value through an atomic file replacement.
+     * Stores a value through an owner-only atomic file replacement.
      */
     public function set(string $key, mixed $value): void
     {
@@ -146,7 +177,7 @@ final class FileSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Removes the active file and expires its cookie so later access starts a new identity.
+     * Removes the active owned file and expires its cookie so later access starts a new identity.
      */
     public function destroy(): void
     {
@@ -159,7 +190,7 @@ final class FileSessionStorage implements SessionStorageInterface
     }
 
     /**
-     * Copies the payload to a fresh identity and optionally invalidates the old file.
+     * Copies the payload to a fresh identity and optionally invalidates the old owned file.
      */
     public function regenerate(bool $deleteOldSession = true): void
     {
@@ -186,19 +217,105 @@ final class FileSessionStorage implements SessionStorageInterface
 
     private function ensureDirectoryExists(): void
     {
-        if (!is_dir($this->directory) && !mkdir($this->directory, 0700, true) && !is_dir($this->directory)) {
-            throw new RuntimeException(sprintf(
-                'Failed to create session directory "%s".',
-                $this->directory,
+        $this->assertSeparatedFromPublicRoot();
+        $this->assertNoSymbolicLinkComponents($this->directory);
+
+        $missing = [];
+        $cursor = $this->directory;
+
+        while (!file_exists($cursor) && !is_link($cursor)) {
+            $missing[] = $cursor;
+            $parent = dirname($cursor);
+
+            if ($parent === $cursor) {
+                throw new SessionStorageException('File session root has no safe existing parent directory.');
+            }
+
+            $cursor = $parent;
+        }
+
+        if (is_link($cursor) || !is_dir($cursor)) {
+            throw new SessionStorageException('File session root parent is not a safe directory.');
+        }
+
+        foreach (array_reverse($missing) as $directory) {
+            try {
+                $created = @mkdir($directory, 0700);
+            } catch (Throwable $exception) {
+                throw new SessionStorageException(
+                    sprintf('File session directory "%s" cannot be created securely.', $directory),
+                    previous: $exception,
+                );
+            }
+
+            if (!$created && !is_dir($directory)) {
+                throw new SessionStorageException(sprintf(
+                    'File session directory "%s" cannot be created securely.',
+                    $directory,
+                ));
+            }
+
+            $this->secureDirectory($directory);
+        }
+
+        $stat = $this->secureDirectory($this->directory);
+        $identity = $this->identityFromStat($stat);
+
+        if ($this->directoryIdentity !== null && $identity !== $this->directoryIdentity) {
+            throw new SessionStorageException('File session root identity changed while storage was active.');
+        }
+
+        $this->directoryIdentity ??= $identity;
+        $this->assertNoSymbolicLinkComponents($this->directory);
+        $this->assertCanonicalSeparationFromPublicRoot();
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    private function secureDirectory(string $directory): array
+    {
+        clearstatcache(true, $directory);
+        $before = @lstat($directory);
+
+        if (
+            !is_array($before)
+            || is_link($directory)
+            || ($before['mode'] & 0170000) !== 0040000
+            || $before['uid'] !== $this->ownerId
+        ) {
+            throw new SessionStorageException(sprintf(
+                'File session directory "%s" must be a non-symbolic directory owned by the current process user.',
+                $directory,
             ));
         }
 
-        if (!chmod($this->directory, 0700)) {
-            throw new RuntimeException(sprintf(
-                'Failed to secure session directory "%s".',
-                $this->directory,
+        if (!@chmod($directory, 0700)) {
+            throw new SessionStorageException(sprintf(
+                'File session directory "%s" permissions cannot be restricted to mode 0700.',
+                $directory,
             ));
         }
+
+        clearstatcache(true, $directory);
+        $after = @lstat($directory);
+
+        if (
+            !is_array($after)
+            || is_link($directory)
+            || ($after['mode'] & 0170000) !== 0040000
+            || ($after['mode'] & 0777) !== 0700
+            || $after['uid'] !== $this->ownerId
+            || $after['dev'] !== $before['dev']
+            || $after['ino'] !== $before['ino']
+        ) {
+            throw new SessionStorageException(sprintf(
+                'File session directory "%s" did not retain safe ownership and mode 0700.',
+                $directory,
+            ));
+        }
+
+        return $after;
     }
 
     private function resolveSessionId(): ?string
@@ -218,58 +335,78 @@ final class FileSessionStorage implements SessionStorageInterface
     private function readSessionFile(string $sessionId): ?array
     {
         $file = $this->filePath($sessionId);
+        $this->ensureDirectoryExists();
+        $boundaryLock = $this->acquireMutationLock(LOCK_SH);
+        $handle = null;
 
-        if (is_link($file)) {
-            $this->unlinkPath($file);
+        try {
+            if (!$this->pathExists($file)) {
+                return null;
+            }
 
-            return null;
-        }
-        if (!is_file($file)) {
-            return null;
-        }
+            $this->secureRegularPath($file);
+            $handle = @fopen($file, 'rb');
 
-        $handle = fopen($file, 'rb');
+            if ($handle === false) {
+                throw new SessionStorageException(sprintf(
+                    'Session file "%s" cannot be opened for reading.',
+                    $file,
+                ));
+            }
 
-        if ($handle === false) {
-            throw new RuntimeException(sprintf('Failed to open session file "%s" for reading.', $file));
+            if (!@flock($handle, LOCK_SH)) {
+                throw new SessionStorageException(sprintf(
+                    'Session file "%s" cannot be locked for reading.',
+                    $file,
+                ));
+            }
+
+            $metadata = $this->secureOpenFile($handle, $file);
+            $identity = $this->identityFromStat($metadata);
+        } catch (Throwable $exception) {
+            if (is_resource($handle)) {
+                @flock($handle, LOCK_UN);
+                @fclose($handle);
+            }
+
+            throw $exception;
+        } finally {
+            $this->releaseLock($boundaryLock);
         }
 
         try {
-            if (!flock($handle, LOCK_SH)) {
-                throw new RuntimeException(sprintf('Failed to lock session file "%s" for reading.', $file));
-            }
-
-            $metadata = fstat($handle);
-
-            if (!is_array($metadata) || !isset($metadata['mtime']) || !is_int($metadata['mtime'])) {
-                throw new RuntimeException(sprintf('Failed to read metadata for session file "%s".', $file));
-            }
-
             if ($metadata['mtime'] + $this->lifetimeSeconds < time()) {
-                flock($handle, LOCK_UN);
-                fclose($handle);
+                @flock($handle, LOCK_UN);
+                @fclose($handle);
                 $handle = null;
-                $this->deleteExpiredSessionFile($file);
+                $this->deleteSessionFile($sessionId, $identity);
 
                 return null;
             }
 
             $contents = stream_get_contents($handle);
-            flock($handle, LOCK_UN);
+            @flock($handle, LOCK_UN);
 
-            if ($contents === false || $contents === '') {
+            if ($contents === false) {
+                throw new SessionStorageException(sprintf(
+                    'Session file "%s" cannot be read completely.',
+                    $file,
+                ));
+            }
+
+            if ($contents === '') {
                 return null;
             }
         } finally {
             if (is_resource($handle)) {
-                fclose($handle);
+                @fclose($handle);
             }
         }
 
         $data = @unserialize($contents, ['allowed_classes' => false]);
 
         if (!is_array($data)) {
-            $this->deleteSessionFile($sessionId);
+            $this->deleteSessionFile($sessionId, $identity);
 
             return null;
         }
@@ -310,128 +447,234 @@ final class FileSessionStorage implements SessionStorageInterface
     private function touchSessionFile(string $sessionId): bool
     {
         $file = $this->filePath($sessionId);
+        $this->ensureDirectoryExists();
+        $boundaryLock = $this->acquireMutationLock(LOCK_EX);
+        $handle = null;
 
-        if (!$this->isRegularSessionFile($file)) {
-            return false;
-        }
-
-        if (!chmod($file, 0600)) {
-            if (!$this->isRegularSessionFile($file)) {
+        try {
+            if (!$this->pathExists($file)) {
                 return false;
             }
 
-            throw new RuntimeException(sprintf(
-                'Failed to refresh session file "%s".',
-                $file,
-            ));
-        }
+            $this->secureRegularPath($file);
+            $handle = @fopen($file, 'r+b');
 
-        if (!touch($file)) {
-            if (!$this->isRegularSessionFile($file)) {
-                return false;
+            if ($handle === false) {
+                throw new SessionStorageException(sprintf(
+                    'Session file "%s" cannot be opened for retention refresh.',
+                    $file,
+                ));
             }
 
-            throw new RuntimeException(sprintf(
-                'Failed to refresh session file "%s".',
-                $file,
-            ));
+            if (!@flock($handle, LOCK_EX)) {
+                throw new SessionStorageException(sprintf(
+                    'Session file "%s" cannot be locked for retention refresh.',
+                    $file,
+                ));
+            }
+
+            $before = $this->secureOpenFile($handle, $file);
+
+            if (!@touch($file)) {
+                throw new SessionStorageException(sprintf(
+                    'Session file "%s" retention cannot be refreshed.',
+                    $file,
+                ));
+            }
+
+            $after = $this->secureOpenFile($handle, $file);
+
+            if ($this->identityFromStat($before) !== $this->identityFromStat($after)) {
+                throw new SessionStorageException('Session file identity changed during retention refresh.');
+            }
+
+            return true;
+        } finally {
+            if (is_resource($handle)) {
+                @flock($handle, LOCK_UN);
+                @fclose($handle);
+            }
+
+            $this->releaseLock($boundaryLock);
         }
-
-        return true;
-    }
-
-    /**
-     * Rechecks the file after each filesystem operation that may race with deletion.
-     *
-     * @phpstan-impure
-     */
-    private function isRegularSessionFile(string $file): bool
-    {
-        clearstatcache(true, $file);
-
-        return is_file($file) && !is_link($file);
     }
 
     private function writeSessionFile(): void
     {
+        $this->ensureDirectoryExists();
         $file = $this->filePath($this->sessionId);
-        $temporaryFile = tempnam($this->directory, self::TEMPORARY_FILE_PREFIX);
-
-        if ($temporaryFile === false) {
-            throw new RuntimeException(sprintf(
-                'Failed to create a temporary session file in "%s".',
-                $this->directory,
-            ));
-        }
+        [$temporaryFile, $temporaryHandle] = $this->createTemporaryFile();
+        $temporaryIdentity = null;
 
         try {
-            if (!chmod($temporaryFile, 0600)) {
-                throw new RuntimeException(sprintf('Failed to secure temporary session file "%s".', $temporaryFile));
-            }
-
             $payload = serialize($this->data);
-            $result = file_put_contents($temporaryFile, $payload, LOCK_EX);
+            $this->writeAll($temporaryHandle, $payload, $temporaryFile);
 
-            if ($result !== strlen($payload)) {
-                throw new RuntimeException(sprintf('Failed to write temporary session file "%s".', $temporaryFile));
+            if (!@fflush($temporaryHandle)) {
+                throw new SessionStorageException('Temporary session payload cannot be flushed.');
             }
 
-            if (!rename($temporaryFile, $file)) {
-                throw new RuntimeException(sprintf('Failed to replace session file "%s" atomically.', $file));
+            if (function_exists('fsync') && !@fsync($temporaryHandle)) {
+                throw new SessionStorageException('Temporary session payload cannot be synchronized.');
             }
 
-            $temporaryFile = '';
+            $temporaryStat = $this->secureOpenFile($temporaryHandle, $temporaryFile);
+            $temporaryIdentity = $this->identityFromStat($temporaryStat);
+            $boundaryLock = $this->acquireMutationLock(LOCK_EX);
 
-            if (!chmod($file, 0600)) {
-                throw new RuntimeException(sprintf('Failed to secure session file "%s".', $file));
+            try {
+                if ($this->pathExists($file)) {
+                    $this->secureRegularPath($file);
+                }
+
+                if (!@rename($temporaryFile, $file)) {
+                    throw new SessionStorageException(sprintf(
+                        'Session file "%s" cannot be replaced atomically.',
+                        $file,
+                    ));
+                }
+
+                $temporaryFile = '';
+                $published = $this->secureOpenFile($temporaryHandle, $file);
+
+                if ($this->identityFromStat($published) !== $temporaryIdentity) {
+                    throw new SessionStorageException('Published session file identity cannot be verified.');
+                }
+            } finally {
+                $this->releaseLock($boundaryLock);
             }
         } finally {
-            if ($temporaryFile !== '' && (is_file($temporaryFile) || is_link($temporaryFile))) {
-                @unlink($temporaryFile);
+            @flock($temporaryHandle, LOCK_UN);
+            @fclose($temporaryHandle);
+
+            if ($temporaryFile !== '') {
+                $this->deleteOwnedTemporaryPath($temporaryFile, $temporaryIdentity);
             }
         }
     }
 
-    private function deleteSessionFile(string $sessionId): void
+    /**
+     * @return array{0: string, 1: resource}
+     */
+    private function createTemporaryFile(): array
     {
-        $file = $this->filePath($sessionId);
+        $previous = null;
 
-        if (!is_file($file) && !is_link($file)) {
-            return;
+        for ($attempt = 0; $attempt < self::CREATE_ATTEMPTS; ++$attempt) {
+            try {
+                $path = sprintf(
+                    '%s%s%s%s.tmp',
+                    $this->directory,
+                    DIRECTORY_SEPARATOR,
+                    self::TEMPORARY_FILE_PREFIX,
+                    bin2hex(random_bytes(32)),
+                );
+                $handle = @fopen($path, 'x+b');
+            } catch (Throwable $exception) {
+                $previous = $exception;
+
+                continue;
+            }
+
+            if ($handle === false) {
+                continue;
+            }
+
+            try {
+                if (!@flock($handle, LOCK_EX)) {
+                    throw new SessionStorageException('Temporary session file cannot be locked.');
+                }
+
+                $this->secureOpenFile($handle, $path);
+
+                return [$path, $handle];
+            } catch (Throwable $exception) {
+                $previous = $exception;
+                @flock($handle, LOCK_UN);
+                @fclose($handle);
+                $this->deleteOwnedTemporaryPath($path);
+            }
         }
 
-        $this->unlinkPath($file);
+        throw new SessionStorageException(
+            sprintf('A temporary session file cannot be created in "%s".', $this->directory),
+            previous: $previous,
+        );
+    }
+
+    /**
+     * @param resource $handle
+     */
+    private function writeAll($handle, string $contents, string $path): void
+    {
+        $offset = 0;
+        $length = strlen($contents);
+
+        while ($offset < $length) {
+            $written = @fwrite($handle, substr($contents, $offset));
+
+            if (!is_int($written) || $written <= 0) {
+                throw new SessionStorageException(sprintf(
+                    'Temporary session file "%s" cannot be written completely.',
+                    $path,
+                ));
+            }
+
+            $offset += $written;
+        }
+    }
+
+    /**
+     * @param null|array{dev: int, ino: int} $expectedIdentity
+     */
+    private function deleteSessionFile(string $sessionId, ?array $expectedIdentity = null): bool
+    {
+        $file = $this->filePath($sessionId);
+        $this->ensureDirectoryExists();
+        $boundaryLock = $this->acquireMutationLock(LOCK_EX);
+
+        try {
+            if (!$this->pathExists($file)) {
+                return false;
+            }
+
+            $stat = $this->secureRegularPath($file);
+
+            if ($expectedIdentity !== null && $this->identityFromStat($stat) !== $expectedIdentity) {
+                return false;
+            }
+
+            $this->unlinkOwnedPath($file, $stat);
+
+            return true;
+        } finally {
+            $this->releaseLock($boundaryLock);
+        }
     }
 
     private function deleteExpiredSessionFile(string $file): bool
     {
-        if (is_link($file)) {
-            $this->unlinkPath($file);
+        $this->assertManagedPath($file, sessionFile: true);
+        $this->ensureDirectoryExists();
+        $boundaryLock = $this->acquireMutationLock(LOCK_EX);
+
+        try {
+            if (!$this->pathExists($file)) {
+                return false;
+            }
+
+            $stat = $this->secureRegularPath($file);
+
+            if ($stat['mtime'] + $this->lifetimeSeconds >= time()) {
+                return false;
+            }
+
+            $this->unlinkOwnedPath($file, $stat);
 
             return true;
+        } finally {
+            $this->releaseLock($boundaryLock);
         }
-        if (!is_file($file)) {
-            return false;
-        }
-
-        $modifiedAt = filemtime($file);
-
-        if ($modifiedAt === false || $modifiedAt + $this->lifetimeSeconds >= time()) {
-            return false;
-        }
-
-        $this->unlinkPath($file);
-
-        return true;
-    }
-
-    private function unlinkPath(string $file): void
-    {
-        if (@unlink($file) || (!is_file($file) && !is_link($file))) {
-            return;
-        }
-
-        throw new RuntimeException(sprintf('Failed to delete session file "%s".', $file));
     }
 
     private function collectGarbageIfSelected(): void
@@ -445,23 +688,26 @@ final class FileSessionStorage implements SessionStorageInterface
 
     private function collectGarbageBatch(): void
     {
+        $this->ensureDirectoryExists();
         $cursorFile = $this->directory . DIRECTORY_SEPARATOR . self::GC_CURSOR_FILE;
-        $cursor = fopen($cursorFile, 'c+');
-
-        if ($cursor === false) {
-            throw new RuntimeException(sprintf('Failed to open session GC cursor "%s".', $cursorFile));
-        }
+        $cursor = $this->openManagedFile($cursorFile);
 
         try {
-            if (!chmod($cursorFile, 0600)) {
-                throw new RuntimeException(sprintf('Failed to secure session GC cursor "%s".', $cursorFile));
-            }
-            if (!flock($cursor, LOCK_EX | LOCK_NB)) {
+            if (!@flock($cursor, LOCK_EX | LOCK_NB)) {
                 return;
             }
 
+            $this->secureOpenFile($cursor, $cursorFile);
             $position = $this->readGcCursor($cursor);
-            $iterator = new DirectoryIterator($this->directory);
+
+            try {
+                $iterator = new DirectoryIterator($this->directory);
+            } catch (UnexpectedValueException $exception) {
+                throw new SessionStorageException(
+                    'File session directory cannot be scanned for garbage collection.',
+                    previous: $exception,
+                );
+            }
 
             try {
                 $iterator->seek($position);
@@ -475,7 +721,11 @@ final class FileSessionStorage implements SessionStorageInterface
             while ($iterator->valid() && $processed < $this->gcBatchSize) {
                 $name = $iterator->getFilename();
 
-                if (!$iterator->isDot() && $name !== self::GC_CURSOR_FILE) {
+                if (
+                    !$iterator->isDot()
+                    && $name !== self::GC_CURSOR_FILE
+                    && $name !== self::MUTATION_LOCK_FILE
+                ) {
                     ++$processed;
                 }
 
@@ -497,10 +747,10 @@ final class FileSessionStorage implements SessionStorageInterface
             $nextPosition = $iterator->valid()
                 ? max(0, (int) $iterator->key() - $removed)
                 : 0;
-            $this->writeGcCursor($cursor, $nextPosition);
-            flock($cursor, LOCK_UN);
+            $this->writeGcCursor($cursor, $cursorFile, $nextPosition);
+            @flock($cursor, LOCK_UN);
         } finally {
-            fclose($cursor);
+            @fclose($cursor);
         }
     }
 
@@ -522,20 +772,34 @@ final class FileSessionStorage implements SessionStorageInterface
     /**
      * @param resource $cursor
      */
-    private function writeGcCursor($cursor, int $position): void
+    private function writeGcCursor($cursor, string $cursorFile, int $position): void
     {
         rewind($cursor);
+        $serialized = (string) $position;
 
-        if (!ftruncate($cursor, 0) || fwrite($cursor, (string) $position) === false || !fflush($cursor)) {
-            throw new RuntimeException('Failed to persist the session GC cursor.');
+        if (!@ftruncate($cursor, 0)) {
+            throw new SessionStorageException('File session GC cursor cannot be truncated.');
         }
+
+        $this->writeAll($cursor, $serialized, $cursorFile);
+
+        if (!@fflush($cursor)) {
+            throw new SessionStorageException('File session GC cursor cannot be flushed.');
+        }
+
+        $this->secureOpenFile($cursor, $cursorFile);
     }
 
     private function filePath(string $sessionId): string
     {
-        return rtrim($this->directory, DIRECTORY_SEPARATOR)
+        if (!$this->sessionIdGenerator->isValid($sessionId)) {
+            throw new SessionStorageException('Session identifier cannot be mapped to a managed file.');
+        }
+
+        return $this->directory
             . DIRECTORY_SEPARATOR
-            . 'sess_' . $sessionId;
+            . 'sess_'
+            . $sessionId;
     }
 
     private function isSessionFileName(string $name): bool
@@ -546,25 +810,492 @@ final class FileSessionStorage implements SessionStorageInterface
 
     private function isTemporaryFileName(string $name): bool
     {
-        return str_starts_with($name, self::TEMPORARY_FILE_PREFIX);
+        return preg_match('/^\.session-write-[a-f0-9]{64}\.tmp$/D', $name) === 1;
     }
 
     private function deleteAbandonedTemporaryFile(string $file): bool
     {
-        $metadata = lstat($file);
+        $this->assertManagedPath($file, temporaryFile: true);
+        $this->ensureDirectoryExists();
+        $boundaryLock = $this->acquireMutationLock(LOCK_EX);
 
-        if (!is_array($metadata) || !isset($metadata['mtime']) || !is_int($metadata['mtime'])) {
+        try {
+            if (!$this->pathExists($file)) {
+                return false;
+            }
+
+            $stat = $this->secureRegularPath($file);
+            $minimumAge = max($this->lifetimeSeconds, self::MINIMUM_TEMPORARY_FILE_AGE_SECONDS);
+
+            if ($stat['mtime'] + $minimumAge >= time()) {
+                return false;
+            }
+
+            $this->unlinkOwnedPath($file, $stat);
+
+            return true;
+        } finally {
+            $this->releaseLock($boundaryLock);
+        }
+    }
+
+    /**
+     * @param null|array{dev: int, ino: int} $expectedIdentity
+     */
+    private function deleteOwnedTemporaryPath(string $path, ?array $expectedIdentity = null): void
+    {
+        if (!$this->isTemporaryFileName(basename($path))) {
+            throw new SessionStorageException('Refusing to remove a path outside the managed session temporary namespace.');
+        }
+
+        $this->assertManagedPath($path, temporaryFile: true);
+
+        if (!$this->pathExists($path)) {
+            return;
+        }
+
+        $stat = $this->secureRegularPath($path);
+
+        if ($expectedIdentity !== null && $this->identityFromStat($stat) !== $expectedIdentity) {
+            throw new SessionStorageException('Temporary session file identity changed before cleanup.');
+        }
+
+        $this->unlinkOwnedPath($path, $stat);
+    }
+
+    /**
+     * @param int<0, 7> $operation
+     * @return resource
+     */
+    private function acquireMutationLock(int $operation)
+    {
+        $lockFile = $this->directory . DIRECTORY_SEPARATOR . self::MUTATION_LOCK_FILE;
+        $handle = $this->openManagedFile($lockFile);
+
+        if (!@flock($handle, $operation)) {
+            @fclose($handle);
+
+            throw new SessionStorageException('File session mutation boundary cannot be locked.');
+        }
+
+        try {
+            $this->secureOpenFile($handle, $lockFile);
+            $this->assertDirectoryIdentity();
+        } catch (Throwable $exception) {
+            @flock($handle, LOCK_UN);
+            @fclose($handle);
+
+            throw $exception;
+        }
+
+        return $handle;
+    }
+
+    /**
+     * @param resource $handle
+     */
+    private function releaseLock($handle): void
+    {
+        @flock($handle, LOCK_UN);
+        @fclose($handle);
+    }
+
+    /**
+     * @return resource
+     */
+    private function openManagedFile(string $path)
+    {
+        $this->assertManagedPath($path, controlFile: true);
+
+        for ($attempt = 0; $attempt < self::CREATE_ATTEMPTS; ++$attempt) {
+            clearstatcache(true, $path);
+
+            if ($this->pathExists($path)) {
+                $this->secureRegularPath($path);
+                $handle = @fopen($path, 'r+b');
+            } else {
+                $handle = @fopen($path, 'x+b');
+            }
+
+            if ($handle === false) {
+                continue;
+            }
+
+            try {
+                $this->secureOpenFile($handle, $path);
+
+                return $handle;
+            } catch (Throwable $exception) {
+                @fclose($handle);
+
+                if ($this->pathExists($path)) {
+                    throw $exception;
+                }
+            }
+        }
+
+        throw new SessionStorageException(sprintf(
+            'Managed session control file "%s" cannot be opened safely.',
+            $path,
+        ));
+    }
+
+    /**
+     * @param resource $handle
+     * @return array<mixed>
+     */
+    private function secureOpenFile($handle, string $path): array
+    {
+        clearstatcache(true, $path);
+        $opened = @fstat($handle);
+        $current = @lstat($path);
+
+        if (!$this->matchingOwnedRegularFile($opened, $current, $path)) {
+            throw new SessionStorageException(sprintf(
+                'Session file "%s" identity or ownership cannot be verified.',
+                $path,
+            ));
+        }
+
+        if (!@chmod($path, 0600)) {
+            throw new SessionStorageException(sprintf(
+                'Session file "%s" permissions cannot be restricted to mode 0600.',
+                $path,
+            ));
+        }
+
+        clearstatcache(true, $path);
+        $securedOpen = @fstat($handle);
+        $securedPath = @lstat($path);
+
+        if (
+            !is_array($securedOpen)
+            || !is_array($securedPath)
+            || !$this->matchingOwnedRegularFile($securedOpen, $securedPath, $path)
+            || ($securedOpen['mode'] & 0777) !== 0600
+            || ($securedPath['mode'] & 0777) !== 0600
+        ) {
+            throw new SessionStorageException(sprintf(
+                'Session file "%s" did not retain safe ownership and mode 0600.',
+                $path,
+            ));
+        }
+
+        return $securedOpen;
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    private function secureRegularPath(string $path): array
+    {
+        clearstatcache(true, $path);
+        $before = @lstat($path);
+
+        if (!is_array($before) || !$this->ownedRegularFile($before, $path)) {
+            throw new SessionStorageException(sprintf(
+                'Session path "%s" must be a regular owner-only file owned by the current process user.',
+                $path,
+            ));
+        }
+
+        if (!@chmod($path, 0600)) {
+            throw new SessionStorageException(sprintf(
+                'Session file "%s" permissions cannot be restricted to mode 0600.',
+                $path,
+            ));
+        }
+
+        clearstatcache(true, $path);
+        $after = @lstat($path);
+
+        if (
+            !is_array($after)
+            || !$this->ownedRegularFile($after, $path)
+            || ($after['mode'] & 0777) !== 0600
+            || $after['dev'] !== $before['dev']
+            || $after['ino'] !== $before['ino']
+        ) {
+            throw new SessionStorageException(sprintf(
+                'Session file "%s" did not retain safe ownership and mode 0600.',
+                $path,
+            ));
+        }
+
+        return $after;
+    }
+
+    private function matchingOwnedRegularFile(mixed $opened, mixed $current, string $path): bool
+    {
+        if (!is_array($opened) || !is_array($current)) {
             return false;
         }
 
-        $minimumAge = max($this->lifetimeSeconds, self::MINIMUM_TEMPORARY_FILE_AGE_SECONDS);
+        return $this->ownedRegularFile($opened)
+            && $this->ownedRegularFile($current, $path)
+            && $opened['dev'] === $current['dev']
+            && $opened['ino'] === $current['ino'];
+    }
 
-        if ($metadata['mtime'] + $minimumAge >= time()) {
-            return false;
+    private function ownedRegularFile(mixed $stat, ?string $path = null): bool
+    {
+        return is_array($stat)
+            && ($path === null || !is_link($path))
+            && ($stat['mode'] & 0170000) === 0100000
+            && $stat['uid'] === $this->ownerId
+            && $stat['nlink'] === 1;
+    }
+
+    /**
+     * @param array<mixed> $stat
+     */
+    private function unlinkOwnedPath(string $path, array $stat): void
+    {
+        clearstatcache(true, $path);
+        $current = @lstat($path);
+
+        if (
+            !is_array($current)
+            || !$this->ownedRegularFile($current, $path)
+            || $this->identityFromStat($current) !== $this->identityFromStat($stat)
+        ) {
+            throw new SessionStorageException(sprintf(
+                'Session file "%s" identity changed before deletion.',
+                $path,
+            ));
         }
 
-        $this->unlinkPath($file);
+        if (!@unlink($path)) {
+            throw new SessionStorageException(sprintf('Session file "%s" cannot be deleted.', $path));
+        }
 
-        return true;
+        clearstatcache(true, $path);
+
+        if ($this->pathExists($path)) {
+            throw new SessionStorageException(sprintf('Session file "%s" remains after deletion.', $path));
+        }
+    }
+
+    private function assertManagedPath(
+        string $path,
+        bool $sessionFile = false,
+        bool $temporaryFile = false,
+        bool $controlFile = false,
+    ): void {
+        $normalized = $this->normalizePath($path);
+
+        if ($normalized !== $this->directory . DIRECTORY_SEPARATOR . basename($normalized)) {
+            throw new SessionStorageException('Session operation escaped the managed storage root.');
+        }
+
+        $name = basename($normalized);
+        $allowed = ($sessionFile && $this->isSessionFileName($name))
+            || ($temporaryFile && $this->isTemporaryFileName($name))
+            || ($controlFile && in_array($name, [self::GC_CURSOR_FILE, self::MUTATION_LOCK_FILE], true));
+
+        if (!$allowed) {
+            throw new SessionStorageException('Session operation targeted an unmanaged filename.');
+        }
+    }
+
+    private function assertDirectoryIdentity(): void
+    {
+        if ($this->directoryIdentity === null) {
+            throw new SessionStorageException('File session root identity has not been established.');
+        }
+
+        clearstatcache(true, $this->directory);
+        $stat = @lstat($this->directory);
+
+        if (
+            !is_array($stat)
+            || is_link($this->directory)
+            || ($stat['mode'] & 0170000) !== 0040000
+            || ($stat['mode'] & 0777) !== 0700
+            || $stat['uid'] !== $this->ownerId
+            || $this->identityFromStat($stat) !== $this->directoryIdentity
+        ) {
+            throw new SessionStorageException('File session root identity, ownership, or permissions changed.');
+        }
+    }
+
+    private function pathExists(string $path): bool
+    {
+        return file_exists($path) || is_link($path);
+    }
+
+    /**
+     * @param array<mixed> $stat
+     * @return array{dev: int, ino: int}
+     */
+    private function identityFromStat(array $stat): array
+    {
+        return [
+            'dev' => (int) $stat['dev'],
+            'ino' => (int) $stat['ino'],
+        ];
+    }
+
+    private function resolveProcessOwnerId(): int
+    {
+        if (function_exists('posix_geteuid')) {
+            return posix_geteuid();
+        }
+
+        $probe = @tmpfile();
+
+        if ($probe === false) {
+            throw new SessionStorageException('Current process file ownership cannot be determined safely.');
+        }
+
+        try {
+            $stat = @fstat($probe);
+
+            if (!is_array($stat) || !isset($stat['uid']) || !is_int($stat['uid'])) {
+                throw new SessionStorageException('Current process file ownership cannot be determined safely.');
+            }
+
+            return $stat['uid'];
+        } finally {
+            @fclose($probe);
+        }
+    }
+
+    private function assertAbsoluteLocalPath(string $path, string $label): string
+    {
+        $portable = str_replace('\\', '/', $path);
+        $segments = explode('/', $portable);
+        $absolute = DIRECTORY_SEPARATOR === '\\'
+            ? preg_match('/^[A-Za-z]:\//', $portable) === 1
+            : str_starts_with($portable, '/') && !str_starts_with($portable, '//');
+
+        if (
+            $path === ''
+            || trim($path) !== $path
+            || str_contains($path, "\0")
+            || str_contains($path, '://')
+            || preg_match('/[\x00-\x1F\x7F]/', $path) === 1
+            || in_array('.', $segments, true)
+            || in_array('..', $segments, true)
+            || !$absolute
+        ) {
+            throw new SessionStorageException($label . ' must be an absolute local path without traversal.');
+        }
+
+        return $this->normalizePath($path);
+    }
+
+    private function assertNonRootDirectory(string $path): void
+    {
+        if (
+            dirname($path) === $path
+            || $path === DIRECTORY_SEPARATOR
+            || preg_match('/^[A-Za-z]:[\\\\\/]$/', $path) === 1
+        ) {
+            throw new SessionStorageException('File session root cannot be a filesystem root.');
+        }
+    }
+
+    private function assertSeparatedFromPublicRoot(): void
+    {
+        if ($this->pathsOverlap($this->directory, $this->publicRoot)) {
+            throw new SessionStorageException('File session storage must be separated from the public web root.');
+        }
+
+        $this->assertCanonicalSeparationFromPublicRoot();
+    }
+
+    private function assertCanonicalSeparationFromPublicRoot(): void
+    {
+        $directory = $this->canonicalCandidate($this->directory);
+        $publicRoot = $this->canonicalCandidate($this->publicRoot);
+
+        if ($directory === null || $publicRoot === null) {
+            return;
+        }
+
+        if ($this->pathsOverlap($directory, $publicRoot)) {
+            throw new SessionStorageException('Canonical file session storage overlaps the public web root.');
+        }
+    }
+
+    private function canonicalCandidate(string $path): ?string
+    {
+        $suffix = [];
+        $cursor = $path;
+
+        while (!file_exists($cursor) && !is_link($cursor)) {
+            array_unshift($suffix, basename($cursor));
+            $parent = dirname($cursor);
+
+            if ($parent === $cursor) {
+                return null;
+            }
+
+            $cursor = $parent;
+        }
+
+        $resolved = @realpath($cursor);
+
+        if (!is_string($resolved)) {
+            return null;
+        }
+
+        if ($suffix !== []) {
+            $resolved .= DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $suffix);
+        }
+
+        return $this->normalizePath($resolved);
+    }
+
+    private function pathsOverlap(string $first, string $second): bool
+    {
+        $first = $this->comparablePath($first);
+        $second = $this->comparablePath($second);
+        $firstPrefix = rtrim($first, '/\\') . DIRECTORY_SEPARATOR;
+        $secondPrefix = rtrim($second, '/\\') . DIRECTORY_SEPARATOR;
+
+        return $first === $second
+            || str_starts_with($first, $secondPrefix)
+            || str_starts_with($second, $firstPrefix);
+    }
+
+    private function assertNoSymbolicLinkComponents(string $path): void
+    {
+        $cursor = $path;
+
+        while (true) {
+            if (is_link($cursor)) {
+                throw new SessionStorageException('File session root path cannot contain symbolic links.');
+            }
+
+            $parent = dirname($cursor);
+
+            if ($parent === $cursor) {
+                return;
+            }
+
+            $cursor = $parent;
+        }
+    }
+
+    private function comparablePath(string $path): string
+    {
+        $path = $this->normalizePath($path);
+
+        return DIRECTORY_SEPARATOR === '\\' ? strtolower($path) : $path;
+    }
+
+    private function normalizePath(string $path): string
+    {
+        $normalized = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+
+        if (DIRECTORY_SEPARATOR === '\\' && preg_match('/^[A-Za-z]:\\\\?$/', $normalized) === 1) {
+            return strtoupper($normalized[0]) . ':\\';
+        }
+
+        $trimmed = rtrim($normalized, '/\\');
+
+        return $trimmed === '' ? DIRECTORY_SEPARATOR : $trimmed;
     }
 }

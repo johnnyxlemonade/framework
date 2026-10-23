@@ -249,8 +249,8 @@ final class FileSessionStorageTest extends TestCase
             mkdir($this->directory, 0700, true);
         }
 
-        $abandoned = $this->directory . '/.session-write-abandoned';
-        $active = $this->directory . '/.session-write-active';
+        $abandoned = $this->directory . '/.session-write-' . str_repeat('a', 64) . '.tmp';
+        $active = $this->directory . '/.session-write-' . str_repeat('b', 64) . '.tmp';
         file_put_contents($abandoned, 'old');
         file_put_contents($active, 'new');
         touch($abandoned, time() - 301);
@@ -276,6 +276,7 @@ final class FileSessionStorageTest extends TestCase
     ): FileSessionStorage {
         return new FileSessionStorage(
             directory: $this->directory,
+            publicRoot: $this->directory . '-public',
             lifetimeSeconds: 60,
             cookieName: 'TEST_SESSION',
             gcBatchSize: $gcBatchSize,

@@ -154,6 +154,30 @@ final class SessionConfigResolverTest extends TestCase
         );
     }
 
+    public function testTypedConfigurationDoesNotReplaceAnExplicitlyEmptyFilePathWithTheDefault(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('File session path must be a non-empty local path without traversal');
+
+        (new SessionConfigResolver())->resolve(
+            SessionConfigDefinition::fromArrayData([
+                'file' => ['path' => ''],
+            ]),
+        );
+    }
+
+    public function testTypedConfigurationRejectsScalarFileStorageConfiguration(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Session file configuration must be a mapping with a path field.');
+
+        (new SessionConfigResolver())->resolve(
+            SessionConfigDefinition::fromArrayData([
+                'file' => 'sessions',
+            ]),
+        );
+    }
+
     /**
      * @return iterable<string, array{string, SessionCookieSameSite}>
      */
