@@ -45,7 +45,7 @@ return [
     'valid_ico_active' => '{field} must be an active ICO.',
     'valid_dic' => '{field} must be a valid VAT ID.',
     'valid_dic_active' => '{field} must be an active VAT ID.',
-    'valid_password' => '{field} has an invalid password format.',
+    'valid_password' => '{field} must contain between 15 and 128 characters.',
     'valid_row_id' => '{field} has an invalid ID format.',
     'valid_row_column' => '{field} has an invalid column format.',
     'valid_hex_color' => '{field} must be a valid hex color.',

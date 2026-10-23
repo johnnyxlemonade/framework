@@ -4,46 +4,32 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation\Rule;
 
-final class ValidPasswordRule implements ValidationRuleInterface
+/**
+ * Accepts unmodified UTF-8 passwords between 15 and 128 Unicode characters.
+ *
+ * The rule deliberately imposes no character-class, repetition, or whitespace policy.
+ */
+final readonly class ValidPasswordRule implements ValidationRuleInterface
 {
+    private const int MIN_LENGTH = 15;
+
+    private const int MAX_LENGTH = 128;
+
+    /**
+     * Validates only string input and counts Unicode characters without trimming or normalization.
+     *
+     * @param array<string, mixed> $data
+     */
     public function validate(mixed $value, ?string $param, array $data): bool
     {
-        unset($data);
+        unset($param, $data);
 
-        if (!is_scalar($value)) {
+        if (!is_string($value) || !mb_check_encoding($value, 'UTF-8')) {
             return false;
         }
 
-        $password = trim((string) $value);
-        $special = in_array(strtolower((string) $param), ['1', 'true', 'yes', 'special'], true);
+        $length = mb_strlen($value, 'UTF-8');
 
-        $minLength = 6;
-        $maxLength = 20;
-
-        if ($password === '') {
-            return false;
-        }
-
-        if (mb_strlen($password) < $minLength || mb_strlen($password) > $maxLength) {
-            return false;
-        }
-
-        if (preg_match('/[a-z]/', $password) !== 1) {
-            return false;
-        }
-
-        if (preg_match('/[A-Z]/', $password) !== 1) {
-            return false;
-        }
-
-        if (preg_match('/[0-9]/', $password) !== 1) {
-            return false;
-        }
-
-        if ($special && preg_match('/[!@#$%^&*()\-_=+{};:,<.>Ä‚â€šĂ‚Â§~]/', $password) !== 1) {
-            return false;
-        }
-
-        return preg_match('/(.)\1{2,}/', $password) !== 1;
+        return $length >= self::MIN_LENGTH && $length <= self::MAX_LENGTH;
     }
 }

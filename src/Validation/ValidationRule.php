@@ -362,9 +362,16 @@ final class ValidationRule
 
     // Security / captcha / HTML rules.
 
+    /**
+     * Creates the 15-to-128-character UTF-8 password rule without composition requirements.
+     *
+     * The legacy special-character flag remains accepted for source compatibility and is ignored.
+     */
     public static function password(bool $requireSpecialCharacter = false, ?string $message = null): ValidationRuleDefinition
     {
-        return self::create(ValidationRuleName::PASSWORD, $requireSpecialCharacter ? 'special' : null, $message);
+        unset($requireSpecialCharacter);
+
+        return self::create(ValidationRuleName::PASSWORD, null, $message);
     }
 
     public static function textNoLink(?string $message = null): ValidationRuleDefinition

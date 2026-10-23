@@ -45,7 +45,7 @@ return [
     'valid_ico_active' => '{field} должно быть активным ICO.',
     'valid_dic' => '{field} должно быть действительным VAT ID.',
     'valid_dic_active' => '{field} должно быть активным VAT ID.',
-    'valid_password' => '{field} имеет недопустимый формат пароля.',
+    'valid_password' => '{field} должно содержать от 15 до 128 символов.',
     'valid_row_id' => '{field} имеет недопустимый формат ID.',
     'valid_row_column' => '{field} имеет недопустимый формат колонки.',
     'valid_hex_color' => '{field} должно быть действительным hex-цветом.',

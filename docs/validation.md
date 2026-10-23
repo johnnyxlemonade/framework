@@ -25,7 +25,7 @@ $result = $this->validator
         ->maxLength(150)
     ->field('password', 'Password')
         ->required()
-        ->minLength(8)
+        ->password()
     ->validate($payload);
 
 if (!$result->isValid()) {
@@ -51,8 +51,7 @@ $result = $this->validator
         ->maxLength(150)
     ->field('password', 'Heslo')
         ->required()
-        ->password(requireSpecialCharacter: true)
-        ->minLength(8)
+        ->password()
     ->field('password_confirm', 'Potvrzení hesla')
         ->required()
         ->matches('password', 'Hesla se musí shodovat.')
@@ -68,6 +67,33 @@ $result = $this->validator
         ->required('Musíte souhlasit s podmínkami.')
     ->validate($payload);
 ```
+
+## Password Policy and Hashing
+
+`password()` validates new or changed passwords as unmodified UTF-8 strings containing 15 to 128
+Unicode characters. Spaces, repeated characters, passphrases, and every character class are allowed;
+the rule does not trim or normalize its input. Non-string values and malformed UTF-8 are rejected.
+The former `requireSpecialCharacter` argument remains accepted for source compatibility but no longer
+changes validation behavior.
+
+`BaseCrypt::encPassword()` continues to produce native 60-character bcrypt hashes. Passwords up to
+72 bytes retain the previous hashing path. Longer passwords are salted with the bcrypt hash's random
+salt, domain-separated, SHA-384 pre-hashed, and base64-encoded before bcrypt so bytes beyond bcrypt's
+input boundary affect the resulting hash without creating a reusable unsalted intermediate value.
+Applications must pair `BaseCrypt::encPassword()` with `BaseCrypt::checkHash()`; direct
+`password_verify()` cannot reconstruct the framework's long-password representation.
+
+Existing bcrypt and legacy `$2a$` hashes remain valid during login. Deploy verification support first,
+then use `BaseCrypt::encPassword()` whenever a password is created, changed, or rehashed after a
+successful login. A bcrypt hash does not reveal whether its original password exceeded 72 bytes, so
+`BaseCrypt::needsRehash()` cannot detect historical truncation. Applications that previously accepted
+such passwords should require a password reset for the affected accounts instead of attempting an
+automatic conversion.
+
+Compromised-password screening is application policy rather than a mandatory network dependency.
+Applications can register a custom validation rule backed by a local breached-password dataset or an
+explicitly configured external service. The framework does not silently skip this check or impose an
+external service on zero-config applications.
 
 ## Explicit Schema Usage
 

@@ -45,7 +45,7 @@ return [
     'valid_ico_active' => '{field} doit être un numéro ICO actif.',
     'valid_dic' => '{field} doit être un numéro de TVA valide.',
     'valid_dic_active' => '{field} doit être un numéro de TVA actif.',
-    'valid_password' => '{field} a un format de mot de passe invalide.',
+    'valid_password' => '{field} doit contenir entre 15 et 128 caractères.',
     'valid_row_id' => '{field} a un format d’ID invalide.',
     'valid_row_column' => '{field} a un format de colonne invalide.',
     'valid_hex_color' => '{field} doit être une couleur hexadécimale valide.',

@@ -248,6 +248,11 @@ final class ValidationFieldBuilder
         return $this->addRule(ValidationRule::activeDic($message));
     }
 
+    /**
+     * Adds the 15-to-128-character UTF-8 password policy without composition requirements.
+     *
+     * The legacy special-character flag remains accepted for source compatibility and is ignored.
+     */
     public function password(bool $requireSpecialCharacter = false, ?string $message = null): self
     {
         return $this->addRule(ValidationRule::password($requireSpecialCharacter, $message));

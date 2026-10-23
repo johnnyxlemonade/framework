@@ -45,7 +45,7 @@ return [
     'valid_ico_active' => '{field} muss eine aktive Unternehmens-ID sein.',
     'valid_dic' => '{field} muss eine gültige Umsatzsteuer-ID sein.',
     'valid_dic_active' => '{field} muss eine aktive Umsatzsteuer-ID sein.',
-    'valid_password' => '{field} hat ein ungültiges Passwortformat.',
+    'valid_password' => '{field} muss zwischen 15 und 128 Zeichen lang sein.',
     'valid_row_id' => '{field} hat ein ungültiges ID-Format.',
     'valid_row_column' => '{field} hat ein ungültiges Spaltenformat.',
     'valid_hex_color' => '{field} muss eine gültige Hex-Farbe sein.',

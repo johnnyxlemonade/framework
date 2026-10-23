@@ -45,7 +45,7 @@ return [
     'valid_ico_active' => '{field} není aktivní IČO.',
     'valid_dic' => '{field} není validní DIČ.',
     'valid_dic_active' => '{field} není aktivní DIČ.',
-    'valid_password' => '{field} nemá správný formát hesla.',
+    'valid_password' => '{field} musí mít 15 až 128 znaků.',
     'valid_row_id' => '{field} nemá správný formát ID.',
     'valid_row_column' => '{field} nemá správný formát sloupce.',
     'valid_hex_color' => '{field} není validní hex barva.',

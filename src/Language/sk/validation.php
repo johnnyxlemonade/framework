@@ -45,7 +45,7 @@ return [
     'valid_ico_active' => '{field} musí byť aktívne IČO.',
     'valid_dic' => '{field} musí byť platné DIČ.',
     'valid_dic_active' => '{field} musí byť aktívne DIČ.',
-    'valid_password' => '{field} má neplatný formát hesla.',
+    'valid_password' => '{field} musí mať 15 až 128 znakov.',
     'valid_row_id' => '{field} má neplatný formát ID.',
     'valid_row_column' => '{field} má neplatný formát stĺpca.',
     'valid_hex_color' => '{field} musí byť platná hex farba.',

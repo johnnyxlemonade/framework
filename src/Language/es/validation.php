@@ -45,7 +45,7 @@ return [
     'valid_ico_active' => '{field} debe ser un ICO activo.',
     'valid_dic' => '{field} debe ser un identificador fiscal válido.',
     'valid_dic_active' => '{field} debe ser un identificador fiscal activo.',
-    'valid_password' => '{field} tiene un formato de contraseña no válido.',
+    'valid_password' => '{field} debe tener entre 15 y 128 caracteres.',
     'valid_row_id' => '{field} tiene un formato de ID no válido.',
     'valid_row_column' => '{field} tiene un formato de columna no válido.',
     'valid_hex_color' => '{field} debe ser un color hexadecimal válido.',

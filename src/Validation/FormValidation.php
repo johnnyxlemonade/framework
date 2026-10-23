@@ -57,7 +57,7 @@ final class FormValidation
         ValidationRuleName::ICO_ACTIVE => '{field} must be an active ICO.',
         ValidationRuleName::DIC => '{field} must be a valid VAT ID.',
         ValidationRuleName::DIC_ACTIVE => '{field} must be an active VAT ID.',
-        ValidationRuleName::PASSWORD => '{field} has an invalid password format.',
+        ValidationRuleName::PASSWORD => '{field} must contain between 15 and 128 characters.',
         ValidationRuleName::ROW_ID => '{field} has an invalid ID format.',
         ValidationRuleName::ROW_COLUMN => '{field} has an invalid column format.',
         ValidationRuleName::HEX_COLOR => '{field} must be a valid hex color.',

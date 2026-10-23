@@ -83,6 +83,35 @@ final class FormValidationTest extends TestCase
         self::assertSame('john@example.com', $result->validated()['email']);
     }
 
+    public function testPasswordRuleIsAvailableThroughTheFluentApiWithModernPolicy(): void
+    {
+        $validator = $this->createValidator();
+
+        $accepted = $validator
+            ->field('password', 'Password')
+                ->required()
+                ->password(requireSpecialCharacter: true)
+            ->validate([
+                'password' => 'all lowercase passphrase',
+            ]);
+
+        self::assertTrue($accepted->isValid());
+
+        $rejected = $validator
+            ->field('password', 'Password')
+                ->required()
+                ->password()
+            ->validate([
+                'password' => str_repeat('a', 14),
+            ]);
+
+        self::assertFalse($rejected->isValid());
+        self::assertSame(
+            'Password must contain between 15 and 128 characters.',
+            $rejected->error('password'),
+        );
+    }
+
     public function testMessageCanTargetStableRuleName(): void
     {
         $validator = $this->createValidator();
