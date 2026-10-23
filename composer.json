@@ -74,6 +74,9 @@
     }
   },
   "autoload-dev": {
+    "exclude-from-classmap": [
+      "tests/Unit/Http/Client/Support/SymfonyHttpClientStub.php"
+    ],
     "psr-4": {
       "Lemonade\\Framework\\Tests\\": "tests/"
     }
