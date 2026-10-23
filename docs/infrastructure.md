@@ -237,6 +237,8 @@ config:
   database:
     table: system_queue_job
     failed_table: system_queue_failed_job
+    lease_seconds: 300
+    max_attempts: 3
   handlers:
     App\Message\SendInvoice: App\Queue\SendInvoiceHandler
 ```
@@ -249,7 +251,30 @@ Omitting queue configuration entirely retains the zero-configuration synchronous
 Create the database tables with `vendor/bin/lemonade queue:install`. Run a worker with
 `vendor/bin/lemonade queue:work [queue] [transport] [max] [sleep-ms]`; a worker requires an
 asynchronous transport such as `database`. Worker lifecycle and deployment supervision remain
-application or operations concerns. There is no retry or release mechanism in the queue contract yet.
+application or operations concerns. There is no application-controlled retry or release mechanism
+in the queue contract; a handler exception remains a terminal failure.
+
+The database transport reserves each delivery with a random 256-bit owner token and a lease that
+expires after `database.lease_seconds` (300 seconds by default). Queue availability, reservation,
+renewal, and failure timestamps use the database clock, so worker host clock differences do not
+decide ownership. An expired delivery can be reserved again with a new token. After
+`database.max_attempts` reservations (three by default), the next worker moves the job to failed
+storage without invoking its handler again.
+
+Acknowledgement, failure, and renewal all require the job id, queue name, current owner token, and a
+lease that is still valid according to database time. Losing any of those conditions raises
+`QueueLeaseLostException`; the transport never falls back to an id-only update or delete. This fences
+the queue row but does not provide exactly-once execution. Handlers must make external side effects
+idempotent because a process can finish an external operation and then exit before acknowledgement.
+
+Class-string handlers whose work can outlive the configured lease may inject `QueueLeaseInterface`
+from their Job scope and call `renew()` between bounded work units. Renewal cannot revive an expired
+lease, and the framework does not run a background heartbeat or interrupt arbitrary PHP code.
+Configure a longer lease for a single blocking operation that cannot renew cooperatively.
+
+Database queues support native MySQL, PDO MySQL, and PDO SQLite. SQLite is intended for modest write
+concurrency because it serializes writers. Generic ODBC is rejected before queue use: its server-time
+and affected-row guarantees are not sufficiently specific for ownership-safe compare-and-set writes.
 
 For an asynchronously dequeued message, success calls `ack()`. A handler failure calls `fail()` and
 then rethrows the original handler exception; if `fail()` itself fails, the resulting exception
@@ -281,6 +306,54 @@ versions. Deploy it without automatic conversion:
 Do not copy legacy payloads into the new queue or build a runtime unserializing migrator. Any legacy
 row left in the active table will be quarantined into failed jobs as opaque data. Rotating
 `APP_SECRET` likewise invalidates queued envelopes, so drain the queue before rotating it.
+
+### Migrating an existing database queue to leases
+
+`queue:install` creates fresh lease-aware tables and validates tables that already exist. It never
+alters an existing table. A pre-lease table is rejected with an explicit migration error instead of
+being reported as ready.
+
+An in-place migration requires a coordinated stop because an old worker acknowledges with an id-only
+delete and can otherwise remove a job already reclaimed by a new worker:
+
+1. Stop producers, all old workers, and supervisor restarts. Confirm that no old handler can return.
+2. Back up both queue tables.
+3. Add the nullable lease columns and the new claim index using the appropriate database migration.
+4. Clear legacy reservations only after every old worker is stopped. Preserve `attempts` and payloads.
+5. Deploy new producers and workers together, run `queue:install` to validate the schema, and then
+   restart processing. Mixed old/new workers are unsupported.
+
+For the default MySQL table name, the schema portion is equivalent to:
+
+```sql
+ALTER TABLE system_queue_job
+    ADD COLUMN reservation_token CHAR(64) NULL,
+    ADD COLUMN reserved_until BIGINT UNSIGNED NULL,
+    ADD INDEX idx_queue_claim (queue_name, available_at, reserved_until, id);
+
+UPDATE system_queue_job
+SET reserved_at = NULL,
+    reservation_token = NULL,
+    reserved_until = NULL;
+```
+
+For SQLite:
+
+```sql
+ALTER TABLE system_queue_job ADD COLUMN reservation_token CHAR(64) NULL;
+ALTER TABLE system_queue_job ADD COLUMN reserved_until INTEGER NULL;
+CREATE INDEX IF NOT EXISTS idx_queue_claim
+    ON system_queue_job (queue_name, available_at, reserved_until, id);
+
+UPDATE system_queue_job
+SET reserved_at = NULL,
+    reservation_token = NULL,
+    reserved_until = NULL;
+```
+
+Use the configured table name instead of `system_queue_job`. Register these statements as an explicit
+application migration; do not execute them from bootstrap. Keep the existing `APP_SECRET` and codec
+registrations while queued HMAC envelopes remain active.
 
 ## Outbound HTTP Clients
 

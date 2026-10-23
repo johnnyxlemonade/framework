@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Queue;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
 use Lemonade\Framework\Queue\Exception\QueueHandlerFailureException;
+use Lemonade\Framework\Queue\Exception\QueueLeaseLostException;
 
 final class QueueBus implements QueueBusInterface
 {
@@ -44,7 +45,11 @@ final class QueueBus implements QueueBusInterface
         $resolved = $this->transport($transportName);
 
         if ($transportName === 'sync') {
-            $this->handle(new QueuedMessage($message, $queue), $transportName, bindQueuedMessage: false);
+            $this->handle(
+                item: new QueuedMessage($message, $queue),
+                transport: $transportName,
+                bindQueuedMessage: false,
+            );
 
             return;
         }
@@ -71,7 +76,17 @@ final class QueueBus implements QueueBusInterface
         }
 
         try {
-            $this->handle($item, $transportName, bindQueuedMessage: true);
+            $lease = $resolved instanceof RenewableQueueTransportInterface
+                ? new QueueLease($resolved, $item)
+                : null;
+            $this->handle(
+                item: $item,
+                transport: $transportName,
+                bindQueuedMessage: true,
+                queueLease: $lease,
+            );
+        } catch (QueueLeaseLostException $exception) {
+            throw $exception;
         } catch (\Throwable $handlerException) {
             try {
                 $resolved->fail($item, $handlerException->getMessage());
@@ -87,10 +102,18 @@ final class QueueBus implements QueueBusInterface
         return true;
     }
 
-    private function handle(QueuedMessage $item, string $transport, bool $bindQueuedMessage): void
-    {
+    private function handle(
+        QueuedMessage $item,
+        string $transport,
+        bool $bindQueuedMessage,
+        ?QueueLeaseInterface $queueLease = null,
+    ): void {
         $context = JobContext::fromQueuedMessage($item, $transport);
-        $this->invoker->invoke($context, $bindQueuedMessage ? $item : null);
+        $this->invoker->invoke(
+            context: $context,
+            queuedMessage: $bindQueuedMessage ? $item : null,
+            queueLease: $queueLease,
+        );
     }
 
     private function transport(string $name): QueueTransportInterface

@@ -7,19 +7,23 @@ namespace Lemonade\Framework\Tests\Unit\Queue;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\Exception\ServiceNotFoundException;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Queue\Cli\QueueInstallCommand;
 use Lemonade\Framework\Queue\Cli\QueueWorkCommand;
 use Lemonade\Framework\Queue\Config\QueueConfig;
 use Lemonade\Framework\Queue\Config\QueueDatabaseConfig;
 use Lemonade\Framework\Queue\Exception\QueueHandlerFailureException;
+use Lemonade\Framework\Queue\Exception\QueueLeaseLostException;
 use Lemonade\Framework\Queue\JobContext;
 use Lemonade\Framework\Queue\JobHandlerRegistry;
 use Lemonade\Framework\Queue\QueuedMessage;
 use Lemonade\Framework\Queue\QueueBus;
 use Lemonade\Framework\Queue\QueueBusInterface;
+use Lemonade\Framework\Queue\QueueLeaseInterface;
 use Lemonade\Framework\Queue\QueueServiceProvider;
 use Lemonade\Framework\Queue\QueueTransportInterface;
+use Lemonade\Framework\Queue\RenewableQueueTransportInterface;
 use Lemonade\Framework\Queue\Transport\SyncQueueTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -172,6 +176,52 @@ final class QueueBusTest extends TestCase
         }
     }
 
+    public function testLeaseLostInsideHandlerDoesNotInvokeFailFlow(): void
+    {
+        $transport = new QueueBusTransportSpy(new QueuedMessage(new QueueBusMessage()));
+        $bus = $this->bus($transport);
+        $bus->addHandler(QueueBusMessage::class, static function (): void {
+            throw QueueLeaseLostException::forDelivery();
+        });
+
+        try {
+            $bus->processNext(transport: 'database');
+            self::fail('Expected lease loss.');
+        } catch (QueueLeaseLostException) {
+            self::assertSame([], $transport->failed);
+            self::assertSame([], $transport->acknowledged);
+        }
+    }
+
+    public function testRenewableTransportBindsLeaseOnlyForAsyncJobScope(): void
+    {
+        QueueBusLeaseAwareHandler::$renewedUntil = null;
+        $transport = new QueueBusTransportSpy(new QueuedMessage(new QueueBusMessage()));
+        $container = new Container();
+        $bus = new QueueBus(
+            container: $container,
+            transports: [
+                'database' => $transport,
+            ],
+        );
+        $bus->addHandler(QueueBusMessage::class, QueueBusLeaseAwareHandler::class);
+
+        self::assertTrue($bus->processNext(transport: 'database'));
+        self::assertSame(123_456, QueueBusLeaseAwareHandler::$renewedUntil);
+        self::assertCount(1, $transport->renewed);
+    }
+
+    public function testSynchronousJobScopeDoesNotExposeDatabaseLeaseCapability(): void
+    {
+        $bus = $this->bus();
+        $bus->addHandler(QueueBusMessage::class, QueueBusLeaseAwareHandler::class);
+
+        $this->expectException(ServiceNotFoundException::class);
+        $this->expectExceptionMessage(QueueLeaseInterface::class);
+
+        $bus->dispatch(new QueueBusMessage(), transport: 'sync');
+    }
+
     public function testJobContextSnapshotsQueuedMessageMetadata(): void
     {
         $message = new QueueBusMessage();
@@ -266,7 +316,23 @@ final class QueueBusClassStringHandler
     }
 }
 
-final class QueueBusTransportSpy implements QueueTransportInterface
+final class QueueBusLeaseAwareHandler
+{
+    public static ?int $renewedUntil = null;
+
+    public function __construct(
+        private readonly QueueLeaseInterface $lease,
+    ) {
+    }
+
+    public function __invoke(QueueBusMessage $message): void
+    {
+        unset($message);
+        self::$renewedUntil = $this->lease->renew();
+    }
+}
+
+final class QueueBusTransportSpy implements RenewableQueueTransportInterface
 {
     /**
      * @var list<array{message: QueuedMessage, delay: int}>
@@ -278,6 +344,9 @@ final class QueueBusTransportSpy implements QueueTransportInterface
 
     /** @var list<array{error:string}> */
     public array $failed = [];
+
+    /** @var list<QueuedMessage> */
+    public array $renewed = [];
 
     public ?\Throwable $ackException = null;
     public ?\Throwable $failException = null;
@@ -319,5 +388,12 @@ final class QueueBusTransportSpy implements QueueTransportInterface
         }
 
         $this->failed[] = ['error' => $error];
+    }
+
+    public function renew(QueuedMessage $message): int
+    {
+        $this->renewed[] = $message;
+
+        return 123_456;
     }
 }

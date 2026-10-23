@@ -96,7 +96,9 @@ and closes it in `finally`, including error and health-fast-path responses. HTTP
 dispatch and controller resolution use this active scope. `CliKernel` creates a `Command` scope
 only for a selected command, binding `CommandContext`, `CommandInput` and `CommandOutput`; list,
 help and unknown-command handling remain scope-free. Queue class-string handlers run in an
-isolated `Job` scope with `JobContext`, plus `QueuedMessage` for asynchronously dequeued work.
+isolated `Job` scope with `JobContext`, plus `QueuedMessage` for asynchronously dequeued work. A
+renewable database delivery also binds `QueueLeaseInterface`; handlers may use it for cooperative
+renewal, while synchronous jobs and non-renewable transports do not expose that capability.
 Synchronous queue dispatch also creates its own Job scope instead of reusing an active Request
 scope. Legacy queue callables remain compatible, but are not resolved through the container.
 

@@ -15,6 +15,11 @@ This project has not published tagged releases. This section summarizes notable 
   requires `app.secret`; synchronous queues remain zero-configuration. Legacy serialized rows are
   never decoded and are quarantined as opaque failed-job payloads. Failed transitions are atomic,
   diagnostics are bounded, and conditional reservation continues to prevent duplicate delivery.
+- **Breaking queue schema change:** Database deliveries now use database-timed expiring leases with a
+  random 256-bit owner token. Acknowledgement, failure, and cooperative renewal are fenced by the live
+  owner token; expired crash deliveries are retried up to a bounded attempt count and then quarantined.
+  Existing queue tables require an explicit coordinated migration, and generic ODBC queue use is
+  rejected until its time and affected-row contracts are verified.
 - Replaced executable PHP file-cache payloads with versioned `.cache` data envelopes authenticated by
   HMAC-SHA-256. File cache values are deserialized only after integrity and metadata verification;
   zero-configuration installations receive an atomically initialized private local key. Cache roots,

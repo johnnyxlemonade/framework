@@ -17,6 +17,8 @@ final class QueueConfigResolverTest extends TestCase
 
         self::assertSame('sync', $config->defaultTransport);
         self::assertSame(['sync'], $config->transports);
+        self::assertSame(300, $config->database->leaseSeconds);
+        self::assertSame(3, $config->database->maxAttempts);
     }
 
     public function testSupportedDatabaseDefaultMustBePresentAndResolves(): void
@@ -97,6 +99,42 @@ final class QueueConfigResolverTest extends TestCase
         (new QueueConfigResolver())->resolve(
             QueueConfigDefinition::fromArrayData([
                 'transports' => ['sync', null],
+            ]),
+        );
+    }
+
+    public function testDatabaseLeasePolicyCanBeConfigured(): void
+    {
+        $config = (new QueueConfigResolver())->resolve(
+            QueueConfigDefinition::create()
+                ->databaseLeaseSeconds(45)
+                ->databaseMaxAttempts(7),
+        );
+
+        self::assertSame(45, $config->database->leaseSeconds);
+        self::assertSame(7, $config->database->maxAttempts);
+    }
+
+    public function testNonPositiveLeaseIsRejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('lease_seconds must be a positive integer');
+
+        (new QueueConfigResolver())->resolve(
+            QueueConfigDefinition::create()->databaseLeaseSeconds(0),
+        );
+    }
+
+    public function testMalformedMaxAttemptsIsRejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('max_attempts must be a positive integer');
+
+        (new QueueConfigResolver())->resolve(
+            QueueConfigDefinition::fromArrayData([
+                'database' => [
+                    'max_attempts' => 'invalid',
+                ],
             ]),
         );
     }

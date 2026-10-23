@@ -21,6 +21,7 @@ final readonly class QueuedMessage
         private ?int $id = null,
         private int $attempts = 0,
         private ?string $rawPayload = null,
+        private ?QueueReservationReceipt $reservationReceipt = null,
     ) {
     }
 
@@ -65,6 +66,16 @@ final readonly class QueuedMessage
     }
 
     /**
+     * Returns the opaque ownership fence attached by a persistent lease transport.
+     *
+     * @internal Applications must not log or persist the receipt in a message payload.
+     */
+    public function reservationReceipt(): ?QueueReservationReceipt
+    {
+        return $this->reservationReceipt;
+    }
+
+    /**
      * Creates a metadata copy for another attempt without changing the message or raw envelope.
      */
     public function withAttempts(int $attempts): self
@@ -75,6 +86,7 @@ final readonly class QueuedMessage
             id: $this->id,
             attempts: $attempts,
             rawPayload: $this->rawPayload,
+            reservationReceipt: $this->reservationReceipt,
         );
     }
 }

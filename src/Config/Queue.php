@@ -8,4 +8,6 @@ return QueueConfigDefinition::create()
     ->defaultTransport('sync')
     ->transports(['sync'])
     ->databaseTable('system_queue_job')
-    ->failedTable('system_queue_failed_job');
+    ->failedTable('system_queue_failed_job')
+    ->databaseLeaseSeconds(300)
+    ->databaseMaxAttempts(3);

@@ -91,7 +91,9 @@ vendor/bin/lemonade discovery:sitemap:generate
 vendor/bin/lemonade upload:chunks:cleanup
 ```
 
-`queue:install` creates the configured database-transport tables. `queue:work` requires an
+`queue:install` creates fresh database-transport tables and validates existing tables without altering
+them. A pre-lease schema is rejected until the documented explicit queue migration is applied with all
+legacy workers stopped. `queue:work` requires an
 asynchronous transport such as `database`; its optional arguments are queue name, transport, maximum
 processed job count and idle sleep in milliseconds. These commands are suitable for supervisor or
 cron-driven operations, but the framework does not provide a separate scheduler or workflow engine.

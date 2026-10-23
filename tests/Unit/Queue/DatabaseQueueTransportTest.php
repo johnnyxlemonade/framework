@@ -17,6 +17,9 @@ use Lemonade\Framework\Queue\MessageCodecInterface;
 use Lemonade\Framework\Queue\MessageCodecRegistry;
 use Lemonade\Framework\Queue\MessageSerializer;
 use Lemonade\Framework\Queue\QueuedMessage;
+use Lemonade\Framework\Queue\Exception\QueueLeaseLostException;
+use Lemonade\Framework\Queue\Internal\DatabaseQueueDialect;
+use Lemonade\Framework\Queue\Internal\DatabaseQueueSchemaValidator;
 use Lemonade\Framework\Queue\Transport\DatabaseQueueTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -40,6 +43,214 @@ final class DatabaseQueueTransportTest extends TestCase
 
         self::assertSame(0, $this->countRows($connection, 'system_queue_job'));
         self::assertSame(0, $this->countRows($connection, 'system_queue_failed_job'));
+    }
+
+    public function testReservationStoresRandomOwnerTokenAndDatabaseTimedLease(): void
+    {
+        [$connection, $transport] = $this->transport();
+        $transport->enqueue(new QueuedMessage(new DatabaseTransportMessage('leased')), delaySeconds: 0);
+
+        $reserved = $transport->dequeue('default');
+
+        self::assertInstanceOf(QueuedMessage::class, $reserved);
+        $row = $connection->select(
+            "SELECT reservation_token, available_at, reserved_at, reserved_until, created_at, "
+            . "CAST(strftime('%s', 'now') AS INTEGER) AS database_now "
+            . 'FROM system_queue_job',
+        )[0];
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', (string) $row['reservation_token']);
+        self::assertSame((string) $row['reservation_token'], $reserved->reservationReceipt()?->ownerToken());
+        self::assertSame((int) $row['created_at'], (int) $row['available_at']);
+        self::assertGreaterThanOrEqual((int) $row['database_now'], (int) $row['reserved_at']);
+        self::assertSame(300, (int) $row['reserved_until'] - (int) $row['reserved_at']);
+    }
+
+    public function testExpiredReservationCanBeRecoveredWithNewOwnerAndAttempt(): void
+    {
+        [$connection, $first] = $this->transport();
+        $second = $this->transportForConnection($connection);
+        $first->enqueue(new QueuedMessage(new DatabaseTransportMessage('recover')));
+        $firstDelivery = $first->dequeue('default');
+        self::assertInstanceOf(QueuedMessage::class, $firstDelivery);
+        $firstToken = $firstDelivery->reservationReceipt()?->ownerToken();
+        $this->expireReservation($connection, $firstDelivery->id());
+
+        $secondDelivery = $second->dequeue('default');
+
+        self::assertInstanceOf(QueuedMessage::class, $secondDelivery);
+        self::assertSame(2, $secondDelivery->attempts());
+        self::assertNotSame($firstToken, $secondDelivery->reservationReceipt()?->ownerToken());
+    }
+
+    public function testStaleAcknowledgementCannotDeleteReclaimedJob(): void
+    {
+        [$connection, $first, $second, $firstDelivery, $secondDelivery] = $this->reclaimedDelivery();
+
+        try {
+            $first->ack($firstDelivery);
+            self::fail('Expected stale acknowledgement to lose its lease.');
+        } catch (QueueLeaseLostException) {
+            self::assertSame(1, $this->countRows($connection, 'system_queue_job'));
+            self::assertSame(
+                $secondDelivery->reservationReceipt()?->ownerToken(),
+                $connection->select('SELECT reservation_token FROM system_queue_job')[0]['reservation_token'],
+            );
+        }
+    }
+
+    public function testStaleFailureRollsBackFailedInsertAndPreservesReclaimedJob(): void
+    {
+        [$connection, $first, $second, $firstDelivery, $secondDelivery] = $this->reclaimedDelivery();
+        unset($second);
+
+        try {
+            $first->fail($firstDelivery, 'stale handler failure');
+            self::fail('Expected stale failure to lose its lease.');
+        } catch (QueueLeaseLostException) {
+            self::assertSame(1, $this->countRows($connection, 'system_queue_job'));
+            self::assertSame(0, $this->countRows($connection, 'system_queue_failed_job'));
+            self::assertSame(
+                $secondDelivery->reservationReceipt()?->ownerToken(),
+                $connection->select('SELECT reservation_token FROM system_queue_job')[0]['reservation_token'],
+            );
+        }
+    }
+
+    public function testStaleRenewalCannotExtendReclaimedJob(): void
+    {
+        [$connection, $first, $second, $firstDelivery, $secondDelivery] = $this->reclaimedDelivery();
+        unset($second);
+        $before = $connection->select('SELECT reserved_until FROM system_queue_job')[0]['reserved_until'];
+
+        try {
+            $first->renew($firstDelivery);
+            self::fail('Expected stale renewal to lose its lease.');
+        } catch (QueueLeaseLostException) {
+            self::assertSame($before, $connection->select('SELECT reserved_until FROM system_queue_job')[0]['reserved_until']);
+            self::assertSame(
+                $secondDelivery->reservationReceipt()?->ownerToken(),
+                $connection->select('SELECT reservation_token FROM system_queue_job')[0]['reservation_token'],
+            );
+        }
+    }
+
+    public function testExpiredLeaseCannotBeAcknowledgedFailedOrRenewedBeforeReclaim(): void
+    {
+        foreach (['ack', 'fail', 'renew'] as $operation) {
+            [$connection, $transport] = $this->transport();
+            $transport->enqueue(new QueuedMessage(new DatabaseTransportMessage($operation)));
+            $delivery = $transport->dequeue('default');
+            self::assertInstanceOf(QueuedMessage::class, $delivery);
+            $this->expireReservationAtDatabaseBoundary($connection, $delivery->id());
+
+            try {
+                if ($operation === 'ack') {
+                    $transport->ack($delivery);
+                } elseif ($operation === 'fail') {
+                    $transport->fail($delivery, 'expired');
+                } else {
+                    $transport->renew($delivery);
+                }
+
+                self::fail(sprintf('Expected expired %s to lose its lease.', $operation));
+            } catch (QueueLeaseLostException) {
+                self::assertSame(1, $this->countRows($connection, 'system_queue_job'));
+                self::assertSame(0, $this->countRows($connection, 'system_queue_failed_job'));
+            }
+        }
+    }
+
+    public function testRenewalExtendsLeaseAndKeepsJobReserved(): void
+    {
+        [$connection, $transport] = $this->transport();
+        $other = $this->transportForConnection($connection);
+        $transport->enqueue(new QueuedMessage(new DatabaseTransportMessage('renew')));
+        $delivery = $transport->dequeue('default');
+        self::assertInstanceOf(QueuedMessage::class, $delivery);
+        $before = (int) $connection->select('SELECT reserved_until FROM system_queue_job')[0]['reserved_until'];
+
+        $renewedUntil = $transport->renew($delivery);
+
+        self::assertGreaterThan($before, $renewedUntil);
+        self::assertNull($other->dequeue('default'));
+    }
+
+    public function testMaximumAttemptsQuarantinesExpiredJobWithoutAnotherDelivery(): void
+    {
+        [$connection, $transport] = $this->transport(maxAttempts: 3);
+        $transport->enqueue(new QueuedMessage(new DatabaseTransportMessage('crash-loop')));
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $delivery = $transport->dequeue('default');
+            self::assertInstanceOf(QueuedMessage::class, $delivery);
+            self::assertSame($attempt, $delivery->attempts());
+            $this->expireReservation($connection, $delivery->id());
+        }
+
+        self::assertNull($transport->dequeue('default'));
+        self::assertSame(0, $this->countRows($connection, 'system_queue_job'));
+        $failed = $connection->select('SELECT attempts, error_message FROM system_queue_failed_job');
+        self::assertCount(1, $failed);
+        self::assertSame(3, (int) $failed[0]['attempts']);
+        self::assertStringContainsString('maximum attempts (3) exhausted', (string) $failed[0]['error_message']);
+    }
+
+    public function testInconsistentLeaseMetadataIsNotClaimed(): void
+    {
+        [$connection, $transport] = $this->transport();
+        $this->insertRawJob($connection, $this->serializer()->encode(new DatabaseTransportMessage('inconsistent')));
+        $connection->statement(
+            'UPDATE system_queue_job SET reserved_at = 1, reservation_token = NULL, reserved_until = 0',
+        );
+
+        self::assertNull($transport->dequeue('default'));
+        self::assertSame(0, (int) $connection->select('SELECT attempts FROM system_queue_job')[0]['attempts']);
+    }
+
+    public function testOdbcIsRejectedBeforeDatabaseQueueUse(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('does not support ODBC');
+
+        DatabaseQueueDialect::fromConfig(DatabaseConfig::fromArray([
+            'driver' => 'odbc',
+        ]));
+    }
+
+    public function testConnectionFailureDuringClaimRollsBackReservation(): void
+    {
+        $config = $this->databaseConfig();
+        $inner = new PdoConnection($config, new Benchmark());
+        $this->createSchema($inner);
+        $connection = new FailingReservationConnection($inner);
+        $escaper = new SqliteIdentifierEscaper('');
+        $driver = new PdoDatabaseDriver(
+            connection: $inner,
+            identifierEscaper: $escaper,
+            identifierProtector: new IdentifierProtector($escaper),
+        );
+        $dialect = DatabaseQueueDialect::fromConfig($config);
+        $transport = new DatabaseQueueTransport(
+            db: $driver,
+            serializer: $this->serializer(),
+            connection: $connection,
+            dialect: $dialect,
+            schemaValidator: new DatabaseQueueSchemaValidator($driver, $connection, $dialect),
+        );
+        $transport->enqueue(new QueuedMessage(new DatabaseTransportMessage('disconnect')));
+        $connection->failAfterReservation = true;
+
+        try {
+            $transport->dequeue('default');
+            self::fail('Expected simulated connection loss during reservation.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('simulated connection loss', $exception->getMessage());
+            $row = $inner->select('SELECT attempts, reserved_at, reservation_token, reserved_until FROM system_queue_job')[0];
+            self::assertSame(0, (int) $row['attempts']);
+            self::assertNull($row['reserved_at']);
+            self::assertNull($row['reservation_token']);
+            self::assertNull($row['reserved_until']);
+        }
     }
 
     public function testLegacySerializedPoisonMessageIsFailedWithoutMagicMethods(): void
@@ -104,8 +315,10 @@ final class DatabaseQueueTransportTest extends TestCase
             $serializer->encode(new DatabaseTransportMessage('race')),
         );
         $driver = new QueueIdentifierDriverStub();
-        $first = new DatabaseQueueTransport($driver, $serializer, $connection);
-        $second = new DatabaseQueueTransport($driver, $serializer, $connection);
+        $dialect = DatabaseQueueDialect::fromConfig(DatabaseConfig::fromArray(['driver' => 'mysql']));
+        $validator = new DatabaseQueueSchemaValidator($driver, $connection, $dialect);
+        $first = new DatabaseQueueTransport($driver, $serializer, $connection, $dialect, $validator);
+        $second = new DatabaseQueueTransport($driver, $serializer, $connection, $dialect, $validator);
         $secondDelivery = null;
         $connection->beforeFirstReservation = static function () use ($second, &$secondDelivery): void {
             $secondDelivery = $second->dequeue('default');
@@ -137,7 +350,7 @@ final class DatabaseQueueTransportTest extends TestCase
     /**
      * @return array{PdoConnection, DatabaseQueueTransport}
      */
-    private function transport(): array
+    private function transport(int $leaseSeconds = 300, int $maxAttempts = 3): array
     {
         $config = DatabaseConfig::fromArray([
             'driver' => 'pdo',
@@ -147,23 +360,83 @@ final class DatabaseQueueTransportTest extends TestCase
         $connection = new PdoConnection($config, new Benchmark());
         $this->createSchema($connection);
 
-        return [$connection, $this->transportForConnection($connection)];
+        return [
+            $connection,
+            $this->transportForConnection(
+                connection: $connection,
+                leaseSeconds: $leaseSeconds,
+                maxAttempts: $maxAttempts,
+            ),
+        ];
     }
 
-    private function transportForConnection(PdoConnection $connection): DatabaseQueueTransport
-    {
+    private function transportForConnection(
+        PdoConnection $connection,
+        int $leaseSeconds = 300,
+        int $maxAttempts = 3,
+    ): DatabaseQueueTransport {
+        $config = $this->databaseConfig();
         $escaper = new SqliteIdentifierEscaper('');
         $driver = new PdoDatabaseDriver(
             connection: $connection,
             identifierEscaper: $escaper,
             identifierProtector: new IdentifierProtector($escaper),
         );
+        $dialect = DatabaseQueueDialect::fromConfig($config);
 
         return new DatabaseQueueTransport(
             db: $driver,
             serializer: $this->serializer(),
             connection: $connection,
+            dialect: $dialect,
+            schemaValidator: new DatabaseQueueSchemaValidator($driver, $connection, $dialect),
+            leaseSeconds: $leaseSeconds,
+            maxAttempts: $maxAttempts,
         );
+    }
+
+    /**
+     * @return array{PdoConnection, DatabaseQueueTransport, DatabaseQueueTransport, QueuedMessage, QueuedMessage}
+     */
+    private function reclaimedDelivery(): array
+    {
+        [$connection, $first] = $this->transport();
+        $second = $this->transportForConnection($connection);
+        $first->enqueue(new QueuedMessage(new DatabaseTransportMessage('reclaimed')));
+        $firstDelivery = $first->dequeue('default');
+        self::assertInstanceOf(QueuedMessage::class, $firstDelivery);
+        $this->expireReservation($connection, $firstDelivery->id());
+        $secondDelivery = $second->dequeue('default');
+        self::assertInstanceOf(QueuedMessage::class, $secondDelivery);
+
+        return [$connection, $first, $second, $firstDelivery, $secondDelivery];
+    }
+
+    private function expireReservation(PdoConnection $connection, ?int $id): void
+    {
+        self::assertNotNull($id);
+        $connection->statement(
+            'UPDATE system_queue_job SET reserved_until = 0 WHERE id = ?',
+            [$id],
+        );
+    }
+
+    private function expireReservationAtDatabaseBoundary(PdoConnection $connection, ?int $id): void
+    {
+        self::assertNotNull($id);
+        $connection->statement(
+            "UPDATE system_queue_job SET reserved_until = CAST(strftime('%s', 'now') AS INTEGER) WHERE id = ?",
+            [$id],
+        );
+    }
+
+    private function databaseConfig(): DatabaseConfig
+    {
+        return DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dialect' => 'sqlite',
+            'dsn' => 'sqlite::memory:',
+        ]);
     }
 
     private function serializer(): MessageSerializer
@@ -184,7 +457,8 @@ final class DatabaseQueueTransportTest extends TestCase
             'CREATE TABLE system_queue_job ('
             . 'id INTEGER PRIMARY KEY AUTOINCREMENT, '
             . 'queue_name TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL, '
-            . 'available_at INTEGER NOT NULL, reserved_at INTEGER NULL, '
+            . 'available_at INTEGER NOT NULL, reserved_at INTEGER NULL, reservation_token TEXT NULL, '
+            . 'reserved_until INTEGER NULL, '
             . 'created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
         );
         $connection->statement(
@@ -200,8 +474,8 @@ final class DatabaseQueueTransportTest extends TestCase
         $now = time();
         $connection->statement(
             'INSERT INTO system_queue_job '
-            . '(queue_name, payload, attempts, available_at, reserved_at, created_at, updated_at) '
-            . 'VALUES (?, ?, 0, ?, NULL, ?, ?)',
+            . '(queue_name, payload, attempts, available_at, reserved_at, reservation_token, reserved_until, created_at, updated_at) '
+            . 'VALUES (?, ?, 0, ?, NULL, NULL, NULL, ?, ?)',
             ['default', $payload, $now, $now, $now],
         );
     }
@@ -267,6 +541,8 @@ final class InterleavingQueueConnection implements ConnectionInterface
     public int $successfulReservations = 0;
 
     private bool $reserved = false;
+    private int $attempts = 0;
+    private ?string $token = null;
 
     public function __construct(private readonly string $payload)
     {
@@ -274,7 +550,20 @@ final class InterleavingQueueConnection implements ConnectionInterface
 
     public function select(string $sql, array $bindings = []): array
     {
-        unset($sql, $bindings);
+        if (str_contains($sql, 'WHERE 1 = 0')) {
+            return [];
+        }
+
+        if (str_starts_with($sql, 'SELECT payload, attempts')) {
+            if (!$this->reserved || ($bindings[2] ?? null) !== $this->token) {
+                return [];
+            }
+
+            return [[
+                'payload' => $this->payload,
+                'attempts' => $this->attempts,
+            ]];
+        }
 
         if ($this->reserved) {
             return [];
@@ -282,8 +571,7 @@ final class InterleavingQueueConnection implements ConnectionInterface
 
         return [[
             'id' => 1,
-            'payload' => $this->payload,
-            'attempts' => 0,
+            'attempts' => $this->attempts,
         ]];
     }
 
@@ -296,8 +584,6 @@ final class InterleavingQueueConnection implements ConnectionInterface
 
     public function statement(string $sql, array $bindings = []): int
     {
-        unset($bindings);
-
         if (!str_starts_with($sql, 'UPDATE')) {
             throw new \LogicException('Unexpected interleaving test statement.');
         }
@@ -313,6 +599,8 @@ final class InterleavingQueueConnection implements ConnectionInterface
         }
 
         $this->reserved = true;
+        $this->token = is_string($bindings[0] ?? null) ? $bindings[0] : null;
+        $this->attempts++;
         $this->successfulReservations++;
 
         return 1;
@@ -375,7 +663,7 @@ final class QueueIdentifierDriverStub implements DatabaseDriverInterface
     {
         unset($table);
 
-        return false;
+        return true;
     }
 
     public function query(string $sql, array|false $binds = false): DatabaseResultInterface|bool
@@ -450,5 +738,91 @@ final class QueueIdentifierDriverStub implements DatabaseDriverInterface
     public function version(): string
     {
         return 'test';
+    }
+}
+
+final class FailingReservationConnection implements ConnectionInterface
+{
+    public bool $failAfterReservation = false;
+
+    public function __construct(
+        private readonly PdoConnection $inner,
+    ) {
+    }
+
+    public function select(string $sql, array $bindings = []): array
+    {
+        return $this->inner->select($sql, $bindings);
+    }
+
+    public function cursor(string $sql, array $bindings = []): \Generator
+    {
+        yield from $this->inner->cursor($sql, $bindings);
+    }
+
+    public function statement(string $sql, array $bindings = []): int
+    {
+        $affected = $this->inner->statement($sql, $bindings);
+
+        if ($this->failAfterReservation && str_starts_with($sql, 'UPDATE')) {
+            throw new \RuntimeException('simulated connection loss');
+        }
+
+        return $affected;
+    }
+
+    public function beginTransaction(): void
+    {
+        $this->inner->beginTransaction();
+    }
+
+    public function commit(): void
+    {
+        $this->inner->commit();
+    }
+
+    public function rollBack(): void
+    {
+        $this->inner->rollBack();
+    }
+
+    public function inTransaction(): bool
+    {
+        return $this->inner->inTransaction();
+    }
+
+    public function transaction(callable $callback): mixed
+    {
+        return $this->inner->transaction(fn (): mixed => $callback($this));
+    }
+
+    public function lastInsertId(): int|string|null
+    {
+        return $this->inner->lastInsertId();
+    }
+
+    public function affectedRows(): int
+    {
+        return $this->inner->affectedRows();
+    }
+
+    public function reconnect(): void
+    {
+        $this->inner->reconnect();
+    }
+
+    public function close(): void
+    {
+        $this->inner->close();
+    }
+
+    public function serverVersion(): string
+    {
+        return $this->inner->serverVersion();
+    }
+
+    public function escapeString(string $value): string
+    {
+        return $this->inner->escapeString($value);
     }
 }

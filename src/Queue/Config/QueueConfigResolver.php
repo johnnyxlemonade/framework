@@ -23,6 +23,8 @@ final class QueueConfigResolver
         $handlers = [];
         $table = 'system_queue_job';
         $failedTable = 'system_queue_failed_job';
+        $leaseSeconds = QueueDatabaseConfig::DEFAULT_LEASE_SECONDS;
+        $maxAttempts = QueueDatabaseConfig::DEFAULT_MAX_ATTEMPTS;
 
         foreach ($definitions as $definition) {
             $data = $definition->toArray();
@@ -51,13 +53,30 @@ final class QueueConfigResolver
             if (array_key_exists('failed_table', $database)) {
                 $failedTable = ConfigValueNormalizer::nonEmptyStringOr($database['failed_table'], $failedTable);
             }
+            if (array_key_exists('lease_seconds', $database)) {
+                $leaseSeconds = $this->positiveInteger(
+                    $database['lease_seconds'],
+                    'Database queue lease_seconds',
+                );
+            }
+            if (array_key_exists('max_attempts', $database)) {
+                $maxAttempts = $this->positiveInteger(
+                    $database['max_attempts'],
+                    'Database queue max_attempts',
+                );
+            }
         }
 
         return new QueueConfig(
             defaultTransport: $defaultTransport,
             transports: $transports,
             handlers: $handlers,
-            database: new QueueDatabaseConfig($table, $failedTable),
+            database: new QueueDatabaseConfig(
+                table: $table,
+                failedTable: $failedTable,
+                leaseSeconds: $leaseSeconds,
+                maxAttempts: $maxAttempts,
+            ),
         );
     }
 
@@ -99,4 +118,23 @@ final class QueueConfigResolver
         return $transports;
     }
 
+    private function positiveInteger(mixed $value, string $label): int
+    {
+        $normalized = null;
+        if (is_int($value)) {
+            $normalized = $value;
+        } elseif (is_string($value) && preg_match('/^[1-9][0-9]*$/D', $value) === 1) {
+            $normalized = (int) $value;
+        }
+
+        if ($normalized === null || $normalized < 1) {
+            throw new \InvalidArgumentException(sprintf(
+                '%s must be a positive integer; received %s.',
+                $label,
+                is_scalar($value) ? (string) $value : get_debug_type($value),
+            ));
+        }
+
+        return $normalized;
+    }
 }

@@ -13,12 +13,15 @@ use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
+use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
 use Lemonade\Framework\Queue\Cli\QueueInstallCommand;
 use Lemonade\Framework\Queue\Cli\QueueWorkCommand;
 use Lemonade\Framework\Queue\Config\QueueConfig;
 use Lemonade\Framework\Queue\Config\QueueConfigDefinition;
 use Lemonade\Framework\Queue\Config\QueueConfigResolver;
+use Lemonade\Framework\Queue\Internal\DatabaseQueueDialect;
+use Lemonade\Framework\Queue\Internal\DatabaseQueueSchemaValidator;
 use Lemonade\Framework\Queue\Transport\DatabaseQueueTransport;
 use Lemonade\Framework\Queue\Transport\SyncQueueTransport;
 
@@ -79,6 +82,19 @@ final readonly class QueueServiceProvider implements ServiceProviderInterface
             );
         });
         $container->singleton(SyncQueueTransport::class, SyncQueueTransport::class);
+        $container->singleton(DatabaseQueueDialect::class, static function (ContainerInterface $container): DatabaseQueueDialect {
+            return DatabaseQueueDialect::fromConfig($container->get(DatabaseConfig::class));
+        });
+        $container->singleton(
+            DatabaseQueueSchemaValidator::class,
+            static function (ContainerInterface $container): DatabaseQueueSchemaValidator {
+                return new DatabaseQueueSchemaValidator(
+                    db: $container->get(DatabaseDriverInterface::class),
+                    connection: $container->get(ConnectionInterface::class),
+                    dialect: $container->get(DatabaseQueueDialect::class),
+                );
+            },
+        );
         $container->singleton(DatabaseQueueTransport::class, static function (ContainerInterface $container): DatabaseQueueTransport {
             $config = $container->get(QueueConfig::class);
 
@@ -86,8 +102,12 @@ final readonly class QueueServiceProvider implements ServiceProviderInterface
                 serializer: $container->get(MessageSerializer::class),
                 db: $container->get(DatabaseDriverInterface::class),
                 connection: $container->get(ConnectionInterface::class),
+                dialect: $container->get(DatabaseQueueDialect::class),
+                schemaValidator: $container->get(DatabaseQueueSchemaValidator::class),
                 table: $config->database->table,
                 failedTable: $config->database->failedTable,
+                leaseSeconds: $config->database->leaseSeconds,
+                maxAttempts: $config->database->maxAttempts,
             );
         });
 
