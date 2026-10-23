@@ -70,6 +70,67 @@ final class RequestLoggingMiddlewareTest extends TestCase
         self::assertFileDoesNotExist($this->requestLogFile());
     }
 
+    public function testRequestLoggingUsesOnlySafeAllowlistedHttpMetadata(): void
+    {
+        $factory = new Psr17Factory();
+        $request = $factory
+            ->createServerRequest(
+                'POST',
+                'https://example.test/account/profile?token=query-secret&password=query-password',
+            )
+            ->withHeader('Authorization', 'Bearer authorization-secret')
+            ->withHeader('Cookie', 'session=cookie-secret')
+            ->withHeader('Referer', 'https://example.test/login?api_key=referer-secret')
+            ->withHeader('User-Agent', 'user-agent-secret')
+            ->withHeader('X-Request-Id', 'request-123')
+            ->withParsedBody([
+                'password' => 'form-secret',
+            ])
+            ->withBody($factory->createStream('raw-body-secret'));
+
+        $response = $this->middleware(new LoggingConfig(7, true, 0, false))->process(
+            $request,
+            new RequestLoggingResponseHandler(
+                status: 201,
+                headers: [
+                    'Set-Cookie' => 'session=response-cookie-secret',
+                    'X-Diagnostic-Token' => 'response-header-secret',
+                ],
+            ),
+        );
+
+        self::assertSame(201, $response->getStatusCode());
+
+        $records = $this->readRequestLogRecords();
+        self::assertCount(1, $records);
+        self::assertSame('http.request', $records[0]['message'] ?? null);
+        self::assertSame('POST', $records[0]['context']['method'] ?? null);
+        self::assertSame('/account/profile', $records[0]['context']['path'] ?? null);
+        self::assertSame('request-123', $records[0]['context']['request_id'] ?? null);
+        self::assertSame(201, $records[0]['context']['status'] ?? null);
+        self::assertIsInt($records[0]['context']['duration_ms'] ?? null);
+        self::assertSame(
+            ['method', 'path', 'request_id', 'status', 'duration_ms'],
+            array_keys($records[0]['context']),
+        );
+
+        $serialized = json_encode($records, JSON_THROW_ON_ERROR);
+        foreach ([
+            'query-secret',
+            'query-password',
+            'authorization-secret',
+            'cookie-secret',
+            'referer-secret',
+            'user-agent-secret',
+            'form-secret',
+            'raw-body-secret',
+            'response-cookie-secret',
+            'response-header-secret',
+        ] as $secret) {
+            self::assertStringNotContainsString($secret, $serialized);
+        }
+    }
+
     private function middleware(LoggingConfig $config): RequestLoggingMiddleware
     {
         $context = new ApplicationContext(
@@ -103,12 +164,36 @@ final class RequestLoggingMiddlewareTest extends TestCase
             . date('Y-m-d')
             . '.log';
     }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function readRequestLogRecords(): array
+    {
+        $contents = file_get_contents($this->requestLogFile());
+        self::assertIsString($contents);
+
+        $records = [];
+        $lines = preg_split('/\R/', trim($contents));
+
+        foreach (is_array($lines) ? $lines : [] as $line) {
+            $decoded = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+            self::assertIsArray($decoded);
+            $records[] = $decoded;
+        }
+
+        return $records;
+    }
 }
 
 final class RequestLoggingResponseHandler implements RequestHandlerInterface
 {
+    /**
+     * @param array<string, string> $headers
+     */
     public function __construct(
         private readonly int $status,
+        private readonly array $headers = [],
     ) {
     }
 
@@ -116,6 +201,12 @@ final class RequestLoggingResponseHandler implements RequestHandlerInterface
     {
         unset($request);
 
-        return (new Psr17Factory())->createResponse($this->status);
+        $response = (new Psr17Factory())->createResponse($this->status);
+
+        foreach ($this->headers as $name => $value) {
+            $response = $response->withHeader($name, $value);
+        }
+
+        return $response;
     }
 }

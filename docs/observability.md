@@ -56,10 +56,10 @@ Database connections report their timing to the active benchmark run. The respon
 - `X-Benchmark-Db-Time-Ms` for SQL prepare/bind/execute time, excluding connection open
 - `X-Benchmark-Db-Query-Count` for executed SQL statements
 
-The structured `request.benchmark` log includes the same values under `database`.
-When application debug mode is enabled, `database.queries` additionally contains SQL,
-bindings, and per-query elapsed time. In non-debug mode that list remains empty, so
-bindings are not written to production benchmark logs.
+The structured `request.benchmark` log includes the same aggregate values under `database`.
+SQL text and bindings are never written by the HTTP benchmark logger, including in debug mode.
+Detailed query data may still exist in the request-local `BenchmarkRun` for development
+diagnostics, but it does not cross the framework file-logging boundary.
 
 ## Logging
 
@@ -88,6 +88,20 @@ config:
 ```
 
 `app` and `error` are always available. `error` is reserved for runtime and application exceptions, so ordinary HTTP 404 responses are not written there. Request logging is opt-in; when enabled, `min_status: 0` records every response, `400` records client and server failures, and `500` records server failures. This makes a 404 observable in `request.log` only when request logging is enabled and its threshold includes 404.
+
+Framework-generated HTTP request, benchmark, and error records use a fixed metadata allowlist.
+They retain the normalized method, URI path without a query string, validated request ID,
+response status, and elapsed time where applicable. They do not record query strings, cookies,
+request bodies, form values, SQL bindings, raw exception messages and traces, or request and
+response header values other than the validated request ID. This policy is identical in debug
+and production modes. Development error responses may still display exception diagnostics and
+must not be exposed as a production mode.
+
+The generic PSR-3 logger remains an application logging API: values, exception objects, or
+messages explicitly supplied by application code are outside the HTTP metadata boundary and are
+not automatically redacted. Applications should pass an explicit non-sensitive context instead
+of raw request objects or credentials. Credentials should not be embedded in URI paths because a
+path is intentionally retained for request diagnostics.
 
 Benchmark file logging is opt-in and does not control development-only benchmark response diagnostics or the
 HTML comment setting.

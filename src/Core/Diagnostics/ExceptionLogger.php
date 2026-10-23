@@ -48,6 +48,46 @@ final class ExceptionLogger
     }
 
     /**
+     * Records an HTTP-boundary throwable without persisting its message, trace, or object graph.
+     *
+     * This boundary is intended for failures that may include request-controlled data.
+     */
+    public function logHttp(Throwable $exception, string $source): void
+    {
+        $source = preg_match('/^[a-z0-9._-]{1,64}$/D', $source) === 1
+            ? $source
+            : 'http';
+        $context = [
+            'exception_class' => $exception::class,
+            'file' => $exception->getFile(),
+            'line' => $exception->getLine(),
+            'source' => $source,
+        ];
+
+        try {
+            if ($this->container->has(LogManager::class)) {
+                $this->container
+                    ->get(LogManager::class)
+                    ->error()
+                    ->error('Unhandled HTTP request exception.', $context);
+
+                return;
+            }
+        } catch (Throwable) {
+            // LogManager may not be available during early bootstrap failure.
+        }
+
+        try {
+            $this->fallbackLogger()->error('Unhandled HTTP request exception.', [
+                ...$context,
+                'logger_fallback' => true,
+            ]);
+        } catch (Throwable) {
+            // Fallback logging must never break exception handling.
+        }
+    }
+
+    /**
      * Records a PHP diagnostic with its severity and source location.
      */
     public function logPhpDiagnostic(
@@ -84,21 +124,7 @@ final class ExceptionLogger
     private function logFallback(Throwable $exception, string $source): void
     {
         try {
-            $config = $this->container->has(LoggingConfig::class)
-                ? $this->container->get(LoggingConfig::class)
-                : null;
-
-            if ($config instanceof LoggingConfig) {
-                $days = $config->retentionDays;
-            } else {
-                $days = 7;
-            }
-
-            (new RotatingFileLogger(
-                file: $this->context->resolveLogPath('error.log'),
-                directoryManager: $this->container->get(DirectoryManagerInterface::class),
-                retentionDays: $days,
-            ))->error($exception->getMessage(), [
+            $this->fallbackLogger()->error($exception->getMessage(), [
                 ...$this->exceptionContext($exception, $source),
                 'logger_fallback' => true,
             ]);
@@ -127,5 +153,23 @@ final class ExceptionLogger
             'trace' => $exception->getTraceAsString(),
             'source' => $source,
         ];
+    }
+
+    private function fallbackLogger(?int $retentionDays = null): RotatingFileLogger
+    {
+        if ($retentionDays === null) {
+            $config = $this->container->has(LoggingConfig::class)
+                ? $this->container->get(LoggingConfig::class)
+                : null;
+            $retentionDays = $config instanceof LoggingConfig
+                ? $config->retentionDays
+                : 7;
+        }
+
+        return new RotatingFileLogger(
+            file: $this->context->resolveLogPath('error.log'),
+            directoryManager: $this->container->get(DirectoryManagerInterface::class),
+            retentionDays: $retentionDays,
+        );
     }
 }

@@ -885,6 +885,19 @@ final class RouterTest extends TestCase
         $router->match(new ServerRequest('GET', '/missing'));
     }
 
+    public function testMissingRouteDiagnosticNeverRetainsTheQueryString(): void
+    {
+        $router = new Router();
+
+        try {
+            $router->match(new ServerRequest('GET', '/missing?token=query-secret'));
+            self::fail('A missing route should throw.');
+        } catch (RouteNotFoundException $exception) {
+            self::assertSame('Route not found for [GET] /missing', $exception->getMessage());
+            self::assertStringNotContainsString('query-secret', $exception->getMessage());
+        }
+    }
+
     public function testMatchHeadFindsExplicitHeadRoute(): void
     {
         $router = new Router();

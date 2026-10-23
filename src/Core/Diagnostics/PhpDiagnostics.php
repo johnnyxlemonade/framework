@@ -21,6 +21,7 @@ final class PhpDiagnostics
 
     private bool $fatalReported = false;
     private bool $errorHandlerInstalled = false;
+    private bool $sanitizeMessages = false;
     private int $installationDepth = 0;
 
     public function __construct(
@@ -29,8 +30,12 @@ final class PhpDiagnostics
     ) {
     }
 
-    public function install(): void
+    /**
+     * Installs diagnostics and optionally treats messages as HTTP-input-sensitive log data.
+     */
+    public function install(bool $sanitizeMessages = false): void
     {
+        $this->sanitizeMessages = $this->sanitizeMessages || $sanitizeMessages;
         ++$this->installationDepth;
         if ($this->installationDepth > 1) {
             return;
@@ -193,9 +198,16 @@ final class PhpDiagnostics
     ): void {
         try {
             if ($this->container->has(ExceptionLogger::class)) {
-                $this->container
-                    ->get(ExceptionLogger::class)
-                    ->logPhpDiagnostic($severity, $message, $file, $line, $source);
+                $logger = $this->container->get(ExceptionLogger::class);
+
+                if ($this->sanitizeMessages) {
+                    $logger->logHttp(
+                        new ErrorException($message, 0, $severity, $file, $line),
+                        $source,
+                    );
+                } else {
+                    $logger->logPhpDiagnostic($severity, $message, $file, $line, $source);
+                }
 
                 return;
             }
@@ -203,6 +215,23 @@ final class PhpDiagnostics
             // PHP diagnostics must not recursively fail while being reported.
         }
 
-        error_log(sprintf('[Lemonade][PHP] %s in %s:%d (severity %d)', $message, $file, $line, $severity));
+        if ($this->sanitizeMessages) {
+            error_log(sprintf(
+                '[Lemonade][PHP] HTTP diagnostic in %s:%d (severity %d)',
+                $file,
+                $line,
+                $severity,
+            ));
+
+            return;
+        }
+
+        error_log(sprintf(
+            '[Lemonade][PHP] %s in %s:%d (severity %d)',
+            $message,
+            $file,
+            $line,
+            $severity,
+        ));
     }
 }

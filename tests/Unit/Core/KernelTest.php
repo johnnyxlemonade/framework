@@ -146,7 +146,7 @@ final class KernelTest extends TestCase
         self::assertStringNotContainsString(__FILE__, $body);
     }
 
-    public function testRunExceptionIsLoggedByExceptionLogger(): void
+    public function testRunExceptionIsLoggedWithoutItsPotentiallySensitiveMessage(): void
     {
         $routingPath = $this->root
             . DIRECTORY_SEPARATOR . 'app'
@@ -166,7 +166,9 @@ final class KernelTest extends TestCase
         self::assertFileExists($logPath);
         $contents = file_get_contents($logPath);
         self::assertIsString($contents);
-        self::assertStringContainsString('Routing file not found', $contents);
+        self::assertStringContainsString('Unhandled HTTP request exception.', $contents);
+        self::assertStringContainsString(\RuntimeException::class, $contents);
+        self::assertStringNotContainsString('Routing file not found', $contents);
     }
 
     public function testHandlePassesResponseToEmitter(): void

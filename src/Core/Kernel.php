@@ -95,8 +95,9 @@ final class Kernel
      * dispatch to {@see Framework::runInScope()}.
      * The scope is closed in a finally block. Route-not-found failures are converted
      * to a 404 text response and all other throwables are converted to a 500 text
-     * response. Captured exceptions are recorded in the benchmark and logged, and
-     * debug mode may include exception details in the response body.
+     * response. Captured exceptions are recorded in the benchmark; non-routing
+     * failures are logged through the sanitized HTTP boundary. Debug mode may
+     * include exception details in the response body.
      *
      * The method does not propagate request failures because it converts them to
      * responses. Invalid HTTP metadata always produces a generic 400 response,
@@ -130,7 +131,7 @@ final class Kernel
     {
         /** @var PhpDiagnostics $phpDiagnostics */
         $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
-        $phpDiagnostics->install();
+        $phpDiagnostics->install(sanitizeMessages: true);
         $this->benchmark->start([
             'entrypoint' => 'http',
             'started_at' => $startedAt,
@@ -179,7 +180,6 @@ final class Kernel
             ];
         } catch (RouteNotFoundException $exception) {
             $this->recordBenchmarkException($exception);
-            $this->logException($exception);
 
             return [
                 'response' => $this->notFoundResponse($exception),
@@ -304,6 +304,6 @@ final class Kernel
     {
         $this->container
             ->get(ExceptionLogger::class)
-            ->log($exception, 'kernel');
+            ->logHttp($exception, 'kernel');
     }
 }

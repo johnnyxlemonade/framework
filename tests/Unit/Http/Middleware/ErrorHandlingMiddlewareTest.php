@@ -21,6 +21,7 @@ use Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware;
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
 use Lemonade\Framework\View\View;
 use Nyholm\Psr7\Factory\Psr17Factory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -84,7 +85,7 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         self::assertSame([], $this->readErrorLogRecords());
     }
 
-    public function testRuntimeExceptionReturns500AndWritesErrorLogWithExceptionContext(): void
+    public function testRuntimeExceptionReturns500AndWritesSanitizedExceptionContext(): void
     {
         $factory = new Psr17Factory();
         $middleware = $this->middleware(container: new TrackingViewContainer(new View($this->viewsPath())));
@@ -102,14 +103,87 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         self::assertSame(500, $response->getStatusCode());
         self::assertCount(1, $records);
         self::assertSame('error', $records[0]['level'] ?? null);
-        self::assertSame('Unexpected failure.', $records[0]['message'] ?? null);
+        self::assertSame('Unhandled HTTP request exception.', $records[0]['message'] ?? null);
         self::assertIsArray($records[0]['context'] ?? null);
-        self::assertSame(RuntimeException::class, $records[0]['context']['exception'] ?? null);
-        self::assertSame('Unexpected failure.', $records[0]['context']['message'] ?? null);
-        self::assertIsString($records[0]['context']['trace'] ?? null);
-        self::assertNotSame('', $records[0]['context']['trace'] ?? '');
+        self::assertSame(RuntimeException::class, $records[0]['context']['exception_class'] ?? null);
+        self::assertArrayNotHasKey('message', $records[0]['context']);
+        self::assertArrayNotHasKey('trace', $records[0]['context']);
         self::assertStringNotContainsString('Unexpected failure.', (string) $response->getBody());
         self::assertStringNotContainsString(__FILE__, (string) $response->getBody());
+    }
+
+    #[DataProvider('httpLoggingEnvironmentProvider')]
+    public function testErrorLogsExcludeSensitiveHttpInputInEveryEnvironment(
+        Environment $environment,
+        bool $developmentResponseIncludesDetails,
+    ): void {
+        $factory = new Psr17Factory();
+        $middleware = $this->middleware(
+            container: new TrackingViewContainer(new View($this->viewsPath())),
+            environment: $environment,
+        );
+        $request = $factory
+            ->createServerRequest(
+                'POST',
+                'https://example.test/account/profile?token=query-secret&password=query-password',
+            )
+            ->withHeader('Authorization', 'Bearer authorization-secret')
+            ->withHeader('Cookie', 'session=cookie-secret')
+            ->withHeader('Referer', 'https://example.test/login?api_key=referer-secret')
+            ->withHeader('X-Request-Id', 'request-456')
+            ->withParsedBody([
+                'password' => 'form-secret',
+            ])
+            ->withBody($factory->createStream('raw-body-secret'));
+        $exceptionMessage = implode(' ', [
+            'query-secret',
+            'authorization-secret',
+            'cookie-secret',
+            'form-secret',
+            'raw-body-secret',
+        ]);
+
+        $response = $middleware->process(
+            $request,
+            new ErrorMiddlewareThrowableHandler(new RuntimeException($exceptionMessage)),
+        );
+
+        $records = $this->readErrorLogRecords();
+        self::assertCount(1, $records);
+        self::assertSame('Unhandled HTTP request exception.', $records[0]['message'] ?? null);
+        self::assertSame([
+            'method' => 'POST',
+            'path' => '/account/profile',
+            'request_id' => 'request-456',
+        ], $records[0]['context']['request'] ?? null);
+
+        $serialized = json_encode($records, JSON_THROW_ON_ERROR);
+        foreach ([
+            'query-secret',
+            'query-password',
+            'authorization-secret',
+            'cookie-secret',
+            'referer-secret',
+            'form-secret',
+            'raw-body-secret',
+        ] as $secret) {
+            self::assertStringNotContainsString($secret, $serialized);
+        }
+
+        if ($developmentResponseIncludesDetails) {
+            self::assertStringContainsString($exceptionMessage, (string) $response->getBody());
+        } else {
+            self::assertStringNotContainsString($exceptionMessage, (string) $response->getBody());
+        }
+    }
+
+    /**
+     * @return iterable<string, array{Environment, bool}>
+     */
+    public static function httpLoggingEnvironmentProvider(): iterable
+    {
+        yield 'development' => [Environment::Development, true];
+        yield 'production' => [Environment::Production, false];
     }
 
     public function testDevelopmentHtml500ContainsDeveloperDetailAndTrace(): void

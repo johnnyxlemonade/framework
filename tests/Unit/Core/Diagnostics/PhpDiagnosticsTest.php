@@ -78,6 +78,25 @@ final class PhpDiagnosticsTest extends TestCase
         self::assertStringContainsString('Production warning.', $this->errorLogContents());
     }
 
+    public function testHttpDiagnosticModeDoesNotPersistRequestControlledMessages(): void
+    {
+        $diagnostics = $this->diagnostics(Environment::Production);
+        $diagnostics->install(sanitizeMessages: true);
+
+        ob_start();
+        trigger_error('authorization-secret query-secret body-secret', E_USER_WARNING);
+        $output = ob_get_clean();
+        $diagnostics->uninstall();
+
+        $contents = $this->errorLogContents();
+        self::assertSame('', $output);
+        self::assertStringContainsString('Unhandled HTTP request exception.', $contents);
+        self::assertStringContainsString(ErrorException::class, $contents);
+        self::assertStringNotContainsString('authorization-secret', $contents);
+        self::assertStringNotContainsString('query-secret', $contents);
+        self::assertStringNotContainsString('body-secret', $contents);
+    }
+
     public function testInstallControlsDisplayErrorsFromEnvironment(): void
     {
         $production = $this->diagnostics(Environment::Production);

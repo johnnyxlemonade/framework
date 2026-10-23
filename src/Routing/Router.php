@@ -352,8 +352,8 @@ final class Router
     /**
      * Matches the request method against its URI path or a dispatch-only path override.
      *
-     * The override changes only route selection; request metadata and the URI reported
-     * by a missing-route exception remain those of the original request.
+     * The override changes only route selection; request metadata and the query-free
+     * path reported by a missing-route exception remain those of the original request.
      */
     public function match(ServerRequestInterface $request, ?string $dispatchPath = null): RouteMatch
     {
@@ -372,7 +372,7 @@ final class Router
 
         throw RouteNotFoundException::forRequest(
             $method,
-            (string) $request->getUri(),
+            $request->getUri()->getPath(),
         );
     }
 

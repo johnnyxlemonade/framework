@@ -104,12 +104,10 @@ final readonly class ErrorHandlingMiddleware implements MiddlewareInterface
                 return;
             }
 
-            $this->logs->error()->error($exception->getMessage(), [
-                'exception' => $exception::class,
-                'message' => $exception->getMessage(),
+            $this->logs->error()->error('Unhandled HTTP request exception.', [
+                'exception_class' => $exception::class,
                 'file' => $exception->getFile(),
                 'line' => $exception->getLine(),
-                'trace' => $exception->getTraceAsString(),
                 'request' => $this->httpLogContext->request($request),
             ]);
         } catch (Throwable) {
