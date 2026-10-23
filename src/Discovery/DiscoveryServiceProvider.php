@@ -47,11 +47,11 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
         $container->singleton(RobotsConfig::class, static fn(ContainerInterface $container): RobotsConfig => $container->get(DiscoveryConfig::class)->robots);
         $container->singleton(SitemapConfig::class, static fn(ContainerInterface $container): SitemapConfig => $container->get(DiscoveryConfig::class)->sitemap);
 
-        $container->singleton(RobotsTxtGenerator::class, RobotsTxtGenerator::class);
+        $container->scoped(RobotsTxtGenerator::class, RobotsTxtGenerator::class);
         $container->singleton(SitemapIndexGenerator::class, SitemapIndexGenerator::class);
         $container->singleton(RouteSitemapProvider::class, RouteSitemapProvider::class);
         $container->singleton(SitemapProviderRegistry::class, SitemapProviderRegistry::class);
-        $container->singleton(SitemapGenerator::class, static function (ContainerInterface $container): SitemapGenerator {
+        $container->scoped(SitemapGenerator::class, static function (ContainerInterface $container): SitemapGenerator {
             return new SitemapGenerator(
                 $container->get(SitemapProviderRegistry::class),
                 $container->get(BaseUrlResolver::class),
@@ -59,7 +59,7 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
                 $container->has(LoggerInterface::class) ? $container->get(LoggerInterface::class) : null,
             );
         });
-        $container->singleton(SitemapFileGenerator::class, static function (ContainerInterface $container): SitemapFileGenerator {
+        $container->scoped(SitemapFileGenerator::class, static function (ContainerInterface $container): SitemapFileGenerator {
             return new SitemapFileGenerator(
                 $container->get(SitemapGenerator::class),
                 $container->get(SitemapIndexGenerator::class),
@@ -70,8 +70,8 @@ final class DiscoveryServiceProvider implements ServiceProviderInterface
             );
         });
 
-        $container->singleton(RobotsController::class, RobotsController::class);
-        $container->singleton(SitemapController::class, SitemapController::class);
+        $container->scoped(RobotsController::class, RobotsController::class);
+        $container->scoped(SitemapController::class, SitemapController::class);
 
         $config = $container->get(DiscoveryConfig::class);
 

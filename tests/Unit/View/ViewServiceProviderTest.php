@@ -72,11 +72,10 @@ final class ViewServiceProviderTest extends TestCase
         $viewB = $container->get(View::class);
         self::assertSame($viewA, $viewB);
 
-        $this->writeView('helper', '<?= get_class($component) ?>|<?= get_class($baseUrl) ?>|<?= get_class($url) ?>');
+        $this->writeView('helper', '<?= get_class($component) ?>|<?= get_class($url) ?>');
         $output = $viewA->render('helper');
 
         self::assertStringContainsString(ComponentRegistry::class, $output);
-        self::assertStringContainsString(BaseUrlResolver::class, $output);
         self::assertStringContainsString(UrlGenerator::class, $output);
     }
 
@@ -108,7 +107,7 @@ final class ViewServiceProviderTest extends TestCase
             );
 
             self::assertSame(
-                'https://example.test/css/app.css',
+                '/css/app.css',
                 $scope->get(ViewRendererInterface::class)->content('helpers-variable'),
             );
         } finally {

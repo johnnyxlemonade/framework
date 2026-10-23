@@ -393,6 +393,19 @@ final class FrameworkTest extends TestCase
         self::assertNull($container->get(Benchmark::class)->current());
     }
 
+    public function testStandaloneRunMapsInvalidRequestMetadataToSafeBadRequest(): void
+    {
+        $framework = $this->framework();
+        $request = (new \Nyholm\Psr7\ServerRequest('GET', '/'))
+            ->withHeader('Host', 'invalid host.example');
+
+        $response = $framework->run($request);
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('400 Bad Request', (string) $response->getBody());
+        self::assertNull($framework->container()->get(Benchmark::class)->current());
+    }
+
     public function testMiddlewareQueuedBeforeHttpServiceProviderRegistrationIsAppliedInRun(): void
     {
         $framework = $this->framework();

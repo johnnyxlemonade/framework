@@ -105,6 +105,11 @@ captured by the root `View` singleton.
 <?= $helpers->csrfField() ?>
 ```
 
+`asset()` returns a root-relative URL such as `/css/app.css`; rendering a view therefore does not
+require `app.base_url`, `allowed_hosts`, or proxy configuration. Code that genuinely needs an
+absolute URL must use `BaseUrlResolver`, which accepts only explicit `app.base_url` or an
+allowlisted request host.
+
 `csrfField()` is the canonical form helper. It emits the fixed public
 `CsrfTokenNames::FORM_FIELD` name and a session-scoped token; templates must not repeat that field
 name manually.

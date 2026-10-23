@@ -12,6 +12,7 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Core\Http\ResponseBuilder;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Http\Response\Responses;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -67,7 +68,19 @@ final class CoreServiceProvider implements ServiceProviderInterface
          * Core framework utilities.
          */
         $builder->scoped(ControllerResolver::class, ControllerResolver::class);
-        $container->singleton(BaseUrlResolver::class, BaseUrlResolver::class);
+        $builder->scoped(
+            BaseUrlResolver::class,
+            static function (ContainerInterface $container): BaseUrlResolver {
+                $requestContext = $container->has(ResolvedRequestContext::class)
+                    ? $container->get(ResolvedRequestContext::class)
+                    : null;
+
+                return new BaseUrlResolver(
+                    $container->get(AppConfig::class),
+                    $requestContext,
+                );
+            },
+        );
         $container->singleton(FrameworkInfo::class, FrameworkInfo::class);
         $container->singleton(ExceptionLogger::class, ExceptionLogger::class);
         $timezone = $this->resolveClockTimezone(

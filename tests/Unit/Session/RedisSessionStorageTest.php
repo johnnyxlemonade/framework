@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Session;
 
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 use Lemonade\Framework\Session\Storage\RedisSessionClientInterface;
 use Lemonade\Framework\Session\Storage\RedisSessionStorage;
 use Lemonade\Framework\Session\Storage\SessionCookie;
@@ -211,6 +212,7 @@ final class RedisSessionStorageTest extends TestCase
 
                 return true;
             },
+            secure: SessionCookieSecure::Always,
         );
     }
 

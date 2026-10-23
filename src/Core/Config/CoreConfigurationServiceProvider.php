@@ -12,6 +12,11 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Config\HttpServerConfig;
+use Lemonade\Framework\Http\Config\HttpServerConfigDefinition;
+use Lemonade\Framework\Http\Config\HttpServerConfigResolver;
+use Lemonade\Framework\Http\Request\RequestContextResolver;
+use Lemonade\Framework\Http\Request\TrustedProxyMatcher;
 
 /**
  * Registers the root typed-configuration services used before application providers run.
@@ -25,6 +30,22 @@ final class CoreConfigurationServiceProvider implements ServiceProviderInterface
     {
         $container->singleton(Config::class, new Config());
         $container->singleton(ConfigDefinitionRegistry::class, new ConfigDefinitionRegistry());
+        $container->transient(HttpServerConfigResolver::class, HttpServerConfigResolver::class);
+        $container->transient(HttpServerConfig::class, static function (ContainerInterface $container): HttpServerConfig {
+            return $container
+                ->get(HttpServerConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    HttpServerConfigDefinition::moduleKey(),
+                    HttpServerConfigDefinition::class,
+                ));
+        });
+        $container->transient(
+            TrustedProxyMatcher::class,
+            static fn(ContainerInterface $container): TrustedProxyMatcher => new TrustedProxyMatcher(
+                $container->get(HttpServerConfig::class)->trustedProxies(),
+            ),
+        );
+        $container->transient(RequestContextResolver::class, RequestContextResolver::class);
         $container->singleton(AppConfigResolver::class, AppConfigResolver::class);
         $container->singleton(AppConfig::class, static function (ContainerInterface $container): AppConfig {
             return $container

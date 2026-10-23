@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Validation\Rule;
 
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Validation\Endpoint\RecaptchaEndpointProviderInterface;
 use Lemonade\Framework\Validation\Endpoint\ValidationEndpointNotConfiguredException;
 use Lemonade\Framework\Validation\Rule\Traits\JsonFetchTrait;
@@ -11,18 +12,28 @@ use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 
+/**
+ * Verifies one reCAPTCHA token and includes only the trust-resolved client address.
+ */
 final class RecaptchaRule implements ValidationRuleInterface
 {
     use JsonFetchTrait;
 
+    /**
+     * Binds remote verification to HTTP transport services and an optional active request context.
+     */
     public function __construct(
         private readonly ClientInterface $client,
         private readonly RequestFactoryInterface $requestFactory,
         private readonly StreamFactoryInterface $streamFactory,
         private readonly RecaptchaEndpointProviderInterface $endpointProvider,
+        private readonly ?ResolvedRequestContext $requestContext = null,
     ) {
     }
 
+    /**
+     * Returns true only when the configured verification endpoint accepts the supplied token.
+     */
     public function validate(mixed $value, ?string $param, array $data): bool
     {
         unset($data);
@@ -39,9 +50,8 @@ final class RecaptchaRule implements ValidationRuleInterface
             'response' => $token,
         ];
 
-        $remoteIpRaw = $_SERVER['REMOTE_ADDR'] ?? '';
-        $remoteIp = is_scalar($remoteIpRaw) ? trim((string) $remoteIpRaw) : '';
-        if ($remoteIp !== '') {
+        $remoteIp = $this->requestContext?->clientIp();
+        if ($remoteIp !== null) {
             $payload['remoteip'] = $remoteIp;
         }
 

@@ -5,25 +5,28 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Support;
 
 use Lemonade\Framework\Core\Config\AppConfig;
-use Lemonade\Framework\Http\Request\ServerHelper;
+use Lemonade\Framework\Http\Request\Exception\InvalidRequestMetadataException;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
+use RuntimeException;
 
 /**
- * Resolves an application base URL from explicit configuration or current request metadata.
+ * Resolves absolute application URLs only from explicit configuration or validated request metadata.
  *
- * Explicit configuration takes precedence, while relative paths are joined at one URL boundary.
+ * An explicit app base URL always wins and is never combined with a forwarded request prefix.
  */
 final readonly class BaseUrlResolver
 {
     /**
-     * Binds URL resolution to the application's resolved configuration.
+     * Binds URL resolution to application configuration and an optional active request context.
      */
     public function __construct(
         private AppConfig $config,
+        private ?ResolvedRequestContext $requestContext = null,
     ) {
     }
 
     /**
-     * Resolves the application base URL and optionally appends a relative path.
+     * Resolves the canonical base URL and appends an optional relative path.
      */
     public function __invoke(string $path = ''): string
     {
@@ -31,11 +34,14 @@ final readonly class BaseUrlResolver
     }
 
     /**
-     * Uses configured URL data when available and otherwise derives scheme and host from the request.
+     * Uses explicit configuration first and otherwise requires an allowlisted request host.
+     *
+     * @throws InvalidRequestMetadataException When an active request has no allowlisted host.
+     * @throws RuntimeException When request-derived resolution is attempted outside an HTTP request scope.
      */
     public function baseUrl(string $path = ''): string
     {
-        $baseUrl = $this->configuredBaseUrl() ?? $this->baseUrlFromServer();
+        $baseUrl = $this->configuredBaseUrl() ?? $this->requestBaseUrl();
 
         if ($path === '') {
             return $baseUrl;
@@ -47,26 +53,37 @@ final readonly class BaseUrlResolver
     private function configuredBaseUrl(): ?string
     {
         $baseUrl = $this->config->baseUrl();
-        if ($baseUrl === null || trim($baseUrl) === '') {
+        if ($baseUrl === null) {
             return null;
         }
 
-        return rtrim($this->normalizeBaseUrl($baseUrl), '/');
+        return rtrim($baseUrl, '/');
     }
 
-    private function normalizeBaseUrl(string $baseUrl): string
+    private function requestBaseUrl(): string
     {
-        $baseUrl = trim($baseUrl);
-
-        if (str_starts_with($baseUrl, 'http://') || str_starts_with($baseUrl, 'https://')) {
-            return $baseUrl;
+        if (!$this->requestContext instanceof ResolvedRequestContext) {
+            throw new RuntimeException(
+                'Cannot generate an absolute URL without app.base_url outside an HTTP request. Configure app.base_url explicitly.',
+            );
         }
 
-        return ServerHelper::scheme() . '://' . $baseUrl;
-    }
+        $host = $this->requestContext->host();
+        if ($host === null) {
+            throw new InvalidRequestMetadataException(
+                'Cannot generate an absolute URL from this request host. Configure app.base_url or add the exact host to http_server.allowed_hosts.',
+            );
+        }
 
-    private function baseUrlFromServer(): string
-    {
-        return ServerHelper::scheme() . '://' . ServerHelper::host();
+        $authority = str_contains($host, ':') ? '[' . $host . ']' : $host;
+        $port = $this->requestContext->port();
+        if ($port !== null) {
+            $authority .= ':' . $port;
+        }
+
+        return $this->requestContext->scheme()
+            . '://'
+            . $authority
+            . $this->requestContext->prefix();
     }
 }

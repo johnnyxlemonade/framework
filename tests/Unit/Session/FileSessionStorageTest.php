@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Session;
 
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 use Lemonade\Framework\Session\SessionGarbageCollectionPolicy;
 use Lemonade\Framework\Session\Storage\FileSessionStorage;
 use Lemonade\Framework\Session\Storage\SessionCookie;
@@ -301,6 +302,7 @@ final class FileSessionStorageTest extends TestCase
 
                 return true;
             },
+            secure: SessionCookieSecure::Always,
         );
     }
 

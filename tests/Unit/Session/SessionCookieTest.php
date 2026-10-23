@@ -4,27 +4,15 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Session;
 
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 use Lemonade\Framework\Session\Storage\SessionCookie;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 final class SessionCookieTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $_SERVER = [];
-    }
-
-    protected function tearDown(): void
-    {
-        $_SERVER = [];
-
-        parent::tearDown();
-    }
-
     public function testCookieUsesTheConfiguredEnumAndSharedSecurityAttributes(): void
     {
         $emission = null;
@@ -41,6 +29,7 @@ final class SessionCookieTest extends TestCase
 
                 return true;
             },
+            requestContext: $this->context('http'),
         );
 
         $cookie->send(str_repeat('a', 64));
@@ -59,6 +48,7 @@ final class SessionCookieTest extends TestCase
             60,
             SessionCookieSameSite::None,
             static fn(string $name, string $value, array $options): bool => true,
+            requestContext: $this->context('http'),
         );
 
         $this->expectException(RuntimeException::class);
@@ -69,9 +59,23 @@ final class SessionCookieTest extends TestCase
         $cookie->send(str_repeat('a', 64));
     }
 
-    public function testSameSiteNoneIsAllowedOnADirectSecureRequest(): void
+    public function testAutoPolicyFailsWithoutARequestContext(): void
     {
-        $_SERVER['HTTPS'] = 'on';
+        $cookie = new SessionCookie(
+            'TEST_SESSION',
+            60,
+            SessionCookieSameSite::Lax,
+            static fn(string $name, string $value, array $options): bool => true,
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('without a request context');
+
+        $cookie->send(str_repeat('a', 64));
+    }
+
+    public function testSameSiteNoneIsAllowedOnAVerifiedSecureRequest(): void
+    {
         $emission = null;
         $cookie = new SessionCookie(
             'TEST_SESSION',
@@ -86,6 +90,7 @@ final class SessionCookieTest extends TestCase
 
                 return true;
             },
+            requestContext: $this->context('https'),
         );
 
         $cookie->send(str_repeat('a', 64));
@@ -95,9 +100,8 @@ final class SessionCookieTest extends TestCase
         self::assertSame(SessionCookieSameSite::None->value, $emission['options']['samesite']);
     }
 
-    public function testDirectHttpsDetectionTreatsOffCaseInsensitively(): void
+    public function testAutoPolicyUsesTheResolvedInsecureScheme(): void
     {
-        $_SERVER['HTTPS'] = 'OFF';
         $emission = null;
         $cookie = new SessionCookie(
             'TEST_SESSION',
@@ -112,6 +116,7 @@ final class SessionCookieTest extends TestCase
 
                 return true;
             },
+            requestContext: $this->context('http'),
         );
 
         $cookie->send(str_repeat('b', 64));
@@ -120,9 +125,8 @@ final class SessionCookieTest extends TestCase
         self::assertFalse($emission['options']['secure']);
     }
 
-    public function testDirectHttpsDetectionAcceptsTheCanonicalServerPortValue(): void
+    public function testAutoPolicySetsSecureBehindAVerifiedTlsTerminatingProxy(): void
     {
-        $_SERVER['SERVER_PORT'] = '443';
         $emission = null;
         $cookie = new SessionCookie(
             'TEST_SESSION',
@@ -137,11 +141,81 @@ final class SessionCookieTest extends TestCase
 
                 return true;
             },
+            requestContext: $this->context('https', true),
         );
 
         $cookie->send(str_repeat('c', 64));
 
         self::assertIsArray($emission);
         self::assertTrue($emission['options']['secure']);
+    }
+
+    public function testAlwaysPolicySetsSecureOnAnInsecureRequest(): void
+    {
+        $emission = null;
+        $cookie = new SessionCookie(
+            'TEST_SESSION',
+            60,
+            SessionCookieSameSite::Lax,
+            static function (string $name, string $value, array $options) use (&$emission): bool {
+                $emission = [
+                    'name' => $name,
+                    'value' => $value,
+                    'options' => $options,
+                ];
+
+                return true;
+            },
+            secure: SessionCookieSecure::Always,
+            requestContext: $this->context('http'),
+        );
+
+        $cookie->send(str_repeat('c', 64));
+
+        self::assertIsArray($emission);
+        self::assertTrue($emission['options']['secure']);
+    }
+
+    public function testSameSiteNoneIsAllowedWhenAlwaysPolicyProducesSecure(): void
+    {
+        $emission = null;
+        $cookie = new SessionCookie(
+            'TEST_SESSION',
+            60,
+            SessionCookieSameSite::None,
+            static function (string $name, string $value, array $options) use (&$emission): bool {
+                $emission = [
+                    'name' => $name,
+                    'value' => $value,
+                    'options' => $options,
+                ];
+
+                return true;
+            },
+            secure: SessionCookieSecure::Always,
+            requestContext: $this->context('http'),
+        );
+
+        $cookie->send(str_repeat('d', 64));
+
+        self::assertIsArray($emission);
+        self::assertTrue($emission['options']['secure']);
+        self::assertSame(SessionCookieSameSite::None->value, $emission['options']['samesite']);
+    }
+
+    /**
+     * @param 'http'|'https' $scheme
+     */
+    private function context(string $scheme, bool $viaTrustedProxy = false): ResolvedRequestContext
+    {
+        return new ResolvedRequestContext(
+            peerIp: '203.0.113.10',
+            clientIp: '203.0.113.10',
+            viaTrustedProxy: $viaTrustedProxy,
+            scheme: $scheme,
+            host: 'example.test',
+            port: null,
+            prefix: '',
+        );
     }
 }

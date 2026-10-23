@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 
 /**
  * Builds declarative session configuration entries for application config sources
@@ -31,6 +32,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
             ->driver('native')
             ->cookieName('LEMONADE_SESSION')
             ->cookieSameSite(SessionCookieSameSite::Lax)
+            ->cookieSecure(SessionCookieSecure::Auto)
             ->lifetime(7200)
             ->nativePath('sessions')
             ->filePath('sessions')
@@ -81,6 +83,14 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     public function cookieSameSite(SessionCookieSameSite $sameSite): self
     {
         return $this->set('cookie.same_site', strtolower($sameSite->value));
+    }
+
+    /**
+     * Selects whether Secure follows the verified request scheme or is always enabled.
+     */
+    public function cookieSecure(SessionCookieSecure $secure): self
+    {
+        return $this->set('cookie.secure', $secure->value);
     }
 
     /**
@@ -189,6 +199,9 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
         $cookieSameSite = array_key_exists('same_site', $cookie)
             ? $this->cookieSameSiteValue($cookie['same_site'])
             : $current->cookie()->sameSite();
+        $cookieSecure = array_key_exists('secure', $cookie)
+            ? $this->cookieSecureValue($cookie['secure'])
+            : $current->cookie()->secure();
 
         return new SessionConfig(
             driver: $driver,
@@ -196,6 +209,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
             cookie: new SessionCookieConfig(
                 name: $cookieName,
                 sameSite: $cookieSameSite,
+                secure: $cookieSecure,
             ),
             native: new SessionNativeConfig(
                 ConfigValueNormalizer::nonEmptyStringOr(
@@ -255,7 +269,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
         }
 
         throw new InvalidArgumentException(
-            'Session cookie configuration must be a mapping with name and same_site fields.',
+            'Session cookie configuration must be a mapping with name, same_site, and secure fields.',
         );
     }
 
@@ -278,6 +292,25 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     }
 
     /**
+     * Converts one configured transport-security value to the supported typed policy.
+     */
+    private function cookieSecureValue(mixed $value): SessionCookieSecure
+    {
+        $normalized = is_string($value) && trim($value) === $value
+            ? $value
+            : '';
+
+        return match ($normalized) {
+            'auto' => SessionCookieSecure::Auto,
+            'always' => SessionCookieSecure::Always,
+            default => throw new InvalidArgumentException(sprintf(
+                'Invalid session cookie secure value "%s". Expected one of: auto, always.',
+                is_scalar($value) ? (string) $value : get_debug_type($value),
+            )),
+        };
+    }
+
+    /**
      * Normalizes an explicitly configured scalar and leaves semantic validation to its value object.
      */
     private function configuredString(mixed $value): string
@@ -292,7 +325,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
     {
         $data = $this->toArray();
 
-        /** @var array{name: string, same_site: string} $cookie */
+        /** @var array{name: string, same_site: string, secure: string} $cookie */
         $cookie = $data['cookie'];
         /** @var array{path: string} $native */
         $native = $data['native'];
@@ -322,6 +355,7 @@ final class SessionConfigDefinition extends AbstractConfigDefinition
             cookie: new SessionCookieConfig(
                 name: $cookie['name'],
                 sameSite: $this->cookieSameSiteValue($cookie['same_site']),
+                secure: $this->cookieSecureValue($cookie['secure']),
             ),
             native: new SessionNativeConfig($native['path']),
             file: new SessionFileConfig($file['path']),

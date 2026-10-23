@@ -71,11 +71,12 @@ cookie. Every successful `start()` of a live session refreshes both the cookie e
 server-side file mtime, database `expires_at`, Redis TTL or active native save-handler record. A syntactically
 valid cookie whose server-side record is missing, expired or unreadable is not reused: the storage
 creates a cryptographically random replacement identity. Cookies use path `/`, `HttpOnly` and
-the configured `SameSite` policy, which defaults to `Lax`. `Secure` is enabled for direct HTTPS
-requests or port 443. `SameSite=None` requires such a secure request and fails explicitly otherwise,
-because browsers reject an insecure `None` cookie. Trusted-proxy header interpretation is outside
-the session subsystem. Starting or changing a session identity after headers were sent fails
-explicitly instead of allowing browser and server state to diverge.
+the configured `SameSite` policy, which defaults to `Lax`. `cookie.secure` defaults to `auto` and
+uses only the request-scoped trusted-proxy context; `always` unconditionally emits Secure and is
+appropriate when a cookie can be created outside an HTTP request. `SameSite=None` requires the
+resulting Secure value to be true because browsers reject an insecure `None` cookie. Session code
+never reads `$_SERVER` or forwarding headers directly. Starting or changing a session identity
+after headers were sent fails explicitly instead of allowing browser and server state to diverge.
 
 ```yaml
 module: session
@@ -83,10 +84,13 @@ config:
   cookie:
     name: LEMONADE_SESSION
     same_site: lax # lax, strict or none
+    secure: auto # auto or always
 ```
 
 Typed configuration rejects non-positive lifetimes, empty or non-canonical drivers, invalid cookie
-names, out-of-range Redis ports, negative Redis database numbers and non-positive Redis timeouts.
+names, unsupported Secure policies, out-of-range Redis ports, negative Redis database numbers and
+non-positive Redis timeouts. Session configuration is resolved during provider bootstrap so these
+errors cannot be deferred until the first session access.
 
 The lifecycle operations have distinct meanings:
 

@@ -4,74 +4,79 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Http\Request;
 
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Http\Request\ServerHelper;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 
 final class ServerHelperTest extends TestCase
 {
-    protected function setUp(): void
+    public function testRawValuesComeOnlyFromTheExplicitRequest(): void
     {
-        parent::setUp();
+        $request = new ServerRequest(
+            method: 'GET',
+            uri: 'http://example.test',
+            serverParams: ['HTTPS' => 'off', 'REQUEST_ID' => 'request-value'],
+        );
+        $helper = new ServerHelper($request, $this->context('http', 'example.test'));
 
-        $_SERVER = [];
+        self::assertSame('off', $helper->get('HTTPS'));
+        self::assertSame('request-value', $helper->get('REQUEST_ID'));
+        self::assertTrue($helper->has('REQUEST_ID'));
+        self::assertSame($request->getServerParams(), $helper->all());
     }
 
-    protected function tearDown(): void
+    public function testSchemeAndHttpsDelegateToTheResolvedContext(): void
     {
-        $_SERVER = [];
+        $request = (new ServerRequest('GET', 'http://backend.test'))
+            ->withHeader('X-Forwarded-Proto', 'http');
+        $helper = new ServerHelper($request, $this->context('https', 'public.example'));
 
-        parent::tearDown();
+        self::assertSame('https', $helper->scheme());
+        self::assertTrue($helper->isHttps());
     }
 
-    public function testHttpsFlagUsesCanonicalDirectServerValues(): void
+    public function testHostAndClientAddressUseValidatedContextValues(): void
     {
-        self::assertFalse(ServerHelper::isHttps());
+        $request = new ServerRequest('GET', 'http://evil.example');
+        $context = new ResolvedRequestContext(
+            peerIp: '10.0.0.5',
+            clientIp: '198.51.100.25',
+            viaTrustedProxy: true,
+            scheme: 'https',
+            host: 'api.example.com',
+            port: null,
+            prefix: '',
+        );
+        $helper = new ServerHelper($request, $context);
 
-        $_SERVER['HTTPS'] = 'on';
-        self::assertTrue(ServerHelper::isHttps());
-
-        $_SERVER['HTTPS'] = ' OFF ';
-        self::assertFalse(ServerHelper::isHttps());
-
-        $_SERVER['HTTPS'] = '0';
-        self::assertFalse(ServerHelper::isHttps());
+        self::assertSame('api.example.com', $helper->host());
+        self::assertSame('198.51.100.25', $helper->clientIp());
     }
 
-    public function testHttpsDetectionAcceptsTheCanonicalServerPortValue(): void
+    public function testMissingTrustedHostUsesOnlyTheExplicitDisplayFallback(): void
     {
-        $_SERVER['SERVER_PORT'] = '443';
+        $helper = new ServerHelper(
+            new ServerRequest('GET', 'http://evil.example'),
+            $this->context('http', null),
+        );
 
-        self::assertTrue(ServerHelper::isHttps());
+        self::assertSame('fallback.example', $helper->host('fallback.example'));
     }
 
-    public function testHostResolutionUsesCanonicalPriorityAndFallback(): void
+    /**
+     * @param 'http'|'https' $scheme
+     */
+    private function context(string $scheme, ?string $host): ResolvedRequestContext
     {
-        self::assertSame('localhost', ServerHelper::host());
-        self::assertSame('fallback.example', ServerHelper::host('fallback.example'));
-
-        $_SERVER['SERVER_NAME'] = ' name.example ';
-        self::assertSame('name.example', ServerHelper::host());
-
-        $_SERVER['HTTP_HOST'] = ' host.example:8443 ';
-        self::assertSame('host.example:8443', ServerHelper::host());
-    }
-
-    public function testSchemeUsesForwardedProtocolBeforeDirectServerMetadata(): void
-    {
-        $_SERVER['HTTPS'] = 'on';
-        $_SERVER['HTTP_X_FORWARDED_PROTO'] = ' HTTP, https ';
-
-        self::assertSame('http', ServerHelper::scheme());
-
-        $_SERVER['HTTP_X_FORWARDED_PROTO'] = ' HTTPS, http ';
-        self::assertSame('https', ServerHelper::scheme());
-    }
-
-    public function testSchemeFallsBackToDirectHttpsForUnknownForwardedProtocol(): void
-    {
-        $_SERVER['HTTPS'] = 'on';
-        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'websocket';
-
-        self::assertSame('https', ServerHelper::scheme());
+        return new ResolvedRequestContext(
+            peerIp: '203.0.113.10',
+            clientIp: '203.0.113.10',
+            viaTrustedProxy: false,
+            scheme: $scheme,
+            host: $host,
+            port: null,
+            prefix: '',
+        );
     }
 }

@@ -49,6 +49,9 @@ final class ViewServiceProvider implements ServiceProviderInterface
                 urlGenerator: $container->get(UrlGenerator::class),
                 flash: $flash instanceof FlashBagInterface ? $flash : null,
                 session: $session instanceof SessionInterface ? $session : null,
+                absoluteUrl: static fn(string $path): string => $container
+                    ->get(BaseUrlResolver::class)
+                    ->baseUrl($path),
             ));
             $view->share('component', $container->get(ComponentRegistry::class));
 
@@ -71,7 +74,6 @@ final class ViewServiceProvider implements ServiceProviderInterface
         });
 
         $container->scoped(ViewHelpers::class, static fn(ContainerInterface $container): ViewHelpers => new ViewHelpers(
-            baseUrl: $container->get(BaseUrlResolver::class),
             urlGenerator: $container->get(UrlGenerator::class),
             csrf: $container->get(CsrfViewHelper::class),
             translator: $container->get(TranslatorInterface::class),
@@ -95,7 +97,6 @@ final class ViewServiceProvider implements ServiceProviderInterface
             );
 
             $view->share('component', $container->get(ComponentRegistry::class));
-            $view->share('baseUrl', $container->get(BaseUrlResolver::class));
             $view->share('url', $container->get(UrlGenerator::class));
 
             return $view;

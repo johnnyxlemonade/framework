@@ -48,6 +48,7 @@ final class KernelTest extends TestCase
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-kernel-' . uniqid('', true);
         KernelBenchmarkCaptureMiddleware::reset();
+        KernelRequestContextCaptureMiddleware::reset();
         $this->writeDefaultConfigFiles();
     }
 
@@ -589,6 +590,222 @@ final class KernelTest extends TestCase
         self::assertNull($kernel->container()->get(Benchmark::class)->current());
     }
 
+    public function testTrustedRequestContextsAreValidatedAndIsolatedAcrossRequests(): void
+    {
+        $this->writeHttpServerConfig();
+        $kernel = $this->kernel(false);
+        $container = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $container);
+        $container->scoped(KernelRequestContextCaptureMiddleware::class, KernelRequestContextCaptureMiddleware::class);
+        $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
+            $stack->prepend(KernelRequestContextCaptureMiddleware::class);
+        });
+
+        $proxyRequest = (new ServerRequest(
+            method: 'GET',
+            uri: 'http://backend.local/first',
+            serverParams: ['REMOTE_ADDR' => '10.0.0.5'],
+        ))
+            ->withHeader('X-Forwarded-For', '198.51.100.25')
+            ->withHeader('X-Forwarded-Proto', 'https')
+            ->withHeader('X-Forwarded-Host', 'api.example.com')
+            ->withHeader('X-Forwarded-Prefix', '/gateway');
+        $directRequest = new ServerRequest(
+            method: 'GET',
+            uri: 'https://local.example/second',
+            serverParams: ['REMOTE_ADDR' => '203.0.113.40'],
+        );
+
+        self::assertSame(404, $kernel->run($proxyRequest)->getStatusCode());
+        self::assertSame(404, $kernel->run($directRequest)->getStatusCode());
+
+        self::assertCount(2, KernelRequestContextCaptureMiddleware::$contexts);
+        [$proxyContext, $directContext] = KernelRequestContextCaptureMiddleware::$contexts;
+        self::assertNotSame($proxyContext, $directContext);
+        self::assertSame('198.51.100.25', $proxyContext->clientIp());
+        self::assertTrue($proxyContext->viaTrustedProxy());
+        self::assertSame('https', $proxyContext->scheme());
+        self::assertSame('api.example.com', $proxyContext->host());
+        self::assertSame('/gateway', $proxyContext->prefix());
+        self::assertSame('203.0.113.40', $directContext->clientIp());
+        self::assertFalse($directContext->viaTrustedProxy());
+        self::assertSame('https', $directContext->scheme());
+        self::assertSame('local.example', $directContext->host());
+        self::assertSame('', $directContext->prefix());
+    }
+
+    public function testExplicitRunRequestDoesNotUseUnrelatedGlobalServerMetadata(): void
+    {
+        $this->writeHttpServerConfig();
+        $kernel = $this->kernel(false);
+        $container = $kernel->container();
+        self::assertInstanceOf(ContainerBuilderInterface::class, $container);
+        $container->scoped(KernelRequestContextCaptureMiddleware::class, KernelRequestContextCaptureMiddleware::class);
+        $kernel->framework()->middleware(static function (MiddlewareStack $stack): void {
+            $stack->prepend(KernelRequestContextCaptureMiddleware::class);
+        });
+        $request = new ServerRequest(
+            method: 'GET',
+            uri: 'https://local.example/explicit',
+            serverParams: ['REMOTE_ADDR' => '203.0.113.40'],
+        );
+        $originalServer = $_SERVER;
+        $_SERVER = [
+            'REMOTE_ADDR' => '10.0.0.5',
+            'HTTP_X_FORWARDED_PROTO' => 'http',
+            'HTTP_HOST' => 'evil.example',
+        ];
+
+        try {
+            self::assertSame(404, $kernel->run($request)->getStatusCode());
+        } finally {
+            $_SERVER = $originalServer;
+        }
+
+        self::assertCount(1, KernelRequestContextCaptureMiddleware::$contexts);
+        $context = KernelRequestContextCaptureMiddleware::$contexts[0];
+        self::assertSame('203.0.113.40', $context->clientIp());
+        self::assertFalse($context->viaTrustedProxy());
+        self::assertSame('https', $context->scheme());
+        self::assertSame('local.example', $context->host());
+    }
+
+    public function testTrustedMalformedProxyMetadataReturnsSafeBadRequestBeforeHealthFastPath(): void
+    {
+        $this->writeHttpServerConfig();
+        $kernel = $this->kernel(true, Environment::Development);
+        $request = (new ServerRequest(
+            method: 'GET',
+            uri: '/api/framework/health',
+            serverParams: ['REMOTE_ADDR' => '10.0.0.5'],
+        ))->withHeader('X-Forwarded-For', 'unknown');
+
+        $response = $kernel->run($request);
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('400 Bad Request', (string) $response->getBody());
+        self::assertFalse($kernel->container()->has(MiddlewareStack::class));
+    }
+
+    public function testUntrustedSpoofedProxyMetadataCannotBreakHealthFastPath(): void
+    {
+        $this->writeHttpServerConfig();
+        $kernel = $this->kernel(false);
+        $request = (new ServerRequest(
+            method: 'GET',
+            uri: '/api/framework/health',
+            serverParams: ['REMOTE_ADDR' => '203.0.113.40'],
+        ))
+            ->withHeader('X-Forwarded-For', 'unknown')
+            ->withHeader('X-Forwarded-Proto', 'javascript');
+
+        self::assertSame(200, $kernel->run($request)->getStatusCode());
+    }
+
+    public function testMalformedHostReturnsSafeBadRequestBeforeHealthFastPath(): void
+    {
+        $kernel = $this->kernel(true, Environment::Development);
+        $request = (new ServerRequest(
+            method: 'GET',
+            uri: '/api/framework/health',
+            serverParams: ['REMOTE_ADDR' => '203.0.113.40'],
+        ))->withHeader('Host', 'bad host.example');
+
+        $response = $kernel->run($request);
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('400 Bad Request', (string) $response->getBody());
+    }
+
+    public function testInvalidTrustedProxyConfigurationFailsDuringBootstrap(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\nhttp:\n  - HttpServer\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'HttpServer.yaml',
+            "module: http_server\nconfig:\n  trusted_proxies:\n    - proxy.example\n",
+        );
+        $kernel = $this->kernel(false);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('contains an invalid IP address');
+
+        $kernel->bootstrap();
+    }
+
+    public function testAbsoluteUrlGenerationRejectsAHostOutsideTheAllowlist(): void
+    {
+        $this->writeBaseUrlRouting();
+        $kernel = $this->kernel(true, Environment::Development);
+        $request = new ServerRequest(
+            method: 'GET',
+            uri: 'http://evil.example/base-url',
+            serverParams: ['REMOTE_ADDR' => '203.0.113.40'],
+        );
+
+        $response = $kernel->run($request);
+        $body = (string) $response->getBody();
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertStringStartsWith('400 Bad Request', $body);
+        self::assertStringNotContainsString('allowed_hosts', $body);
+    }
+
+    public function testAbsoluteUrlGenerationUsesTheValidatedProxyOriginAndPrefix(): void
+    {
+        $this->writeBaseUrlRouting();
+        $this->writeHttpServerConfig();
+        $kernel = $this->kernel(false);
+        $request = (new ServerRequest(
+            method: 'GET',
+            uri: 'http://backend.local/base-url',
+            serverParams: ['REMOTE_ADDR' => '10.0.0.5'],
+        ))
+            ->withHeader('X-Forwarded-For', '198.51.100.25')
+            ->withHeader('X-Forwarded-Proto', 'https')
+            ->withHeader('X-Forwarded-Host', 'api.example.com')
+            ->withHeader('X-Forwarded-Prefix', '/gateway');
+
+        $response = $kernel->run($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringStartsWith('https://api.example.com/gateway', (string) $response->getBody());
+    }
+
+    public function testInvalidAppBaseUrlFailsDuringBootstrap(): void
+    {
+        $this->writeConfigFile(
+            'App.yaml',
+            "module: app\nconfig:\n  base_url: example.com\n",
+        );
+        $kernel = $this->kernel(false);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('App base_url must be an absolute http:// or https:// URL');
+
+        $kernel->bootstrap();
+    }
+
+    public function testInvalidSessionCookiePolicyFailsDuringBootstrap(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\n  - Session\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'Session.yaml',
+            "module: session\nconfig:\n  cookie:\n    secure: sometimes\n",
+        );
+        $kernel = $this->kernel(false);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid session cookie secure value "sometimes"');
+
+        $kernel->bootstrap();
+    }
+
     public function testRequestScopeClosesAfterRouteNotFound(): void
     {
         KernelScopeCaptureMiddleware::reset();
@@ -704,6 +921,18 @@ final class KernelTest extends TestCase
         $this->writeRoutingNoRoutes();
     }
 
+    private function writeHttpServerConfig(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\nhttp:\n  - HttpServer\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'HttpServer.yaml',
+            "module: http_server\nconfig:\n  trusted_proxies:\n    - 10.0.0.0/8\n  forwarded_header_profile: x_forwarded\n  trust_forwarded_prefix: true\n  allowed_hosts:\n    - api.example.com\n    - local.example\n",
+        );
+    }
+
     private function writeRoutingNoRoutes(): void
     {
         $this->writeConfigFile(
@@ -749,6 +978,14 @@ final class KernelTest extends TestCase
         $this->writeConfigFile(
             'Routing.php',
             "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/request-scope-throw', \Lemonade\Framework\Routing\ControllerAction::for(\App\Controllers\RequestScopeThrowingController::class, 'index'));\n};\n",
+        );
+    }
+
+    private function writeBaseUrlRouting(): void
+    {
+        $this->writeConfigFile(
+            'Routing.php',
+            "<?php\n\ndeclare(strict_types=1);\n\nuse Lemonade\\Framework\\Routing\\Router;\n\nreturn static function (Router \$router): void {\n    \$router->get('/base-url', \\Lemonade\\Framework\\Routing\\ControllerAction::for(\\App\\Controllers\\BaseUrlKernelSupportController::class, 'index'));\n};\n",
         );
     }
 
@@ -836,6 +1073,29 @@ final class KernelBenchmarkCaptureMiddleware implements MiddlewareInterface
             self::$throwNext = false;
             throw new \RuntimeException('Benchmark lifecycle test failure.');
         }
+
+        return $handler->handle($request);
+    }
+}
+
+final class KernelRequestContextCaptureMiddleware implements MiddlewareInterface
+{
+    /** @var list<\Lemonade\Framework\Http\Request\ResolvedRequestContext> */
+    public static array $contexts = [];
+
+    public function __construct(
+        private readonly \Lemonade\Framework\Http\Request\ResolvedRequestContext $context,
+    ) {
+    }
+
+    public static function reset(): void
+    {
+        self::$contexts = [];
+    }
+
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    {
+        self::$contexts[] = $this->context;
 
         return $handler->handle($request);
     }
@@ -955,6 +1215,19 @@ final class RequestScopeThrowingController
     public function index(): never
     {
         throw new \RuntimeException('Request scope controller failure.');
+    }
+}
+
+final class BaseUrlKernelSupportController
+{
+    public function __construct(
+        private readonly \Lemonade\Framework\Support\BaseUrlResolver $baseUrl,
+    ) {
+    }
+
+    public function index(): string
+    {
+        return $this->baseUrl->baseUrl();
     }
 }
 

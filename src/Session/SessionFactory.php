@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Session;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Session\Config\SessionConfig;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Exception\UnsupportedSessionDriverException;
@@ -41,6 +42,7 @@ final readonly class SessionFactory
     public function __construct(
         private ApplicationContext $context,
         private ContainerInterface $container,
+        private ?ResolvedRequestContext $requestContext = null,
     ) {
     }
 
@@ -67,6 +69,8 @@ final readonly class SessionFactory
             name: $cookieName,
             lifetimeSeconds: $lifetime,
             sameSite: $cookieConfig->sameSite(),
+            secure: $cookieConfig->secure(),
+            requestContext: $this->requestContext,
         );
 
         return match ($driver) {

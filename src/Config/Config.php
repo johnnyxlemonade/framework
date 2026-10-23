@@ -25,6 +25,7 @@ return [
         'Pagination.php',
     ],
     'http' => [
+        'HttpServer.php',
         'Error.php',
         'Cors.php',
         'HtmlMinify.php',

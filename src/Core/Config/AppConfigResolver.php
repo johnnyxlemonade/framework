@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config;
 
+use InvalidArgumentException;
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 
 /**
@@ -12,7 +13,7 @@ use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 final class AppConfigResolver
 {
     /** @var list<string> */
-    private const array NULLABLE_STRING_FIELDS = ['timezone', 'base_url', 'secret'];
+    private const array NULLABLE_STRING_FIELDS = ['timezone', 'secret'];
 
     /** @var list<string> */
     private const array STRING_FIELDS = ['base_path', 'public_path', 'env', 'app_path', 'config_path', 'storage_path'];
@@ -91,6 +92,16 @@ final class AppConfigResolver
 
             if ($key === 'debug') {
                 $values['debug'] = ConfigValueNormalizer::boolOr($value, $values['debug']);
+
+                continue;
+            }
+
+            if ($key === 'base_url') {
+                if ($value !== null && !is_string($value)) {
+                    throw new InvalidArgumentException('App base_url must be a string or null.');
+                }
+
+                $values['base_url'] = $value;
 
                 continue;
             }

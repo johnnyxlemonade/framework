@@ -130,6 +130,20 @@ final class SessionServiceProviderTest extends TestCase
         }
     }
 
+    public function testInvalidCookiePolicyFailsDuringProviderBootstrap(): void
+    {
+        $container = $this->containerWithSessionConfig(
+            SessionConfigDefinition::fromArrayData([
+                'cookie' => ['secure' => 'sometimes'],
+            ]),
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid session cookie secure value "sometimes"');
+
+        (new SessionServiceProvider())->register($container);
+    }
+
     private function containerWithSessionConfig(SessionConfigDefinition $definition): Container
     {
         $container = new Container();

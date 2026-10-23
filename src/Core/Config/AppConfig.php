@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Core\Config;
 
+use InvalidArgumentException;
+
 /**
  * Carries application-wide runtime values resolved from host configuration and bootstrap context.
  */
@@ -11,6 +13,8 @@ final readonly class AppConfig
 {
     /**
      * Captures immutable host configuration consumed by framework capabilities.
+     *
+     * @throws InvalidArgumentException When base_url is not an unambiguous absolute HTTP URL.
      */
     public function __construct(
         private ?string $timezone,
@@ -24,6 +28,9 @@ final readonly class AppConfig
         private string $storagePath,
         private ?string $secret = null,
     ) {
+        if ($baseUrl !== null) {
+            $this->assertValidBaseUrl($baseUrl);
+        }
     }
 
     /**
@@ -104,5 +111,51 @@ final readonly class AppConfig
     public function secret(): ?string
     {
         return $this->secret;
+    }
+
+    private function assertValidBaseUrl(string $baseUrl): void
+    {
+        $parts = parse_url($baseUrl);
+        $scheme = is_array($parts) ? ($parts['scheme'] ?? null) : null;
+        $host = is_array($parts) ? ($parts['host'] ?? null) : null;
+
+        if (
+            $baseUrl === ''
+            || trim($baseUrl) !== $baseUrl
+            || ($scheme !== 'http' && $scheme !== 'https')
+            || !is_string($host)
+            || !$this->isValidBaseUrlHost($host)
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment'])
+        ) {
+            throw new InvalidArgumentException(
+                'App base_url must be an absolute http:// or https:// URL without credentials, query, or fragment.',
+            );
+        }
+    }
+
+    private function isValidBaseUrlHost(string $host): bool
+    {
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return true;
+        }
+
+        if ($host === '' || strlen($host) > 253) {
+            return false;
+        }
+
+        foreach (explode('.', strtolower($host)) as $label) {
+            if (
+                $label === ''
+                || strlen($label) > 63
+                || preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/', $label) !== 1
+            ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

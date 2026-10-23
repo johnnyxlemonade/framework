@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\View;
 
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
 use Lemonade\Framework\Session\SessionNamespace;
+use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\RequestViewHelpers;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -21,10 +23,25 @@ final class RequestViewHelpersTest extends TestCase
 
         self::assertSame('/articles/15', $helpers->currentPath());
         self::assertSame('preview=1', $helpers->currentQuery());
-        self::assertSame('https://example.test/articles/15?preview=1', $helpers->currentUrl());
+        self::assertSame('/articles/15?preview=1', $helpers->currentUrl());
         self::assertSame('/articles/15', $helpers->currentUrl(false));
         self::assertSame('https://example.test/articles/15?preview=1', $helpers->currentFullUrl());
         self::assertSame('https://example.test/articles/15', $helpers->currentFullUrl(false));
+    }
+
+    public function testRelativeCurrentUrlDoesNotRequireSafeAbsoluteOrigin(): void
+    {
+        $helpers = new RequestViewHelpers(
+            request: new ServerRequest('GET', 'https://attacker.example/articles?preview=1'),
+            urlGenerator: new UrlGenerator(new Router()),
+        );
+
+        self::assertSame('/articles?preview=1', $helpers->currentUrl());
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('Absolute request URLs require an explicit base URL');
+
+        $helpers->currentFullUrl();
     }
 
     public function testUsesCurrentRequestInstanceForEachHelperObject(): void
@@ -119,12 +136,24 @@ final class RequestViewHelpersTest extends TestCase
         ?SessionInterface $session = null,
     ): RequestViewHelpers {
         $router ??= new Router();
+        $baseUrl = new BaseUrlResolver(new AppConfig(
+            timezone: null,
+            baseUrl: 'https://example.test',
+            basePath: '',
+            publicPath: '',
+            env: 'testing',
+            debug: false,
+            appPath: '',
+            configPath: '',
+            storagePath: '',
+        ));
 
         return new RequestViewHelpers(
             request: $request,
             urlGenerator: new UrlGenerator($router),
             flash: $flash,
             session: $session,
+            absoluteUrl: static fn(string $path): string => $baseUrl->baseUrl($path),
         );
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Core\Config;
 
+use InvalidArgumentException;
 use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Config\AppConfigResolver;
 use PHPUnit\Framework\TestCase;
@@ -46,7 +47,7 @@ final class AppConfigResolverTest extends TestCase
             ]),
             AppConfigDefinition::fromArrayData([
                 'timezone' => null,
-                'base_url' => [],
+                'base_url' => null,
                 'secret' => '   ',
                 'base_path' => [],
                 'public_path' => ' /second/public ',
@@ -68,5 +69,25 @@ final class AppConfigResolverTest extends TestCase
         self::assertSame('/first/app', $config->appPath());
         self::assertSame('/second/config', $config->configPath());
         self::assertSame('/first/storage', $config->storagePath());
+    }
+
+    public function testInvalidBaseUrlTypeIsRejectedInsteadOfTreatedAsMissing(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('App base_url must be a string or null.');
+
+        (new AppConfigResolver())->resolve(
+            AppConfigDefinition::fromArrayData(['base_url' => []]),
+        );
+    }
+
+    public function testBaseUrlWhitespaceIsRejectedInsteadOfTrimmed(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('App base_url must be an absolute');
+
+        (new AppConfigResolver())->resolve(
+            AppConfigDefinition::create()->baseUrl(' https://example.test '),
+        );
     }
 }

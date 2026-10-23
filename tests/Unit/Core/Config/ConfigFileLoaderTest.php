@@ -12,6 +12,7 @@ use Lemonade\Framework\Core\Config\ProvidersConfigDefinition;
 use Lemonade\Framework\Core\Config\Yaml\YamlConfigParser;
 use Lemonade\Framework\Core\Config\Yaml\YamlDefinitionClassMap;
 use Lemonade\Framework\Core\Config\Yaml\YamlDefinitionLoader;
+use Lemonade\Framework\Http\Config\HttpServerConfigDefinition;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -27,6 +28,12 @@ final class ConfigFileLoaderTest extends TestCase
     protected function tearDown(): void
     {
         unset($_ENV['APP_BASE_URL']);
+        unset(
+            $_ENV['HTTP_TRUSTED_PROXIES'],
+            $_ENV['HTTP_FORWARDED_HEADER_PROFILE'],
+            $_ENV['HTTP_TRUST_FORWARDED_PREFIX'],
+            $_ENV['HTTP_ALLOWED_HOSTS'],
+        );
         $this->deleteRecursive($this->root);
     }
 
@@ -50,6 +57,70 @@ YAML);
         self::assertSame([
             'base_url' => 'https://yaml.example.test',
             'timezone' => 'Europe/Prague',
+        ], $definition->toArray());
+    }
+
+    public function testLoadHttpServerYamlUsesTheBuiltInTypedDefinition(): void
+    {
+        $file = $this->writeFile('HttpServer.yaml', <<<'YAML'
+module: http_server
+config:
+  trusted_proxies:
+    - 10.0.0.0/8
+  forwarded_header_profile: x_forwarded
+  trust_forwarded_prefix: true
+  allowed_hosts:
+    - example.com
+    - '*.example.com'
+YAML);
+
+        $definition = (new ConfigFileLoader())->load($file);
+
+        self::assertInstanceOf(HttpServerConfigDefinition::class, $definition);
+        self::assertSame([
+            'trusted_proxies' => ['10.0.0.0/8'],
+            'forwarded_header_profile' => 'x_forwarded',
+            'trust_forwarded_prefix' => true,
+            'allowed_hosts' => ['example.com', '*.example.com'],
+        ], $definition->toArray());
+    }
+
+    public function testLoadHttpServerYamlResolvesEnvironmentBackedTrustPolicy(): void
+    {
+        $_ENV['HTTP_TRUSTED_PROXIES'] = '172.22.0.5,2001:db8::1';
+        $_ENV['HTTP_FORWARDED_HEADER_PROFILE'] = 'x_forwarded';
+        $_ENV['HTTP_TRUST_FORWARDED_PREFIX'] = 'false';
+        $_ENV['HTTP_ALLOWED_HOSTS'] = 'lemonadeframework.ddev.site,*.example.test';
+
+        $file = $this->writeFile('HttpServer.yaml', <<<'YAML'
+module: http_server
+config:
+  trusted_proxies:
+    $env: HTTP_TRUSTED_PROXIES
+    type: list
+    default: []
+  forwarded_header_profile:
+    $env: HTTP_FORWARDED_HEADER_PROFILE
+    type: string
+    default: none
+  trust_forwarded_prefix:
+    $env: HTTP_TRUST_FORWARDED_PREFIX
+    type: bool
+    default: false
+  allowed_hosts:
+    $env: HTTP_ALLOWED_HOSTS
+    type: list
+    default: []
+YAML);
+
+        $definition = (new ConfigFileLoader())->load($file);
+
+        self::assertInstanceOf(HttpServerConfigDefinition::class, $definition);
+        self::assertSame([
+            'trusted_proxies' => ['172.22.0.5', '2001:db8::1'],
+            'forwarded_header_profile' => 'x_forwarded',
+            'trust_forwarded_prefix' => false,
+            'allowed_hosts' => ['lemonadeframework.ddev.site', '*.example.test'],
         ], $definition->toArray());
     }
 

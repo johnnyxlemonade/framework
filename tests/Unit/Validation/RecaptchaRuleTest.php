@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Validation;
 
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Validation\Endpoint\RecaptchaEndpointProviderInterface;
 use Lemonade\Framework\Validation\Rule\RecaptchaRule;
 use Lemonade\Framework\Tests\Unit\Validation\Support\RecaptchaSpyEndpointProvider;
@@ -69,14 +70,7 @@ final class RecaptchaRuleTest extends TestCase
             new RecaptchaStaticEndpointProvider('https://validator.example.test/recaptcha/verify'),
         );
 
-        $originalServer = $_SERVER;
-        $_SERVER = [];
-
-        try {
-            self::assertTrue($rule->validate(' token-123 ', ' secret-456 ', []));
-        } finally {
-            $_SERVER = $originalServer;
-        }
+        self::assertTrue($rule->validate(' token-123 ', ' secret-456 ', []));
 
         self::assertNotNull($client->lastRequest);
         self::assertSame('POST', $client->lastRequest->getMethod());
@@ -92,19 +86,13 @@ final class RecaptchaRuleTest extends TestCase
         $rule = $this->rule(
             $client,
             new RecaptchaStaticEndpointProvider('https://validator.example.test/recaptcha/verify'),
+            $this->requestContext('198.51.100.24'),
         );
 
-        $originalServer = $_SERVER;
-        $_SERVER['REMOTE_ADDR'] = ' 203.0.113.10 ';
-
-        try {
-            self::assertTrue($rule->validate('token-123', 'secret-456', []));
-        } finally {
-            $_SERVER = $originalServer;
-        }
+        self::assertTrue($rule->validate('token-123', 'secret-456', []));
 
         self::assertSame(
-            'secret=secret-456&response=token-123&remoteip=203.0.113.10',
+            'secret=secret-456&response=token-123&remoteip=198.51.100.24',
             (string) $client->lastRequest?->getBody(),
         );
     }
@@ -145,9 +133,23 @@ final class RecaptchaRuleTest extends TestCase
     private function rule(
         ValidationQueueHttpClient $client,
         RecaptchaEndpointProviderInterface $provider,
+        ?ResolvedRequestContext $requestContext = null,
     ): RecaptchaRule {
         $factory = new Psr17Factory();
 
-        return new RecaptchaRule($client, $factory, $factory, $provider);
+        return new RecaptchaRule($client, $factory, $factory, $provider, $requestContext);
+    }
+
+    private function requestContext(string $clientIp): ResolvedRequestContext
+    {
+        return new ResolvedRequestContext(
+            peerIp: '10.0.0.5',
+            clientIp: $clientIp,
+            viaTrustedProxy: true,
+            scheme: 'https',
+            host: 'example.test',
+            port: null,
+            prefix: '',
+        );
     }
 }

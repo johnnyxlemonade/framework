@@ -15,10 +15,13 @@ use Lemonade\Framework\Core\Http\RequestData;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Config\ErrorConfig;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfig;
+use Lemonade\Framework\Http\Bags\ServerBag;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
+use Lemonade\Framework\Http\Request\HttpRequestInspector;
+use Lemonade\Framework\Http\Request\ServerHelper;
 use PHPUnit\Framework\TestCase;
 
 final class HttpServiceProviderTest extends TestCase
@@ -45,6 +48,9 @@ final class HttpServiceProviderTest extends TestCase
             DispatchRequestHandler::class,
             MiddlewareResolver::class,
             RequestData::class,
+            HttpRequestInspector::class,
+            ServerHelper::class,
+            ServerBag::class,
         ] as $serviceId) {
             self::assertSame(ServiceLifetime::Scoped, $plan->definition($serviceId)?->lifetime);
         }

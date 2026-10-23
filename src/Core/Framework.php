@@ -20,11 +20,15 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Exception\InvalidRequestScopeException;
+use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Psr\ServerRequestFactory;
+use Lemonade\Framework\Http\Request\Exception\InvalidRequestMetadataException;
+use Lemonade\Framework\Http\Request\RequestContextResolver;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Observability\Benchmark\BenchmarkServiceProvider;
@@ -324,8 +328,19 @@ final class Framework
 
             $scope = $this->container->beginScope(ScopeKind::Request);
             $scope->bindScopedInstance(ServerRequestInterface::class, $request);
+            $scope->bindScopedInstance(
+                ResolvedRequestContext::class,
+                $this->container->get(RequestContextResolver::class)->resolve($request),
+            );
 
             return $this->runInScope($scope, $request);
+        } catch (InvalidRequestMetadataException) {
+            $responseFactory = $this->container->get(Psr17Factory::class);
+
+            return $responseFactory
+                ->createResponse(HttpStatus::BAD_REQUEST->value)
+                ->withHeader('Content-Type', 'text/plain; charset=utf-8')
+                ->withBody($responseFactory->createStream('400 Bad Request'));
         } finally {
             $scope?->close();
             $benchmark->end();
@@ -337,7 +352,8 @@ final class Framework
      *
      * The scope must be {@see ScopeKind::Request}, must hold a scope-local
      * {@see ServerRequestInterface} binding, and that binding must be the same
-     * object as the request argument. An active benchmark run must already be
+     * object as the request argument. The method resolves and locally binds the
+     * trusted request context when the caller has not already done so. An active benchmark run must already be
      * owned by the Kernel or {@see run()}; this method never starts another run.
      *
      * @throws InvalidRequestScopeException When the supplied scope does not satisfy the request contract.
@@ -369,6 +385,13 @@ final class Framework
                 __METHOD__,
                 ServerRequestInterface::class,
             ));
+        }
+
+        if (!$scope->hasScopedBinding(ResolvedRequestContext::class)) {
+            $scope->bindScopedInstance(
+                ResolvedRequestContext::class,
+                $this->container->get(RequestContextResolver::class)->resolve($request),
+            );
         }
 
         return $this->runWithContainer($scope, $request);

@@ -10,6 +10,7 @@ use Lemonade\Framework\Http\Error\ExceptionResponseResolverInterface;
 use Lemonade\Framework\Http\Exception\NotFoundHttpException;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Logging\HttpLogContext;
+use Lemonade\Framework\Http\Request\Exception\InvalidRequestMetadataException;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
@@ -42,6 +43,11 @@ final readonly class ErrorHandlingMiddleware implements MiddlewareInterface
     {
         try {
             return $handler->handle($request);
+        } catch (InvalidRequestMetadataException) {
+            return $this->htmlResponse(
+                statusCode: HttpStatus::BAD_REQUEST->value,
+                body: '400 Bad Request',
+            );
         } catch (RouteNotFoundException|NotFoundHttpException $exception) {
             $this->logException($exception, $request);
 

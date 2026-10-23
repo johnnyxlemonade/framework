@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Validation;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Validation\Endpoint\DefaultRecaptchaEndpointProvider;
 use Lemonade\Framework\Validation\Endpoint\DefaultValidationEndpointProvider;
@@ -14,7 +15,11 @@ use Lemonade\Framework\Validation\Endpoint\DefaultVatValidationEndpointProvider;
 use Lemonade\Framework\Validation\Endpoint\RecaptchaEndpointProviderInterface;
 use Lemonade\Framework\Validation\Endpoint\ValidationEndpointProviderInterface;
 use Lemonade\Framework\Validation\Endpoint\VatValidationEndpointProviderInterface;
+use Lemonade\Framework\Validation\Rule\RecaptchaRule;
 use Lemonade\Framework\Validation\Rule\RuleRegistry;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 
 final class ValidationServiceProvider implements ServiceProviderInterface
 {
@@ -39,6 +44,20 @@ final class ValidationServiceProvider implements ServiceProviderInterface
         foreach (RuleRegistry::builtInRules() as $ruleClass) {
             $container->transient($ruleClass, $ruleClass);
         }
+
+        $container->transient(RecaptchaRule::class, static function (ContainerInterface $container): RecaptchaRule {
+            $requestContext = $container->has(ResolvedRequestContext::class)
+                ? $container->get(ResolvedRequestContext::class)
+                : null;
+
+            return new RecaptchaRule(
+                client: $container->get(ClientInterface::class),
+                requestFactory: $container->get(RequestFactoryInterface::class),
+                streamFactory: $container->get(StreamFactoryInterface::class),
+                endpointProvider: $container->get(RecaptchaEndpointProviderInterface::class),
+                requestContext: $requestContext,
+            );
+        });
 
         $container->set(FormValidation::class, static function (ContainerInterface $container): FormValidation {
             return new FormValidation(

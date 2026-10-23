@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Lemonade\Framework\Session\Config\SessionConfigDefinition;
 use Lemonade\Framework\Session\Config\SessionConfigResolver;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -20,6 +21,7 @@ final class SessionConfigResolverTest extends TestCase
         self::assertSame('native', $config->driver());
         self::assertSame('LEMONADE_SESSION', $config->cookie()->name());
         self::assertSame(SessionCookieSameSite::Lax, $config->cookie()->sameSite());
+        self::assertSame(SessionCookieSecure::Auto, $config->cookie()->secure());
         self::assertSame(7200, $config->lifetime());
         self::assertSame('sessions', $config->native()->path());
         self::assertSame('sessions', $config->file()->path());
@@ -92,6 +94,34 @@ final class SessionConfigResolverTest extends TestCase
         (new SessionConfigResolver())->resolve($definition);
     }
 
+    #[DataProvider('secureValues')]
+    public function testItResolvesConfiguredCookieSecurePolicy(
+        string $configured,
+        SessionCookieSecure $expected,
+    ): void {
+        $definition = SessionConfigDefinition::fromArrayData([
+            'cookie' => ['secure' => $configured],
+        ]);
+
+        $config = (new SessionConfigResolver())->resolve($definition);
+
+        self::assertSame($expected, $config->cookie()->secure());
+    }
+
+    public function testItRejectsAnUnsupportedCookieSecurePolicy(): void
+    {
+        $definition = SessionConfigDefinition::fromArrayData([
+            'cookie' => ['secure' => 'sometimes'],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Invalid session cookie secure value "sometimes". Expected one of: auto, always.',
+        );
+
+        (new SessionConfigResolver())->resolve($definition);
+    }
+
     public function testTypedConfigurationRejectsNonPositiveResolvedLifetime(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -132,5 +162,14 @@ final class SessionConfigResolverTest extends TestCase
         yield 'lax' => ['lax', SessionCookieSameSite::Lax];
         yield 'strict' => ['strict', SessionCookieSameSite::Strict];
         yield 'none' => ['none', SessionCookieSameSite::None];
+    }
+
+    /**
+     * @return iterable<string, array{string, SessionCookieSecure}>
+     */
+    public static function secureValues(): iterable
+    {
+        yield 'auto' => ['auto', SessionCookieSecure::Auto];
+        yield 'always' => ['always', SessionCookieSecure::Always];
     }
 }

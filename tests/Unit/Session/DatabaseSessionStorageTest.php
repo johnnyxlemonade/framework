@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Tests\Unit\Session;
 use Generator;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 use Lemonade\Framework\Session\SessionGarbageCollectionPolicy;
 use Lemonade\Framework\Session\Storage\DatabaseSessionStorage;
 use Lemonade\Framework\Session\Storage\SessionCookie;
@@ -256,6 +257,7 @@ final class DatabaseSessionStorageTest extends TestCase
 
                 return true;
             },
+            secure: SessionCookieSecure::Always,
         );
     }
 

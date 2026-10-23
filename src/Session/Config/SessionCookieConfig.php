@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Session\Config;
 
 use InvalidArgumentException;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 
 /**
  * Carries the browser cookie identity and SameSite policy for one session.
@@ -13,11 +14,12 @@ use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
 final readonly class SessionCookieConfig
 {
     /**
-     * Defines the cookie name and browser cross-site delivery policy.
+     * Defines the cookie identity, cross-site policy, and transport-security policy.
      */
     public function __construct(
         private string $name,
         private SessionCookieSameSite $sameSite,
+        private SessionCookieSecure $secure = SessionCookieSecure::Auto,
     ) {
         if (
             preg_match('/^[A-Za-z0-9_-]+$/D', $name) !== 1
@@ -43,5 +45,13 @@ final readonly class SessionCookieConfig
     public function sameSite(): SessionCookieSameSite
     {
         return $this->sameSite;
+    }
+
+    /**
+     * Returns whether Secure follows the verified request or is always enabled.
+     */
+    public function secure(): SessionCookieSecure
+    {
+        return $this->secure;
     }
 }

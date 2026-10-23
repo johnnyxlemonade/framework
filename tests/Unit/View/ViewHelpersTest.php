@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\View;
 
-use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
@@ -13,17 +12,17 @@ use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Security\Csrf\CsrfTokenManager;
 use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
 use Lemonade\Framework\Session\Contract\SessionInterface;
-use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\ViewHelpers;
 use PHPUnit\Framework\TestCase;
 
 final class ViewHelpersTest extends TestCase
 {
-    public function testAssetBuildsUrlFromBaseUrlResolver(): void
+    public function testAssetBuildsRootRelativeUrlWithoutCanonicalBaseUrl(): void
     {
         $helpers = $this->helpers();
 
-        self::assertSame('https://example.test/assets/app.css', $helpers->asset('assets/app.css'));
+        self::assertSame('/assets/app.css', $helpers->asset('assets/app.css'));
+        self::assertSame('/assets/app.css', $helpers->asset('/assets/app.css'));
     }
 
     public function testUrlAndLocalizedUrlUseUrlGenerator(): void
@@ -81,17 +80,6 @@ final class ViewHelpersTest extends TestCase
         $csrf = new CsrfViewHelper(new CsrfTokenManager($session));
 
         return new ViewHelpers(
-            baseUrl: new BaseUrlResolver(new AppConfig(
-                timezone: null,
-                baseUrl: 'https://example.test',
-                basePath: '',
-                publicPath: '',
-                env: 'testing',
-                debug: false,
-                appPath: '',
-                configPath: '',
-                storagePath: '',
-            )),
             urlGenerator: new UrlGenerator($router, null, new ViewHelpersLocaleUrlStrategyStub()),
             csrf: $csrf,
             translator: $translator ?? new ViewHelpersTranslatorStub(),

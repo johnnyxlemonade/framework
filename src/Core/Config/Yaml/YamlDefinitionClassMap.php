@@ -22,6 +22,7 @@ use Lemonade\Framework\Http\Config\CorsConfigDefinition;
 use Lemonade\Framework\Http\Config\ErrorConfigDefinition;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfigDefinition;
 use Lemonade\Framework\Http\Config\HttpClientConfigDefinition;
+use Lemonade\Framework\Http\Config\HttpServerConfigDefinition;
 use Lemonade\Framework\Localization\Config\LocalizationConfigDefinition;
 use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigDefinition;
 use Lemonade\Framework\Queue\Config\QueueConfigDefinition;
@@ -67,6 +68,7 @@ final class YamlDefinitionClassMap
         $map->register('Events', EventsConfigDefinition::class);
         $map->register('HtmlMinify', HtmlMinifyConfigDefinition::class);
         $map->register('HttpClient', HttpClientConfigDefinition::class);
+        $map->register('HttpServer', HttpServerConfigDefinition::class);
         $map->register('Localization', LocalizationConfigDefinition::class);
         $map->register('Logging', LoggingConfigDefinition::class);
         $map->register('Meta', MetaConfigDefinition::class);

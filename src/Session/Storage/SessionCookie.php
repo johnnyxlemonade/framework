@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Session\Storage;
 
 use Closure;
-use Lemonade\Framework\Http\Request\ServerHelper;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Session\Cookie\SessionCookieSameSite;
+use Lemonade\Framework\Session\Cookie\SessionCookieSecure;
 use RuntimeException;
 
 /**
@@ -31,6 +32,8 @@ final readonly class SessionCookie
         private int $lifetimeSeconds,
         private SessionCookieSameSite $sameSite = SessionCookieSameSite::Lax,
         ?Closure $emitter = null,
+        private SessionCookieSecure $secure = SessionCookieSecure::Auto,
+        private ?ResolvedRequestContext $requestContext = null,
     ) {
         $this->emitter = $emitter ?? static fn(string $name, string $value, array $options): bool => setcookie(
             $name,
@@ -134,7 +137,14 @@ final readonly class SessionCookie
 
     private function secureForSameSitePolicy(): bool
     {
-        $secure = ServerHelper::isHttps();
+        $secure = match ($this->secure) {
+            SessionCookieSecure::Always => true,
+            SessionCookieSecure::Auto => $this->requestContext?->secure()
+                ?? throw new RuntimeException(sprintf(
+                    'Cannot resolve Secure for session cookie "%s" without a request context; use cookie.secure=always outside HTTP requests.',
+                    $this->name,
+                )),
+        };
 
         if ($this->sameSite === SessionCookieSameSite::None && !$secure) {
             throw new RuntimeException(sprintf(

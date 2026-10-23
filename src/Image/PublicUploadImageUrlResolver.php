@@ -7,24 +7,22 @@ namespace Lemonade\Framework\Image;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Image\Contract\ImageUrlResolverInterface;
 use Lemonade\Framework\Image\Value\ImageReference;
-use Lemonade\Framework\Support\BaseUrlResolver;
 
 /**
- * Resolves public-relative image references under the framework's public uploads path.
+ * Resolves public image references to root-relative upload URLs.
  */
 final readonly class PublicUploadImageUrlResolver implements ImageUrlResolverInterface
 {
     /**
-     * Creates a URL resolver constrained to the framework public upload boundary
+     * Creates a URL resolver constrained to the framework public upload boundary.
      */
     public function __construct(
-        private readonly BaseUrlResolver $baseUrl,
-        private readonly ApplicationContext $context,
+        private ApplicationContext $context,
     ) {
     }
 
     /**
-     * Resolves an image reference to its absolute public upload URL
+     * Resolves an image reference without requiring a canonical application origin.
      */
     public function url(ImageReference $reference): string
     {
@@ -32,6 +30,6 @@ final readonly class PublicUploadImageUrlResolver implements ImageUrlResolverInt
             $reference->publicPath(),
         );
 
-        return $this->baseUrl->baseUrl($relativePath);
+        return '/' . ltrim($relativePath, '/');
     }
 }

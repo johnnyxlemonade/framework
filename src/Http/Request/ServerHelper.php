@@ -4,99 +4,85 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Request;
 
+use Psr\Http\Message\ServerRequestInterface;
+
 /**
- * Provides normalized access to request metadata and canonical scheme and host resolution.
+ * Exposes raw server parameters separately from trust-resolved request origin metadata.
  *
- * Forwarded scheme metadata is consumed as supplied; the hosting environment owns its trust boundary.
+ * The helper never consults global state and never reparses forwarding headers.
  */
 final readonly class ServerHelper
 {
     /**
-     * Returns one string server value or the supplied fallback.
+     * Binds raw server access and trusted origin access to one explicit request.
      */
-    public static function get(string $key, string $default = ''): string
+    public function __construct(
+        private ServerRequestInterface $request,
+        private ResolvedRequestContext $context,
+    ) {
+    }
+
+    /**
+     * Returns one raw server parameter as text or the supplied fallback.
+     */
+    public function get(string $key, string $default = ''): string
     {
-        $value = $_SERVER[$key] ?? $default;
+        $value = $this->request->getServerParams()[$key] ?? $default;
 
         return is_string($value) ? $value : $default;
     }
 
     /**
-     * Reports whether one non-empty string server value is available.
+     * Reports whether one non-empty raw string server parameter is available.
      */
-    public static function has(string $key): bool
+    public function has(string $key): bool
     {
-        return isset($_SERVER[$key])
-            && is_string($_SERVER[$key])
-            && $_SERVER[$key] !== '';
+        $value = $this->request->getServerParams()[$key] ?? null;
+
+        return is_string($value) && $value !== '';
     }
 
     /**
-     * Returns server metadata with non-string keys removed.
+     * Returns the raw server-parameter snapshot carried by the explicit PSR request.
      *
      * @return array<string, mixed>
      */
-    public static function all(): array
+    public function all(): array
     {
-        $normalized = [];
-
-        foreach ($_SERVER as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
-            }
-        }
-
-        return $normalized;
+        return $this->request->getServerParams();
     }
 
     /**
-     * Resolves the request host from HTTP_HOST, then SERVER_NAME, or returns the fallback.
+     * Returns the allowlisted host or the explicit fallback when no host was trusted.
      */
-    public static function host(string $default = 'localhost'): string
+    public function host(string $default = 'localhost'): string
     {
-        $host = trim(self::get('HTTP_HOST'));
-
-        if ($host !== '') {
-            return $host;
-        }
-
-        $serverName = trim(self::get('SERVER_NAME'));
-
-        if ($serverName !== '') {
-            return $serverName;
-        }
-
-        return $default;
+        return $this->context->host() ?? $default;
     }
 
     /**
-     * Resolves HTTP or HTTPS, preferring the first forwarded protocol when it is recognized.
+     * Returns the scheme established by the central request trust policy.
      *
      * @return 'http'|'https'
      */
-    public static function scheme(): string
+    public function scheme(): string
     {
-        $forwardedProto = strtolower(trim(self::get('HTTP_X_FORWARDED_PROTO')));
-
-        if ($forwardedProto !== '') {
-            $scheme = trim(explode(',', $forwardedProto)[0]);
-
-            if ($scheme === 'https' || $scheme === 'http') {
-                return $scheme;
-            }
-        }
-
-        return self::isHttps() ? 'https' : 'http';
+        return $this->context->scheme();
     }
 
     /**
-     * Reports whether direct server metadata identifies the current request as HTTPS.
+     * Reports whether the central request trust policy resolved HTTPS.
      */
-    public static function isHttps(): bool
+    public function isHttps(): bool
     {
-        $https = strtolower(trim(self::get('HTTPS')));
+        return $this->context->secure();
+    }
 
-        return ($https !== '' && $https !== 'off' && $https !== '0')
-            || self::get('SERVER_PORT') === '443';
+    /**
+     * Returns the verified client address or the explicit fallback when unavailable.
+     */
+    public function clientIp(?string $default = null): ?string
+    {
+        return $this->context->clientIp() ?? $default;
     }
 }

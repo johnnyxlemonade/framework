@@ -7,7 +7,9 @@ namespace Lemonade\Framework\Session;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
+use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Session\Config\SessionConfig;
 use Lemonade\Framework\Session\Config\SessionConfigDefinition;
 use Lemonade\Framework\Session\Config\SessionConfigResolver;
@@ -25,14 +27,26 @@ final readonly class SessionServiceProvider implements ServiceProviderInterface
      */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(SessionConfig::class, static function (ContainerInterface $container): SessionConfig {
-            return $container
-                ->get(SessionConfigResolver::class)
-                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
-                    SessionConfigDefinition::moduleKey(),
-                    SessionConfigDefinition::class,
-                ));
-        });
+        $config = $container
+            ->get(SessionConfigResolver::class)
+            ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                SessionConfigDefinition::moduleKey(),
+                SessionConfigDefinition::class,
+            ));
+        $container->singleton(SessionConfig::class, $config);
+        if (!$container->isBound(SessionFactory::class)) {
+            $container->scoped(SessionFactory::class, static function (ContainerInterface $container): SessionFactory {
+                $requestContext = $container->has(ResolvedRequestContext::class)
+                    ? $container->get(ResolvedRequestContext::class)
+                    : null;
+
+                return new SessionFactory(
+                    context: $container->get(ApplicationContext::class),
+                    container: $container,
+                    requestContext: $requestContext,
+                );
+            });
+        }
         $container->scoped(SessionInterface::class, static function (ContainerInterface $container): SessionInterface {
             return $container
                 ->get(SessionFactory::class)

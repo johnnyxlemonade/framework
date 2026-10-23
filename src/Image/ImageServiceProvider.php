@@ -17,12 +17,12 @@ use Lemonade\Framework\Image\Gd\GdImageProcessor;
 use Lemonade\Framework\Image\Gd\GdImageVariantRenderer;
 
 /**
- * Registers singleton image infrastructure shared by uploads, application services, and views
+ * Registers shared image processing and root-relative presentation services.
  */
 final class ImageServiceProvider implements ServiceProviderInterface
 {
     /**
-     * Registers shared image processing, URL, variant, and view integration services
+     * Keeps stateless image processing and relative URL helpers shared across requests.
      */
     public function register(ContainerBuilderInterface $container): void
     {

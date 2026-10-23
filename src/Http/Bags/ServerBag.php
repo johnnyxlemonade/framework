@@ -4,76 +4,64 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Http\Bags;
 
+use Lemonade\Framework\Http\Request\ServerHelper;
+
 /**
- * Provides normalized host, scheme, and address access over captured server metadata.
+ * Preserves the server-bag API while delegating trusted values to the central request policy.
  */
 final readonly class ServerBag
 {
     /**
-     * Stores one server-parameter snapshot without consulting global state.
-     *
-     * @param array<string, mixed> $items
+     * Binds the bag to one request-scoped server helper.
      */
-    public function __construct(private array $items = [])
-    {
+    public function __construct(
+        private ServerHelper $server,
+    ) {
     }
 
     /**
-     * Returns the complete server-parameter snapshot.
+     * Returns the raw server-parameter snapshot from the explicit PSR request.
      *
      * @return array<string, mixed>
      */
     public function all(): array
     {
-        return $this->items;
+        return $this->server->all();
     }
 
     /**
-     * Returns one server value or the supplied fallback when absent or null.
+     * Returns one raw server parameter or the supplied fallback when absent.
      */
     public function get(string $key, mixed $default = null): mixed
     {
-        return $this->items[$key] ?? $default;
+        $items = $this->server->all();
+
+        return $items[$key] ?? $default;
     }
 
     /**
-     * Returns HTTP_HOST as text or the supplied fallback for a non-stringable value.
+     * Returns the allowlisted host or the explicit fallback when no host was trusted.
      */
     public function host(string $default = 'localhost'): string
     {
-        $value = $this->items['HTTP_HOST'] ?? $default;
-
-        if (is_scalar($value) || $value instanceof \Stringable) {
-            return (string) $value;
-        }
-
-        return $default;
+        return $this->server->host($default);
     }
 
     /**
-     * Resolves HTTPS unless the HTTPS server value is empty or explicitly off.
+     * Returns the scheme established by the central request trust policy.
+     *
+     * @return 'http'|'https'
      */
     public function scheme(): string
     {
-        $httpsRaw = $this->items['HTTPS'] ?? '';
-        $https = (is_scalar($httpsRaw) || $httpsRaw instanceof \Stringable)
-            ? strtolower((string) $httpsRaw)
-            : '';
-
-        return ($https !== '' && $https !== 'off') ? 'https' : 'http';
+        return $this->server->scheme();
     }
 
     /**
-     * Returns REMOTE_ADDR as text or the supplied fallback for a non-stringable value.
+     * Returns the verified client address or the explicit fallback when unavailable.
      */
     public function ip(?string $default = null): ?string
     {
-        $value = $this->items['REMOTE_ADDR'] ?? null;
-
-        if (is_scalar($value) || $value instanceof \Stringable) {
-            return (string) $value;
-        }
-
-        return $default;
+        return $this->server->clientIp($default);
     }
 }

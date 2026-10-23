@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Discovery;
 
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Core\Config\AppConfigDefinition;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
@@ -46,6 +47,7 @@ final class DiscoveryHttpRoutesTest extends TestCase
             new ApplicationContext(Environment::Testing, new Path(__DIR__), DebugMode::disabled()),
         );
         $framework->config(
+            AppConfigDefinition::create()->baseUrl('https://example.test'),
             DiscoveryConfigDefinition::create()
                 ->robotsEnabled()
                 ->sitemapEnabled(),

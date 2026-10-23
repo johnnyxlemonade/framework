@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\View;
 
+use Closure;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Session\Flash\FlashBagInterface;
@@ -20,16 +21,27 @@ final readonly class RequestViewHelpers
     private ?SessionNamespace $oldInput;
 
     /**
+     * @var null|Closure(string): string
+     */
+    private ?Closure $absoluteUrl;
+
+    /**
      * Captures one request and optional default-session state for the renderer's active scope.
+     *
+     * @param null|callable(string): string $absoluteUrl
      */
     public function __construct(
         private ServerRequestInterface $request,
         private UrlGenerator $urlGenerator,
         private ?FlashBagInterface $flash = null,
         ?SessionInterface $session = null,
+        ?callable $absoluteUrl = null,
     ) {
         $this->oldInput = $session instanceof SessionInterface
             ? new SessionNamespace($session, self::OLD_INPUT_NAMESPACE)
+            : null;
+        $this->absoluteUrl = $absoluteUrl !== null
+            ? Closure::fromCallable($absoluteUrl)
             : null;
     }
 
@@ -86,32 +98,38 @@ final readonly class RequestViewHelpers
     }
 
     /**
-     * Returns the active request URI or only its normalized path.
+     * Returns the active request path with an optional query string.
      */
     public function currentUrl(bool $withQuery = true): string
     {
         $uri = $this->request->getUri();
-        if ($withQuery) {
-            return (string) $uri;
+        $path = $uri->getPath();
+        $path = $path !== '' ? $path : '/';
+
+        if ($withQuery && $uri->getQuery() !== '') {
+            return $path . '?' . $uri->getQuery();
         }
 
-        $path = $uri->getPath();
-
-        return $path !== '' ? $path : '/';
+        return $path;
     }
 
     /**
-     * Returns the active absolute request URL with optional query removal.
+     * Returns an absolute request URL only through the configured safe origin resolver.
+     *
+     * @throws \LogicException When no absolute URL resolver was supplied.
      */
     public function currentFullUrl(bool $withQuery = true): string
     {
-        $uri = $this->request->getUri();
-
-        if ($withQuery) {
-            return (string) $uri;
+        if (!$this->absoluteUrl instanceof Closure) {
+            throw new \LogicException(
+                'Absolute request URLs require an explicit base URL or an allowlisted request host.',
+            );
         }
 
-        return $uri->getScheme() . '://' . $uri->getAuthority() . $uri->getPath();
+        $url = ($this->absoluteUrl)($this->currentPath());
+        $query = $this->currentQuery();
+
+        return $withQuery && $query !== '' ? $url . '?' . $query : $url;
     }
 
     /**

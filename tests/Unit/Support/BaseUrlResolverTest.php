@@ -4,28 +4,16 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Support;
 
+use InvalidArgumentException;
 use Lemonade\Framework\Core\Config\AppConfig;
+use Lemonade\Framework\Http\Request\Exception\InvalidRequestMetadataException;
+use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class BaseUrlResolverTest extends TestCase
 {
-    /**
-     * @var array<mixed>
-     */
-    private array $serverBackup = [];
-
-    protected function setUp(): void
-    {
-        $this->serverBackup = $_SERVER;
-        $_SERVER = [];
-    }
-
-    protected function tearDown(): void
-    {
-        $_SERVER = $this->serverBackup;
-    }
-
     public function testConfiguredHttpsBaseUrlIsUsedAndTrailingSlashTrimmed(): void
     {
         $resolver = new BaseUrlResolver($this->appConfig('https://example.com/'));
@@ -33,77 +21,72 @@ final class BaseUrlResolverTest extends TestCase
         self::assertSame('https://example.com', $resolver->baseUrl());
     }
 
-    public function testConfiguredBaseUrlWithoutSchemeGetsSchemeFromServerContext(): void
+    public function testConfiguredBaseUrlMustBeAnExplicitAbsoluteUrl(): void
     {
-        $_SERVER['HTTPS'] = 'on';
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('App base_url must be an absolute http:// or https:// URL');
 
-        $resolver = new BaseUrlResolver($this->appConfig('example.com'));
-
-        self::assertSame('https://example.com', $resolver->baseUrl());
+        $this->appConfig('example.com');
     }
 
     public function testBaseUrlJoinsPathCorrectly(): void
     {
-        $resolver = new BaseUrlResolver($this->appConfig('https://example.com'));
+        $resolver = new BaseUrlResolver($this->appConfig('https://example.com/root'));
 
-        self::assertSame('https://example.com/path/to/page', $resolver->baseUrl('path/to/page'));
+        self::assertSame('https://example.com/root/path/to/page', $resolver->baseUrl('path/to/page'));
     }
 
-    public function testForwardedProtoHttpsForcesHttpsScheme(): void
+    public function testValidatedRequestOriginIncludesSchemePortAndPrefix(): void
     {
-        $_SERVER['HTTP_X_FORWARDED_PROTO'] = 'https';
-        $_SERVER['HTTP_HOST'] = 'proxy.example';
+        $resolver = new BaseUrlResolver(
+            $this->appConfig(),
+            $this->context('https', 'api.example.com', 8443, '/gateway'),
+        );
 
-        $resolver = new BaseUrlResolver($this->appConfig());
-
-        self::assertSame('https://proxy.example', $resolver->baseUrl());
+        self::assertSame('https://api.example.com:8443/gateway', $resolver->baseUrl());
     }
 
-    public function testHttpsOnForcesHttpsScheme(): void
+    public function testConfiguredPathIsNotCombinedWithForwardedPrefix(): void
     {
-        $_SERVER['HTTPS'] = 'on';
-        $_SERVER['HTTP_HOST'] = 'secure.example';
+        $resolver = new BaseUrlResolver(
+            $this->appConfig('https://canonical.example/application'),
+            $this->context('https', 'proxy.example', null, '/gateway'),
+        );
 
-        $resolver = new BaseUrlResolver($this->appConfig());
-
-        self::assertSame('https://secure.example', $resolver->baseUrl());
+        self::assertSame('https://canonical.example/application', $resolver->baseUrl());
     }
 
-    public function testDisabledHttpsFlagKeepsHttpScheme(): void
+    public function testIpv6RequestHostIsRenderedAsAnAuthorityLiteral(): void
     {
-        $_SERVER['HTTPS'] = '0';
-        $_SERVER['HTTP_HOST'] = 'plain.example';
+        $resolver = new BaseUrlResolver(
+            $this->appConfig(),
+            $this->context('http', '2001:db8::10', 8080, ''),
+        );
 
-        $resolver = new BaseUrlResolver($this->appConfig());
-
-        self::assertSame('http://plain.example', $resolver->baseUrl());
+        self::assertSame('http://[2001:db8::10]:8080', $resolver->baseUrl());
     }
 
-    public function testPort443ForcesHttpsScheme(): void
+    public function testRequestWithoutAllowlistedHostFailsClosed(): void
     {
-        $_SERVER['SERVER_PORT'] = '443';
-        $_SERVER['HTTP_HOST'] = 'port.example';
+        $resolver = new BaseUrlResolver(
+            $this->appConfig(),
+            $this->context('https', null, null, ''),
+        );
 
-        $resolver = new BaseUrlResolver($this->appConfig());
+        $this->expectException(InvalidRequestMetadataException::class);
+        $this->expectExceptionMessage('Configure app.base_url or add the exact host');
 
-        self::assertSame('https://port.example', $resolver->baseUrl());
+        $resolver->baseUrl();
     }
 
-    public function testHttpHostHasPriorityOverServerName(): void
-    {
-        $_SERVER['HTTP_HOST'] = 'host.example';
-        $_SERVER['SERVER_NAME'] = 'name.example';
-
-        $resolver = new BaseUrlResolver($this->appConfig());
-
-        self::assertSame('http://host.example', $resolver->baseUrl());
-    }
-
-    public function testFallbackHostIsLocalhost(): void
+    public function testRequestDerivedUrlOutsideHttpScopeFailsWithConfigurationGuidance(): void
     {
         $resolver = new BaseUrlResolver($this->appConfig());
 
-        self::assertSame('http://localhost', $resolver->baseUrl());
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Configure app.base_url explicitly');
+
+        $resolver->baseUrl();
     }
 
     private function appConfig(?string $baseUrl = null): AppConfig
@@ -118,6 +101,26 @@ final class BaseUrlResolverTest extends TestCase
             appPath: '',
             configPath: '',
             storagePath: '',
+        );
+    }
+
+    /**
+     * @param 'http'|'https' $scheme
+     */
+    private function context(
+        string $scheme,
+        ?string $host,
+        ?int $port,
+        string $prefix,
+    ): ResolvedRequestContext {
+        return new ResolvedRequestContext(
+            peerIp: '10.0.0.5',
+            clientIp: '198.51.100.25',
+            viaTrustedProxy: true,
+            scheme: $scheme,
+            host: $host,
+            port: $port,
+            prefix: $prefix,
         );
     }
 }

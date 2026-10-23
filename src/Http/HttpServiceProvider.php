@@ -9,6 +9,7 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Http\RequestData;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Http\Bags\ServerBag;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Config\CorsConfigDefinition;
 use Lemonade\Framework\Http\Config\CorsConfigResolver;
@@ -29,6 +30,7 @@ use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Middleware\PoweredByMiddleware;
 use Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware;
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
+use Lemonade\Framework\Http\Request\ServerHelper;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -108,6 +110,9 @@ final readonly class HttpServiceProvider implements ServiceProviderInterface
     {
         $container->scoped(DispatchRequestHandler::class, DispatchRequestHandler::class);
         $container->scoped(MiddlewareResolver::class, MiddlewareResolver::class);
+        $container->scoped(HttpRequestInspector::class, HttpRequestInspector::class);
+        $container->scoped(ServerHelper::class, ServerHelper::class);
+        $container->scoped(ServerBag::class, ServerBag::class);
         $container->scoped(
             RequestData::class,
             static function (ContainerInterface $container): RequestData {

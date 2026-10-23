@@ -8,41 +8,31 @@ use Psr\Http\Message\ServerRequestInterface;
 
 use const FILTER_FLAG_IPV4;
 use const FILTER_FLAG_IPV6;
-use const FILTER_FLAG_NO_PRIV_RANGE;
-use const FILTER_FLAG_NO_RES_RANGE;
 use const FILTER_VALIDATE_IP;
 
 /**
- * Derives logging and content-negotiation metadata from immutable server requests.
- *
- * Forwarding headers are inspected as supplied; deployment configuration owns whether they are trustworthy.
+ * Derives logging and content-negotiation metadata without reparsing proxy trust inputs.
  */
 final readonly class HttpRequestInspector
 {
     private const string UNKNOWN = 'UNKNOWN';
 
     /**
-     * Selects the first public forwarded address, falling back to the first valid private candidate.
+     * Uses the request-scoped trust result when security-sensitive metadata is requested.
+     */
+    public function __construct(
+        private ?ResolvedRequestContext $context = null,
+    ) {
+    }
+
+    /**
+     * Returns the verified client address, or null outside an initialized HTTP request scope.
      */
     public function clientIp(ServerRequestInterface $request): ?string
     {
-        $candidates = array_values(array_filter([
-            $this->extractFromForwarded($request->getHeaderLine('Forwarded')),
-            $this->extractFromForwardedFor($request->getHeaderLine('X-Forwarded-For')),
-            $this->validateIp($request->getHeaderLine('Client-IP')),
-            $this->validateIp($request->getHeaderLine('X-Forwarded')),
-            $this->validateIp($request->getHeaderLine('X-Cluster-Client-IP')),
-            $this->validateIp($request->getHeaderLine('Forwarded-For')),
-            $this->remoteAddr($request),
-        ], static fn(?string $ip): bool => $ip !== null));
+        unset($request);
 
-        foreach ($candidates as $ip) {
-            if (!$this->isPrivateIp($ip)) {
-                return $ip;
-            }
-        }
-
-        return $candidates[0] ?? null;
+        return $this->context?->clientIp();
     }
 
     /**
@@ -73,23 +63,21 @@ final readonly class HttpRequestInspector
     }
 
     /**
-     * Reports whether recognized forwarding metadata is present on the request.
+     * Reports whether the verified immediate peer is an explicitly trusted proxy.
      */
     public function viaProxy(ServerRequestInterface $request): bool
     {
-        return $request->hasHeader('Forwarded')
-            || $request->hasHeader('X-Forwarded-For')
-            || $request->hasHeader('Client-IP')
-            || $request->hasHeader('X-Forwarded')
-            || $request->hasHeader('X-Cluster-Client-IP');
+        unset($request);
+
+        return $this->context?->viaTrustedProxy() ?? false;
     }
 
     /**
-     * Returns the raw X-Forwarded-For header line.
+     * Returns the verified client address for proxied requests, or an empty string otherwise.
      */
     public function forwardedFor(ServerRequestInterface $request): string
     {
-        return $request->getHeaderLine('X-Forwarded-For');
+        return $this->viaProxy($request) ? ($this->clientIp($request) ?? '') : '';
     }
 
     /**
@@ -101,33 +89,23 @@ final readonly class HttpRequestInspector
     }
 
     /**
-     * Returns the first available standard or forwarded referrer value.
+     * Returns the request's standard referrer value when present.
      */
     public function referer(ServerRequestInterface $request): ?string
     {
-        foreach ([
-            'Referer',
-            'X-Forwarded-Referer',
-            'X-Original-Referer',
-        ] as $header) {
-            $value = $request->getHeaderLine($header);
+        $value = $request->getHeaderLine('Referer');
 
-            if ($value !== '') {
-                return $value;
-            }
-        }
-
-        return null;
+        return $value !== '' ? $value : null;
     }
 
     /**
-     * Returns the URI host or an explicit unknown marker when it is absent.
+     * Returns the allowlisted request host or an explicit unknown marker.
      */
     public function host(ServerRequestInterface $request): string
     {
-        $host = $request->getUri()->getHost();
+        unset($request);
 
-        return $host !== '' ? $host : self::UNKNOWN;
+        return $this->context?->host() ?? self::UNKNOWN;
     }
 
     /**
@@ -253,14 +231,6 @@ final readonly class HttpRequestInspector
         return hash('sha256', $raw);
     }
 
-    private function remoteAddr(ServerRequestInterface $request): ?string
-    {
-        $serverParams = $request->getServerParams();
-        $remoteAddr = $serverParams['REMOTE_ADDR'] ?? null;
-
-        return is_string($remoteAddr) ? $this->validateIp($remoteAddr) : null;
-    }
-
     /**
      * @return array{0: string, 1: float}|null
      */
@@ -300,39 +270,4 @@ final readonly class HttpRequestInspector
         return $subtype === 'json' || str_ends_with($subtype, '+json');
     }
 
-    private function extractFromForwarded(string $value): ?string
-    {
-        if ($value === '') {
-            return null;
-        }
-
-        if (preg_match('/for="?\[?([^\]";,]+)\]?"?/i', $value, $matches) !== 1) {
-            return null;
-        }
-
-        return $this->validateIp($matches[1]);
-    }
-
-    private function extractFromForwardedFor(string $value): ?string
-    {
-        if ($value === '') {
-            return null;
-        }
-
-        return $this->validateIp(trim(explode(',', $value)[0]));
-    }
-
-    private function validateIp(string $ip): ?string
-    {
-        return filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : null;
-    }
-
-    private function isPrivateIp(string $ip): bool
-    {
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            return true;
-        }
-
-        return str_starts_with($ip, '127.') || $ip === '::1';
-    }
 }

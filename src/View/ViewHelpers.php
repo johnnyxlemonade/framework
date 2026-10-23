@@ -11,7 +11,6 @@ use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Security\Csrf\CsrfViewHelper;
-use Lemonade\Framework\Support\BaseUrlResolver;
 
 /**
  * Exposes URL, localization, image, and session-backed CSRF operations to one request's views.
@@ -22,7 +21,6 @@ final readonly class ViewHelpers
      * Binds app-scoped utilities and the current request's CSRF helper into one template API.
      */
     public function __construct(
-        private BaseUrlResolver $baseUrl,
         private UrlGenerator $urlGenerator,
         private CsrfViewHelper $csrf,
         private TranslatorInterface $translator,
@@ -32,11 +30,11 @@ final readonly class ViewHelpers
     }
 
     /**
-     * Resolves an application asset path against the configured public base URL.
+     * Returns a root-relative asset URL without requiring a canonical application origin.
      */
     public function asset(string $path): string
     {
-        return $this->baseUrl->baseUrl($path);
+        return '/' . ltrim($path, '/');
     }
 
     /**
