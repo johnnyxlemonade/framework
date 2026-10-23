@@ -7,13 +7,17 @@ namespace Lemonade\Framework\Tests\Unit\Queue;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Queue\Cli\QueueInstallCommand;
 use Lemonade\Framework\Queue\Cli\QueueWorkCommand;
+use Lemonade\Framework\Queue\Config\QueueConfig;
+use Lemonade\Framework\Queue\Config\QueueDatabaseConfig;
 use Lemonade\Framework\Queue\Exception\QueueHandlerFailureException;
 use Lemonade\Framework\Queue\JobContext;
 use Lemonade\Framework\Queue\JobHandlerRegistry;
 use Lemonade\Framework\Queue\QueuedMessage;
 use Lemonade\Framework\Queue\QueueBus;
+use Lemonade\Framework\Queue\QueueBusInterface;
 use Lemonade\Framework\Queue\QueueServiceProvider;
 use Lemonade\Framework\Queue\QueueTransportInterface;
 use PHPUnit\Framework\TestCase;
@@ -162,6 +166,44 @@ final class QueueBusTest extends TestCase
         self::assertSame(QueueWorkCommand::class, $commands->definition('queue:work')->commandClass);
         self::assertTrue($container->isBound(QueueInstallCommand::class));
         self::assertTrue($container->isBound(QueueWorkCommand::class));
+    }
+
+    public function testProviderKeepsSyncQueueUsableWithoutApplicationSecretOrCodecs(): void
+    {
+        $container = new Container();
+        (new QueueServiceProvider())->register($container);
+        $container->singleton(
+            QueueConfig::class,
+            new QueueConfig('sync', ['sync'], [], new QueueDatabaseConfig('jobs', 'failed_jobs')),
+        );
+        $bus = $container->get(QueueBusInterface::class);
+        $handled = 0;
+        $bus->addHandler(QueueBusMessage::class, static function () use (&$handled): void {
+            $handled++;
+        });
+
+        $bus->dispatch(new QueueBusMessage());
+
+        self::assertSame(1, $handled);
+    }
+
+    public function testProviderRejectsDatabaseQueueWithoutApplicationSecret(): void
+    {
+        $container = new Container();
+        (new QueueServiceProvider())->register($container);
+        $container->singleton(
+            QueueConfig::class,
+            new QueueConfig('database', ['database'], [], new QueueDatabaseConfig('jobs', 'failed_jobs')),
+        );
+        $container->singleton(
+            AppConfig::class,
+            new AppConfig(null, null, '', '', 'testing', false, '', '', '', null),
+        );
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('APP_SECRET');
+
+        $container->get(QueueBusInterface::class);
     }
 
     private function bus(?QueueBusTransportSpy $database = null): QueueBus

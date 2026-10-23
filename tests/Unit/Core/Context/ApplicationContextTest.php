@@ -12,6 +12,11 @@ use PHPUnit\Framework\TestCase;
 
 final class ApplicationContextTest extends TestCase
 {
+    public function testContextIsAnImmutableRuntimeSnapshot(): void
+    {
+        self::assertTrue((new \ReflectionClass(ApplicationContext::class))->isReadOnly());
+    }
+
     public function testBasePathReturnsConfiguredBasePath(): void
     {
         $base = $this->basePath();

@@ -4,29 +4,44 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Queue\Transport;
 
+use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
-use Lemonade\Framework\Database\DatabaseResultInterface;
+use Lemonade\Framework\Queue\Exception\InvalidQueuePayloadException;
 use Lemonade\Framework\Queue\MessageSerializer;
 use Lemonade\Framework\Queue\QueuedMessage;
 use Lemonade\Framework\Queue\QueueTransportInterface;
 
-final class DatabaseQueueTransport implements QueueTransportInterface
+/**
+ * Persists authenticated queue envelopes and atomically reserves one job for a database worker.
+ *
+ * @internal Applications should dispatch and process messages through QueueBusInterface.
+ */
+final readonly class DatabaseQueueTransport implements QueueTransportInterface
 {
+    private const int MAX_ERROR_BYTES = 2_048;
+
+    /**
+     * Creates a transport whose failed-job transitions share the queue database transaction boundary.
+     */
     public function __construct(
-        private readonly DatabaseDriverInterface $db,
-        private readonly MessageSerializer $serializer,
-        private readonly string $table = 'system_queue_job',
-        private readonly string $failedTable = 'system_queue_failed_job',
+        private DatabaseDriverInterface $db,
+        private MessageSerializer $serializer,
+        private ConnectionInterface $connection,
+        private string $table = 'system_queue_job',
+        private string $failedTable = 'system_queue_failed_job',
     ) {
     }
 
+    /**
+     * Persists a registered message only after its complete authenticated envelope is available.
+     */
     public function enqueue(QueuedMessage $message, int $delaySeconds = 0): void
     {
         $now = time();
         $availableAt = $now + max(0, $delaySeconds);
         $payload = $this->serializer->encode($message->message());
 
-        $this->db->query(
+        $this->connection->statement(
             sprintf(
                 'INSERT INTO %s (queue_name, payload, attempts, available_at, reserved_at, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, ?, ?)',
                 $this->tableName($this->table),
@@ -35,10 +50,13 @@ final class DatabaseQueueTransport implements QueueTransportInterface
         );
     }
 
+    /**
+     * Atomically reserves one available job and terminally records deterministic payload failures.
+     */
     public function dequeue(string $queue): ?QueuedMessage
     {
         $now = time();
-        $result = $this->db->query(
+        $rows = $this->connection->select(
             sprintf(
                 'SELECT id, payload, attempts FROM %s WHERE queue_name = ? AND available_at <= ? AND reserved_at IS NULL ORDER BY id ASC LIMIT 1',
                 $this->tableName($this->table),
@@ -46,12 +64,8 @@ final class DatabaseQueueTransport implements QueueTransportInterface
             [$queue, $now],
         );
 
-        if (!$result instanceof DatabaseResultInterface) {
-            return null;
-        }
-
-        $row = $result->row_array();
-        if (!is_array($row)) {
+        $row = $rows[0] ?? null;
+        if ($row === null) {
             return null;
         }
 
@@ -64,30 +78,56 @@ final class DatabaseQueueTransport implements QueueTransportInterface
         $attemptsRaw = $row['attempts'] ?? 0;
         $attemptsBase = is_int($attemptsRaw) ? $attemptsRaw : ((is_float($attemptsRaw) || (is_string($attemptsRaw) && is_numeric($attemptsRaw))) ? (int) $attemptsRaw : 0);
         $attempts = $attemptsBase + 1;
-        $updated = $this->db->query(
-            sprintf(
-                'UPDATE %s SET reserved_at = ?, attempts = ?, updated_at = ? WHERE id = ? AND reserved_at IS NULL',
-                $this->tableName($this->table),
-            ),
-            [$now, $attempts, $now, $id],
-        );
-
-        if ($updated === false || $this->db->affected_rows() === 0) {
-            return null;
-        }
-
         $payloadRaw = $row['payload'] ?? '';
         $payload = is_scalar($payloadRaw) || $payloadRaw instanceof \Stringable ? (string) $payloadRaw : '';
-        $message = $this->serializer->decode($payload);
 
-        return new QueuedMessage(
-            message: $message,
-            queue: $queue,
-            id: $id,
-            attempts: $attempts,
-        );
+        return $this->connection->transaction(function () use (
+            $id,
+            $queue,
+            $payload,
+            $attempts,
+            $now,
+        ): ?QueuedMessage {
+            $updated = $this->connection->statement(
+                sprintf(
+                    'UPDATE %s SET reserved_at = ?, attempts = ?, updated_at = ? WHERE id = ? AND reserved_at IS NULL',
+                    $this->tableName($this->table),
+                ),
+                [$now, $attempts, $now, $id],
+            );
+
+            if ($updated === 0) {
+                return null;
+            }
+
+            try {
+                $message = $this->serializer->decode($payload);
+            } catch (InvalidQueuePayloadException $exception) {
+                $this->moveToFailed(
+                    id: $id,
+                    queue: $queue,
+                    payload: $payload,
+                    attempts: $attempts,
+                    error: $exception->getMessage(),
+                    reservedAt: $now,
+                );
+
+                return null;
+            }
+
+            return new QueuedMessage(
+                message: $message,
+                queue: $queue,
+                id: $id,
+                attempts: $attempts,
+                rawPayload: $payload,
+            );
+        });
     }
 
+    /**
+     * Removes a successfully handled persistent delivery from its active queue.
+     */
     public function ack(QueuedMessage $message): void
     {
         $id = $message->id();
@@ -95,31 +135,107 @@ final class DatabaseQueueTransport implements QueueTransportInterface
             return;
         }
 
-        $this->db->query(
+        $this->connection->statement(
             sprintf('DELETE FROM %s WHERE id = ?', $this->tableName($this->table)),
             [$id],
         );
     }
 
+    /**
+     * Atomically moves a failed delivery and its original raw envelope to terminal storage.
+     */
     public function fail(QueuedMessage $message, string $error): void
     {
         $id = $message->id();
-        $payload = $this->serializer->encode($message->message());
-        $now = time();
+        $payload = $message->rawPayload() ?? $this->serializer->encode($message->message());
 
-        $this->db->query(
+        if ($id === null) {
+            $this->insertFailed(
+                id: null,
+                queue: $message->queue(),
+                payload: $payload,
+                attempts: $message->attempts(),
+                error: $error,
+            );
+
+            return;
+        }
+
+        $this->moveToFailed(
+            id: $id,
+            queue: $message->queue(),
+            payload: $payload,
+            attempts: $message->attempts(),
+            error: $error,
+        );
+    }
+
+    private function moveToFailed(
+        int $id,
+        string $queue,
+        string $payload,
+        int $attempts,
+        string $error,
+        ?int $reservedAt = null,
+    ): void {
+        $this->connection->transaction(function () use (
+            $id,
+            $queue,
+            $payload,
+            $attempts,
+            $error,
+            $reservedAt,
+        ): void {
+            $this->insertFailed(
+                id: $id,
+                queue: $queue,
+                payload: $payload,
+                attempts: $attempts,
+                error: $error,
+            );
+
+            $sql = sprintf('DELETE FROM %s WHERE id = ?', $this->tableName($this->table));
+            $bindings = [$id];
+
+            if ($reservedAt !== null) {
+                $sql = sprintf(
+                    'DELETE FROM %s WHERE id = ? AND reserved_at = ?',
+                    $this->tableName($this->table),
+                );
+                $bindings[] = $reservedAt;
+            }
+
+            $deleted = $this->connection->statement($sql, $bindings);
+            if ($deleted !== 1) {
+                throw new \RuntimeException('Reserved queue job could not be retired after failure.');
+            }
+        });
+    }
+
+    private function insertFailed(
+        ?int $id,
+        string $queue,
+        string $payload,
+        int $attempts,
+        string $error,
+    ): void {
+        $inserted = $this->connection->statement(
             sprintf(
                 'INSERT INTO %s (job_id, queue_name, payload, attempts, error_message, failed_at) VALUES (?, ?, ?, ?, ?, ?)',
                 $this->tableName($this->failedTable),
             ),
-            [$id, $message->queue(), $payload, $message->attempts(), $error, $now],
+            [
+                $id,
+                $queue,
+                $payload,
+                $attempts,
+                substr($error, 0, self::MAX_ERROR_BYTES),
+                time(),
+            ],
         );
 
-        if ($id !== null) {
-            $this->db->query(
-                sprintf('DELETE FROM %s WHERE id = ?', $this->tableName($this->table)),
-                [$id],
-            );
+        if ($inserted !== 1) {
+            throw new \RuntimeException('Failed queue job could not be persisted.');
         }
     }
 

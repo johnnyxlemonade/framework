@@ -471,11 +471,60 @@ YAML,
         self::assertSame('https://two.example.test', $frameworkB->container()->get(Config::class)->string('app.base_url'));
     }
 
+    public function testProductionBootstrapAutomaticallyRebuildsCorruptedDataCache(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            <<<'YAML'
+shared:
+  - App
+http: []
+cli: []
+YAML,
+        );
+        $this->writeConfigFile(
+            'App.yaml',
+            <<<'YAML'
+module: app
+config:
+  base_url: https://rebuilt.example.test
+YAML,
+        );
+
+        $context = $this->context(Environment::Production);
+        (new ConfigLoader())->loadApplication(
+            $this->framework($context),
+            $context,
+            ConfigLoader::ENTRYPOINT_HTTP,
+        );
+        $cacheFile = $this->cacheFile($context, ConfigLoader::ENTRYPOINT_HTTP);
+        file_put_contents($cacheFile, '{corrupted');
+        chmod($cacheFile, 0600);
+        $framework = $this->framework($context);
+
+        (new ConfigLoader())->loadApplication(
+            $framework,
+            $context,
+            ConfigLoader::ENTRYPOINT_HTTP,
+        );
+
+        self::assertSame(
+            'https://rebuilt.example.test',
+            $framework->container()->get(Config::class)->string('app.base_url'),
+        );
+        $rebuilt = file_get_contents($cacheFile);
+        self::assertIsString($rebuilt);
+        self::assertJson($rebuilt);
+    }
+
     private function context(Environment $environment = Environment::Testing): ApplicationContext
     {
         return new ApplicationContext(
             $environment,
-            new Path($this->root),
+            new Path(
+                $this->root,
+                $this->root . DIRECTORY_SEPARATOR . 'public',
+            ),
             DebugMode::disabled(),
         );
     }
@@ -493,7 +542,7 @@ YAML,
     private function cacheFile(ApplicationContext $context, string $entrypoint): string
     {
         return $context->resolveCachePath(
-            'framework/config/application-' . $entrypoint . '.php',
+            'framework/config/application-' . $entrypoint . '.cache',
         );
     }
 

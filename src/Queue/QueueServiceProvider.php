@@ -9,8 +9,10 @@ use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ScopeFactoryInterface;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
 use Lemonade\Framework\Queue\Cli\QueueInstallCommand;
 use Lemonade\Framework\Queue\Cli\QueueWorkCommand;
@@ -20,8 +22,17 @@ use Lemonade\Framework\Queue\Config\QueueConfigResolver;
 use Lemonade\Framework\Queue\Transport\DatabaseQueueTransport;
 use Lemonade\Framework\Queue\Transport\SyncQueueTransport;
 
-final class QueueServiceProvider implements ServiceProviderInterface
+/**
+ * Registers synchronous queue execution and lazily composes the authenticated database transport.
+ *
+ * Applications may register message codecs through {@see MessageCodecRegistry} from a later
+ * provider without affecting the zero-configuration synchronous transport.
+ */
+final readonly class QueueServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Registers queue configuration, transports, handler invocation, codecs, and CLI entry points.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         // These are framework CLI entry points, so their bindings belong to
@@ -38,7 +49,21 @@ final class QueueServiceProvider implements ServiceProviderInterface
                     QueueConfigDefinition::class,
                 ));
         });
-        $container->singleton(MessageSerializer::class, MessageSerializer::class);
+        $container->singleton(MessageCodecRegistry::class, MessageCodecRegistry::class);
+        $container->singleton(MessageSerializer::class, static function (ContainerInterface $container): MessageSerializer {
+            $secret = $container->get(AppConfig::class)->secret();
+
+            if ($secret === null || trim($secret) === '') {
+                throw new \LogicException(
+                    'APP_SECRET must be configured before using the database queue transport.',
+                );
+            }
+
+            return new MessageSerializer(
+                codecs: $container->get(MessageCodecRegistry::class),
+                applicationSecret: $secret,
+            );
+        });
         $container->singleton(JobHandlerRegistry::class, JobHandlerRegistry::class);
         $container->singleton(JobHandlerInvoker::class, static function (ContainerInterface $container): JobHandlerInvoker {
             if (!$container instanceof ScopeFactoryInterface) {
@@ -58,8 +83,9 @@ final class QueueServiceProvider implements ServiceProviderInterface
             $config = $container->get(QueueConfig::class);
 
             return new DatabaseQueueTransport(
-                db: $container->get(DatabaseDriverInterface::class),
                 serializer: $container->get(MessageSerializer::class),
+                db: $container->get(DatabaseDriverInterface::class),
+                connection: $container->get(ConnectionInterface::class),
                 table: $config->database->table,
                 failedTable: $config->database->failedTable,
             );

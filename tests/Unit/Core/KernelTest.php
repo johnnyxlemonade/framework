@@ -868,7 +868,10 @@ final class KernelTest extends TestCase
     {
         $context = new ApplicationContext(
             $environment,
-            new Path($this->root),
+            new Path(
+                $this->root,
+                $this->root . DIRECTORY_SEPARATOR . 'public',
+            ),
             $debug ? DebugMode::enabled() : DebugMode::disabled(),
         );
         $container = new Container();
@@ -1007,7 +1010,10 @@ final class KernelTest extends TestCase
     {
         $context = new ApplicationContext(
             Environment::Production,
-            new Path($this->root),
+            new Path(
+                $this->root,
+                $this->root . DIRECTORY_SEPARATOR . 'public',
+            ),
             DebugMode::disabled(),
         );
         $framework = new Framework(new Container(), $context);

@@ -25,6 +25,24 @@ config:
 `remember()`, `rememberForever()`, `has()`, `forget()` and `clear()` while the PSR-6 pool remains
 available for integrations that need native cache items.
 
+The file store keeps one versioned `.cache` data envelope per item. Every envelope contains the
+cache metadata and serialized PSR-6 value authenticated with HMAC-SHA-256; a value is unserialized
+only after the file size, envelope shape, version, pool namespace, cache key and MAC have all been
+verified. This preserves round trips for ordinary PHP-serializable values, including enums,
+`DateTimeImmutable` and application value objects, without loading a cache file as PHP code.
+
+`app.secret` supplies the integrity root when configured. A zero-configuration application instead
+creates one cryptographically random local key below private writable storage. Key creation is
+serialized with an OS file lock, and both cache and key files use mode `0600` below directories with
+mode `0700`. Configured cache paths must remain inside application storage and outside the public web
+root; traversal and symbolic-link components are rejected.
+
+The previous `*.php` file-cache format is intentionally not read or migrated. Deployment cleanup may
+delete the old hashed PHP files from the configured cache directory after stopping processes running
+the previous framework version. The files contain disposable cache data: do not include, execute or
+deserialize them during migration. `clear()` only removes `.cache` files owned by its current pool
+namespace, so legacy removal remains an explicit deployment operation.
+
 ## Events
 
 `EventDispatcherInterface` is a scoped runtime service backed by `ScopedEventDispatcher`.
@@ -163,8 +181,42 @@ this same primitive while remaining separate logical namespaces.
 ## Queues
 
 `QueueBusInterface` dispatches object messages to configured handlers. The package offers `sync` and
-database-backed transports, serialized messages, delayed dispatch and failed-job storage. The default
-configuration is synchronous; applications opt into the database transport explicitly.
+database-backed transports, delayed dispatch and failed-job storage. The default configuration is
+synchronous; applications opt into the database transport explicitly.
+
+The database transport stores a bounded, versioned JSON envelope authenticated with HMAC-SHA-256.
+Its HMAC key is derived from `app.secret` with a queue-specific context. Database queue resolution
+fails when that secret is absent or empty; applications that use only `sync` need neither a secret
+nor message codecs. There is no unsigned mode and no PHP-serialization fallback.
+
+Every database message class needs an explicit stable alias, schema version, and
+`MessageCodecInterface` implementation. Register codecs from an application service provider after
+the framework providers have registered the queue module:
+
+```php
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Core\ServiceProviderInterface;
+use Lemonade\Framework\Queue\MessageCodecRegistry;
+
+final readonly class ApplicationQueueProvider implements ServiceProviderInterface
+{
+    public function register(ContainerBuilderInterface $container): void
+    {
+        $container->get(MessageCodecRegistry::class)->register(
+            alias: 'invoice.send',
+            messageClass: SendInvoice::class,
+            codec: new SendInvoiceCodec(),
+            version: 1,
+        );
+    }
+}
+```
+
+A codec converts its one declared object to JSON-compatible arrays and scalars and reconstructs that
+same type from authenticated data. This explicit mapping supports readonly messages, enums,
+`DateTimeImmutable`, and value objects without reflective hydration. Objects returned inside the
+encoded data are rejected. Handler registration is a separate concern and never adds a class to the
+codec allow-list.
 
 Handlers are registered as class strings or legacy callables. Class-string handlers are resolved
 through the container when invoked; this is the preferred form for dependency injection. Handler
@@ -206,6 +258,24 @@ scope-local `JobContext`; asynchronously dequeued handlers can also inject `Queu
 Synchronous dispatch receives its own Job scope and does not reuse an active HTTP request scope.
 Legacy callables remain supported, but are not container-resolved and therefore cannot receive these
 values through constructor injection.
+
+Malformed, oversized, unsigned, tampered, unknown, unsupported, and legacy PHP-serialized database
+payloads are never hydrated. After a worker wins the row reservation, such a poison message is moved
+transactionally to the failed-job table and removed from the active queue. The failed record preserves
+the original raw payload as opaque diagnostic data; the error description is bounded and never embeds
+the payload. Applications displaying failed payloads must continue to treat them as untrusted text.
+
+The database queue format is intentionally incompatible with queue rows created by earlier framework
+versions. Deploy it without automatic conversion:
+
+1. Stop old producers and workers.
+2. Let trusted old workers drain the existing active queue, or archive and then delete those rows.
+3. Deploy the new codecs, stable `APP_SECRET`, framework code, and new producers together.
+4. Start workers only after all running processes use the new envelope format.
+
+Do not copy legacy payloads into the new queue or build a runtime unserializing migrator. Any legacy
+row left in the active table will be quarantined into failed jobs as opaque data. Rotating
+`APP_SECRET` likewise invalidates queued envelopes, so drain the queue before rotating it.
 
 ## Outbound HTTP Clients
 

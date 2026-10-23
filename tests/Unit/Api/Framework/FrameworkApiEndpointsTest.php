@@ -661,7 +661,10 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $context = new ApplicationContext(
             Environment::Production,
-            new Path($this->root),
+            new Path(
+                $this->root,
+                $this->root . DIRECTORY_SEPARATOR . 'public',
+            ),
             DebugMode::disabled(),
         );
         $container = new Container();
@@ -725,7 +728,10 @@ final class FrameworkApiEndpointsTest extends TestCase
     {
         $context = new ApplicationContext(
             Environment::Production,
-            new Path($this->root),
+            new Path(
+                $this->root,
+                $this->root . DIRECTORY_SEPARATOR . 'public',
+            ),
             DebugMode::disabled(),
         );
         $framework = new Framework(new Container(), $context);

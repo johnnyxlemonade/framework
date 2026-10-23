@@ -4,6 +4,22 @@ This project has not published tagged releases. This section summarizes notable 
 
 ## Unreleased
 
+- **Breaking security change:** Replaced executable PHP application-config cache files with
+  authenticated, versioned `.cache` data envelopes. A separate atomically initialized local key,
+  private permissions, storage/public-root separation, symbolic-link rejection, bounded typed data,
+  and atomic publication now protect cached credentials. Legacy `application-*.php` artifacts are
+  ignored and never executed; filesystem failures that cannot be secured now throw explicitly.
+- **Breaking security change:** Replaced database queue PHP serialization with bounded, versioned
+  JSON envelopes authenticated by a queue-specific HMAC key. Database messages now require an
+  explicit stable alias and `MessageCodecInterface` registration, and database queue resolution
+  requires `app.secret`; synchronous queues remain zero-configuration. Legacy serialized rows are
+  never decoded and are quarantined as opaque failed-job payloads. Failed transitions are atomic,
+  diagnostics are bounded, and conditional reservation continues to prevent duplicate delivery.
+- Replaced executable PHP file-cache payloads with versioned `.cache` data envelopes authenticated by
+  HMAC-SHA-256. File cache values are deserialized only after integrity and metadata verification;
+  zero-configuration installations receive an atomically initialized private local key. Cache roots,
+  files, containment, symbolic links, payload sizes, atomic publication, namespace isolation, and
+  permissions are now enforced. Legacy `*.php` cache entries are invalidated and never loaded.
 - Added central upload risk enforcement and public/private storage visibility. Public uploads now
   reject active, executable, and unclassified formats; private uploads require explicit
   `allowed_risks` authorization for non-passive formats and remain outside the web root.

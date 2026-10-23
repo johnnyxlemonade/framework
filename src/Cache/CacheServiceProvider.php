@@ -12,6 +12,7 @@ use Lemonade\Framework\Cache\Store\FileCacheItemPool;
 use Lemonade\Framework\Cache\Store\NullCacheItemPool;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
@@ -26,7 +27,7 @@ use function sprintf;
  *
  * The configured default pool is also exposed through the canonical pool and manager aliases.
  */
-final class CacheServiceProvider implements ServiceProviderInterface
+final readonly class CacheServiceProvider implements ServiceProviderInterface
 {
     /**
      * Defines lazy singleton bindings without resolving cache configuration during registration.
@@ -56,6 +57,11 @@ final class CacheServiceProvider implements ServiceProviderInterface
             return new FileCacheItemPool(
                 directory: $path,
                 directoryManager: $container->get(DirectoryManagerInterface::class),
+                applicationSecret: $container->get(AppConfig::class)->secret(),
+                namespace: $config->fileStore()->prefix,
+                keyFile: $context->resolveWritablePath('cache/keys/file-cache.key'),
+                storageRoot: $context->storagePath(),
+                publicRoot: $context->publicPath(),
             );
         });
 

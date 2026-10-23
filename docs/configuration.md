@@ -150,7 +150,10 @@ Routing is the intentional exception: application routes still live in `app/Conf
 
 ## Compiled application config cache
 
-The framework can compile the resolved application config definitions into generated PHP cache files. YAML sources, explicit PHP sources returning `ConfigDefinitionInterface`, and environment values remain the source of truth. The generated cache is only a derived artifact.
+The framework can compile resolved application config definitions into authenticated, non-executable
+data files. YAML sources, explicit PHP sources returning `ConfigDefinitionInterface`, and environment
+values remain the source of truth. The generated cache is only a derived artifact and is never loaded
+with `require` or `include`.
 
 ### Where the cache is stored
 
@@ -163,26 +166,44 @@ storage/cache/framework/config/
 Generated filenames are entrypoint-specific:
 
 ```text
-storage/cache/framework/config/application-http.php
-storage/cache/framework/config/application-cli.php
+storage/cache/framework/config/application-http.cache
+storage/cache/framework/config/application-cli.cache
 ```
 
 HTTP and CLI therefore use separate cache artifacts.
 
+A cryptographically random integrity key is created automatically at:
+
+```text
+storage/writable/config-cache/application-config-cache.key
+```
+
+The key is stored separately from cache payloads. No additional environment variable is required.
+Its initialization uses an exclusive OS lock so concurrent first requests converge on one complete
+key.
+
 ### What the cache contains
 
-The generated PHP file returns a structured payload with:
+The generated file contains a versioned JSON envelope and HMAC-SHA-256 over a typed data payload with:
 
 - cache format version
 - target entrypoint (`http` or `cli`)
 - tracked source files
   - relative path
   - whether the file existed when the cache was built
-  - SHA-1 hash for existing files
+- SHA-256 hash for existing files
 - tracked environment values actually used during config resolution
-- serialized typed `ConfigDefinitionInterface` payloads
+- scalar and array data for typed `ConfigDefinitionInterface` payloads
 
 The cache does not store live services, container state, providers, routes, or middleware.
+String, integer, float, boolean, null, nested array, and integer/string array-key identity are encoded
+explicitly. PHP objects are not serialized, arbitrary classes are not reconstructed from raw cache
+values, and no unsigned fallback exists.
+
+The compiled payload can contain `APP_SECRET`, database passwords, and other resolved credentials.
+Managed cache and key directories therefore use mode `0700`; payload and key files use `0600`.
+Storage inside or overlapping the public web root, symbolic-link components, traversal, and unsafe
+file types are rejected with an explicit exception.
 
 ### When the cache is active
 
@@ -213,7 +234,7 @@ request or CLI command
    -> load YAML / PHP config sources directly
 -> if environment is production:
    -> try ApplicationConfigCache::loadIfFresh(...)
-   -> on cache hit: hydrate typed config definitions from generated PHP
+   -> on cache hit: verify HMAC and hydrate typed definitions from validated data
    -> on cache miss: load sources directly, then write fresh compiled cache
 ```
 
@@ -235,9 +256,10 @@ There is no dedicated prebuild command yet. Rebuild today is therefore lazy and 
 The generated cache is accepted only when all of the following still match:
 
 - cache payload version
+- cache HMAC and typed value structure
 - target entrypoint
 - source file existence state
-- source file SHA-1 hashes
+- source file SHA-256 hashes
 - environment values that were actually read during config resolution
 
 This means:
@@ -272,7 +294,8 @@ For environment tracking, the loader stores only environment keys that were actu
 If the generated cache file:
 
 - does not exist
-- returns a payload with the wrong version
+- contains malformed JSON or a payload with the wrong version
+- has an invalid HMAC or unsupported typed value structure
 - has the wrong entrypoint
 - has invalid payload structure
 - references source metadata that no longer matches
@@ -282,17 +305,16 @@ then `ApplicationConfigCache::loadIfFresh()` returns `null` and runtime falls ba
 
 ### Write behavior and concurrency
 
-The cache writer generates PHP content into a temporary file next to the target file and then renames it into place.
+The writer creates a random, exclusively opened temporary file in the final cache directory, applies
+mode `0600`, writes and synchronizes the complete authenticated envelope, and atomically renames it
+over the previous artifact. It never unlinks the live cache before publication. Concurrent readers
+therefore observe either the complete previous file or the complete replacement. Concurrent cache
+misses may still duplicate source parsing, but their publications remain complete and independently
+validated.
 
-Current implementation details:
-
-- target file is `...application-http.php` or `...application-cli.php`
-- temporary file is the same path with `.tmp` suffix
-- if an old target exists, it is unlinked before rename
-
-This keeps ordinary single-process writes recoverable and avoids partial file contents in the final target.
-
-There is currently no file lock or cross-request coordination. Under concurrent production cache misses, multiple requests may rebuild the same cache independently. That can cause duplicated rebuild work and a brief gap between unlink and rename, but the runtime still re-validates freshness on every load and falls back safely to source loading on miss.
+Corrupted, modified, oversized, unknown-version, or stale data is treated as a cache miss. Unsafe
+paths, permissions, symbolic links, key files, or storage boundaries fail explicitly instead of
+silently disabling protection.
 
 ### Source of truth and safe manual operations
 
@@ -306,13 +328,17 @@ YAML files, explicit PHP config-definition sources, and environment values are a
 Manual clear today means removing only the framework-owned generated files:
 
 ```text
-storage/cache/framework/config/application-http.php
-storage/cache/framework/config/application-cli.php
-storage/cache/framework/config/application-http.php.tmp
-storage/cache/framework/config/application-cli.php.tmp
+storage/cache/framework/config/application-http.cache
+storage/cache/framework/config/application-cli.cache
 ```
 
 After manual clear, the next production HTTP request or CLI command rebuilds the corresponding artifact automatically.
+Do not delete the integrity key while processes are writing cache files. Deliberate key rotation safely
+invalidates existing `.cache` files; delete those artifacts and let the next bootstrap rebuild them.
+
+Legacy `application-http.php` and `application-cli.php` artifacts are never read or executed. Remove
+them after stopping processes that run an older framework version. They are not migrated or used as
+a fallback.
 
 ### Practical workflow
 
@@ -340,7 +366,7 @@ Changing YAML in production:
 
 ```text
 update app/Config/*.yaml
--> tracked SHA-1 no longer matches
+-> tracked SHA-256 no longer matches
 -> next production bootstrap ignores old cache
 -> runtime rebuilds cache from the updated YAML
 ```
