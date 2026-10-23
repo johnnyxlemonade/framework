@@ -66,8 +66,9 @@ final class HomeController
 
 The renderer owns a request-local clone of the legacy `View`. PHP templates therefore continue to
 receive `$this` as `View` and may use `extend()`, `partial()`, `start()`, `end()`, `section()` and
-`content()` unchanged. Request helpers and request-scoped components are isolated per renderer
-scope.
+`content()` unchanged. The same object now delegates common localization, URL, asset, image and
+CSRF operations to its request-scoped `ViewHelpers` instance. Request helpers and request-scoped
+components are isolated per renderer scope.
 
 ## Example view
 
@@ -85,25 +86,29 @@ scope.
 <h1><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></h1>
 ```
 
-## Explicit View Helpers
+## View Helpers
 
-The request-scoped renderer shares an explicit `$helpers` object with templates. It combines
-application utilities with the current request's session-backed CSRF helper and therefore is never
-captured by the root `View` singleton.
+Common helpers may be called directly through `$this`. `View` delegates each operation to
+`ViewHelpers`; it does not duplicate helper behavior or resolve services dynamically.
 
 ```php
-<link rel="stylesheet" href="<?= htmlspecialchars($helpers->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
+<link rel="stylesheet" href="<?= htmlspecialchars($this->asset('css/app.css'), ENT_QUOTES, 'UTF-8') ?>">
 
-<a href="<?= htmlspecialchars($helpers->url('home'), ENT_QUOTES, 'UTF-8') ?>">
-    <?= htmlspecialchars($helpers->lang('navigation.home'), ENT_QUOTES, 'UTF-8') ?>
+<a href="<?= htmlspecialchars($this->url('home'), ENT_QUOTES, 'UTF-8') ?>">
+    <?= htmlspecialchars($this->lang('navigation.home'), ENT_QUOTES, 'UTF-8') ?>
 </a>
 
-<a href="<?= htmlspecialchars($helpers->localizedUrl('article.detail', ['id' => 123]), ENT_QUOTES, 'UTF-8') ?>">
-    <?= htmlspecialchars($helpers->lang('article.detail'), ENT_QUOTES, 'UTF-8') ?>
+<a href="<?= htmlspecialchars($this->localizedUrl('article.detail', ['id' => 123]), ENT_QUOTES, 'UTF-8') ?>">
+    <?= htmlspecialchars($this->lang('article.detail'), ENT_QUOTES, 'UTF-8') ?>
 </a>
 
-<?= $helpers->csrfField() ?>
+<?= $this->csrfField() ?>
 ```
+
+The request-scoped renderer still shares the explicit `$helpers` variable for backward
+compatibility, so existing templates do not need to change. Both APIs use the same
+`ViewHelpers` object and therefore the same locale, image configuration and session-backed CSRF
+state.
 
 `asset()` returns a root-relative URL such as `/css/app.css`; rendering a view therefore does not
 require `app.base_url`, `allowed_hosts`, or proxy configuration. Code that genuinely needs an
@@ -148,10 +153,14 @@ Every request-local renderer clone receives:
 
 - view helpers
 - component registry
-- base URL resolver
-- URL generator
+- request URL and flash helpers
 - CSRF helper
 
-The root `View` prototype retains only application-scoped collaborators; the helper objects above
-are attached to its request-local clone. The view layer is intentionally simple. It is suitable for
-classic server-rendered PHP templates and administration interfaces.
+The root `View` prototype retains only application-scoped collaborators. Request bindings are
+attached only while constructing the request-local clone, and cloning that instance again discards
+the helpers and request data. Layouts and partials render on the same request-local instance, so
+they observe the same locale and CSRF session. Calling a delegated helper on a directly constructed
+or otherwise unbound `View` throws a `LogicException`; there is no global-container fallback.
+
+The view layer is intentionally simple. It is suitable for classic server-rendered PHP templates
+and administration interfaces.

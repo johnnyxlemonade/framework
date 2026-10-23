@@ -38,22 +38,25 @@ final class ViewServiceProvider implements ServiceProviderInterface
     {
         $container->singleton(ViewResourceRegistry::class, ViewResourceRegistry::class);
         $container->scoped(ViewRendererInterface::class, static function (ContainerInterface $container): ViewRendererInterface {
-            $view = clone $container->get(View::class);
             $flash = $container->has(FlashBagInterface::class) ? $container->get(FlashBagInterface::class) : null;
             $session = $container->has(SessionInterface::class) ? $container->get(SessionInterface::class) : null;
 
-            $view->share('helpers', $container->get(ViewHelpers::class));
-            $view->share('csrf', $container->get(CsrfViewHelper::class));
-            $view->share('requestHelpers', new RequestViewHelpers(
-                request: $container->get(ServerRequestInterface::class),
-                urlGenerator: $container->get(UrlGenerator::class),
-                flash: $flash instanceof FlashBagInterface ? $flash : null,
-                session: $session instanceof SessionInterface ? $session : null,
-                absoluteUrl: static fn(string $path): string => $container
-                    ->get(BaseUrlResolver::class)
-                    ->baseUrl($path),
-            ));
-            $view->share('component', $container->get(ComponentRegistry::class));
+            $view = $container->get(View::class)->forRequest(
+                $container->get(ViewHelpers::class),
+                [
+                    'csrf' => $container->get(CsrfViewHelper::class),
+                    'requestHelpers' => new RequestViewHelpers(
+                        request: $container->get(ServerRequestInterface::class),
+                        urlGenerator: $container->get(UrlGenerator::class),
+                        flash: $flash instanceof FlashBagInterface ? $flash : null,
+                        session: $session instanceof SessionInterface ? $session : null,
+                        absoluteUrl: static fn(string $path): string => $container
+                            ->get(BaseUrlResolver::class)
+                            ->baseUrl($path),
+                    ),
+                    'component' => $container->get(ComponentRegistry::class),
+                ],
+            );
 
             return new PhpViewRenderer(
                 $view,

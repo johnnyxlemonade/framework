@@ -19,10 +19,17 @@ use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
+use Lemonade\Framework\Image\Contract\ImageUrlResolverInterface;
+use Lemonade\Framework\Image\ImageViewHelper;
+use Lemonade\Framework\Image\Value\ImageDimensions;
+use Lemonade\Framework\Image\Value\ImageFormat;
+use Lemonade\Framework\Image\Value\ImageReference;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
+use Lemonade\Framework\Routing\ControllerAction;
+use Lemonade\Framework\Routing\LocaleUrlStrategyInterface;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\UrlGenerator;
 use Lemonade\Framework\Security\Csrf\CsrfTokenManager;
@@ -41,6 +48,7 @@ use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use LogicException;
 use RuntimeException;
 
 final class ViewServiceProviderTest extends TestCase
@@ -110,6 +118,190 @@ final class ViewServiceProviderTest extends TestCase
                 '/css/app.css',
                 $scope->get(ViewRendererInterface::class)->content('helpers-variable'),
             );
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testRequestViewDelegatesEveryViewHelperAndKeepsLegacyHelpersVariable(): void
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+        $router = new Router();
+        $router->localizedGroup(static function (Router $router): void {
+            $router->getNamed(
+                'article.show',
+                '/articles/{id}',
+                ControllerAction::for('ArticleController', 'show'),
+            );
+        });
+        $container->singleton(
+            UrlGenerator::class,
+            new UrlGenerator($router, null, new ViewServiceProviderLocaleUrlStrategyStub()),
+        );
+        $container->scoped(
+            TranslatorInterface::class,
+            static fn(): TranslatorInterface => new ViewServiceProviderTranslatorStub('cs'),
+        );
+        $container->singleton(
+            ImageViewHelper::class,
+            new ImageViewHelper(new ViewServiceProviderImageUrlResolverStub()),
+        );
+        $factory = new Psr17Factory();
+        $container->singleton(ResponseFactoryInterface::class, $factory);
+        $container->singleton(StreamFactoryInterface::class, $factory);
+        (new ViewServiceProvider())->register($container);
+
+        $this->writeView(
+            'delegates',
+            <<<'PHP'
+<?php $token = $this->csrfToken('profile'); ?>
+<?= $this->lang('messages.hello', ['name' => 'Jan']) ?>|
+<?= $this->lang('messages.hello', ['name' => 'Jane'], 'en') ?>|
+<?= $this->lang('messages.missing') ?>|
+<?= json_encode($this->langGroup('messages', 'cs'), JSON_THROW_ON_ERROR) ?>|
+<?= json_encode($this->langAll('en'), JSON_THROW_ON_ERROR) ?>|
+<?= $this->currentLocale() ?>|
+<?= $this->url('article.show', ['id' => 7]) ?>|
+<?= $this->localizedUrl('article.show', ['id' => 7], 'cs') ?>|
+<?= $this->asset('css/app.css') ?>|
+<?= $this->image($image, new \Lemonade\Framework\Image\ImageViewOptions(alt: 'Cover')) ?>|
+<?= $token ?>|
+<?= $this->csrfField('profile') ?>|
+<?= $helpers === $boundHelpers ? 'legacy' : 'missing' ?>
+PHP,
+        );
+
+        $scope = $container->beginScope(ScopeKind::Request);
+
+        try {
+            $scope->bindScopedInstance(
+                \Psr\Http\Message\ServerRequestInterface::class,
+                new ServerRequest('GET', '/delegates'),
+            );
+            $helpers = $scope->get(ViewHelpers::class);
+            $image = new ImageReference(
+                'catalog/cover.webp',
+                new ImageDimensions(640, 480),
+                ImageFormat::Webp,
+            );
+            $output = $scope->get(ViewRendererInterface::class)->content(
+                'delegates',
+                ['image' => $image, 'boundHelpers' => $helpers],
+            );
+
+            self::assertStringContainsString('Ahoj Jan|', $output);
+            self::assertStringContainsString('Hello Jane|', $output);
+            self::assertStringContainsString('messages.missing|', $output);
+            self::assertStringContainsString('{"hello":"Ahoj {name}"}|', $output);
+            self::assertStringContainsString('{"messages":{"hello":"Hello {name}"}}|', $output);
+            self::assertStringContainsString('cs|', $output);
+            self::assertStringContainsString('/articles/7|', $output);
+            self::assertStringContainsString('/cs/articles/7|', $output);
+            self::assertStringContainsString('/css/app.css|', $output);
+            self::assertStringContainsString(
+                '<img src="/media/catalog/cover.webp" alt="Cover" loading="lazy" width="640" height="480" decoding="async">|',
+                $output,
+            );
+            self::assertStringContainsString('name="LEMONADE_CSRF"', $output);
+            self::assertStringContainsString('value="' . $this->csrfTokenFromOutput($output) . '"', $output);
+            self::assertStringEndsWith('legacy', $output);
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testLayoutAndPartialUseTheSameRequestHelperContext(): void
+    {
+        $container = $this->rendererContainerWithScopedLocale();
+        $this->writeView(
+            'layouts.context',
+            '[<?= $this->currentLocale() ?>|<?= $this->content() ?>]',
+        );
+        $this->writeView(
+            'partials.context',
+            '<?= $this->currentLocale() ?>:<?= $token === $this->csrfToken("shared") ? "same" : "different" ?>',
+        );
+        $this->writeView(
+            'pages.context',
+            '<?php $this->extend("layouts.context"); $token = $this->csrfToken("shared"); ?><?= $this->partial("partials.context", ["token" => $token]) ?>',
+        );
+        $scope = $container->beginScope(ScopeKind::Request);
+
+        try {
+            $scope->bindScopedInstance(
+                \Psr\Http\Message\ServerRequestInterface::class,
+                new ServerRequest('GET', '/cs/context'),
+            );
+
+            self::assertSame(
+                '[cs|cs:same]',
+                $scope->get(ViewRendererInterface::class)->content('pages.context'),
+            );
+        } finally {
+            $scope->close();
+        }
+    }
+
+    public function testRequestViewsKeepLocaleSessionAndCsrfStateIsolated(): void
+    {
+        $container = $this->rendererContainerWithScopedLocale();
+        $this->writeView('request-context', '<?= $this->currentLocale() ?>|<?= $this->csrfToken("login") ?>');
+        $firstScope = $container->beginScope(ScopeKind::Request);
+        $firstScope->bindScopedInstance(
+            \Psr\Http\Message\ServerRequestInterface::class,
+            new ServerRequest('GET', '/cs/account'),
+        );
+        $secondScope = $container->beginScope(ScopeKind::Request);
+        $secondScope->bindScopedInstance(
+            \Psr\Http\Message\ServerRequestInterface::class,
+            new ServerRequest('GET', '/en/account'),
+        );
+
+        try {
+            [$firstLocale, $firstToken] = explode(
+                '|',
+                $firstScope->get(ViewRendererInterface::class)->content('request-context'),
+                2,
+            );
+            [$secondLocale, $secondToken] = explode(
+                '|',
+                $secondScope->get(ViewRendererInterface::class)->content('request-context'),
+                2,
+            );
+
+            self::assertSame('cs', $firstLocale);
+            self::assertSame('en', $secondLocale);
+            self::assertNotSame('', $firstToken);
+            self::assertNotSame('', $secondToken);
+            self::assertNotSame($firstToken, $secondToken);
+        } finally {
+            $firstScope->close();
+            $secondScope->close();
+        }
+    }
+
+    public function testCloningRequestViewDiscardsHelpersAndRequestSharedData(): void
+    {
+        $container = $this->rendererContainer();
+        $this->writeView('request-marker', '<?= $requestMarker ?? "missing" ?>');
+        $scope = $container->beginScope(ScopeKind::Request);
+
+        try {
+            $scope->bindScopedInstance(
+                \Psr\Http\Message\ServerRequestInterface::class,
+                new ServerRequest('GET', '/clone'),
+            );
+            $requestView = $container->get(View::class)->forRequest(
+                $scope->get(ViewHelpers::class),
+                ['requestMarker' => 'previous-request'],
+            );
+            $clone = clone $requestView;
+
+            self::assertSame('missing', $clone->render('request-marker'));
+
+            $this->expectException(LogicException::class);
+            $this->expectExceptionMessage('View helpers are not bound.');
+            $clone->currentLocale();
         } finally {
             $scope->close();
         }
@@ -380,6 +572,38 @@ final class ViewServiceProviderTest extends TestCase
         return $container;
     }
 
+    private function rendererContainerWithScopedLocale(): Container
+    {
+        $container = $this->buildContainer($this->viewsPath, 'https://example.test');
+        $container->scoped(
+            TranslatorInterface::class,
+            static function (ContainerInterface $container): TranslatorInterface {
+                $path = $container->get(\Psr\Http\Message\ServerRequestInterface::class)
+                    ->getUri()
+                    ->getPath();
+
+                return new ViewServiceProviderTranslatorStub(
+                    str_starts_with($path, '/cs/') ? 'cs' : 'en',
+                );
+            },
+        );
+        $factory = new Psr17Factory();
+        $container->singleton(ResponseFactoryInterface::class, $factory);
+        $container->singleton(StreamFactoryInterface::class, $factory);
+        (new ViewServiceProvider())->register($container);
+
+        return $container;
+    }
+
+    private function csrfTokenFromOutput(string $output): string
+    {
+        if (preg_match('/\|\s*([a-f0-9]{64})\|\s*<input/', $output, $matches) !== 1) {
+            self::fail('Rendered view did not contain the expected CSRF token and field sequence.');
+        }
+
+        return $matches[1];
+    }
+
     private function kernelWithDefaultConfig(): Kernel
     {
         $this->writeKernelDefaultConfigFiles();
@@ -500,37 +724,90 @@ final class ViewServiceProviderTest extends TestCase
 
 final class ViewServiceProviderTranslatorStub implements TranslatorInterface
 {
+    public function __construct(
+        private ?string $runtimeLocale = null,
+    ) {
+    }
+
     public function setLocale(?string $locale): self
     {
-        unset($locale);
+        $this->runtimeLocale = $locale;
 
         return $this;
     }
 
     public function locale(): ?string
     {
-        return null;
+        return $this->runtimeLocale;
     }
 
     public function get(string $key, array $replacements = [], ?string $locale = null): string
     {
-        unset($replacements, $locale);
+        $messages = $this->messages($locale);
+        $line = $messages[$key] ?? $key;
 
-        return $key;
+        foreach ($replacements as $name => $value) {
+            $line = str_replace('{' . $name . '}', (string) $value, $line);
+        }
+
+        return $line;
     }
 
     public function group(string $group, ?string $locale = null): array
     {
-        unset($locale);
+        if ($group !== 'messages') {
+            return [];
+        }
 
-        return [$group => $group];
+        return ['hello' => $this->messages($locale)['messages.hello']];
     }
 
     public function all(?string $locale = null): array
     {
-        unset($locale);
+        return ['messages' => $this->group('messages', $locale)];
+    }
 
-        return ['messages' => ['hello' => 'Hello']];
+    /**
+     * @return array<string, string>
+     */
+    private function messages(?string $locale): array
+    {
+        $locale ??= $this->runtimeLocale ?? 'en';
+
+        return [
+            'messages.hello' => $locale === 'cs' ? 'Ahoj {name}' : 'Hello {name}',
+        ];
+    }
+}
+
+final class ViewServiceProviderLocaleUrlStrategyStub implements LocaleUrlStrategyInterface
+{
+    public function enabled(): bool
+    {
+        return true;
+    }
+
+    public function localizedRouteName(string $baseRouteName): string
+    {
+        return 'localized.' . $baseRouteName;
+    }
+
+    public function shouldUseLocalizedRoute(string $locale): bool
+    {
+        return $locale !== 'en';
+    }
+
+    public function localeParameter(): string
+    {
+        return 'locale';
+    }
+}
+
+final class ViewServiceProviderImageUrlResolverStub implements ImageUrlResolverInterface
+{
+    public function url(ImageReference $reference): string
+    {
+        return '/media/' . $reference->publicPath();
     }
 }
 

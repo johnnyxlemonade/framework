@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\View;
 
 use Lemonade\Framework\View\View;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 
 final class ViewTest extends TestCase
@@ -129,6 +130,18 @@ final class ViewTest extends TestCase
         $view = new View($this->viewsPath);
 
         self::assertSame('OK', $view->render('bench'));
+    }
+
+    public function testDelegatedHelperWithoutRequestBindingFailsClearly(): void
+    {
+        $view = new View($this->viewsPath);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'View helpers are not bound. Render through the request-scoped ViewRendererInterface.',
+        );
+
+        $view->asset('css/app.css');
     }
 
     public function testShareOnceIsAvailableOnlyForNextRender(): void
