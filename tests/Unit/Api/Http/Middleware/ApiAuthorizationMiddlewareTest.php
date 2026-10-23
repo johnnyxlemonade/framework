@@ -276,6 +276,19 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
         self::assertSame($request, $handler->lastRequest);
     }
 
+    public function testAutomaticOptionsForMissingApiRouteFailsClosed(): void
+    {
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            new ApiEndpointRegistry(),
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('OPTIONS', '/api/missing'), $handler);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
     public function testMissingApiRouteFailsClosedWithoutCallingDownstream(): void
     {
         $handler = new CapturingRequestHandler();

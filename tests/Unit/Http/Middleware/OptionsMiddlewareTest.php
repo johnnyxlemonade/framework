@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
 use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
@@ -46,6 +47,25 @@ final class OptionsMiddlewareTest extends TestCase
         self::assertSame('', (string) $response->getBody());
     }
 
+    public function testOptionsUsesDispatchPathOverrideForAutomaticResponse(): void
+    {
+        $router = new Router();
+        $router->get('/api/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
+        $factory = new Psr17Factory();
+        $middleware = new OptionsMiddleware($router, $factory);
+        $handler = new RecordingHandler($factory->createResponse(404));
+        $request = $factory
+            ->createServerRequest('OPTIONS', '/localized/users')
+            ->withAttribute(RouteRequestAttributes::DISPATCH_PATH, '/api/users');
+
+        $response = $middleware->process($request, $handler);
+
+        self::assertSame(0, $handler->calls);
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame('GET, HEAD, OPTIONS', $response->getHeaderLine('Allow'));
+        self::assertSame('', (string) $response->getBody());
+    }
+
     public function testOptionsMissingPathFallsBackToStandard404Flow(): void
     {
         $router = new Router();
@@ -54,6 +74,28 @@ final class OptionsMiddlewareTest extends TestCase
         $middleware = new OptionsMiddleware($router, $factory);
         $handler = new RecordingHandler($factory->createResponse(404)->withBody($factory->createStream('not-found')));
         $request = $factory->createServerRequest('OPTIONS', '/missing');
+
+        $response = $middleware->process($request, $handler);
+
+        self::assertSame(1, $handler->calls);
+        self::assertSame(404, $response->getStatusCode());
+        self::assertSame('not-found', (string) $response->getBody());
+    }
+
+    public function testOptionsMissingDispatchPathFallsBackToStandard404Flow(): void
+    {
+        $router = new Router();
+        $router->get('/api/users', \Lemonade\Framework\Routing\ControllerAction::for('UserController', 'index'));
+        $factory = new Psr17Factory();
+        $middleware = new OptionsMiddleware($router, $factory);
+        $handler = new RecordingHandler(
+            $factory
+                ->createResponse(404)
+                ->withBody($factory->createStream('not-found')),
+        );
+        $request = $factory
+            ->createServerRequest('OPTIONS', '/localized/missing')
+            ->withAttribute(RouteRequestAttributes::DISPATCH_PATH, '/api/missing');
 
         $response = $middleware->process($request, $handler);
 

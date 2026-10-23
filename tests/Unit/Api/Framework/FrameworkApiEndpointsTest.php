@@ -38,6 +38,7 @@ use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\ControllerAction;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -96,6 +97,21 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('application/problem+json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+    }
+
+    public function testAutomaticOptionsUsesDispatchPathOverrideAcrossAuthorizationAndOptionsMiddleware(): void
+    {
+        $request = (new ServerRequest('OPTIONS', '/localized/framework/openapi.json'))
+            ->withAttribute(
+                RouteRequestAttributes::DISPATCH_PATH,
+                '/api/framework/openapi.json',
+            );
+
+        $response = $this->kernel()->run($request);
+
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame('GET, HEAD, OPTIONS', $response->getHeaderLine('Allow'));
+        self::assertSame('', (string) $response->getBody());
     }
 
     public function testPercentEncodedProtectedEndpointCannotBypassKernelAuthorization(): void

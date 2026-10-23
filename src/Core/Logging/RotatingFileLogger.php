@@ -182,7 +182,7 @@ final class RotatingFileLogger extends AbstractLogger
 
             $position = ftell($handle);
 
-            if (!is_int($position)) {
+            if (!is_int($position) || $position < 0) {
                 throw new LogStorageException(sprintf('Log file "%s" size cannot be determined.', $path));
             }
 

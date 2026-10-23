@@ -16,9 +16,9 @@ use LogicException;
 final readonly class ApiConfigResolver
 {
     /**
-     * Applies definitions in order while retaining framework defaults for omitted values and normalized fallbacks.
+     * Applies definitions in order while retaining framework defaults only for omitted values.
      *
-     * @throws LogicException When a configured endpoint provider is missing or violates its contract.
+     * @throws LogicException When an endpoint provider or explicit access mode is invalid.
      */
     public function resolve(ApiConfigDefinition ...$definitions): ApiConfig
     {
@@ -201,7 +201,7 @@ final readonly class ApiConfigResolver
         }
 
         if (array_key_exists('access', $config)) {
-            $state['access'] = $this->resolveAccess($config['access'], $state['access']);
+            $state['access'] = $this->resolveAccess($config['access']);
         }
 
         if (array_key_exists('scopes', $config)) {
@@ -232,14 +232,27 @@ final readonly class ApiConfigResolver
         ];
     }
 
-    private function resolveAccess(mixed $value, ApiAccess $default): ApiAccess
+    private function resolveAccess(mixed $value): ApiAccess
     {
-        $normalized = ConfigValueNormalizer::nullableString($value);
-        if ($normalized === null) {
-            return $default;
+        if (!is_string($value)) {
+            throw new LogicException(sprintf(
+                'Configured API access mode must be a string; received %s.',
+                get_debug_type($value),
+            ));
         }
 
-        return ApiAccess::tryFrom(strtolower($normalized)) ?? $default;
+        $normalized = strtolower(trim($value));
+        $resolved = ApiAccess::tryFrom($normalized);
+
+        if ($resolved === null) {
+            throw new LogicException(sprintf(
+                'Unsupported API access mode "%s"; expected one of: %s.',
+                $value,
+                implode(', ', array_column(ApiAccess::cases(), 'value')),
+            ));
+        }
+
+        return $resolved;
     }
 
     /**

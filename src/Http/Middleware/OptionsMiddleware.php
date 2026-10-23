@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Http\Middleware;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Request\HttpMethod;
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -36,7 +37,8 @@ final readonly class OptionsMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $path = $request->getUri()->getPath();
+        $dispatchPath = $request->getAttribute(RouteRequestAttributes::DISPATCH_PATH);
+        $path = is_string($dispatchPath) ? $dispatchPath : $request->getUri()->getPath();
 
         if ($this->router->hasExplicitRouteForPath(HttpMethod::OPTIONS, $path)) {
             return $handler->handle($request);

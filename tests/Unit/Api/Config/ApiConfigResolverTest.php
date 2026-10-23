@@ -15,6 +15,7 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Routing\ControllerAction;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class ApiConfigResolverTest extends TestCase
@@ -175,6 +176,57 @@ final class ApiConfigResolverTest extends TestCase
         );
 
         self::assertSame(['docs:read', 'openapi:read'], $config->framework()->docs()->scopes());
+    }
+
+    #[DataProvider('supportedAccessModeProvider')]
+    public function testSupportedAccessModesResolveExplicitly(string $mode, ApiAccess $expected): void
+    {
+        $config = (new ApiConfigResolver())->resolve(
+            ApiConfigDefinition::create()->openApiAccess($mode),
+        );
+
+        self::assertSame($expected, $config->framework()->openApi()->access());
+    }
+
+    /**
+     * @return iterable<string, array{string, ApiAccess}>
+     */
+    public static function supportedAccessModeProvider(): iterable
+    {
+        yield 'public' => ['public', ApiAccess::Public];
+        yield 'protected' => ['protected', ApiAccess::Protected];
+        yield 'internal only' => ['internal_only', ApiAccess::InternalOnly];
+        yield 'debug only' => ['debug_only', ApiAccess::DebugOnly];
+    }
+
+    #[DataProvider('invalidAccessModeProvider')]
+    public function testExplicitInvalidAccessModesAreRejected(mixed $mode): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('API access mode');
+
+        (new ApiConfigResolver())->resolve(
+            ApiConfigDefinition::fromArrayData([
+                'framework' => [
+                    'openapi' => [
+                        'access' => $mode,
+                    ],
+                ],
+            ]),
+        );
+    }
+
+    /**
+     * @return iterable<string, array{mixed}>
+     */
+    public static function invalidAccessModeProvider(): iterable
+    {
+        yield 'typo' => ['publik'];
+        yield 'unknown' => ['authenticated'];
+        yield 'empty' => [''];
+        yield 'blank' => ['   '];
+        yield 'null' => [null];
+        yield 'boolean' => [true];
     }
 }
 

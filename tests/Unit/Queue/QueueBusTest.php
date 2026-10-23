@@ -20,6 +20,7 @@ use Lemonade\Framework\Queue\QueueBus;
 use Lemonade\Framework\Queue\QueueBusInterface;
 use Lemonade\Framework\Queue\QueueServiceProvider;
 use Lemonade\Framework\Queue\QueueTransportInterface;
+use Lemonade\Framework\Queue\Transport\SyncQueueTransport;
 use PHPUnit\Framework\TestCase;
 
 final class QueueBusTest extends TestCase
@@ -70,6 +71,34 @@ final class QueueBusTest extends TestCase
         $bus->dispatch($message, transport: 'sync');
 
         self::assertSame([$message], $handled);
+    }
+
+    public function testAsyncDispatchHandsMessageToConfiguredTransport(): void
+    {
+        $transport = new QueueBusTransportSpy();
+        $bus = $this->bus($transport);
+        $message = new QueueBusMessage();
+
+        $bus->dispatch($message, transport: 'database', queue: 'critical', delaySeconds: 10);
+
+        self::assertCount(1, $transport->enqueued);
+        self::assertSame($message, $transport->enqueued[0]['message']->message());
+        self::assertSame('critical', $transport->enqueued[0]['message']->queue());
+        self::assertSame(10, $transport->enqueued[0]['delay']);
+    }
+
+    public function testSyncTransportAliasCannotSilentlyDiscardMessage(): void
+    {
+        $bus = new QueueBus(
+            container: new Container(),
+            transports: ['databse' => new SyncQueueTransport()],
+            defaultTransport: 'databse',
+        );
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('cannot enqueue messages');
+
+        $bus->dispatch(new QueueBusMessage());
     }
 
     public function testProcessNextAcknowledgesAfterSuccessfulHandler(): void
@@ -239,6 +268,11 @@ final class QueueBusClassStringHandler
 
 final class QueueBusTransportSpy implements QueueTransportInterface
 {
+    /**
+     * @var list<array{message: QueuedMessage, delay: int}>
+     */
+    public array $enqueued = [];
+
     /** @var list<QueuedMessage> */
     public array $acknowledged = [];
 
@@ -254,7 +288,10 @@ final class QueueBusTransportSpy implements QueueTransportInterface
 
     public function enqueue(QueuedMessage $message, int $delaySeconds = 0): void
     {
-        unset($message, $delaySeconds);
+        $this->enqueued[] = [
+            'message' => $message,
+            'delay' => $delaySeconds,
+        ];
     }
 
     public function dequeue(string $queue): ?QueuedMessage

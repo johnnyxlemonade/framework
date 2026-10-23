@@ -100,13 +100,13 @@ final readonly class QueueServiceProvider implements ServiceProviderInterface
             $transports = [];
             foreach ($transportNames as $name) {
                 $transports[$name] = match ($name) {
+                    'sync' => $container->get(SyncQueueTransport::class),
                     'database' => $container->get(DatabaseQueueTransport::class),
-                    default => $container->get(SyncQueueTransport::class),
+                    default => throw new \LogicException(sprintf(
+                        'Queue transport "%s" passed runtime configuration validation unexpectedly.',
+                        $name,
+                    )),
                 };
-            }
-
-            if ($transports === []) {
-                $transports['sync'] = $container->get(SyncQueueTransport::class);
             }
 
             $bus = new QueueBus(

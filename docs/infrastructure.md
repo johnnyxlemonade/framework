@@ -241,6 +241,11 @@ config:
     App\Message\SendInvoice: App\Queue\SendInvoiceHandler
 ```
 
+Queue configuration accepts only the built-in `sync` and `database` transport names. The selected
+default must also appear in `transports`; unknown names, an explicitly empty transport list, and a
+missing default transport fail during configuration resolution instead of falling back to sync.
+Omitting queue configuration entirely retains the zero-configuration synchronous queue.
+
 Create the database tables with `vendor/bin/lemonade queue:install`. Run a worker with
 `vendor/bin/lemonade queue:work [queue] [transport] [max] [sleep-ms]`; a worker requires an
 asynchronous transport such as `database`. Worker lifecycle and deployment supervision remain

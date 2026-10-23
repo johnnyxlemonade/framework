@@ -106,6 +106,8 @@ Framework defaults are conservative:
 - docs are disabled and protected by default
 
 Applications can explicitly make OpenAPI/docs public for local development.
+Explicit `access` values must be one of `public`, `protected`, `internal_only`, or `debug_only`;
+unknown, blank, or non-string values stop configuration resolution instead of retaining a default.
 
 ## Endpoint provider example
 
