@@ -149,6 +149,8 @@ final class RouteCollection
             params: $params,
             middleware: $route->middlewareStack(),
             name: $route->routeName(),
+            method: $route->method(),
+            path: $route->path(),
         );
     }
 

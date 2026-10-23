@@ -25,20 +25,24 @@ HTTP request
    -> register framework and application endpoints in the canonical ApiEndpointRegistry
    -> register API routes under configured ApiConfig::prefix()
 -> API middleware
-   -> resolve request path against ApiEndpointRegistry
-   -> skip non-API requests
+   -> obtain the canonical RouteMatch from Router
+   -> bind the matched route name, method, template and controller to ApiEndpointRegistry metadata
+   -> reject unmatched or conflicting routes inside the API prefix
+   -> skip matched non-API routes
    -> allow public endpoints
    -> authenticate protected endpoints
    -> check endpoint scopes
+-> DispatchRequestHandler reuses the authorized RouteMatch
 -> controller / handler
 -> PSR-7 response
 ```
 
 ## Error responses
 
-An API error response is selected only for a request that resolves to a registered
-`ApiEndpointRegistry` endpoint under the configured API prefix. A generic `/api` path and an
-`Accept: application/json` header alone do not change the normal HTTP HTML error policy.
+API authorization is selected only when the canonical router match is bound to a registered
+`ApiEndpointRegistry` endpoint. Unknown or conflicting routes below the configured API prefix
+fail closed with Problem Details. An `Accept: application/json` header alone does not change the
+normal HTTP HTML error policy outside that prefix.
 
 For a registered endpoint, authentication and authorization failures, not-found exceptions and
 unexpected handler failures use `application/problem+json`. An unexpected API failure always has a

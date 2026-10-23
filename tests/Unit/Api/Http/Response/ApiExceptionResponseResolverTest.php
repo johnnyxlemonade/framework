@@ -7,11 +7,13 @@ namespace Lemonade\Framework\Tests\Unit\Api\Http\Response;
 use Lemonade\Framework\Api\Config\ApiConfigResolver;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistrar;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Http\Response\ApiExceptionResponseResolver;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Http\Exception\NotFoundHttpException;
 use Lemonade\Framework\Routing\ControllerAction;
+use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -69,11 +71,15 @@ final class ApiExceptionResponseResolverTest extends TestCase
             description: 'Broken endpoint',
             access: ApiAccess::Public,
         );
+        $config = (new ApiConfigResolver())->resolve();
+        $router = new Router();
+        (new ApiEndpointRegistrar($router, $registry))->registerRoutes($config->prefix());
 
         return new ApiExceptionResponseResolver(
             new ApiEndpointRequestResolver(
                 $registry,
-                (new ApiConfigResolver())->resolve(),
+                $config,
+                $router,
             ),
             new ProblemDetailsFactory(new Psr17Factory()),
         );

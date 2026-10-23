@@ -51,6 +51,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-api-' . uniqid('', true);
+        ParameterizedProtectedApiController::$invoked = false;
         $this->writeDefaultConfigFiles();
     }
 
@@ -95,6 +96,47 @@ final class FrameworkApiEndpointsTest extends TestCase
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('application/problem+json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+    }
+
+    public function testPercentEncodedProtectedEndpointCannotBypassKernelAuthorization(): void
+    {
+        $response = $this->kernel()->run(
+            new ServerRequest('GET', '/api/framework/open%61pi.json'),
+        );
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertSame('application/problem+json; charset=utf-8', $response->getHeaderLine('Content-Type'));
+    }
+
+    public function testParameterizedProtectedEndpointCannotExecuteWithoutAuthentication(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  endpoint_providers:\n    - " . TestParameterizedProtectedApiEndpointProvider::class . "\n",
+        );
+
+        $response = $this->kernel()->run(
+            new ServerRequest('GET', '/api/app/users/123'),
+        );
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertFalse(ParameterizedProtectedApiController::$invoked);
+    }
+
+    public function testParameterizedProtectedEndpointExecutesAfterSuccessfulAuthorization(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  endpoint_providers:\n    - " . TestParameterizedProtectedApiEndpointProvider::class . "\n  security:\n    static_bearer:\n      enabled: true\n      token: secret-token\n      scopes:\n        - users:read\n",
+        );
+        $request = (new ServerRequest('GET', '/api/app/users/123'))
+            ->withHeader('Authorization', 'Bearer secret-token');
+
+        $response = $this->kernel()->run($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('123', (string) $response->getBody());
+        self::assertTrue(ParameterizedProtectedApiController::$invoked);
     }
 
     public function testGetOpenApiWithAdminTokenReturns200Json(): void
@@ -818,6 +860,25 @@ final class TestInternalApiEndpointProvider implements ApiEndpointProviderInterf
     }
 }
 
+final class TestParameterizedProtectedApiEndpointProvider implements ApiEndpointProviderInterface
+{
+    public function register(ApiEndpointRegistry $registry): void
+    {
+        $registry->get(
+            path: '/app/users/{id}',
+            controllerAction: ControllerAction::for(ParameterizedProtectedApiController::class, 'show'),
+            name: 'app.users.show',
+            summary: 'App user',
+            description: 'Returns one protected application user',
+            access: ApiAccess::Protected,
+            metadata: new ApiEndpointMetadata(
+                tags: ['App'],
+                scopes: ['users:read'],
+            ),
+        );
+    }
+}
+
 final class TestInternalAuthenticatorProvider implements ServiceProviderInterface
 {
     public function register(ContainerBuilderInterface $container): void
@@ -862,6 +923,18 @@ final class AppInternalController
 {
     public function show(): void
     {
+    }
+}
+
+final class ParameterizedProtectedApiController
+{
+    public static bool $invoked = false;
+
+    public function show(string $id): string
+    {
+        self::$invoked = true;
+
+        return $id;
     }
 }
 

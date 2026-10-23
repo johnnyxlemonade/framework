@@ -121,6 +121,26 @@ final class DispatchRequestHandlerTest extends TestCase
         self::assertSame(['id' => '42'], DispatchContextController::$match->params());
     }
 
+    public function testHandleReusesCanonicalRouteMatchPreparedByGlobalAuthorization(): void
+    {
+        $container = $this->buildContainer();
+        $router = new Router();
+        $router->getNamed(
+            'dispatch.prematched',
+            '/context/{id}',
+            \Lemonade\Framework\Routing\ControllerAction::for(DispatchContextController::class, 'show'),
+        );
+        $request = (new Psr17Factory())->createServerRequest('GET', '/context/42');
+        $match = $router->match($request);
+
+        $response = $this->buildHandler($router, $container)->handle(
+            $request->withAttribute(RouteRequestAttributes::MATCH, $match),
+        );
+
+        self::assertSame('42', (string) $response->getBody());
+        self::assertSame($match, DispatchContextController::$match);
+    }
+
     public function testNonMatchedRequestDoesNotExposeRouteContextToGlobalMiddleware(): void
     {
         $pipeline = MiddlewarePipeline::create(

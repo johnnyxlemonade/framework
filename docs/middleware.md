@@ -18,8 +18,10 @@ The default middleware stack contains framework middleware for:
 
 This is the standalone HTTP stack. When the API module is enabled in an HTTP runtime,
 `ApiServiceProvider` contributes `ApiAuthorizationMiddleware` immediately before
-`OptionsMiddleware`. The contribution is added once during provider boot; an HTTP-only runtime has
-no API middleware or API service fallback graph.
+`OptionsMiddleware`. API authorization obtains the canonical `RouteMatch` from the shared Router,
+binds it to endpoint security metadata, and passes that same match to dispatch after successful
+authorization. The contribution is added once during provider boot; an HTTP-only runtime has no
+API middleware or API service fallback graph.
 
 ## Global middleware
 

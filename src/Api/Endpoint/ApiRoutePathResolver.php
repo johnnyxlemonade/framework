@@ -44,8 +44,8 @@ final readonly class ApiRoutePathResolver
      */
     public function resolveRequestPath(string $prefix, string $requestPath): ?string
     {
-        $normalizedPath = $this->normalizePath($requestPath);
-        $normalizedPrefix = $this->normalizePrefix($prefix);
+        $normalizedPath = $this->normalizeDecodedPath($requestPath);
+        $normalizedPrefix = $this->normalizeDecodedPrefix($prefix);
 
         if ($normalizedPrefix === '') {
             return $normalizedPath;
@@ -60,5 +60,20 @@ final readonly class ApiRoutePathResolver
         }
 
         return $this->normalizePath(substr($normalizedPath, strlen($normalizedPrefix)));
+    }
+
+    private function normalizeDecodedPath(string $path): string
+    {
+        return $this->normalizePath(implode('/', array_map(
+            static fn(string $segment): string => rawurldecode($segment),
+            explode('/', trim($path, '/')),
+        )));
+    }
+
+    private function normalizeDecodedPrefix(string $prefix): string
+    {
+        $normalized = $this->normalizeDecodedPath($prefix);
+
+        return $normalized === '/' ? '' : rtrim($normalized, '/');
     }
 }

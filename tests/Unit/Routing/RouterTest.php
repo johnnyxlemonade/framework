@@ -177,6 +177,8 @@ final class RouterTest extends TestCase
         $match = $router->match(new ServerRequest('GET', '/users/15'));
 
         self::assertSame('UserController', $match->controller());
+        self::assertSame('GET', $match->method());
+        self::assertSame('/users/{id}', $match->path());
         self::assertSame('/users/15', $router->url('users.show', ['id' => 15]));
     }
 

@@ -7,6 +7,7 @@ namespace Lemonade\Framework\Http\Middleware;
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Routing\RouteMatch;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Psr\Http\Message\ResponseInterface;
@@ -14,7 +15,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Matches a request, publishes its RouteMatch, and delegates to route middleware.
+ * Reuses a trusted pre-match or matches the request, publishes its RouteMatch, and delegates to route middleware.
  *
  * It honors a dispatch-only path attribute while keeping the original request URI
  * available to the selected controller and its middleware.
@@ -34,13 +35,16 @@ final readonly class DispatchRequestHandler implements RequestHandlerInterface
     }
 
     /**
-     * Matches and dispatches the request while binding the matched request in its scope.
+     * Dispatches the canonical match while binding the matched request in its scope.
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $this->markBenchmark('route_match_start');
         $dispatchPath = $request->getAttribute(RouteRequestAttributes::DISPATCH_PATH);
-        $match = $this->router->match($request, is_string($dispatchPath) ? $dispatchPath : null);
+        $match = $request->getAttribute(RouteRequestAttributes::MATCH);
+        if (!$match instanceof RouteMatch) {
+            $match = $this->router->match($request, is_string($dispatchPath) ? $dispatchPath : null);
+        }
         $this->markBenchmark('route_matched');
 
         $request = $request->withAttribute(RouteRequestAttributes::MATCH, $match);

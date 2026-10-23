@@ -223,7 +223,10 @@ final class ApiEndpointRegistry
     }
 
     /**
-     * Resolves a normalized method-path pair, with HEAD falling back to a matching GET endpoint.
+     * Performs an exact definition lookup, with HEAD falling back to a matching GET definition.
+     *
+     * This operation does not implement Router matching and must not authorize an incoming request;
+     * request security uses ApiEndpointRequestResolver with the canonical RouteMatch instead.
      */
     public function findByRequest(string $method, string $path): ?ApiEndpoint
     {

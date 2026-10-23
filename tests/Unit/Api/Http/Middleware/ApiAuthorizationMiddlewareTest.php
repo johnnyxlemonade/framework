@@ -11,6 +11,7 @@ use Lemonade\Framework\Api\Config\FrameworkApiConfig;
 use Lemonade\Framework\Api\Config\StaticBearerConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
+use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistrar;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
@@ -23,6 +24,9 @@ use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Routing\ControllerAction;
+use Lemonade\Framework\Routing\RouteMatch;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
+use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Response;
 use Nyholm\Psr7\ServerRequest;
@@ -56,6 +60,246 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
         $response = $middleware->process(new ServerRequest('GET', '/api/public'), $handler);
 
         self::assertSame(200, $response->getStatusCode());
+        self::assertInstanceOf(
+            RouteMatch::class,
+            $handler->lastRequest?->getAttribute(RouteRequestAttributes::MATCH),
+        );
+    }
+
+    public function testParameterizedProtectedEndpointCannotBypassAuthentication(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get(
+            '/users/{id}',
+            ControllerAction::for('X', 'y'),
+            'users.show',
+            'User',
+            'User',
+        );
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('GET', '/api/users/123'), $handler);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testPercentEncodedProtectedEndpointCannotBypassAuthentication(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get(
+            '/secret',
+            ControllerAction::for('X', 'y'),
+            'secret.show',
+            'Secret',
+            'Secret',
+        );
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('GET', '/api/se%63ret'), $handler);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testPercentEncodedApiPrefixCannotBypassAuthentication(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get(
+            '/secret',
+            ControllerAction::for('X', 'y'),
+            'secret.show',
+            'Secret',
+            'Secret',
+        );
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('GET', '/a%70i/secret'), $handler);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testWildcardEndpointUsesCanonicalRouterMatchForAuthorization(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get(
+            '/files/{path:any}',
+            ControllerAction::for('X', 'y'),
+            'files.show',
+            'File',
+            'File',
+        );
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('GET', '/api/files/a/b/c'), $handler);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testRouteConstraintMismatchDoesNotAuthorizeOrDispatchEndpoint(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $action = ControllerAction::for('X', 'y');
+        $registry->get('/items/{kind}', $action, 'items.show', 'Item', 'Item');
+        $config = $this->config();
+        $router = new Router();
+        $route = $router->get('/api/items/{kind}', $action);
+        $route->name('items.show');
+        $route->constrainParameter('kind', ['safe']);
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+            router: $router,
+            config: $config,
+            registerRoutes: false,
+        )->process(new ServerRequest('GET', '/api/items/unsafe'), $handler);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testHeadUsesProtectedGetRoutePolicy(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get('/reports/{id}', ControllerAction::for('X', 'y'), 'reports.show', 'Report', 'Report');
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('HEAD', '/api/reports/7'), $handler);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testTrailingSlashUsesProtectedEndpointPolicy(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get('/reports', ControllerAction::for('X', 'y'), 'reports.index', 'Reports', 'Reports');
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('GET', '/api/reports/'), $handler);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testDispatchOverrideUsesProtectedEndpointPolicy(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get('/reports/{id}', ControllerAction::for('X', 'y'), 'reports.show', 'Report', 'Report');
+        $handler = new CapturingRequestHandler();
+        $request = (new ServerRequest('GET', '/localized/reports/7'))
+            ->withAttribute(RouteRequestAttributes::DISPATCH_PATH, '/api/reports/7');
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process($request, $handler);
+
+        self::assertSame(401, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testConflictingNonApiRouteInsideApiNamespaceFailsClosed(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $router = new Router();
+        $router->get('/api/conflict', ControllerAction::for('X', 'y'))->name('web.conflict');
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+            router: $router,
+            registerRoutes: false,
+        )->process(new ServerRequest('GET', '/api/conflict'), $handler);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testExactRouteConflictCannotOverrideParameterizedEndpointPolicy(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $apiAction = ControllerAction::for('ApiController', 'show');
+        $registry->get('/users/{id}', $apiAction, 'users.show', 'User', 'User');
+        $router = new Router();
+        $router->get('/api/users/{id}', $apiAction)->name('users.show');
+        $router->get('/api/users/admin', ControllerAction::for('WebController', 'show'))->name('web.admin');
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+            router: $router,
+            registerRoutes: false,
+        )->process(new ServerRequest('GET', '/api/users/admin'), $handler);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testAutomaticOptionsForRegisteredPathContinuesToOptionsMiddleware(): void
+    {
+        $registry = new ApiEndpointRegistry();
+        $registry->get('/users', ControllerAction::for('X', 'y'), 'users.index', 'Users', 'Users');
+        $handler = new CapturingRequestHandler();
+        $request = new ServerRequest('OPTIONS', '/api/users');
+
+        $response = $this->middleware(
+            $registry,
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process($request, $handler);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame($request, $handler->lastRequest);
+    }
+
+    public function testMissingApiRouteFailsClosedWithoutCallingDownstream(): void
+    {
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            new ApiEndpointRegistry(),
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('GET', '/api/missing'), $handler);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
+    }
+
+    public function testMissingRouteBelowEncodedApiPrefixFailsClosed(): void
+    {
+        $handler = new CapturingRequestHandler();
+
+        $response = $this->middleware(
+            new ApiEndpointRegistry(),
+            new StaticBearerTokenAuthenticator('token', ['api:admin']),
+        )->process(new ServerRequest('GET', '/a%70i/missing'), $handler);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertNull($handler->lastRequest);
     }
 
     public function testProtectedEndpointWithoutTokenReturns401(): void
@@ -302,9 +546,31 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
         ApiEndpointRegistry $registry,
         ApiAuthenticatorInterface $auth,
         bool $debug = false,
+        ?Router $router = null,
+        ?ApiConfig $config = null,
+        bool $registerRoutes = true,
     ): ApiAuthorizationMiddleware
     {
-        $config = new ApiConfig(
+        $config ??= $this->config();
+        $router ??= new Router();
+
+        if ($registerRoutes) {
+            (new ApiEndpointRegistrar($router, $registry))->registerRoutes($config->prefix());
+        }
+
+        return new ApiAuthorizationMiddleware(
+            new ApiEndpointRequestResolver($registry, $config, $router),
+            $auth,
+            new ScopeVoter(),
+            new ProblemDetailsFactory(new Psr17Factory()),
+            new AppConfig(null, null, '', '', 'testing', $debug, '', '', ''),
+            $router,
+        );
+    }
+
+    private function config(): ApiConfig
+    {
+        return new ApiConfig(
             enabled: true,
             prefix: '/api',
             endpointProviders: [],
@@ -315,14 +581,6 @@ final class ApiAuthorizationMiddlewareTest extends TestCase
                 openapi: new ApiEndpointConfig(true, '/framework/openapi.json', ApiAccess::Protected, ['openapi:read']),
                 docs: new ApiEndpointConfig(false, '/framework/docs', ApiAccess::Protected, ['openapi:read']),
             ),
-        );
-
-        return new ApiAuthorizationMiddleware(
-            new ApiEndpointRequestResolver($registry, $config),
-            $auth,
-            new ScopeVoter(),
-            new ProblemDetailsFactory(new Psr17Factory()),
-            new AppConfig(null, null, '', '', 'testing', $debug, '', '', ''),
         );
     }
 }

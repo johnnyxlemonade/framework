@@ -114,11 +114,13 @@ The guard rejects command/job scopes, a missing local request binding, and a mis
 
 Bootstrap happens before request dispatch. Global middleware wraps route matching and controller execution. Route-specific middleware wraps the matched controller handler.
 
-After a successful match, `DispatchRequestHandler` adds the immutable `RouteMatch` as the
-`Lemonade\Framework\Routing\RouteRequestAttributes::MATCH` PSR-7 request attribute. Route
-middleware and the controller action receive that same request instance. Global middleware runs
-before routing and therefore must treat this attribute as absent. A non-matched request never
-receives a route-match attribute.
+For ordinary web routes, `DispatchRequestHandler` adds the immutable `RouteMatch` as the
+`Lemonade\Framework\Routing\RouteRequestAttributes::MATCH` PSR-7 request attribute. For registered
+API routes, authorization obtains that match from the same `Router` earlier and the dispatch
+handler reuses the identical object after successful authorization. Middleware before API
+authorization must treat the attribute as absent; route middleware and the controller receive the
+same matched request instance. A non-matched request never reaches a controller with a route-match
+attribute.
 
 Controller actions may return a PSR response directly. Scalar, stringable and `null` return values are normalized into HTML responses.
 
