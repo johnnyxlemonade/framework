@@ -12,17 +12,25 @@ use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\FrameworkInfo;
 use Lemonade\Framework\Http\HttpStatus;
 
-final class OpenApiGenerator
+/**
+ * Projects the canonical endpoint registry and runtime configuration into an OpenAPI 3.1 document.
+ */
+final readonly class OpenApiGenerator
 {
+    /**
+     * Binds document generation to endpoint metadata, server configuration and framework identity.
+     */
     public function __construct(
-        private readonly ApiEndpointRegistry $endpoints,
-        private readonly ApiConfig $apiConfig,
-        private readonly AppConfig $appConfig,
-        private readonly FrameworkInfo $frameworkInfo,
+        private ApiEndpointRegistry $endpoints,
+        private ApiConfig $apiConfig,
+        private AppConfig $appConfig,
+        private FrameworkInfo $frameworkInfo,
     ) {
     }
 
     /**
+     * Generates a fresh document for the endpoints currently held by the registry.
+     *
      * @return array<string, mixed>
      */
     public function generate(): array
@@ -53,6 +61,8 @@ final class OpenApiGenerator
     }
 
     /**
+     * Projects one endpoint into its OpenAPI operation object.
+     *
      * @return array<string, mixed>
      */
     private function operation(ApiEndpoint $endpoint): array
@@ -71,6 +81,10 @@ final class OpenApiGenerator
             $operation['security'] = [
                 ['BearerAuth' => $metadata->scopes()],
             ];
+        }
+
+        if ($endpoint->access() === ApiAccess::InternalOnly) {
+            $operation['x-lemonade-access'] = ApiAccess::InternalOnly->value;
         }
 
         if ($metadata->parameters() !== []) {
@@ -92,13 +106,17 @@ final class OpenApiGenerator
     }
 
     /**
+     * Documents configured success responses and standard API failure responses.
+     *
      * @return array<int|string, mixed>
      */
     private function responses(ApiEndpoint $endpoint): array
     {
         $metadata = $endpoint->metadata();
 
-        /** @var array<string, mixed> $responses */
+        /**
+         * @var array<string, mixed> $responses
+         */
         $responses = [];
 
         foreach ($metadata->successStatusCodes() as $statusCode) {
@@ -156,6 +174,8 @@ final class OpenApiGenerator
     }
 
     /**
+     * Builds the server URL from the optional application base URL and API prefix.
+     *
      * @return list<array<string, string>>
      */
     private function servers(): array
@@ -180,6 +200,8 @@ final class OpenApiGenerator
     }
 
     /**
+     * Produces the normalized API-relative path used as an OpenAPI path key.
+     *
      * @return non-empty-string
      */
     private function endpointPath(string $path): string

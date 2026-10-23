@@ -6,6 +6,11 @@ namespace Lemonade\Framework\Tests\Unit\Api\Config;
 
 use Lemonade\Framework\Api\Config\ApiConfigDefinition;
 use Lemonade\Framework\Api\Config\ApiConfigResolver;
+use Lemonade\Framework\Api\Config\ApiEndpointConfig;
+use Lemonade\Framework\Api\Config\ApiSecurityConfig;
+use Lemonade\Framework\Api\Config\FrameworkApiConfig;
+use Lemonade\Framework\Api\Config\StaticBearerConfig;
+use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointMetadata;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
@@ -14,6 +19,67 @@ use PHPUnit\Framework\TestCase;
 
 final class ApiConfigResolverTest extends TestCase
 {
+    public function testSecurityConfigExposesImmutableStateThroughGetter(): void
+    {
+        $staticBearer = new StaticBearerConfig(
+            token: 'secret-token',
+            scopes: ['api:admin'],
+        );
+        $config = new ApiSecurityConfig(
+            staticBearer: $staticBearer,
+        );
+
+        self::assertSame($staticBearer, $config->staticBearer());
+        self::assertSame([], get_object_vars($config));
+    }
+
+    public function testFrameworkConfigExposesImmutableStateThroughGetters(): void
+    {
+        $health = new ApiEndpointConfig(true, '/health', ApiAccess::Public);
+        $openApi = new ApiEndpointConfig(true, '/openapi.json', ApiAccess::Protected);
+        $docs = new ApiEndpointConfig(false, '/docs', ApiAccess::Protected);
+        $config = new FrameworkApiConfig(
+            enabled: true,
+            health: $health,
+            openapi: $openApi,
+            docs: $docs,
+        );
+
+        self::assertTrue($config->enabled());
+        self::assertSame($health, $config->health());
+        self::assertSame($openApi, $config->openApi());
+        self::assertSame($docs, $config->docs());
+        self::assertSame([], get_object_vars($config));
+    }
+
+    public function testStaticBearerConfigExposesImmutableStateThroughGetters(): void
+    {
+        $config = new StaticBearerConfig(
+            token: 'secret-token',
+            scopes: ['api:admin'],
+        );
+
+        self::assertSame('secret-token', $config->token());
+        self::assertSame(['api:admin'], $config->scopes());
+        self::assertSame([], get_object_vars($config));
+    }
+
+    public function testEndpointConfigExposesImmutableStateThroughGetters(): void
+    {
+        $config = new ApiEndpointConfig(
+            enabled: true,
+            route: '/internal/status',
+            access: ApiAccess::InternalOnly,
+            scopes: ['internal:read'],
+        );
+
+        self::assertTrue($config->enabled());
+        self::assertSame('/internal/status', $config->route());
+        self::assertSame(ApiAccess::InternalOnly, $config->access());
+        self::assertSame(['internal:read'], $config->scopes());
+        self::assertSame([], get_object_vars($config));
+    }
+
     public function testFrameworkDefaultDefinitionResolvesToTypedRuntimeConfig(): void
     {
         $config = (new ApiConfigResolver())->resolve(
@@ -37,11 +103,11 @@ final class ApiConfigResolverTest extends TestCase
 
         self::assertTrue($config->enabled());
         self::assertSame('/api', $config->prefix());
-        self::assertNull($config->security()->staticBearer);
-        self::assertTrue($config->framework()->enabled);
-        self::assertTrue($config->framework()->health->enabled);
-        self::assertFalse($config->framework()->docs->enabled);
-        self::assertSame(['openapi:read'], $config->framework()->openapi->scopes);
+        self::assertNull($config->security()->staticBearer());
+        self::assertTrue($config->framework()->enabled());
+        self::assertTrue($config->framework()->health()->enabled());
+        self::assertFalse($config->framework()->docs()->enabled());
+        self::assertSame(['openapi:read'], $config->framework()->openApi()->scopes());
     }
 
     public function testApplicationOverrideDefinitionOverridesDefaults(): void
@@ -58,10 +124,10 @@ final class ApiConfigResolverTest extends TestCase
         );
 
         self::assertSame('/internal', $config->prefix());
-        self::assertNotNull($config->security()->staticBearer);
-        self::assertSame('secret-token', $config->security()->staticBearer->token);
-        self::assertSame(['admin', 'openapi:read'], $config->security()->staticBearer->scopes);
-        self::assertTrue($config->framework()->docs->enabled);
+        self::assertNotNull($config->security()->staticBearer());
+        self::assertSame('secret-token', $config->security()->staticBearer()->token());
+        self::assertSame(['admin', 'openapi:read'], $config->security()->staticBearer()->scopes());
+        self::assertTrue($config->framework()->docs()->enabled());
     }
 
     public function testMultipleDefinitionsMergeEndpointProviders(): void
@@ -97,8 +163,8 @@ final class ApiConfigResolverTest extends TestCase
                 ->staticBearer('secret-token', ['', '   ', null]),
         );
 
-        self::assertNotNull($config->security()->staticBearer);
-        self::assertSame(['api:admin'], $config->security()->staticBearer->scopes);
+        self::assertNotNull($config->security()->staticBearer());
+        self::assertSame(['api:admin'], $config->security()->staticBearer()->scopes());
     }
 
     public function testEndpointScopesOverrideUsesExplicitReplaceRule(): void
@@ -108,7 +174,7 @@ final class ApiConfigResolverTest extends TestCase
             ApiConfigDefinition::create()->docsScopes(['docs:read', 'openapi:read', 'docs:read']),
         );
 
-        self::assertSame(['docs:read', 'openapi:read'], $config->framework()->docs->scopes);
+        self::assertSame(['docs:read', 'openapi:read'], $config->framework()->docs()->scopes());
     }
 }
 
@@ -128,14 +194,20 @@ final class TestApiEndpointProviderTwo implements ApiEndpointProviderInterface
     }
 }
 
-final class TestInvalidApiEndpointProvider {}
+final class TestInvalidApiEndpointProvider
+{
+}
 
 final class OneController
 {
-    public function show(): void {}
+    public function show(): void
+    {
+    }
 }
 
 final class TwoController
 {
-    public function show(): void {}
+    public function show(): void
+    {
+    }
 }

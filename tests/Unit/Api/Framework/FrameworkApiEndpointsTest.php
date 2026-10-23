@@ -13,30 +13,36 @@ use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
 use Lemonade\Framework\Api\Http\Response\ApiExceptionResponseResolver;
+use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
+use Lemonade\Framework\Api\Security\ApiIdentity;
+use Lemonade\Framework\Api\Security\ApiIdentityTrust;
 use Lemonade\Framework\Cli\ConsoleServiceProvider;
 use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Core\Config;
 use Lemonade\Framework\Core\Config\ApplicationConfigCache;
 use Lemonade\Framework\Core\Config\ConfigLoader;
+use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
-use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Framework;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Core\Kernel;
+use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Http\Error\ExceptionResponseResolverInterface;
 use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
 use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\ControllerAction;
+use Lemonade\Framework\Routing\Router;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ServerRequestInterface;
 
 final class FrameworkApiEndpointsTest extends TestCase
 {
@@ -201,6 +207,34 @@ final class FrameworkApiEndpointsTest extends TestCase
         self::assertArrayHasKey('/app/ping', $paths);
     }
 
+    public function testApplicationAuthenticatorEnforcesInternalEndpointTrustAcrossKernelLifecycle(): void
+    {
+        $this->writeConfigFile(
+            'Config.yaml',
+            "shared:\n  - App\n  - Api\n  - Providers\nhttp: []\ncli:\n  - Commands\n",
+        );
+        $this->writeConfigFile(
+            'Providers.yaml',
+            "module: providers\nconfig:\n  providers:\n    - " . TestInternalAuthenticatorProvider::class . "\n",
+        );
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  endpoint_providers:\n    - " . TestInternalApiEndpointProvider::class . "\n",
+        );
+
+        $kernel = $this->kernel();
+        $externalRequest = (new ServerRequest('GET', '/api/app/internal'))
+            ->withHeader('Authorization', 'Bearer external-admin');
+        $internalRequest = (new ServerRequest('GET', '/api/app/internal'))
+            ->withHeader('Authorization', 'Bearer internal-service');
+
+        $externalResponse = $kernel->run($externalRequest);
+        $internalResponse = $kernel->run($internalRequest);
+
+        self::assertSame(403, $externalResponse->getStatusCode());
+        self::assertSame(200, $internalResponse->getStatusCode());
+    }
+
     public function testApiControllerFailureUsesProblemDetailsBridge(): void
     {
         $this->writeConfigFile(
@@ -236,7 +270,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $framework->bootProviders();
     }
 
-    public function testApiServiceProviderUsesOneCanonicalEndpointRegistryGraph(): void
+    public function testApiServiceProviderSharesCanonicalRegistryAcrossAutowiredResolvers(): void
     {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -253,15 +287,22 @@ final class FrameworkApiEndpointsTest extends TestCase
         $framework->bootProviders();
 
         $registry = $container->get(ApiEndpointRegistry::class);
-        $requestResolver = $container->get(ApiEndpointRequestResolver::class);
+        $firstRequestResolver = $container->get(ApiEndpointRequestResolver::class);
+        $secondRequestResolver = $container->get(ApiEndpointRequestResolver::class);
         $healthEndpoint = $registry->findByName('framework.health');
 
         self::assertNotNull($healthEndpoint);
+        self::assertSame($registry, $container->get(ApiEndpointRegistry::class));
+        self::assertFalse($container->has(ApiEndpointRequestResolver::class));
+        self::assertNotSame($firstRequestResolver, $secondRequestResolver);
         self::assertSame(
             $healthEndpoint,
-            $requestResolver->resolve(new ServerRequest('GET', '/api/framework/health')),
+            $firstRequestResolver->resolve(new ServerRequest('GET', '/api/framework/health')),
         );
-        self::assertSame($requestResolver, $container->get(ApiEndpointRequestResolver::class));
+        self::assertSame(
+            $healthEndpoint,
+            $secondRequestResolver->resolve(new ServerRequest('GET', '/api/framework/health')),
+        );
 
         $firstExceptionResolver = $container->get(ExceptionResponseResolverInterface::class);
         $secondExceptionResolver = $container->get(ExceptionResponseResolverInterface::class);
@@ -401,7 +442,7 @@ final class FrameworkApiEndpointsTest extends TestCase
         $config = $kernel->framework()->container()->get(ApiConfig::class);
 
         self::assertSame('/typed', $config->prefix());
-        self::assertTrue($config->framework()->docs->enabled);
+        self::assertTrue($config->framework()->docs()->enabled());
     }
 
     public function testProductionHealthFastPathReturnsSameContractWithoutHttpBootstrap(): void
@@ -528,6 +569,22 @@ final class FrameworkApiEndpointsTest extends TestCase
         $response = $kernel->run(new ServerRequest('GET', '/api/framework/health'));
 
         self::assertSame(401, $response->getStatusCode());
+        self::assertTrue($kernel->container()->has(MiddlewareStack::class));
+    }
+
+    public function testTestingInternalHealthRejectsExternalAdminThroughStandardLifecycle(): void
+    {
+        $this->writeConfigFile(
+            'Api.yaml',
+            "module: api\nconfig:\n  security:\n    static_bearer:\n      enabled: true\n      token: secret-token\n      scopes:\n        - api:admin\n  framework:\n    health:\n      access: internal_only\n",
+        );
+
+        $request = (new ServerRequest('GET', '/api/framework/health'))
+            ->withHeader('Authorization', 'Bearer secret-token');
+        $kernel = $this->kernel();
+        $response = $kernel->run($request);
+
+        self::assertSame(403, $response->getStatusCode());
         self::assertTrue($kernel->container()->has(MiddlewareStack::class));
     }
 
@@ -736,11 +793,70 @@ final class TestFailingApiEndpointProvider implements ApiEndpointProviderInterfa
     }
 }
 
-final class TestInvalidApiEndpointProvider {}
+final class TestInternalApiEndpointProvider implements ApiEndpointProviderInterface
+{
+    public function register(ApiEndpointRegistry $registry): void
+    {
+        $registry->get(
+            path: '/app/internal',
+            controllerAction: ControllerAction::for(AppInternalController::class, 'show'),
+            name: 'app.internal',
+            summary: 'Internal app endpoint',
+            description: 'Accessible only to an authenticated internal identity',
+            access: ApiAccess::InternalOnly,
+            metadata: new ApiEndpointMetadata(
+                tags: ['App'],
+                scopes: ['internal:read'],
+            ),
+        );
+    }
+}
+
+final class TestInternalAuthenticatorProvider implements ServiceProviderInterface
+{
+    public function register(ContainerBuilderInterface $container): void
+    {
+        $container->singleton(ApiAuthenticatorInterface::class, TestInternalApiAuthenticator::class);
+    }
+}
+
+final class TestInternalApiAuthenticator implements ApiAuthenticatorInterface
+{
+    public function authenticate(ServerRequestInterface $request): ?ApiIdentity
+    {
+        return match ($request->getHeaderLine('Authorization')) {
+            'Bearer external-admin' => new ApiIdentity(
+                id: 'external-admin',
+                type: 'service',
+                scopes: ['api:admin'],
+            ),
+            'Bearer internal-service' => new ApiIdentity(
+                id: 'internal-service',
+                type: 'service',
+                scopes: ['internal:read'],
+                trust: ApiIdentityTrust::Internal,
+            ),
+            default => null,
+        };
+    }
+}
+
+final class TestInvalidApiEndpointProvider
+{
+}
 
 final class AppPingController
 {
-    public function show(): void {}
+    public function show(): void
+    {
+    }
+}
+
+final class AppInternalController
+{
+    public function show(): void
+    {
+    }
 }
 
 final class FailingApiController

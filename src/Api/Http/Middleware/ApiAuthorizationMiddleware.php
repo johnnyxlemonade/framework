@@ -8,6 +8,7 @@ use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
 use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
+use Lemonade\Framework\Api\Security\ApiIdentityTrust;
 use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Psr\Http\Message\ResponseInterface;
@@ -15,17 +16,28 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-final class ApiAuthorizationMiddleware implements MiddlewareInterface
+/**
+ * Enforces endpoint access, authenticated trust and scopes before API controller dispatch.
+ *
+ * Non-API and public requests pass through unchanged; authorized identities are attached to the request.
+ */
+final readonly class ApiAuthorizationMiddleware implements MiddlewareInterface
 {
+    /**
+     * Binds authorization to endpoint resolution, authentication, scope policy and Problem Details responses.
+     */
     public function __construct(
-        private readonly ApiEndpointRequestResolver $endpointResolver,
-        private readonly ApiAuthenticatorInterface $authenticator,
-        private readonly ScopeVoter $scopeVoter,
-        private readonly ProblemDetailsFactory $problems,
-        private readonly AppConfig $appConfig,
+        private ApiEndpointRequestResolver $endpointResolver,
+        private ApiAuthenticatorInterface $authenticator,
+        private ScopeVoter $scopeVoter,
+        private ProblemDetailsFactory $problems,
+        private AppConfig $appConfig,
     ) {
     }
 
+    /**
+     * Authorizes a resolved API endpoint or returns the corresponding 401 or 403 response.
+     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $endpoint = $this->endpointResolver->resolve($request);
@@ -46,6 +58,10 @@ final class ApiAuthorizationMiddleware implements MiddlewareInterface
 
         if ($identity === null) {
             return $this->problems->unauthenticated($request);
+        }
+
+        if ($endpoint->access() === ApiAccess::InternalOnly && $identity->trust() !== ApiIdentityTrust::Internal) {
+            return $this->problems->forbidden($request);
         }
 
         if (!$this->scopeVoter->isGranted($identity, $endpoint->scopes())) {

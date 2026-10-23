@@ -133,7 +133,7 @@ final class FrameworkTest extends TestCase
 
         self::assertTrue($config->enabled());
         self::assertSame('/api', $config->prefix());
-        self::assertFalse($config->framework()->docs->enabled);
+        self::assertFalse($config->framework()->docs()->enabled());
     }
 
     public function testConfigFromFileLoadsTypedDefinition(): void

@@ -4,27 +4,39 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Documentation;
 
+use JsonException;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Http\HttpStatus;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
-final class DocsController
+/**
+ * Serves a Swagger UI shell pointing at the configured OpenAPI endpoint and version-pinned assets.
+ */
+final readonly class DocsController
 {
     private const string SWAGGER_UI_VERSION = '5.32.14';
     private const string SWAGGER_ASSET_BASE_URL = 'https://static.lemonadeframework.cz/swagger';
 
+    /**
+     * Binds documentation rendering to resolved API routes and PSR-17 response creation.
+     */
     public function __construct(
-        private readonly ApiConfig $config,
-        private readonly Psr17Factory $psr17,
+        private ApiConfig $config,
+        private Psr17Factory $psr17,
     ) {
     }
 
+    /**
+     * Returns the themed HTML documentation page with version-pinned framework assets.
+     *
+     * @throws JsonException When the configured OpenAPI URL cannot be encoded for JavaScript.
+     */
     public function show(): ResponseInterface
     {
         $openApiUrl = $this->joinPath(
             $this->apiPrefix(),
-            $this->config->framework()->openapi->route,
+            $this->config->framework()->openApi()->route(),
         );
         $openApiJson = json_encode($openApiUrl, JSON_THROW_ON_ERROR);
         $swaggerCssUrl = $this->swaggerUiAssetUrl('swagger-ui.css');

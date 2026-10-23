@@ -68,6 +68,18 @@ final class OpenApiGeneratorTest extends TestCase
                 responseContentType: 'text/html; charset=utf-8',
             ),
         );
+        $registry->get(
+            path: '/internal/status',
+            controllerAction: ControllerAction::for('InternalStatusController', 'show'),
+            name: 'internal.status',
+            summary: 'Internal status',
+            description: 'Internal status endpoint',
+            access: ApiAccess::InternalOnly,
+            metadata: new ApiEndpointMetadata(
+                tags: ['Internal'],
+                scopes: ['internal:read'],
+            ),
+        );
 
         $document = (new OpenApiGenerator(
             $registry,
@@ -103,6 +115,7 @@ final class OpenApiGeneratorTest extends TestCase
         self::assertArrayHasKey('/framework/health', $paths);
         self::assertArrayHasKey('/framework/openapi.json', $paths);
         self::assertArrayHasKey('/framework/docs', $paths);
+        self::assertArrayHasKey('/internal/status', $paths);
         self::assertArrayNotHasKey('/api/framework/health', $paths);
 
         $healthPath = $paths['/framework/health'] ?? null;
@@ -145,5 +158,13 @@ final class OpenApiGeneratorTest extends TestCase
         $docsHtmlSchema = $docsHtmlContent['schema'] ?? null;
         self::assertIsArray($docsHtmlSchema);
         self::assertSame('object', $docsHtmlSchema['type'] ?? null);
+
+        $internalPath = $paths['/internal/status'] ?? null;
+        self::assertIsArray($internalPath);
+        $internalGet = $internalPath['get'] ?? null;
+        self::assertIsArray($internalGet);
+        self::assertSame([['BearerAuth' => ['internal:read']]], $internalGet['security'] ?? null);
+        self::assertSame(ApiAccess::InternalOnly->value, $internalGet['x-lemonade-access'] ?? null);
+        self::assertArrayNotHasKey('x-lemonade-access', $openapiGet);
     }
 }

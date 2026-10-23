@@ -6,9 +6,16 @@ namespace Lemonade\Framework\Api\Security;
 
 use Lemonade\Framework\Api\Endpoint\BuiltInApiScope;
 
-final class ScopeVoter
+/**
+ * Requires every endpoint scope unless the authenticated identity owns the administrative scope.
+ *
+ * Scope evaluation never changes or substitutes the identity trust boundary.
+ */
+final readonly class ScopeVoter
 {
     /**
+     * Reports whether the identity satisfies the complete required scope set.
+     *
      * @param list<non-empty-string> $requiredScopes
      */
     public function isGranted(ApiIdentity $identity, array $requiredScopes): bool

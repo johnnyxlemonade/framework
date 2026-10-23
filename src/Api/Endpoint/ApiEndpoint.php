@@ -6,13 +6,19 @@ namespace Lemonade\Framework\Api\Endpoint;
 
 use Lemonade\Framework\Routing\ControllerAction;
 
+/**
+ * Describes one immutable API route, its controller target and its authorization metadata.
+ */
 final readonly class ApiEndpoint
 {
     /**
+     * Validates and captures the route contract, defaulting omitted metadata to an empty policy.
+     *
      * @param non-empty-string $method
      * @param non-empty-string $path
      * @param non-empty-string $name
      * @param non-empty-string $summary
+     * @throws \InvalidArgumentException When the method or required route metadata is invalid.
      */
     public function __construct(
         private string $method,
@@ -35,6 +41,8 @@ final readonly class ApiEndpoint
     private ApiEndpointMetadata $metadata;
 
     /**
+     * Returns the uppercase HTTP method registered for request matching.
+     *
      * @return non-empty-string
      */
     public function method(): string
@@ -43,6 +51,8 @@ final readonly class ApiEndpoint
     }
 
     /**
+     * Returns the configured API-relative path beginning with a slash.
+     *
      * @return non-empty-string
      */
     public function path(): string
@@ -50,12 +60,17 @@ final readonly class ApiEndpoint
         return $this->path;
     }
 
+    /**
+     * Returns the controller and action dispatched for a matching request.
+     */
     public function controllerAction(): ControllerAction
     {
         return $this->controllerAction;
     }
 
     /**
+     * Returns the unique endpoint name used for route registration and lookup.
+     *
      * @return non-empty-string
      */
     public function name(): string
@@ -64,6 +79,8 @@ final readonly class ApiEndpoint
     }
 
     /**
+     * Returns the non-empty short description exposed in API documentation.
+     *
      * @return non-empty-string
      */
     public function summary(): string
@@ -71,22 +88,33 @@ final readonly class ApiEndpoint
         return $this->summary;
     }
 
+    /**
+     * Returns the detailed description exposed in API documentation.
+     */
     public function description(): string
     {
         return $this->description;
     }
 
+    /**
+     * Returns the authentication boundary enforced by API authorization middleware.
+     */
     public function access(): ApiAccess
     {
         return $this->access;
     }
 
+    /**
+     * Returns the complete documentation and permission metadata for this endpoint.
+     */
     public function metadata(): ApiEndpointMetadata
     {
         return $this->metadata;
     }
 
     /**
+     * Returns documentation tags from the endpoint metadata.
+     *
      * @return list<non-empty-string>
      */
     public function tags(): array
@@ -95,6 +123,8 @@ final readonly class ApiEndpoint
     }
 
     /**
+     * Returns every scope required after the endpoint access boundary is satisfied.
+     *
      * @return list<non-empty-string>
      */
     public function scopes(): array
@@ -103,6 +133,8 @@ final readonly class ApiEndpoint
     }
 
     /**
+     * Returns OpenAPI parameter definitions without transforming their schemas.
+     *
      * @return list<array<string, mixed>>
      */
     public function parameters(): array
@@ -111,6 +143,8 @@ final readonly class ApiEndpoint
     }
 
     /**
+     * Returns the optional OpenAPI request body schema.
+     *
      * @return array<string, mixed>|null
      */
     public function requestBodySchema(): ?array
@@ -119,6 +153,8 @@ final readonly class ApiEndpoint
     }
 
     /**
+     * Returns the optional OpenAPI success response schema.
+     *
      * @return array<string, mixed>|null
      */
     public function responseSchema(): ?array
@@ -127,6 +163,8 @@ final readonly class ApiEndpoint
     }
 
     /**
+     * Returns the status codes documented as successful responses.
+     *
      * @return list<int<100, 599>>
      */
     public function successStatusCodes(): array
@@ -134,6 +172,9 @@ final readonly class ApiEndpoint
         return $this->metadata->successStatusCodes();
     }
 
+    /**
+     * Reports whether middleware may dispatch this endpoint without authentication.
+     */
     public function isPublic(): bool
     {
         return $this->access === ApiAccess::Public;

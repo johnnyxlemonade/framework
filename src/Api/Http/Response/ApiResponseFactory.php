@@ -9,17 +9,24 @@ use Lemonade\Framework\Http\HttpStatus;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 
-final class ApiResponseFactory
+/**
+ * Creates the framework API envelope as immutable UTF-8 JSON responses.
+ */
+final readonly class ApiResponseFactory
 {
+    /**
+     * Uses one PSR-17 implementation for response and body stream creation.
+     */
     public function __construct(
-        private readonly Psr17Factory $responseFactory,
+        private Psr17Factory $responseFactory,
     ) {
     }
 
     /**
-     * @param array<string, mixed> $meta
+     * Encodes data and optional metadata under the stable API response envelope.
      *
-     * @throws JsonException
+     * @param array<string, mixed> $meta
+     * @throws JsonException When the supplied payload cannot be encoded as JSON.
      */
     public function json(mixed $data, int $status = HttpStatus::OK->value, array $meta = []): ResponseInterface
     {
@@ -43,10 +50,11 @@ final class ApiResponseFactory
     }
 
     /**
+     * Creates a successful 200 response using the standard API envelope.
+     *
      * @param array<string, mixed> $data
      * @param array<string, mixed> $meta
-     *
-     * @throws JsonException
+     * @throws JsonException When the supplied payload cannot be encoded as JSON.
      */
     public function ok(array $data, array $meta = []): ResponseInterface
     {

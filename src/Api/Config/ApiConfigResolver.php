@@ -10,8 +10,16 @@ use Lemonade\Framework\Api\Endpoint\BuiltInApiScope;
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
 use LogicException;
 
-final class ApiConfigResolver
+/**
+ * Merges ordered API definitions into one normalized immutable runtime configuration.
+ */
+final readonly class ApiConfigResolver
 {
+    /**
+     * Applies definitions in order while retaining framework defaults for omitted values and normalized fallbacks.
+     *
+     * @throws LogicException When a configured endpoint provider is missing or violates its contract.
+     */
     public function resolve(ApiConfigDefinition ...$definitions): ApiConfig
     {
         $enabled = true;
@@ -129,6 +137,8 @@ final class ApiConfigResolver
     }
 
     /**
+     * Appends valid provider classes without duplicating earlier declarations.
+     *
      * @param list<class-string<ApiEndpointProviderInterface>> $existing
      * @return list<class-string<ApiEndpointProviderInterface>>
      */
@@ -162,7 +172,9 @@ final class ApiConfigResolver
             }
 
             if (!in_array($providerClass, $existing, true)) {
-                /** @var class-string<ApiEndpointProviderInterface> $providerClass */
+                /**
+                 * @var class-string<ApiEndpointProviderInterface> $providerClass
+                 */
                 $existing[] = $providerClass;
             }
         }
@@ -171,6 +183,8 @@ final class ApiConfigResolver
     }
 
     /**
+     * Applies one partial framework endpoint override to the accumulated state.
+     *
      * @param array{enabled: bool, route: non-empty-string, access: ApiAccess, scopes: list<non-empty-string>} $state
      * @return array{enabled: bool, route: non-empty-string, access: ApiAccess, scopes: list<non-empty-string>}
      */
@@ -198,6 +212,8 @@ final class ApiConfigResolver
     }
 
     /**
+     * Creates the normalized state used while endpoint definitions are merged.
+     *
      * @param list<non-empty-string> $scopes
      * @param non-empty-string $route
      * @return array{enabled: bool, route: non-empty-string, access: ApiAccess, scopes: list<non-empty-string>}
@@ -227,6 +243,8 @@ final class ApiConfigResolver
     }
 
     /**
+     * Normalizes a configured scope list or retains the previous non-empty default.
+     *
      * @param list<non-empty-string> $default
      * @return list<non-empty-string>
      */
@@ -246,6 +264,8 @@ final class ApiConfigResolver
     }
 
     /**
+     * Normalizes an endpoint route while retaining the previous value for missing input.
+     *
      * @param non-empty-string $default
      * @return non-empty-string
      */
@@ -259,7 +279,9 @@ final class ApiConfigResolver
         $normalized = '/' . trim($route, '/');
         $resolved = $normalized === '/' ? '/' : rtrim($normalized, '/');
 
-        /** @var non-empty-string $resolved */
+        /**
+         * @var non-empty-string $resolved
+         */
         return $resolved;
     }
 

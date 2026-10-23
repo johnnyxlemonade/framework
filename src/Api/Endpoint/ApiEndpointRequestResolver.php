@@ -7,15 +7,24 @@ namespace Lemonade\Framework\Api\Endpoint;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Psr\Http\Message\ServerRequestInterface;
 
-final class ApiEndpointRequestResolver
+/**
+ * Maps an incoming request under the configured API prefix to canonical endpoint metadata.
+ */
+final readonly class ApiEndpointRequestResolver
 {
+    /**
+     * Binds request matching to the resolved API prefix and endpoint registry.
+     */
     public function __construct(
-        private readonly ApiEndpointRegistry $endpoints,
-        private readonly ApiConfig $config,
-        private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
+        private ApiEndpointRegistry $endpoints,
+        private ApiConfig $config,
+        private ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
     ) {
     }
 
+    /**
+     * Returns the matching endpoint, or null for paths outside the API prefix or registry.
+     */
     public function resolve(ServerRequestInterface $request): ?ApiEndpoint
     {
         $path = $this->pathResolver->resolveRequestPath(

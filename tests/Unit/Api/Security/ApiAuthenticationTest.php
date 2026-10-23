@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Api\Security;
 
 use Lemonade\Framework\Api\Security\ApiIdentity;
+use Lemonade\Framework\Api\Security\ApiIdentityTrust;
 use Lemonade\Framework\Api\Security\NullApiAuthenticator;
 use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
@@ -20,6 +21,27 @@ final class ApiAuthenticationTest extends TestCase
 
         self::assertInstanceOf(ApiIdentity::class, $identity);
         self::assertSame(['framework:diagnostics'], $identity->scopes());
+        self::assertSame(ApiIdentityTrust::External, $identity->trust());
+    }
+
+    public function testExistingApiIdentityConstructorDefaultsToExternalTrust(): void
+    {
+        $identity = new ApiIdentity('1', 'custom', ['api:admin'], 'Custom identity');
+
+        self::assertSame(ApiIdentityTrust::External, $identity->trust());
+    }
+
+    public function testApiIdentityAcceptsExplicitInternalTrust(): void
+    {
+        $identity = new ApiIdentity(
+            id: 'service-1',
+            type: 'service',
+            scopes: ['internal:read'],
+            name: 'Internal service',
+            trust: ApiIdentityTrust::Internal,
+        );
+
+        self::assertSame(ApiIdentityTrust::Internal, $identity->trust());
     }
 
     public function testStaticBearerAuthenticatorReturnsNullForInvalidToken(): void

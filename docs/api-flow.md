@@ -19,7 +19,8 @@ HTTP request
    -> register application providers
    -> boot all registered providers
 -> ApiServiceProvider
-   -> define the complete API service graph during register()
+   -> bind API configuration, canonical mutable state and interface contracts during register()
+   -> leave stateless concrete API services to transient container autowiring
    -> during HTTP boot, add API authorization before OPTIONS handling
    -> register framework and application endpoints in the canonical ApiEndpointRegistry
    -> register API routes under configured ApiConfig::prefix()
@@ -200,7 +201,78 @@ Individual paths are not prefixed with `/api`.
 
 - `public` endpoints do not require bearer token and do not include OpenAPI security metadata
 - `protected` endpoints require bearer token and can require scopes
-- `debug` endpoints are available only when debug rules allow them
+- `debug_only` endpoints are available only when debug rules allow them and otherwise use normal authentication and scope checks
+- `internal_only` endpoints require an identity explicitly marked with `ApiIdentityTrust::Internal` by the authenticator and then apply normal scope checks
+
+The built-in static bearer authenticator always creates an external identity. This remains true for
+a token with the `api:admin` scope: that scope may satisfy endpoint scope requirements, but it never
+crosses the internal trust boundary. When no application authenticator establishes an internal
+identity, `internal_only` endpoints fail closed.
+
+Identity type names and scopes do not establish trust. An application authenticator may assign
+`ApiIdentityTrust::Internal` only after it cryptographically verifies a service credential, for
+example a short-lived signed token with the expected issuer and audience or an authenticated mTLS
+principal supplied through a trusted server integration. Client IP addresses, localhost and
+client-controlled HTTP headers are not sufficient evidence of internal identity.
+
+## Application-provided internal authentication
+
+Applications keep the `ApiAuthenticatorInterface` contract and replace its container binding in an
+application service provider. The credential verifier in this example is application-owned; it
+must validate the credential before the authenticator assigns internal trust.
+
+```php
+use App\Security\ServiceCredentialVerifier;
+use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
+use Lemonade\Framework\Api\Security\ApiIdentity;
+use Lemonade\Framework\Api\Security\ApiIdentityTrust;
+use Psr\Http\Message\ServerRequestInterface;
+
+final class AppApiAuthenticator implements ApiAuthenticatorInterface
+{
+    public function __construct(
+        private readonly ServiceCredentialVerifier $credentials,
+    ) {
+    }
+
+    public function authenticate(ServerRequestInterface $request): ?ApiIdentity
+    {
+        $credential = $this->credentials->verify($request);
+        if ($credential === null) {
+            return null;
+        }
+
+        return new ApiIdentity(
+            id: $credential->subject,
+            type: 'service',
+            scopes: $credential->scopes,
+            name: $credential->name,
+            trust: ApiIdentityTrust::Internal,
+        );
+    }
+}
+```
+
+Bind it from an application provider, which runs after the framework API provider:
+
+```php
+use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
+use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Core\ServiceProviderInterface;
+
+final class ApiSecurityServiceProvider implements ServiceProviderInterface
+{
+    public function register(ContainerBuilderInterface $container): void
+    {
+        $container->singleton(ApiAuthenticatorInterface::class, AppApiAuthenticator::class);
+    }
+}
+```
+
+The generated OpenAPI operation for an internal endpoint includes
+`x-lemonade-access: internal_only`. The bearer security entry describes the credential transport;
+the application authenticator remains responsible for deciding whether the verified credential is
+internal.
 
 ## Opening framework API docs
 

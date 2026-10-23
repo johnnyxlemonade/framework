@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Endpoint;
 
+/**
+ * Defines stable permission names used by framework-owned API policies.
+ *
+ * The administrative scope satisfies ordinary scope checks but does not establish internal trust.
+ */
 enum BuiltInApiScope: string
 {
     case ApiRead = 'api:read';

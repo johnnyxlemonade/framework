@@ -6,15 +6,24 @@ namespace Lemonade\Framework\Api\Endpoint;
 
 use Lemonade\Framework\Routing\Router;
 
-final class ApiEndpointRegistrar
+/**
+ * Materializes registered API endpoint definitions as named framework routes under one prefix.
+ */
+final readonly class ApiEndpointRegistrar
 {
+    /**
+     * Binds route registration to the canonical router, endpoint registry and path policy.
+     */
     public function __construct(
-        private readonly Router $router,
-        private readonly ApiEndpointRegistry $registry,
-        private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
+        private Router $router,
+        private ApiEndpointRegistry $registry,
+        private ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
     ) {
     }
 
+    /**
+     * Registers every current endpoint with its composed path and stable endpoint name.
+     */
     public function registerRoutes(string $prefix): void
     {
         foreach ($this->registry->all() as $endpoint) {

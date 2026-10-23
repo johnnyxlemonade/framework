@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Api\Endpoint;
 
-final class ApiRoutePathResolver
+/**
+ * Applies the shared normalization rules used for API prefixes, routes and request matching.
+ */
+final readonly class ApiRoutePathResolver
 {
+    /**
+     * Converts a root prefix to an empty prefix and removes surrounding or trailing slashes otherwise.
+     */
     public function normalizePrefix(string $prefix): string
     {
         $prefix = '/' . trim($prefix, '/');
@@ -13,6 +19,9 @@ final class ApiRoutePathResolver
         return $prefix === '/' ? '' : rtrim($prefix, '/');
     }
 
+    /**
+     * Produces an absolute normalized path while preserving the root path.
+     */
     public function normalizePath(string $path): string
     {
         $normalized = '/' . trim($path, '/');
@@ -20,6 +29,9 @@ final class ApiRoutePathResolver
         return $normalized === '/' ? '/' : rtrim($normalized, '/');
     }
 
+    /**
+     * Joins an API prefix and endpoint-relative path using canonical slash rules.
+     */
     public function compose(string $prefix, string $path): string
     {
         return $this->normalizePath(
@@ -27,6 +39,9 @@ final class ApiRoutePathResolver
         );
     }
 
+    /**
+     * Removes the matching API prefix, returning null when the request lies outside that boundary.
+     */
     public function resolveRequestPath(string $prefix, string $requestPath): ?string
     {
         $normalizedPath = $this->normalizePath($requestPath);

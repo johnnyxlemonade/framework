@@ -6,8 +6,14 @@ namespace Lemonade\Framework\Api\Security;
 
 use Psr\Http\Message\ServerRequestInterface;
 
-final class NullApiAuthenticator implements ApiAuthenticatorInterface
+/**
+ * Provides fail-closed authentication when no API credential mechanism is configured.
+ */
+final readonly class NullApiAuthenticator implements ApiAuthenticatorInterface
 {
+    /**
+     * Always returns null and never derives identity from request metadata.
+     */
     public function authenticate(ServerRequestInterface $request): ?ApiIdentity
     {
         unset($request);

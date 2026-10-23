@@ -6,14 +6,20 @@ namespace Lemonade\Framework\Api\Security;
 
 use Psr\Http\Message\ServerRequestInterface;
 
-final class StaticBearerTokenAuthenticator implements ApiAuthenticatorInterface
+/**
+ * Verifies one configured bearer token in constant time and creates an external API identity.
+ */
+final readonly class StaticBearerTokenAuthenticator implements ApiAuthenticatorInterface
 {
     /**
+     * Captures the optional token used for later verification and the permissions assigned on success.
+     *
      * @param list<non-empty-string> $scopes
+     * @throws \InvalidArgumentException When any configured scope is empty.
      */
     public function __construct(
-        private readonly ?string $token,
-        private readonly array $scopes = [],
+        private ?string $token,
+        private array $scopes = [],
     ) {
         foreach ($scopes as $scope) {
             if ($scope === '') {
@@ -22,6 +28,9 @@ final class StaticBearerTokenAuthenticator implements ApiAuthenticatorInterface
         }
     }
 
+    /**
+     * Returns an external static-token identity for an exact bearer match, or null otherwise.
+     */
     public function authenticate(ServerRequestInterface $request): ?ApiIdentity
     {
         if ($this->token === null || trim($this->token) === '') {
@@ -43,6 +52,7 @@ final class StaticBearerTokenAuthenticator implements ApiAuthenticatorInterface
             type: 'static_token',
             scopes: $this->scopes,
             name: 'Static API token',
+            trust: ApiIdentityTrust::External,
         );
     }
 

@@ -7,23 +7,14 @@ namespace Lemonade\Framework\Api;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Config\ApiConfigDefinition;
 use Lemonade\Framework\Api\Config\ApiConfigResolver;
-use Lemonade\Framework\Api\Documentation\DocsController;
-use Lemonade\Framework\Api\Documentation\OpenApiController;
-use Lemonade\Framework\Api\Documentation\OpenApiGenerator;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointProviderInterface;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistrar;
 use Lemonade\Framework\Api\Endpoint\ApiEndpointRegistry;
-use Lemonade\Framework\Api\Endpoint\ApiEndpointRequestResolver;
-use Lemonade\Framework\Api\Endpoint\ApiRoutePathResolver;
 use Lemonade\Framework\Api\Framework\FrameworkApiEndpointProvider;
-use Lemonade\Framework\Api\Framework\Health\HealthController;
 use Lemonade\Framework\Api\Http\Middleware\ApiAuthorizationMiddleware;
 use Lemonade\Framework\Api\Http\Response\ApiExceptionResponseResolver;
-use Lemonade\Framework\Api\Http\Response\ApiResponseFactory;
-use Lemonade\Framework\Api\Http\Response\ProblemDetailsFactory;
 use Lemonade\Framework\Api\Security\ApiAuthenticatorInterface;
 use Lemonade\Framework\Api\Security\NullApiAuthenticator;
-use Lemonade\Framework\Api\Security\ScopeVoter;
 use Lemonade\Framework\Api\Security\StaticBearerTokenAuthenticator;
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
@@ -36,11 +27,18 @@ use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use LogicException;
 
-final class ApiServiceProvider implements ServiceProviderInterface, BootableServiceProviderInterface
+/**
+ * Composes API configuration, endpoint registration, authorization and response services.
+ *
+ * HTTP boot contributes middleware and routes, while CLI boot only validates endpoint providers.
+ */
+final readonly class ApiServiceProvider implements ServiceProviderInterface, BootableServiceProviderInterface
 {
+    /**
+     * Registers configuration, shared state and interface bindings while leaving stateless concrete services to autowiring.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
-        $container->singleton(ApiConfigResolver::class, ApiConfigResolver::class);
         $container->singleton(ApiConfig::class, static function (ContainerInterface $container): ApiConfig {
             return $container
                 ->get(ApiConfigResolver::class)
@@ -51,39 +49,32 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
         });
 
         $container->singleton(ApiEndpointRegistry::class, ApiEndpointRegistry::class);
-        $container->singleton(ApiRoutePathResolver::class, ApiRoutePathResolver::class);
-        $container->singleton(ApiEndpointRegistrar::class, ApiEndpointRegistrar::class);
-        $container->singleton(ApiEndpointRequestResolver::class, ApiEndpointRequestResolver::class);
         $container->singleton(ApiAuthenticatorInterface::class, static function (ContainerInterface $container): ApiAuthenticatorInterface {
             $config = $container->get(ApiConfig::class);
             $security = $config->security();
+            $staticBearer = $security->staticBearer();
 
-            if ($security->staticBearer === null) {
+            if ($staticBearer === null) {
                 return new NullApiAuthenticator();
             }
 
             return new StaticBearerTokenAuthenticator(
-                token: $security->staticBearer->token,
-                scopes: $security->staticBearer->scopes,
+                token: $staticBearer->token(),
+                scopes: $staticBearer->scopes(),
             );
         });
 
-        $container->singleton(ApiResponseFactory::class, ApiResponseFactory::class);
-        $container->singleton(ProblemDetailsFactory::class, ProblemDetailsFactory::class);
         $container->alias(
             ExceptionResponseResolverInterface::class,
             ApiExceptionResponseResolver::class,
         );
-
-        $container->singleton(ScopeVoter::class, ScopeVoter::class);
-        $container->singleton(OpenApiGenerator::class, OpenApiGenerator::class);
-        $container->singleton(FrameworkApiEndpointProvider::class, FrameworkApiEndpointProvider::class);
-        $container->singleton(HealthController::class, HealthController::class);
-        $container->singleton(OpenApiController::class, OpenApiController::class);
-        $container->singleton(DocsController::class, DocsController::class);
-        $container->singleton(ApiAuthorizationMiddleware::class, ApiAuthorizationMiddleware::class);
     }
 
+    /**
+     * Registers enabled framework and application endpoints for HTTP or validates providers for CLI.
+     *
+     * @throws LogicException When a configured endpoint provider violates its required contract.
+     */
     public function boot(ContainerInterface $container): void
     {
         $config = $container->get(ApiConfig::class);
@@ -101,7 +92,9 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
 
         $this->contributeHttpMiddleware($container);
 
-        /** @var ApiEndpointRegistry $registry */
+        /**
+         * @var ApiEndpointRegistry $registry
+         */
         $registry = $container->get(ApiEndpointRegistry::class);
 
         $frameworkProvider = $container->get(FrameworkApiEndpointProvider::class);
@@ -155,6 +148,8 @@ final class ApiServiceProvider implements ServiceProviderInterface, BootableServ
     }
 
     /**
+     * Rejects configured provider classes that cannot contribute API endpoints.
+     *
      * @param list<class-string>|list<string> $providerClasses
      */
     private function assertConfiguredProvidersImplementInterface(array $providerClasses): void

@@ -10,17 +10,24 @@ use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-final class ProblemDetailsFactory
+/**
+ * Creates RFC 9457-style Problem Details responses without exposing exception internals.
+ */
+final readonly class ProblemDetailsFactory
 {
+    /**
+     * Uses one PSR-17 implementation for response and body stream creation.
+     */
     public function __construct(
-        private readonly Psr17Factory $responseFactory,
+        private Psr17Factory $responseFactory,
     ) {
     }
 
     /**
-     * @param array<string, mixed> $extensions
+     * Creates a problem response whose instance identifies the current request path.
      *
-     * @throws JsonException
+     * @param array<string, mixed> $extensions
+     * @throws JsonException When the problem payload or extensions cannot be encoded as JSON.
      */
     public function create(
         int $status,
@@ -49,6 +56,11 @@ final class ProblemDetailsFactory
             ->withBody($this->responseFactory->createStream($body));
     }
 
+    /**
+     * Returns a 401 bearer challenge for a request lacking a valid API identity.
+     *
+     * @throws JsonException When the problem payload cannot be encoded as JSON.
+     */
     public function unauthenticated(ServerRequestInterface $request): ResponseInterface
     {
         return $this->create(
@@ -60,6 +72,11 @@ final class ProblemDetailsFactory
         )->withHeader('WWW-Authenticate', 'Bearer');
     }
 
+    /**
+     * Returns a 403 response without disclosing which authorization condition failed.
+     *
+     * @throws JsonException When the problem payload cannot be encoded as JSON.
+     */
     public function forbidden(ServerRequestInterface $request): ResponseInterface
     {
         return $this->create(
@@ -71,6 +88,11 @@ final class ProblemDetailsFactory
         );
     }
 
+    /**
+     * Returns a 404 problem tied to the current request path.
+     *
+     * @throws JsonException When the problem payload cannot be encoded as JSON.
+     */
     public function notFound(ServerRequestInterface $request): ResponseInterface
     {
         return $this->create(
@@ -82,6 +104,11 @@ final class ProblemDetailsFactory
         );
     }
 
+    /**
+     * Returns a generic 500 problem that does not expose the captured exception.
+     *
+     * @throws JsonException When the problem payload cannot be encoded as JSON.
+     */
     public function internalServerError(ServerRequestInterface $request): ResponseInterface
     {
         return $this->create(

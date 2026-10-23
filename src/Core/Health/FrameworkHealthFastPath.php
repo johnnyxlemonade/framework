@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Core\Health;
 
 use DateTimeZone;
+use JsonException;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Api\Endpoint\ApiAccess;
 use Lemonade\Framework\Api\Endpoint\ApiRoutePathResolver;
@@ -26,8 +27,16 @@ use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
 use Throwable;
 
+/**
+ * Serves an eligible public framework health request before the full HTTP bootstrap runs.
+ *
+ * Unsupported, unmatched or protected requests return null and continue through the standard lifecycle.
+ */
 final class FrameworkHealthFastPath
 {
+    /**
+     * Binds pre-bootstrap health handling to loaded definitions, benchmark state and application context.
+     */
     public function __construct(
         private readonly ConfigDefinitionRegistry $definitions,
         private readonly Benchmark $benchmark,
@@ -36,6 +45,12 @@ final class FrameworkHealthFastPath
     ) {
     }
 
+    /**
+     * Returns a complete health response when the request is eligible, or null to defer normal dispatch.
+     *
+     * @throws JsonException When the health payload cannot be encoded as JSON.
+     * @throws RuntimeException When the configured application timezone is invalid.
+     */
     public function tryHandle(ServerRequestInterface $request): ?ResponseInterface
     {
         if (!$this->isSupportedMethod($request->getMethod())) {
@@ -55,11 +70,12 @@ final class FrameworkHealthFastPath
             return null;
         }
 
-        if (!$this->matchesHealthRequest($request, $snapshot->api)) {
+        $apiConfig = $snapshot->api();
+        if (!$this->matchesHealthRequest($request, $apiConfig)) {
             return null;
         }
 
-        if ($snapshot->api->framework()->health->access !== ApiAccess::Public) {
+        if ($apiConfig->framework()->health()->access() !== ApiAccess::Public) {
             return null;
         }
 
@@ -72,22 +88,29 @@ final class FrameworkHealthFastPath
                 'version' => $frameworkInfo->version(),
             ],
             [
-                'timestamp' => (new SystemClock($this->resolveTimezone($snapshot->app)))->now()->format(DATE_ATOM),
+                'timestamp' => (new SystemClock($this->resolveTimezone($snapshot->app())))->now()->format(DATE_ATOM),
             ],
         )->withHeader(
             $frameworkInfo->poweredByHeader(),
             $frameworkInfo->poweredByValue(),
         );
 
-        if ($snapshot->cors instanceof CorsConfig) {
-            $response = (new CorsMiddleware($snapshot->cors, $responseFactory))->process(
+        $cors = $snapshot->cors();
+        if ($cors instanceof CorsConfig) {
+            $response = (new CorsMiddleware($cors, $responseFactory))->process(
                 $request,
                 new class ($response) implements RequestHandlerInterface {
+                    /**
+                     * Captures the response that CORS middleware must decorate without dispatching a controller.
+                     */
                     public function __construct(
                         private readonly ResponseInterface $response,
                     ) {
                     }
 
+                    /**
+                     * Returns the captured health response unchanged to the surrounding middleware.
+                     */
                     public function handle(ServerRequestInterface $request): ResponseInterface
                     {
                         unset($request);
@@ -106,7 +129,7 @@ final class FrameworkHealthFastPath
 
         if ($run instanceof BenchmarkRun) {
             $response = (new BenchmarkResponseInjector(
-                $snapshot->benchmark,
+                $snapshot->benchmark(),
                 $this->context,
             ))->inject(
                 $response,
@@ -127,14 +150,15 @@ final class FrameworkHealthFastPath
     private function matchesHealthRequest(ServerRequestInterface $request, ApiConfig $apiConfig): bool
     {
         $framework = $apiConfig->framework();
+        $health = $framework->health();
 
-        if (!$apiConfig->enabled() || !$framework->health->enabled) {
+        if (!$apiConfig->enabled() || !$health->enabled()) {
             return false;
         }
 
         $expectedPath = $this->pathResolver->compose(
             $apiConfig->prefix(),
-            $framework->health->route,
+            $health->route(),
         );
         $requestPath = $this->pathResolver->normalizePath($request->getUri()->getPath());
 
