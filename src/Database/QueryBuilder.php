@@ -5,10 +5,39 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Database;
 
 /**
- * Builds immutable SQL query descriptions and delegates execution to the selected database driver.
+ * Builds immutable SQL query descriptions with validated structured clauses and explicit raw SQL boundaries.
+ *
+ * Structured identifiers are validated before driver quoting, and caller values are retained as bindings.
  */
 final class QueryBuilder
 {
+    /**
+     * @var list<string>
+     */
+    private const array JOIN_TYPES = [
+        'INNER',
+        'LEFT',
+        'LEFT OUTER',
+        'RIGHT',
+        'RIGHT OUTER',
+        'FULL',
+        'FULL OUTER',
+        'CROSS',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    private const array JOIN_OPERATORS = [
+        '=',
+        '!=',
+        '<>',
+        '<',
+        '<=',
+        '>',
+        '>=',
+    ];
+
     /**
      * @var list<string>
      */
@@ -87,24 +116,10 @@ final class QueryBuilder
     public function table(string $table): self
     {
         $next = clone $this;
-        $table = trim($table);
-
-        if (preg_match(
-            '/^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/i',
+        $next->from = $this->protectTableReference(
             $table,
-            $m,
-        ) !== 1) {
-            throw new \InvalidArgumentException(sprintf(
-                'Unsafe SQL table identifier "%s". Use fromRaw() or fromSubquery() for explicit expressions.',
-                $table,
-            ));
-        }
-
-        $next->from = $this->protectTable($m[1]);
-
-        if (isset($m[2])) {
-            $next->from .= ' AS ' . $this->protectIdentifier($m[2]);
-        }
+            'Use fromRaw() or fromSubquery() for explicit expressions.',
+        );
 
         return $next;
     }
@@ -214,47 +229,149 @@ final class QueryBuilder
     }
 
     /**
-     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     * Appends a backward-compatible JOIN whose ON condition is trusted raw SQL.
+     *
+     * The table identifier and JOIN type are validated, but the condition is intentionally not parsed or escaped.
+     * Never concatenate untrusted values into it; pass values through the trailing bindings argument. Prefer
+     * joinOn() for a structured column comparison or joinRaw() when the raw boundary should be explicit.
+     *
+     * @param list<mixed> $bindings
      */
-    public function join(string $table, string $condition, string $type = 'INNER'): self
-    {
-        $next = clone $this;
-
-        $next->joins[] = [
-            'type' => ($normalizedType = strtoupper(trim($type))) !== '' ? $normalizedType : 'INNER',
-            'table' => $this->protectTable($table),
-            'condition' => $condition,
-            'bindings' => [],
-        ];
-
-        return $next;
+    public function join(
+        string $table,
+        string $condition,
+        string $type = 'INNER',
+        array $bindings = [],
+    ): self {
+        return $this->joinRaw($table, $condition, $bindings, $type);
     }
 
     /**
-     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     * Appends a JOIN with validated table, type, column identifiers, and comparison operator.
      */
-    public function joinSubquery(self $query, string $alias, string $condition, string $type = 'INNER'): self
-    {
-        [$sql, $bindings] = $query->compileSelect();
+    public function joinOn(
+        string $table,
+        string $leftColumn,
+        string $operator,
+        string $rightColumn,
+        string $type = 'INNER',
+    ): self {
+        $condition = $this->protectIdentifier($leftColumn)
+            . ' ' . $this->normalizeJoinOperator($operator) . ' '
+            . $this->protectIdentifier($rightColumn);
 
-        $next = clone $this;
-
-        $next->joins[] = [
-            'type' => ($normalizedType = strtoupper(trim($type))) !== '' ? $normalizedType : 'INNER',
-            'table' => '(' . $sql . ') AS ' . $this->protectIdentifier($alias),
-            'condition' => $condition,
-            'bindings' => $bindings,
-        ];
-
-        return $next;
+        return $this->addJoin(
+            table: $this->protectJoinTable($table),
+            condition: $condition,
+            type: $type,
+            bindings: [],
+        );
     }
 
     /**
-     * Provides this part of the database contract while preserving the object's current state and driver semantics.
+     * Appends an explicitly trusted raw ON condition while binding all caller-supplied values separately.
+     *
+     * The raw condition is not parsed or escaped. Its SQL structure must be application-owned, while untrusted
+     * values belong in placeholders represented by the bindings list.
+     *
+     * @param list<mixed> $bindings
      */
-    public function leftJoinSubquery(self $query, string $alias, string $condition): self
-    {
-        return $this->joinSubquery($query, $alias, $condition, 'LEFT');
+    public function joinRaw(
+        string $table,
+        string $condition,
+        array $bindings = [],
+        string $type = 'INNER',
+    ): self {
+        return $this->addJoin(
+            table: $this->protectJoinTable($table),
+            condition: $condition,
+            type: $type,
+            bindings: $bindings,
+        );
+    }
+
+    /**
+     * Appends a compiled subquery with a trusted raw ON condition and preserves all placeholder bindings.
+     *
+     * The alias and JOIN type are validated. The condition remains raw for backward compatibility and must contain
+     * only application-owned SQL; caller values belong in the trailing bindings argument.
+     *
+     * @param list<mixed> $conditionBindings
+     */
+    public function joinSubquery(
+        self $query,
+        string $alias,
+        string $condition,
+        string $type = 'INNER',
+        array $conditionBindings = [],
+    ): self {
+        return $this->joinSubqueryRaw(
+            query: $query,
+            alias: $alias,
+            condition: $condition,
+            bindings: $conditionBindings,
+            type: $type,
+        );
+    }
+
+    /**
+     * Appends a compiled subquery using a structured comparison of two validated column identifiers.
+     */
+    public function joinSubqueryOn(
+        self $query,
+        string $alias,
+        string $leftColumn,
+        string $operator,
+        string $rightColumn,
+        string $type = 'INNER',
+    ): self {
+        $condition = $this->protectIdentifier($leftColumn)
+            . ' ' . $this->normalizeJoinOperator($operator) . ' '
+            . $this->protectIdentifier($rightColumn);
+
+        return $this->joinSubqueryRaw(
+            query: $query,
+            alias: $alias,
+            condition: $condition,
+            bindings: [],
+            type: $type,
+        );
+    }
+
+    /**
+     * Appends a compiled subquery with an explicitly trusted raw ON fragment and ordered value bindings.
+     *
+     * @param list<mixed> $bindings
+     */
+    public function joinSubqueryRaw(
+        self $query,
+        string $alias,
+        string $condition,
+        array $bindings = [],
+        string $type = 'INNER',
+    ): self {
+        [$sql, $subqueryBindings] = $query->compileSelect();
+
+        return $this->addJoin(
+            table: '(' . $sql . ') AS ' . $this->protectIdentifier($alias),
+            condition: $condition,
+            type: $type,
+            bindings: array_merge($subqueryBindings, $bindings),
+        );
+    }
+
+    /**
+     * Appends a LEFT JOIN subquery with a backward-compatible trusted raw ON condition.
+     *
+     * @param list<mixed> $conditionBindings
+     */
+    public function leftJoinSubquery(
+        self $query,
+        string $alias,
+        string $condition,
+        array $conditionBindings = [],
+    ): self {
+        return $this->joinSubquery($query, $alias, $condition, 'LEFT', $conditionBindings);
     }
 
     /**
@@ -1676,6 +1793,69 @@ final class QueryBuilder
     }
 
     /**
+     * Appends one validated JOIN definition while retaining binding order.
+     *
+     * @param list<mixed> $bindings
+     */
+    private function addJoin(
+        string $table,
+        string $condition,
+        string $type,
+        array $bindings,
+    ): self {
+        $condition = trim($condition);
+
+        if ($condition === '') {
+            throw new \InvalidArgumentException('JOIN ON condition cannot be empty.');
+        }
+
+        $next = clone $this;
+        $next->joins[] = [
+            'type' => $this->normalizeJoinType($type),
+            'table' => $table,
+            'condition' => $condition,
+            'bindings' => $bindings,
+        ];
+
+        return $next;
+    }
+
+    /**
+     * Returns a canonical JOIN keyword from the explicit portable allowlist.
+     */
+    private function normalizeJoinType(string $type): string
+    {
+        $normalized = strtoupper(trim($type));
+
+        if (!in_array($normalized, self::JOIN_TYPES, true)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Unsupported JOIN type "%s". Supported types are: %s.',
+                $type,
+                implode(', ', self::JOIN_TYPES),
+            ));
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Returns a comparison operator accepted by the structured JOIN API.
+     */
+    private function normalizeJoinOperator(string $operator): string
+    {
+        $normalized = trim($operator);
+
+        if (!in_array($normalized, self::JOIN_OPERATORS, true)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Unsupported JOIN comparison operator "%s".',
+                $operator,
+            ));
+        }
+
+        return $normalized;
+    }
+
+    /**
      * @param list<mixed> $bindings
      */
     /**
@@ -1706,6 +1886,45 @@ final class QueryBuilder
     private function protectTable(string $table): string
     {
         return $this->db->protect_identifiers($table, true, null, false);
+    }
+
+    /**
+     * Validates and protects a table reference accepted by JOIN methods.
+     */
+    private function protectJoinTable(string $table): string
+    {
+        return $this->protectTableReference(
+            $table,
+            'Use joinSubquery() for a compiled table expression.',
+        );
+    }
+
+    /**
+     * Validates a table or schema-qualified table with one optional alias before driver quoting.
+     */
+    private function protectTableReference(string $table, string $alternative): string
+    {
+        $table = trim($table);
+
+        if (preg_match(
+            '/^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/i',
+            $table,
+            $matches,
+        ) !== 1) {
+            throw new \InvalidArgumentException(sprintf(
+                'Unsafe SQL table identifier "%s". %s',
+                $table,
+                $alternative,
+            ));
+        }
+
+        $protected = $this->protectTable($matches[1]);
+
+        if (isset($matches[2])) {
+            $protected .= ' AS ' . $this->protectIdentifier($matches[2]);
+        }
+
+        return $protected;
     }
 
     /**

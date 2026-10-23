@@ -4,6 +4,12 @@ This project has not published tagged releases. This section summarizes notable 
 
 ## Unreleased
 
+- Hardened Query Builder JOIN construction by allowlisting JOIN types, validating table references
+  and aliases with the structured identifier policy, and adding ordered ON-condition bindings.
+  `joinOn()` and `joinSubqueryOn()` provide validated column comparisons, while `joinRaw()` and
+  `joinSubqueryRaw()` make intentionally raw ON clauses explicit. The historical `join()` and
+  `joinSubquery()` signatures remain compatible trusted-raw contracts, but now reject unsafe table
+  identifiers, unknown or empty JOIN types, and empty conditions.
 - **Breaking security change:** Hardened file-backed sessions around an explicit private filesystem
   boundary. File session roots must be absolute after application-context resolution, outside the
   public webroot, traversal-free, non-symbolic and process-owned; directories use mode `0700`, while

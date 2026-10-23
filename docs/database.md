@@ -89,6 +89,54 @@ with `Database` and Query Builder writes.
 `Database` instance with its own connection and driver for callers that need a separate database
 context.
 
+## Query Builder SQL boundaries
+
+`QueryBuilder` separates structured clauses from explicitly raw SQL. Structured table references
+accept a table or schema-qualified table plus one optional alias, for example `users AS u` or
+`reporting.users u`. Column inputs accept bare or qualified identifiers. They are validated before
+the active driver quotes them; SQL expressions, comments, delimiters and statement fragments are
+rejected rather than passed through the driver's more permissive legacy identifier helper.
+
+The preferred simple JOIN API compares two validated column identifiers:
+
+```php
+$rows = $database->table('users AS u')
+    ->joinOn('profiles AS p', 'u.id', '=', 'p.user_id', 'LEFT')
+    ->where('p.enabled', true)
+    ->getArray();
+```
+
+JOIN types are case-insensitively normalized and limited to `INNER`, `LEFT`, `LEFT OUTER`, `RIGHT`,
+`RIGHT OUTER`, `FULL`, `FULL OUTER`, and `CROSS`. An empty or unknown type is an error; there is no
+fallback to `INNER`. The selected database dialect must still support the chosen standard JOIN form.
+Structured JOIN comparison operators are limited to `=`, `!=`, `<>`, `<`, `<=`, `>`, and `>=`.
+
+Complex ON expressions remain an explicit trusted-raw boundary. Their SQL structure must be owned by
+application code, while every untrusted value uses a placeholder and binding:
+
+```php
+$rows = $database->table('users AS u')
+    ->joinRaw(
+        table: 'profiles AS p',
+        condition: 'p.user_id = u.id AND p.state = ?',
+        bindings: [$requestedState],
+        type: 'LEFT',
+    )
+    ->getArray();
+```
+
+The historical `join($table, $condition, $type)` signature is retained for compatibility and treats
+`$condition` as trusted raw SQL. It now validates the table and JOIN type and accepts an optional
+fourth bindings argument. New code should use `joinOn()` for structured comparisons or `joinRaw()`
+to make the trust boundary visible. `joinSubqueryOn()` and `joinSubqueryRaw()` provide the same split
+for compiled subqueries; subquery bindings always precede ON-condition bindings in placeholder order.
+The builder deliberately does not attempt to parse or rewrite arbitrary ON expressions.
+
+`fromRaw()`, `selectRaw()`, `whereRaw()`, and `havingRaw()` are the other explicit raw SQL entry
+points. Their SQL fragments must never be derived from untrusted input. Their binding arrays are the
+supported path for values. Structured `where`, `having`, membership, range, ordering, grouping,
+insert, update and batch operations validate their identifiers and bind their values.
+
 ## Migrations
 
 Lemonade provides a small, one-way migration runner. Concrete migration classes stay in the
