@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload;
 
+use Lemonade\Framework\Mime\MimeRisk;
+
 /**
  * Defines the resolved generic-upload policy passed to validation and storage services.
  *
@@ -12,15 +14,18 @@ namespace Lemonade\Framework\Upload;
 final readonly class FileUploadOptions
 {
     /**
-     * Creates a policy with an absolute storage target and its public-relative counterpart.
+     * Creates a policy with an absolute constrained target and its visibility-specific storage-relative counterpart.
      *
      * @param list<string> $allowedExtensions Explicit normalized filename suffixes permitted by this upload operation
+     * @param list<MimeRisk> $allowedRisks Non-passive categories explicitly authorized for private storage
      */
     public function __construct(
         private string $targetDirectory,
         private string $targetRelativeDirectory,
         private int $maxBytes = 10_485_760,
         private array $allowedExtensions = [],
+        private UploadVisibility $visibility = UploadVisibility::Public,
+        private array $allowedRisks = [],
     ) {
     }
 
@@ -33,7 +38,7 @@ final readonly class FileUploadOptions
     }
 
     /**
-     * Provides the public-relative directory retained in the returned upload reference.
+     * Provides the directory retained relative to either the public root or private writable root.
      */
     public function targetRelativeDirectory(): string
     {
@@ -56,5 +61,23 @@ final readonly class FileUploadOptions
     public function allowedExtensions(): array
     {
         return $this->allowedExtensions;
+    }
+
+    /**
+     * Identifies whether the validated file is published publicly or retained in private writable storage.
+     */
+    public function visibility(): UploadVisibility
+    {
+        return $this->visibility;
+    }
+
+    /**
+     * Provides the non-passive risk categories explicitly authorized for private storage.
+     *
+     * @return list<MimeRisk>
+     */
+    public function allowedRisks(): array
+    {
+        return $this->allowedRisks;
     }
 }

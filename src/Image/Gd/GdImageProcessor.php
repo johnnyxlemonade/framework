@@ -24,14 +24,24 @@ use Lemonade\Framework\Image\Value\ResizeMode;
  * Transformations return new image values and never mutate the input image.
  * Conservative dimension and pixel limits bound the memory retained by GD canvases.
  */
-final class GdImageProcessor implements ImageProcessorInterface
+final readonly class GdImageProcessor implements ImageProcessorInterface
 {
+    private const int DECODE_BYTES_PER_PIXEL = 12;
+    private const int DECODE_MEMORY_RESERVE = 8 * 1024 * 1024;
+
+    /**
+     * Configures codec capabilities and conservative source, dimension, pixel, and decode-memory boundaries.
+     *
+     * A null memory limit reads the active PHP memory_limit; an unlimited or unreadable runtime value leaves the
+     * fixed dimension and pixel limits as the allocation boundary.
+     */
     public function __construct(
-        private readonly GdCapabilities $capabilities,
-        private readonly int $maxWidth = 4096,
-        private readonly int $maxHeight = 4096,
-        private readonly int $maxPixels = 10_000_000,
-        private readonly int $maxInputBytes = 20_971_520,
+        private GdCapabilities $capabilities,
+        private int $maxWidth = 4096,
+        private int $maxHeight = 4096,
+        private int $maxPixels = 10_000_000,
+        private int $maxInputBytes = 20_971_520,
+        private ?int $memoryLimitBytes = null,
     ) {
     }
 
@@ -56,6 +66,7 @@ final class GdImageProcessor implements ImageProcessorInterface
         }
         $dimensions = new ImageDimensions($info[0], $info[1]);
         $this->assertDimensionsAllowed($dimensions);
+        $this->assertDecodeMemoryAvailable($dimensions, $size);
         $this->capabilities->assertDecoder($format);
         $resource = match ($format) {
             ImageFormat::Jpeg => @imagecreatefromjpeg($path),
@@ -130,6 +141,57 @@ final class GdImageProcessor implements ImageProcessorInterface
         if ($dimensions->width > $this->maxWidth || $dimensions->height > $this->maxHeight || $dimensions->pixels() > $this->maxPixels) {
             throw new ImageValidationException('Image dimensions exceed allowed limits.');
         }
+    }
+
+    private function assertDecodeMemoryAvailable(ImageDimensions $dimensions, int $inputBytes): void
+    {
+        $limit = $this->memoryLimitBytes ?? $this->runtimeMemoryLimit();
+
+        if ($limit === null) {
+            return;
+        }
+
+        $required = memory_get_usage(true)
+            + $inputBytes
+            + ($dimensions->pixels() * self::DECODE_BYTES_PER_PIXEL)
+            + self::DECODE_MEMORY_RESERVE;
+
+        if ($required > $limit) {
+            throw new ImageValidationException('Image decoding would exceed the available memory budget.');
+        }
+    }
+
+    private function runtimeMemoryLimit(): ?int
+    {
+        $value = ini_get('memory_limit');
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        if ($value === '' || $value === '-1') {
+            return null;
+        }
+
+        if (preg_match('/^([0-9]+)\s*([KMG]?)B?$/iD', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $multiplier = match (strtoupper($matches[2])) {
+            'K' => 1024,
+            'M' => 1024 * 1024,
+            'G' => 1024 * 1024 * 1024,
+            default => 1,
+        };
+        $units = (int) $matches[1];
+
+        if ($units > intdiv(PHP_INT_MAX, $multiplier)) {
+            return PHP_INT_MAX;
+        }
+
+        return $units * $multiplier;
     }
 
     private function resource(DecodedImage $image): GdImage

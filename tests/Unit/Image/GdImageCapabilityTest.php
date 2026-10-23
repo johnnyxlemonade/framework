@@ -135,6 +135,17 @@ final class GdImageCapabilityTest extends TestCase
         (new GdImageProcessor(new GdCapabilities(), maxPixels: 10))->decode(ImageSource::fromFile($this->jpeg(20, 20)));
     }
 
+    public function testDecodeRejectsAnInsufficientMemoryBudgetBeforeAllocatingPixels(): void
+    {
+        $this->expectException(ImageValidationException::class);
+        $this->expectExceptionMessage('memory budget');
+
+        (new GdImageProcessor(
+            new GdCapabilities(),
+            memoryLimitBytes: 1,
+        ))->decode(ImageSource::fromFile($this->jpeg(1, 1)));
+    }
+
     public function testInvalidCropQualityAndEncoderDataAreTyped(): void
     {
         $image = $this->processor()->decode(ImageSource::fromFile($this->jpeg(10, 10)));

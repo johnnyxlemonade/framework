@@ -6,13 +6,17 @@ namespace Lemonade\Framework\Upload\Config;
 
 use InvalidArgumentException;
 use Lemonade\Framework\Core\Config\Internal\ConfigValueNormalizer;
+use Lemonade\Framework\Mime\MimeRisk;
 use Lemonade\Framework\Mime\MimeTypeCatalog;
 use Lemonade\Framework\Support\ByteSizeParser;
+use Lemonade\Framework\Upload\UploadPathPolicy;
+use Lemonade\Framework\Upload\UploadRiskPolicy;
+use Lemonade\Framework\Upload\UploadVisibility;
 
 /**
  * Converts typed upload definitions into fail-fast runtime policies consumed by UploadFactory.
  *
- * It normalizes the canonical extension allowlist against MimeTypeCatalog and parses byte limits before a request
+ * It normalizes target paths, visibility, risk authorization, extension families, and byte limits before a request
  * can reach an uploader.
  */
 final readonly class UploadConfigResolver
@@ -27,6 +31,7 @@ final readonly class UploadConfigResolver
     public function __construct(
         ?MimeTypeCatalog $catalog = null,
         private ByteSizeParser $byteSizeParser = new ByteSizeParser(),
+        private UploadRiskPolicy $riskPolicy = new UploadRiskPolicy(),
     ) {
         $this->catalog = $catalog ?? MimeTypeCatalog::default();
     }
@@ -34,7 +39,8 @@ final readonly class UploadConfigResolver
     /**
      * Merges layered definitions into profiles with normalized extensions and positive byte limits.
      *
-     * Unknown extensions, legacy MIME policies, and malformed limits are rejected before upload services are used.
+     * Unsafe paths, unauthorized format risks, unknown extensions, legacy MIME policies, and malformed limits are
+     * rejected before upload services are used.
      *
      * @throws InvalidArgumentException When an upload profile cannot form a safe catalog-backed policy
      */
@@ -68,13 +74,25 @@ final readonly class UploadConfigResolver
             $profileName = trim($name);
             $this->rejectLegacyMimePolicy($profile, $profileName);
 
+            $visibility = $this->visibility($profile['visibility'] ?? UploadVisibility::Public->value, $profileName);
+            $allowedRisks = $this->allowedRisks($profile['allowed_risks'] ?? [], $profileName);
+            $allowedExtensions = $this->allowedExtensions(
+                $profile['allowed_extensions'] ?? [],
+                $profileName,
+            );
+            $this->assertRiskPolicy(
+                profile: $profileName,
+                extensions: $allowedExtensions,
+                visibility: $visibility,
+                allowedRisks: $allowedRisks,
+            );
+
             $current[$profileName] = new FileUploadProfileConfig(
-                targetDirectory: ConfigValueNormalizer::nonEmptyStringOr(
-                    $profile['target_directory'] ?? '',
-                    '',
-                ),
+                targetDirectory: $this->targetDirectory($profile['target_directory'] ?? '', $profileName),
                 maxBytes: $this->maxBytes($profile['max_bytes'] ?? 10_485_760, $profileName),
-                allowedExtensions: $this->allowedExtensions($profile['allowed_extensions'] ?? [], $profileName),
+                allowedExtensions: $allowedExtensions,
+                visibility: $visibility,
+                allowedRisks: $allowedRisks,
             );
         }
 
@@ -96,18 +114,30 @@ final readonly class UploadConfigResolver
             $profileName = trim($name);
             $this->rejectLegacyMimePolicy($profile, $profileName);
 
+            $visibility = $this->visibility($profile['visibility'] ?? UploadVisibility::Public->value, $profileName);
+            $allowedRisks = $this->allowedRisks($profile['allowed_risks'] ?? [], $profileName);
+            $allowedExtensions = $this->allowedExtensions(
+                $profile['allowed_extensions'] ?? ['jpg', 'jpeg', 'png', 'webp'],
+                $profileName,
+            );
+            $this->assertRiskPolicy(
+                profile: $profileName,
+                extensions: $allowedExtensions,
+                visibility: $visibility,
+                allowedRisks: $allowedRisks,
+            );
+
             $current[$profileName] = new ImageUploadProfileConfig(
-                targetDirectory: ConfigValueNormalizer::nonEmptyStringOr(
-                    $profile['target_directory'] ?? '',
-                    '',
-                ),
+                targetDirectory: $this->targetDirectory($profile['target_directory'] ?? '', $profileName),
                 maxBytes: $this->maxBytes($profile['max_bytes'] ?? 5_242_880, $profileName),
-                allowedExtensions: $this->allowedExtensions($profile['allowed_extensions'] ?? ['jpg', 'jpeg', 'png', 'webp'], $profileName),
+                allowedExtensions: $allowedExtensions,
                 reencode: ConfigValueNormalizer::boolOr($profile['reencode'] ?? true, true),
                 minWidth: ConfigValueNormalizer::nullableInt($profile['min_width'] ?? null),
                 maxWidth: ConfigValueNormalizer::nullableInt($profile['max_width'] ?? null),
                 minHeight: ConfigValueNormalizer::nullableInt($profile['min_height'] ?? null),
                 maxHeight: ConfigValueNormalizer::nullableInt($profile['max_height'] ?? null),
+                visibility: $visibility,
+                allowedRisks: $allowedRisks,
             );
         }
 
@@ -147,6 +177,26 @@ final readonly class UploadConfigResolver
         } catch (InvalidArgumentException $exception) {
             throw new InvalidArgumentException(sprintf(
                 'Upload profile "%s": invalid max_bytes: %s',
+                $profile,
+                $exception->getMessage(),
+            ), previous: $exception);
+        }
+    }
+
+    private function targetDirectory(mixed $value, string $profile): string
+    {
+        if (!is_string($value)) {
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": target_directory must be a safe relative path.',
+                $profile,
+            ));
+        }
+
+        try {
+            return UploadPathPolicy::normalizeRelativeDirectory($value);
+        } catch (InvalidArgumentException $exception) {
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": invalid target_directory: %s',
                 $profile,
                 $exception->getMessage(),
             ), previous: $exception);
@@ -199,6 +249,112 @@ final readonly class UploadConfigResolver
         }
 
         return $items;
+    }
+
+    private function visibility(mixed $value, string $profile): UploadVisibility
+    {
+        if (!is_string($value)) {
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": visibility must be "public" or "private".',
+                $profile,
+            ));
+        }
+
+        $visibility = UploadVisibility::tryFrom(strtolower(trim($value)));
+
+        if (!$visibility instanceof UploadVisibility) {
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": visibility must be "public" or "private".',
+                $profile,
+            ));
+        }
+
+        return $visibility;
+    }
+
+    /**
+     * @return list<MimeRisk>
+     */
+    private function allowedRisks(mixed $value, string $profile): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": allowed_risks must be a list of risk names.',
+                $profile,
+            ));
+        }
+
+        $risks = [];
+
+        foreach ($value as $item) {
+            if (!is_string($item)) {
+                throw new InvalidArgumentException(sprintf(
+                    'Upload profile "%s": allowed_risks must contain only strings.',
+                    $profile,
+                ));
+            }
+
+            $risk = MimeRisk::tryFrom(strtolower(trim($item)));
+
+            if (!$risk instanceof MimeRisk) {
+                throw new InvalidArgumentException(sprintf(
+                    'Upload profile "%s": unknown allowed risk "%s".',
+                    $profile,
+                    $item,
+                ));
+            }
+
+            if (!in_array($risk, $risks, true)) {
+                $risks[] = $risk;
+            }
+        }
+
+        return $risks;
+    }
+
+    /**
+     * @param list<string> $extensions
+     * @param list<MimeRisk> $allowedRisks
+     */
+    private function assertRiskPolicy(
+        string $profile,
+        array $extensions,
+        UploadVisibility $visibility,
+        array $allowedRisks,
+    ): void {
+        if ($visibility === UploadVisibility::Public) {
+            foreach ($allowedRisks as $allowedRisk) {
+                if (
+                    $allowedRisk === MimeRisk::ActiveContent
+                    || $allowedRisk === MimeRisk::Executable
+                    || $allowedRisk === MimeRisk::Unclassified
+                ) {
+                    throw new InvalidArgumentException(sprintf(
+                        'Upload profile "%s": public storage cannot authorize risk "%s".',
+                        $profile,
+                        $allowedRisk->value,
+                    ));
+                }
+            }
+        }
+
+        foreach ($extensions as $extension) {
+            $definition = $this->catalog->definitionForExtension($extension);
+
+            if (
+                $definition !== null
+                && $this->riskPolicy->allows($definition->risk(), $visibility, $allowedRisks)
+            ) {
+                continue;
+            }
+
+            throw new InvalidArgumentException(sprintf(
+                'Upload profile "%s": extension "%s" is not allowed by the %s storage risk policy.',
+                $profile,
+                $extension,
+                $visibility->value,
+            ));
+        }
     }
 
     /** @param array<mixed> $profile */

@@ -20,13 +20,12 @@ use Lemonade\Framework\Upload\Chunk\FilesystemChunkUploadSessionStore;
 use Lemonade\Framework\Upload\Config\UploadConfig;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
 use Lemonade\Framework\Upload\Config\UploadConfigResolver;
-use Lemonade\Framework\Upload\Storage\UploadStorage;
 
 /**
- * Registers upload validation, profile resolution, storage, and request-scoped upload entry points.
+ * Registers upload validation, risk and path policy, storage, and request-scoped upload entry points.
  *
- * Profile configuration is resolved during provider boot so invalid extension policies and byte limits fail before
- * requests are handled.
+ * Profile configuration is resolved during provider boot so unsafe paths, storage overlap, unauthorized format risks,
+ * and invalid byte limits fail before requests are handled.
  */
 final readonly class UploadServiceProvider implements ServiceProviderInterface, BootableServiceProviderInterface
 {
@@ -63,23 +62,10 @@ final readonly class UploadServiceProvider implements ServiceProviderInterface, 
             return $resolver->resolve(...$entries);
         });
 
-        /*
-         * Upload validation.
-         */
-        $container->singleton(FileUploadValidator::class, FileUploadValidator::class);
-        $container->singleton(ImageUploadValidator::class, ImageUploadValidator::class);
-
-        /*
-         * Upload infrastructure.
-         */
-        $container->singleton(UploadStorage::class, UploadStorage::class);
         $container->singleton(ChunkUploadConfig::class, ChunkUploadConfig::class);
         $container->singleton(FilesystemChunkUploadSessionStore::class, FilesystemChunkUploadSessionStore::class);
         $container->set(ChunkUploadCleanupCommand::class, ChunkUploadCleanupCommand::class);
 
-        /*
-         * Upload public API.
-         */
         $container->singleton(UploadService::class, UploadService::class);
         $builder->scoped(UploadFactory::class, UploadFactory::class);
         $builder->scoped(ChunkUploadService::class, ChunkUploadService::class);
@@ -88,18 +74,30 @@ final readonly class UploadServiceProvider implements ServiceProviderInterface, 
             $container->get(CommandRegistry::class)->registerDefinition(new CommandDefinition(
                 name: 'upload:chunks:cleanup',
                 commandClass: ChunkUploadCleanupCommand::class,
-                description: 'Remove expired temporary chunk uploads.',
+                description: 'Remove expired chunk sessions and orphaned upload staging files.',
             ));
         }
     }
 
     /**
-     * Materializes the resolved profile set once provider composition is frozen.
+     * Materializes profiles and rejects configured private storage that overlaps the public web root.
      *
      * @throws \InvalidArgumentException When application upload configuration cannot form a safe policy
+     * @throws \LogicException When configured private storage overlaps the public web root
      */
     public function boot(ContainerInterface $container): void
     {
-        $container->get(UploadConfig::class);
+        $pathPolicy = $container->get(UploadPathPolicy::class);
+        $config = $container->get(UploadConfig::class);
+
+        foreach ([...$config->files, ...$config->images] as $profile) {
+            if ($profile->visibility() !== UploadVisibility::Private) {
+                continue;
+            }
+
+            $pathPolicy->assertStorageRootsSeparated();
+
+            return;
+        }
     }
 }

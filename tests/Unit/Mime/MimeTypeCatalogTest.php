@@ -44,6 +44,17 @@ final class MimeTypeCatalogTest extends TestCase
         self::assertNull($catalog->definitionForExtension('unknown'));
     }
 
+    public function testMimeDefinitionRequiresExplicitRiskClassification(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must declare an explicit risk category');
+
+        new MimeTypeDefinition(
+            MimeType::fromString('application/vnd.acme.unclassified'),
+            ['acme-unclassified'],
+        );
+    }
+
     public function testRejectsDuplicateNormalizedExtensions(): void
     {
         $this->expectException(MimeTypeCatalogConflictException::class);
@@ -98,6 +109,7 @@ final class MimeTypeCatalogTest extends TestCase
             MimeType::fromString($canonical),
             $extensions,
             $aliases,
+            MimeRisk::Passive,
         );
     }
 }

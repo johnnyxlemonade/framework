@@ -14,6 +14,8 @@ final readonly class MimeTypeDefinition
     /**
      * Creates a normalized format family whose aliases are current accepted detection results.
      *
+     * Every caller must classify the format explicitly so application definitions cannot become passive by omission.
+     *
      * @param list<string> $extensions
      * @param list<MimeType|string> $aliases
      */
@@ -21,8 +23,14 @@ final readonly class MimeTypeDefinition
         private MimeType $canonicalMime,
         array $extensions,
         array $aliases = [],
-        private MimeRisk $risk = MimeRisk::Passive,
+        ?MimeRisk $risk = null,
     ) {
+        if ($risk === null) {
+            throw new InvalidArgumentException('MIME definitions must declare an explicit risk category.');
+        }
+
+        $this->risk = $risk;
+
         $normalizedExtensions = [];
 
         foreach ($extensions as $extension) {
@@ -68,6 +76,8 @@ final readonly class MimeTypeDefinition
      * @var list<MimeType>
      */
     private array $aliases;
+
+    private MimeRisk $risk;
 
     /**
      * Returns the preferred media type for the format family

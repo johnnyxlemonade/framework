@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload\Uploader;
 
+use Lemonade\Framework\Mime\MimeRisk;
 use Lemonade\Framework\Upload\FileUploadOptions;
 use Lemonade\Framework\Upload\Resolver\UploadedFileResolver;
 use Lemonade\Framework\Upload\UploadService;
@@ -14,15 +15,15 @@ use Psr\Http\Message\UploadedFileInterface;
 /**
  * Executes generic uploads against one immutable resolved policy.
  */
-final class ConfiguredFileUploader
+final readonly class ConfiguredFileUploader
 {
     /**
      * Couples the upload workflow to one policy without owning request state.
      */
     public function __construct(
-        private readonly UploadService $service,
-        private readonly FileUploadOptions $options,
-        private readonly UploadedFileResolver $uploadedFileResolver = new UploadedFileResolver(),
+        private UploadService $service,
+        private FileUploadOptions $options,
+        private UploadedFileResolver $uploadedFileResolver = new UploadedFileResolver(),
     ) {
     }
 
@@ -66,7 +67,9 @@ final class ConfiguredFileUploader
      * @return array{
      *     target_directory: string,
      *     max_bytes: int,
-     *     allowed_extensions: list<string>
+     *     allowed_extensions: list<string>,
+     *     visibility: string,
+     *     allowed_risks: list<string>
      * }
      */
     public function rules(): array
@@ -75,6 +78,11 @@ final class ConfiguredFileUploader
             'target_directory' => $this->options->targetDirectory(),
             'max_bytes' => $this->options->maxBytes(),
             'allowed_extensions' => $this->options->allowedExtensions(),
+            'visibility' => $this->options->visibility()->value,
+            'allowed_risks' => array_map(
+                static fn(MimeRisk $risk): string => $risk->value,
+                $this->options->allowedRisks(),
+            ),
         ];
     }
 }

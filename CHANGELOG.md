@@ -4,6 +4,29 @@ This project has not published tagged releases. This section summarizes notable 
 
 ## Unreleased
 
+- Added central upload risk enforcement and public/private storage visibility. Public uploads now
+  reject active, executable, and unclassified formats; private uploads require explicit
+  `allowed_risks` authorization for non-passive formats and remain outside the web root.
+- Added mandatory private upload staging with streamed actual-size enforcement, sealed snapshot
+  validation, complete image decoding, and atomic no-clobber publication with rollback. The public
+  `UploadFactory::file()` and `UploadFactory::image()` workflows remain unchanged.
+- Added filesystem-atomic chunk quotas, per-session chunk and context limits, single-use completion,
+  stable idempotent publication tokens, race-safe session retirement, automatic expired-session
+  cleanup, and lease-aware orphan staging cleanup. Existing chunk sessions created before this
+  metadata version cannot be resumed and are reclaimed after their TTL.
+- Hardened concurrent cleanup by preparing new chunk sessions under a lock before atomic activation,
+  skipping busy sessions without waiting, leasing staging and publication temporaries from creation,
+  and reclaiming bounded publication orphans. Managed upload directory permissions are now verified
+  and unsafe world-writable roots are restricted or rejected.
+- Upload profile config objects are now immutable value objects with behavioral getters. Direct
+  property reads must be replaced with methods such as `maxBytes()`, `visibility()`, and
+  `allowedExtensions()`.
+- **Breaking security change:** `MimeTypeDefinition` no longer treats an omitted risk as `Passive`,
+  unsafe upload target directories are rejected, and public profiles that allowed active or
+  executable content now fail during configuration resolution. Directly constructed `UploadStorage`
+  instances without the framework path policy now refuse writes; applications should use `UploadFactory`.
+  Upload validators, `UploadService`, staging, and storage are internal boundaries, and their direct
+  construction API changed to make snapshot staging mandatory.
 - Changed the framework license from MIT to Apache License 2.0 while retaining the BSD 3-Clause terms for URLify-derived transliteration maps.
 - Raised the framework baseline to PHP 8.3 and expanded container/provider composition with scoped services, aliases, decorators, contextual bindings, tags, boot ordering, and dependency declarations.
 - Introduced typed configuration definitions and resolvers with YAML-first application configuration.

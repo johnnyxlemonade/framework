@@ -8,16 +8,25 @@ use Lemonade\Framework\Filesystem\Filesystem;
 use Lemonade\Framework\Filesystem\Manager\DirectoryManager;
 use Lemonade\Framework\Filesystem\Manager\FileManager;
 use Lemonade\Framework\Filesystem\Manager\LockManager;
+use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Context\DebugMode;
+use Lemonade\Framework\Core\Context\Environment;
+use Lemonade\Framework\Core\Context\Path;
 use Lemonade\Framework\Image\Contract\ImageEncoderInterface;
-use Lemonade\Framework\Image\Contract\ImageFileWriterInterface;
-use Lemonade\Framework\Image\Contract\ImageProcessorInterface;
+use Lemonade\Framework\Image\Gd\GdCapabilities;
+use Lemonade\Framework\Image\Gd\GdImageEncoder;
+use Lemonade\Framework\Image\Gd\GdImageProcessor;
 use Lemonade\Framework\Mime\MimeType;
 use Lemonade\Framework\Mime\MimeTypeCatalog;
+use Lemonade\Framework\Mime\MimeTypeDetector;
 use Lemonade\Framework\Upload\Exception\UploadValidationException;
 use Lemonade\Framework\Upload\FileUploadValidator;
 use Lemonade\Framework\Upload\ImageUploadOptions;
 use Lemonade\Framework\Upload\ImageUploadValidator;
+use Lemonade\Framework\Upload\Staging\StagedUpload;
+use Lemonade\Framework\Upload\Staging\UploadStaging;
 use Lemonade\Framework\Upload\Storage\UploadStorage;
+use Lemonade\Framework\Upload\UploadPathPolicy;
 use Lemonade\Framework\Upload\UploadService;
 use Nyholm\Psr7\Stream;
 use Psr\Http\Message\StreamInterface;
@@ -30,6 +39,13 @@ final class ImageUploadValidatorTest extends TestCase
      * @var list<string>
      */
     private array $temporaryFiles = [];
+    private string $basePath = '';
+
+    protected function setUp(): void
+    {
+        $this->basePath = sys_get_temp_dir() . '/lemonade-image-upload-' . bin2hex(random_bytes(8));
+        mkdir($this->basePath . '/public', 0700, true);
+    }
 
     protected function tearDown(): void
     {
@@ -38,13 +54,17 @@ final class ImageUploadValidatorTest extends TestCase
         }
 
         $this->temporaryFiles = [];
+
+        if (is_dir($this->basePath)) {
+            (new DirectoryManager())->delete($this->basePath);
+        }
     }
 
     public function testRejectsDifferentDetectedAndActualImageMimeTypes(): void
     {
         $detector = new CountingMimeTypeDetector(MimeType::fromString('image/jpeg'));
         $validator = $this->imageValidator($detector);
-        $upload = $this->upload('image.jpg', $this->pngBytes());
+        $upload = $this->snapshot('image.jpg', $this->pngBytes());
 
         $this->expectException(UploadValidationException::class);
 
@@ -59,11 +79,11 @@ final class ImageUploadValidatorTest extends TestCase
     {
         $detector = new CountingMimeTypeDetector(MimeType::fromString('image/png'));
         $validator = $this->imageValidator($detector);
-        $upload = $this->upload('image.png', $this->pngBytes());
+        $upload = $this->snapshot('image.png', $this->pngBytes());
 
         $detected = $validator->validate($upload, $this->options());
 
-        self::assertSame('image/png', $detected->value());
+        self::assertSame('image/png', $detected->mimeType()->value());
         self::assertSame(1, $detector->calls);
     }
 
@@ -77,6 +97,54 @@ final class ImageUploadValidatorTest extends TestCase
         $this->assertMimeMismatchDoesNotMoveTheUpload(true);
     }
 
+    public function testTruncatedPngThatPassesMetadataInspectionIsNeverPublished(): void
+    {
+        $contents = $this->truncatedPngBytes();
+        $metadataPath = $this->basePath . '/truncated.png';
+        file_put_contents($metadataPath, $contents);
+        self::assertIsArray(getimagesize($metadataPath));
+        $upload = $this->upload('truncated.png', $contents);
+
+        $this->expectException(UploadValidationException::class);
+
+        try {
+            $this->service()->uploadImage($upload, $this->options(reencode: false));
+        } finally {
+            self::assertDirectoryDoesNotExist($this->basePath . '/public/uploads/images');
+            self::assertSame([], $this->stagedFiles());
+        }
+    }
+
+    public function testReencodeFalsePublishesOnlyAfterCompleteDecodeAndPreservesValidatedBytes(): void
+    {
+        $contents = $this->pngBytes();
+        $uploaded = $this->service()->uploadImage(
+            $this->upload('image.png', $contents),
+            $this->options(reencode: false),
+        );
+
+        self::assertSame($contents, file_get_contents($uploaded->storedPath()));
+        self::assertSame([], $this->stagedFiles());
+    }
+
+    public function testReencodeTruePublishesNewImageWithoutTrailingPayload(): void
+    {
+        $trailingPayload = '<?php echo "trailing";';
+        $contents = $this->pngBytes() . $trailingPayload;
+        $uploaded = $this->service()->uploadImage(
+            $this->upload('image.png', $contents),
+            $this->options(reencode: true),
+        );
+        $published = file_get_contents($uploaded->storedPath());
+
+        self::assertIsString($published);
+        self::assertStringNotContainsString($trailingPayload, $published);
+        $decoded = imagecreatefrompng($uploaded->storedPath());
+        self::assertInstanceOf(\GdImage::class, $decoded);
+        imagedestroy($decoded);
+        self::assertSame([], $this->stagedFiles());
+    }
+
     public function testRejectsMismatchedGenericUploadBeforeItsStorageDirectoryIsCreated(): void
     {
         $detector = new CountingMimeTypeDetector(MimeType::fromString('application/pdf'));
@@ -85,15 +153,19 @@ final class ImageUploadValidatorTest extends TestCase
             $detector,
             MimeTypeCatalog::default(),
         );
+        $processor = $this->processor();
         $service = new UploadService(
             $fileValidator,
-            new ImageUploadValidator($fileValidator, new ImageUploadValidatorTranslatorStub()),
+            new ImageUploadValidator(
+                $fileValidator,
+                new ImageUploadValidatorTranslatorStub(),
+                $processor,
+            ),
             $this->storage(),
-            $this->createMock(ImageProcessorInterface::class),
             $this->createMock(ImageEncoderInterface::class),
-            $this->createMock(ImageFileWriterInterface::class),
+            $this->staging(),
         );
-        $targetDirectory = sys_get_temp_dir() . '/lemonade-upload-target-' . bin2hex(random_bytes(8));
+        $targetDirectory = $this->basePath . '/public/uploads/files';
         $upload = $this->upload('document.doc', "%PDF-1.4\n");
 
         try {
@@ -120,13 +192,17 @@ final class ImageUploadValidatorTest extends TestCase
             $detector,
             MimeTypeCatalog::default(),
         );
+        $processor = $this->processor();
         $service = new UploadService(
             $fileValidator,
-            new ImageUploadValidator($fileValidator, new ImageUploadValidatorTranslatorStub()),
+            new ImageUploadValidator(
+                $fileValidator,
+                new ImageUploadValidatorTranslatorStub(),
+                $processor,
+            ),
             $this->storage(),
-            $this->createMock(ImageProcessorInterface::class),
             $this->createMock(ImageEncoderInterface::class),
-            $this->createMock(ImageFileWriterInterface::class),
+            $this->staging(),
         );
         $upload = $this->upload('image.jpg', $this->pngBytes());
 
@@ -136,6 +212,7 @@ final class ImageUploadValidatorTest extends TestCase
         } catch (UploadValidationException) {
             self::assertSame(0, $upload->moveCalls);
             self::assertSame(1, $detector->calls);
+            self::assertDirectoryDoesNotExist($this->basePath . '/public/uploads/images');
         }
     }
 
@@ -148,14 +225,14 @@ final class ImageUploadValidatorTest extends TestCase
             MimeTypeCatalog::default(),
         );
 
-        return new ImageUploadValidator($fileValidator, $translator);
+        return new ImageUploadValidator($fileValidator, $translator, $this->processor());
     }
 
     private function options(bool $reencode = true): ImageUploadOptions
     {
         return new ImageUploadOptions(
-            targetDirectory: sys_get_temp_dir(),
-            targetRelativeDirectory: 'images',
+            targetDirectory: $this->basePath . '/public/uploads/images',
+            targetRelativeDirectory: 'uploads/images',
             allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
             reencode: $reencode,
         );
@@ -175,30 +252,131 @@ final class ImageUploadValidatorTest extends TestCase
         return new RecordingUploadedFile($path, $filename, strlen($contents));
     }
 
+    private function snapshot(string $filename, string $contents): StagedUpload
+    {
+        $path = tempnam(sys_get_temp_dir(), 'lemonade-image-snapshot-');
+
+        if ($path === false) {
+            self::fail('Temporary image snapshot cannot be created.');
+        }
+
+        file_put_contents($path, $contents);
+        $this->temporaryFiles[] = $path;
+
+        return new StagedUpload(
+            path: $path,
+            clientFilename: $filename,
+            sizeBytes: strlen($contents),
+            sha256: hash('sha256', $contents),
+        );
+    }
+
     private function pngBytes(): string
     {
-        $decoded = base64_decode(
+        $image = imagecreatetruecolor(1, 1);
+
+        if ($image === false || !ob_start()) {
+            throw new \RuntimeException('PNG fixture cannot be created.');
+        }
+
+        imagepng($image);
+        $contents = ob_get_clean();
+        imagedestroy($image);
+
+        if (!is_string($contents)) {
+            throw new \RuntimeException('PNG fixture cannot be encoded.');
+        }
+
+        return $contents;
+    }
+
+    private function truncatedPngBytes(): string
+    {
+        $contents = base64_decode(
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL0jQAAAABJRU5ErkJggg==',
             true,
         );
 
-        if ($decoded === false) {
-            throw new \RuntimeException('PNG fixture cannot be decoded.');
+        if ($contents === false) {
+            throw new \RuntimeException('Truncated PNG fixture cannot be decoded.');
         }
 
-        return $decoded;
+        return $contents;
+    }
+
+    private function service(): UploadService
+    {
+        $translator = new ImageUploadValidatorTranslatorStub();
+        $fileValidator = new FileUploadValidator(
+            $translator,
+            new MimeTypeDetector(),
+            MimeTypeCatalog::default(),
+        );
+        $processor = $this->processor();
+
+        return new UploadService(
+            $fileValidator,
+            new ImageUploadValidator($fileValidator, $translator, $processor),
+            $this->storage(),
+            new GdImageEncoder(new GdCapabilities()),
+            $this->staging(),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stagedFiles(): array
+    {
+        $files = glob($this->basePath . '/storage/writable/uploads/staging/*.stage');
+
+        return $files === false ? [] : $files;
     }
 
     private function storage(): UploadStorage
     {
+        $filesystem = $this->filesystem();
+        $context = $this->context();
+
+        return new UploadStorage(
+            new ImageUploadValidatorTranslatorStub(),
+            $filesystem,
+            new UploadPathPolicy($context),
+        );
+    }
+
+    private function staging(): UploadStaging
+    {
+        return new UploadStaging(
+            new ImageUploadValidatorTranslatorStub(),
+            $this->filesystem(),
+            new UploadPathPolicy($this->context()),
+        );
+    }
+
+    private function processor(): GdImageProcessor
+    {
+        return new GdImageProcessor(new GdCapabilities());
+    }
+
+    private function context(): ApplicationContext
+    {
+        return new ApplicationContext(
+            Environment::Testing,
+            new Path($this->basePath, $this->basePath . '/public'),
+            DebugMode::disabled(),
+        );
+    }
+
+    private function filesystem(): Filesystem
+    {
         $directoryManager = new DirectoryManager();
-        $filesystem = new Filesystem(
+
+        return new Filesystem(
             $directoryManager,
             new FileManager(),
             new LockManager($directoryManager),
         );
-
-        return new UploadStorage(new ImageUploadValidatorTranslatorStub(), $filesystem);
     }
 }
 

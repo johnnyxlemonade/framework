@@ -15,6 +15,8 @@ final readonly class ChunkUploadSession
 {
     /**
      * Creates a validated snapshot whose declared size and current offset cannot exceed the profile limit.
+     *
+     * @param array<string, mixed> $context
      */
     public function __construct(
         private string $uploadId,
@@ -26,8 +28,10 @@ final readonly class ChunkUploadSession
         private int $currentOffset,
         private int $createdAt,
         private int $expiresAt,
-        /** @var array<string,mixed> */
         private array $context = [],
+        private int $chunkCount = 0,
+        private int $maxChunks = ChunkUploadConfig::DEFAULT_MAX_CHUNKS_PER_SESSION,
+        private string $publicationToken = '',
     ) {
         if (!in_array($this->kind, ['file', 'image'], true)) {
             throw new InvalidArgumentException('Chunk upload kind must be file or image.');
@@ -37,11 +41,28 @@ final readonly class ChunkUploadSession
             throw new InvalidArgumentException('Chunk upload session requires ID, profile, and original filename.');
         }
 
-        if ($this->declaredSize <= 0 || $this->maxBytes <= 0 || $this->currentOffset < 0) {
+        if (
+            $this->publicationToken !== ''
+            && preg_match('/^[a-f0-9]{64}$/', $this->publicationToken) !== 1
+        ) {
+            throw new InvalidArgumentException('Chunk upload publication token is invalid.');
+        }
+
+        if (
+            $this->declaredSize <= 0
+            || $this->maxBytes <= 0
+            || $this->currentOffset < 0
+            || $this->chunkCount < 0
+            || $this->maxChunks <= 0
+        ) {
             throw new InvalidArgumentException('Chunk upload session sizes are invalid.');
         }
 
-        if ($this->currentOffset > $this->declaredSize || $this->declaredSize > $this->maxBytes) {
+        if (
+            $this->currentOffset > $this->declaredSize
+            || $this->declaredSize > $this->maxBytes
+            || $this->chunkCount > $this->maxChunks
+        ) {
             throw new InvalidArgumentException('Chunk upload session offsets are invalid.');
         }
 
@@ -57,6 +78,7 @@ final readonly class ChunkUploadSession
     {
         return $this->uploadId;
     }
+
     /**
      * Returns whether the session will complete through the generic file or image upload pipeline.
      */
@@ -64,6 +86,7 @@ final readonly class ChunkUploadSession
     {
         return $this->kind;
     }
+
     /**
      * Returns the configured upload profile whose policy governs completion.
      */
@@ -71,6 +94,7 @@ final readonly class ChunkUploadSession
     {
         return $this->profile;
     }
+
     /**
      * Returns the client filename retained for the existing extension validation boundary.
      */
@@ -78,6 +102,7 @@ final readonly class ChunkUploadSession
     {
         return $this->originalFilename;
     }
+
     /**
      * Returns the total byte count the client declared before any payload was accepted.
      */
@@ -85,6 +110,7 @@ final readonly class ChunkUploadSession
     {
         return $this->declaredSize;
     }
+
     /**
      * Returns the profile maximum captured when this session was started.
      */
@@ -92,6 +118,7 @@ final readonly class ChunkUploadSession
     {
         return $this->maxBytes;
     }
+
     /**
      * Returns the next byte offset required from a sequential append request.
      */
@@ -99,6 +126,31 @@ final readonly class ChunkUploadSession
     {
         return $this->currentOffset;
     }
+
+    /**
+     * Returns the server-counted number of chunks durably appended to this session.
+     */
+    public function chunkCount(): int
+    {
+        return $this->chunkCount;
+    }
+
+    /**
+     * Returns the chunk-count ceiling captured when the session reserved its quota.
+     */
+    public function maxChunks(): int
+    {
+        return $this->maxChunks;
+    }
+
+    /**
+     * Returns the private random token that makes completion retries target one stable filename.
+     */
+    public function publicationToken(): string
+    {
+        return $this->publicationToken;
+    }
+
     /**
      * Returns the UNIX timestamp at which the session was created.
      */
@@ -106,6 +158,7 @@ final readonly class ChunkUploadSession
     {
         return $this->createdAt;
     }
+
     /**
      * Returns the fixed UNIX timestamp after which the session must not accept more data.
      */
@@ -135,7 +188,7 @@ final readonly class ChunkUploadSession
     /**
      * Returns a new metadata snapshot after a fully persisted append advances the byte offset.
      */
-    public function withCurrentOffset(int $currentOffset): self
+    public function withAppendedChunk(int $currentOffset): self
     {
         return new self(
             uploadId: $this->uploadId,
@@ -145,9 +198,12 @@ final readonly class ChunkUploadSession
             declaredSize: $this->declaredSize,
             maxBytes: $this->maxBytes,
             currentOffset: $currentOffset,
+            chunkCount: $this->chunkCount + 1,
+            maxChunks: $this->maxChunks,
             createdAt: $this->createdAt,
             expiresAt: $this->expiresAt,
             context: $this->context,
+            publicationToken: $this->publicationToken,
         );
     }
 }

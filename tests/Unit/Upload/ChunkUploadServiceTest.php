@@ -9,9 +9,8 @@ use Lemonade\Framework\Filesystem\Filesystem;
 use Lemonade\Framework\Filesystem\Manager\DirectoryManager;
 use Lemonade\Framework\Filesystem\Manager\FileManager;
 use Lemonade\Framework\Filesystem\Manager\LockManager;
-use Lemonade\Framework\Image\Contract\ImageEncoderInterface;
-use Lemonade\Framework\Image\Contract\ImageFileWriterInterface;
 use Lemonade\Framework\Image\Gd\GdCapabilities;
+use Lemonade\Framework\Image\Gd\GdImageEncoder;
 use Lemonade\Framework\Image\Gd\GdImageProcessor;
 use Lemonade\Framework\Localization\TranslatorInterface;
 use Lemonade\Framework\Mime\MimeTypeCatalog;
@@ -26,9 +25,12 @@ use Lemonade\Framework\Upload\Exception\UploadStorageException;
 use Lemonade\Framework\Upload\Exception\UploadValidationException;
 use Lemonade\Framework\Upload\FileUploadValidator;
 use Lemonade\Framework\Upload\ImageUploadValidator;
+use Lemonade\Framework\Upload\Staging\UploadStaging;
 use Lemonade\Framework\Upload\Storage\UploadStorage;
 use Lemonade\Framework\Upload\UploadFactory;
+use Lemonade\Framework\Upload\UploadPathPolicy;
 use Lemonade\Framework\Upload\UploadService;
+use Lemonade\Framework\Upload\UploadVisibility;
 use Nyholm\Psr7\ServerRequest;
 use Nyholm\Psr7\Stream;
 use PHPUnit\Framework\TestCase;
@@ -44,25 +46,34 @@ final class ChunkUploadServiceTest extends TestCase
     protected function setUp(): void
     {
         $this->basePath = sys_get_temp_dir() . '/lemonade-chunk-upload-' . bin2hex(random_bytes(8));
-        mkdir($this->basePath, 0700, true);
+        mkdir($this->basePath . '/public', 0700, true);
 
         $context = (new ApplicationContextFactory())->create($this->basePath);
         $directoryManager = new DirectoryManager();
         $filesystem = new Filesystem($directoryManager, new FileManager(), new LockManager($directoryManager));
         $translator = new ChunkUploadTranslatorStub();
         $validator = new FileUploadValidator($translator, new MimeTypeDetector(), MimeTypeCatalog::default());
+        $pathPolicy = new UploadPathPolicy($context);
+        $imageProcessor = new GdImageProcessor(new GdCapabilities());
+        $storage = new UploadStorage($translator, $filesystem, $pathPolicy);
         $uploadService = new UploadService(
             $validator,
-            new ImageUploadValidator($validator, $translator),
-            new UploadStorage($translator, $filesystem),
-            new GdImageProcessor(new GdCapabilities()),
-            $this->createMock(ImageEncoderInterface::class),
-            $this->createMock(ImageFileWriterInterface::class),
+            new ImageUploadValidator($validator, $translator, $imageProcessor),
+            $storage,
+            new GdImageEncoder(new GdCapabilities()),
+            new UploadStaging($translator, $filesystem, $pathPolicy),
         );
         $factory = new UploadFactory(
             (new UploadConfigResolver())->resolve(
                 UploadConfigDefinition::create()
                     ->fileProfile('shared', 'files', 8, ['txt'])
+                    ->fileProfile(
+                        profile: 'private',
+                        targetDirectory: 'documents',
+                        maxBytes: 8,
+                        allowedExtensions: ['txt'],
+                        visibility: UploadVisibility::Private,
+                    )
                     ->imageProfile('shared', 'images', 4096, ['png'], reencode: false),
             ),
             $uploadService,
@@ -71,11 +82,18 @@ final class ChunkUploadServiceTest extends TestCase
             $context,
         );
 
-        $this->store = new FilesystemChunkUploadSessionStore($context, $filesystem);
+        $config = new ChunkUploadConfig(chunkBytes: 4, ttlSeconds: 3600);
+        $this->store = new FilesystemChunkUploadSessionStore(
+            $filesystem,
+            $pathPolicy,
+            $config,
+        );
         $this->service = new ChunkUploadService(
-            new ChunkUploadConfig(chunkBytes: 4, ttlSeconds: 3600),
+            $config,
             $this->store,
             $factory,
+            $storage,
+            $uploadService,
         );
     }
 
@@ -100,7 +118,16 @@ final class ChunkUploadServiceTest extends TestCase
 
     public function testDefaultChunkSizeIsTwoMebibytes(): void
     {
-        self::assertSame(2 * 1024 * 1024, (new ChunkUploadConfig())->chunkBytes());
+        $config = new ChunkUploadConfig();
+
+        self::assertSame(2 * 1024 * 1024, $config->chunkBytes());
+        self::assertSame(3600, $config->ttlSeconds());
+        self::assertSame(128, $config->maxActiveSessions());
+        self::assertSame(512 * 1024 * 1024, $config->maxReservedBytes());
+        self::assertSame(1024, $config->maxChunksPerSession());
+        self::assertSame(16 * 1024, $config->maxContextBytes());
+        self::assertSame(24 * 3600, $config->stagingOrphanTtlSeconds());
+        self::assertSame(128, $config->cleanupBatchSize());
     }
 
     public function testOversizedStartDoesNotCreateTemporaryData(): void
@@ -155,6 +182,29 @@ final class ChunkUploadServiceTest extends TestCase
         self::assertSame(5, $uploaded->sizeBytes());
         self::assertFileExists($uploaded->storedPath());
         self::assertNull($this->store->load($session->uploadId()));
+        self::assertSame([], $this->stagedFiles());
+    }
+
+    public function testCompleteStoresPrivateFileOutsidePublicRootWithoutPublicPath(): void
+    {
+        $session = $this->service->start('file', 'private', 'note.txt', 5);
+        $session = $this->service->append($session->uploadId(), 0, Stream::create('hell'));
+        $this->service->append($session->uploadId(), 4, Stream::create('o'));
+
+        $uploaded = $this->service->complete($session->uploadId());
+
+        self::assertSame(UploadVisibility::Private, $uploaded->visibility());
+        self::assertNull($uploaded->publicRelativePath());
+        self::assertStringStartsWith(
+            $this->basePath . '/storage/writable/uploads/files/documents/',
+            $uploaded->storedPath(),
+        );
+        self::assertStringStartsNotWith($this->basePath . '/public/', $uploaded->storedPath());
+
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            self::assertSame(0600, fileperms($uploaded->storedPath()) & 0777);
+            self::assertSame(0700, fileperms(dirname($uploaded->storedPath())) & 0777);
+        }
     }
 
     public function testCompleteValidationFailureRemovesSession(): void
@@ -194,6 +244,7 @@ final class ChunkUploadServiceTest extends TestCase
         self::assertSame(1, $uploaded->width());
         self::assertSame(1, $uploaded->height());
         self::assertNull($this->store->load($session->uploadId()));
+        self::assertSame([], $this->stagedFiles());
     }
 
     public function testPayloadMismatchIsRejectedWithoutUsingTheFinalPipeline(): void
@@ -216,11 +267,14 @@ final class ChunkUploadServiceTest extends TestCase
             declaredSize: 1,
             maxBytes: 8,
             currentOffset: 0,
+            chunkCount: 0,
+            maxChunks: 1024,
             createdAt: 1,
             expiresAt: 2,
         );
         $active = $this->service->start('file', 'shared', 'active.txt', 1);
         $this->store->create($expired);
+        @unlink(dirname($this->store->payloadPath($expired->uploadId())) . '/session.lock');
 
         $result = $this->service->cleanupExpired();
 
@@ -245,6 +299,16 @@ final class ChunkUploadServiceTest extends TestCase
         }
 
         return $session;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stagedFiles(): array
+    {
+        $files = glob($this->basePath . '/storage/writable/uploads/staging/*.stage');
+
+        return $files === false ? [] : $files;
     }
 }
 

@@ -21,18 +21,22 @@ use Psr\Http\Message\ServerRequestInterface;
  *
  * Profile failures are translated into upload validation errors before storage is attempted.
  */
-final class UploadFactory
+final readonly class UploadFactory
 {
+    private UploadPathPolicy $pathPolicy;
+
     /**
-     * Binds resolved profile configuration to the request and public upload-path context.
+     * Binds resolved profile configuration to the request and its public or private storage boundary.
      */
     public function __construct(
-        private readonly UploadConfig $config,
-        private readonly UploadService $service,
-        private readonly ServerRequestInterface $request,
-        private readonly TranslatorInterface $translator,
-        private readonly ApplicationContext $context,
+        private UploadConfig $config,
+        private UploadService $service,
+        private ServerRequestInterface $request,
+        private TranslatorInterface $translator,
+        private ApplicationContext $context,
+        ?UploadPathPolicy $pathPolicy = null,
     ) {
+        $this->pathPolicy = $pathPolicy ?? new UploadPathPolicy($this->context);
     }
 
     /**
@@ -80,6 +84,12 @@ final class UploadFactory
      */
     public function fileWithOptions(FileUploadOptions $options): ConfiguredFileUploader
     {
+        $this->assertRuntimeTarget(
+            $options->targetDirectory(),
+            $options->targetRelativeDirectory(),
+            $options->visibility(),
+        );
+
         return new ConfiguredFileUploader($this->service, $options);
     }
 
@@ -88,6 +98,12 @@ final class UploadFactory
      */
     public function imageWithOptions(ImageUploadOptions $options): ConfiguredImageUploader
     {
+        $this->assertRuntimeTarget(
+            $options->targetDirectory(),
+            $options->targetRelativeDirectory(),
+            $options->visibility(),
+        );
+
         return new ConfiguredImageUploader($this->service, $options);
     }
 
@@ -112,7 +128,7 @@ final class UploadFactory
     }
 
     /**
-     * Resolves a named generic profile into absolute and public-relative storage paths.
+     * Resolves a named generic profile into visibility-constrained absolute and storage-relative paths.
      *
      * @throws UploadValidationException When the profile is absent or has no target directory
      */
@@ -123,20 +139,28 @@ final class UploadFactory
             throw new UploadValidationException($this->translator->get('upload.file_profile_not_configured', ['profile' => $profile]));
         }
 
-        if ($profileData->targetDirectory === '') {
+        if ($profileData->targetDirectory() === '') {
             throw new UploadValidationException($this->translator->get('upload.file_profile_missing_target_directory', ['profile' => $profile]));
         }
 
         return new FileUploadOptions(
-            targetDirectory: $this->context->uploadPath($profileData->targetDirectory),
-            targetRelativeDirectory: $this->context->uploadRelativePath($profileData->targetDirectory),
-            maxBytes: $profileData->maxBytes,
-            allowedExtensions: $profileData->allowedExtensions,
+            targetDirectory: $this->pathPolicy->targetDirectory(
+                $profileData->visibility(),
+                $profileData->targetDirectory(),
+            ),
+            targetRelativeDirectory: $this->pathPolicy->storedRelativeDirectory(
+                $profileData->visibility(),
+                $profileData->targetDirectory(),
+            ),
+            maxBytes: $profileData->maxBytes(),
+            allowedExtensions: $profileData->allowedExtensions(),
+            visibility: $profileData->visibility(),
+            allowedRisks: $profileData->allowedRisks(),
         );
     }
 
     /**
-     * Resolves a named image profile into absolute and public-relative storage paths.
+     * Resolves a named image profile into visibility-constrained absolute and storage-relative paths.
      *
      * @throws UploadValidationException When the profile is absent or has no target directory
      */
@@ -147,20 +171,48 @@ final class UploadFactory
             throw new UploadValidationException($this->translator->get('upload.image_profile_not_configured', ['profile' => $profile]));
         }
 
-        if ($profileData->targetDirectory === '') {
+        if ($profileData->targetDirectory() === '') {
             throw new UploadValidationException($this->translator->get('upload.image_profile_missing_target_directory', ['profile' => $profile]));
         }
 
         return new ImageUploadOptions(
-            targetDirectory: $this->context->uploadPath($profileData->targetDirectory),
-            targetRelativeDirectory: $this->context->uploadRelativePath($profileData->targetDirectory),
-            maxBytes: $profileData->maxBytes,
-            allowedExtensions: $profileData->allowedExtensions,
-            reencode: $profileData->reencode,
-            minWidth: $profileData->minWidth,
-            maxWidth: $profileData->maxWidth,
-            minHeight: $profileData->minHeight,
-            maxHeight: $profileData->maxHeight,
+            targetDirectory: $this->pathPolicy->targetDirectory(
+                $profileData->visibility(),
+                $profileData->targetDirectory(),
+            ),
+            targetRelativeDirectory: $this->pathPolicy->storedRelativeDirectory(
+                $profileData->visibility(),
+                $profileData->targetDirectory(),
+            ),
+            maxBytes: $profileData->maxBytes(),
+            allowedExtensions: $profileData->allowedExtensions(),
+            reencode: $profileData->reencode(),
+            minWidth: $profileData->minWidth(),
+            maxWidth: $profileData->maxWidth(),
+            minHeight: $profileData->minHeight(),
+            maxHeight: $profileData->maxHeight(),
+            visibility: $profileData->visibility(),
+            allowedRisks: $profileData->allowedRisks(),
         );
+    }
+
+    private function assertRuntimeTarget(
+        string $targetDirectory,
+        string $targetRelativeDirectory,
+        UploadVisibility $visibility,
+    ): void {
+        try {
+            if ($visibility === UploadVisibility::Private) {
+                $this->pathPolicy->assertStorageRootsSeparated();
+            }
+
+            UploadPathPolicy::normalizeRelativeDirectory($targetRelativeDirectory);
+            $this->pathPolicy->assertTargetDirectory($targetDirectory, $visibility);
+        } catch (\InvalidArgumentException|\LogicException $exception) {
+            throw new UploadValidationException(
+                $this->translator->get('upload.target_directory_missing'),
+                previous: $exception,
+            );
+        }
     }
 }

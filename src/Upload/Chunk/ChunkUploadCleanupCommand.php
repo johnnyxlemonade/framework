@@ -7,9 +7,10 @@ namespace Lemonade\Framework\Upload\Chunk;
 use Lemonade\Framework\Cli\CommandInterface;
 use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Upload\Exception\UploadStorageException;
+use Lemonade\Framework\Upload\Staging\UploadStaging;
 
 /**
- * Provides the operational CLI entry point that reclaims expired temporary chunk upload sessions.
+ * Provides the operational CLI entry point that reclaims expired sessions and orphaned upload snapshots.
  *
  * It uses only filesystem session state, so cleanup remains available outside an HTTP request scope.
  */
@@ -21,6 +22,7 @@ final readonly class ChunkUploadCleanupCommand implements CommandInterface
     public function __construct(
         private ChunkUploadConfig $config,
         private FilesystemChunkUploadSessionStore $store,
+        private UploadStaging $staging,
         private CommandOutput $output,
     ) {
     }
@@ -38,7 +40,7 @@ final readonly class ChunkUploadCleanupCommand implements CommandInterface
      */
     public function description(): string
     {
-        return 'Remove expired temporary chunk uploads.';
+        return 'Remove expired chunk sessions and orphaned upload staging files.';
     }
 
     /**
@@ -53,9 +55,11 @@ final readonly class ChunkUploadCleanupCommand implements CommandInterface
         try {
             $result = $this->cleanupExpired();
             $this->output->writeln(sprintf(
-                'Removed sessions: %d; released bytes: %d',
+                'Removed sessions: %d; released bytes: %d; retired/initializing sessions: %d; staging orphans: %d',
                 $result['removed_sessions'],
                 $result['released_bytes'],
+                $result['removed_retired'],
+                $result['removed_staging'],
             ));
 
             return 0;
@@ -69,16 +73,26 @@ final readonly class ChunkUploadCleanupCommand implements CommandInterface
     /**
      * Performs locked expiration checks and returns the resources reclaimed during this invocation.
      *
-     * @return array{removed_sessions: int, released_bytes: int}
+     * @return array{
+     *     removed_sessions: int,
+     *     released_bytes: int,
+     *     removed_retired: int,
+     *     removed_staging: int
+     * }
      */
     private function cleanupExpired(): array
     {
         $removedSessions = 0;
         $releasedBytes = 0;
         $now = time();
+        $examined = 0;
 
         foreach ($this->store->uploadIds() as $uploadId) {
-            $result = $this->store->withLock($uploadId, function () use ($uploadId, $now): ?int {
+            if (++$examined > $this->config->cleanupBatchSize()) {
+                break;
+            }
+
+            $result = $this->store->tryWithLock($uploadId, function () use ($uploadId, $now): ?int {
                 try {
                     $session = $this->store->load($uploadId);
                     $expired = $session === null || $session->isExpired($now);
@@ -102,9 +116,14 @@ final readonly class ChunkUploadCleanupCommand implements CommandInterface
             }
         }
 
+        $removedRetired = $this->store->cleanupRetired();
+        $removedStaging = $this->staging->cleanupOrphans($now);
+
         return [
             'removed_sessions' => $removedSessions,
             'released_bytes' => $releasedBytes,
+            'removed_retired' => $removedRetired,
+            'removed_staging' => $removedStaging,
         ];
     }
 }

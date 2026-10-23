@@ -6,7 +6,7 @@ namespace Lemonade\Framework\Upload\Resolver;
 
 use Psr\Http\Message\UploadedFileInterface;
 
-final class UploadedFileResolver
+final readonly class UploadedFileResolver
 {
     /**
      * @param array<string, mixed> $files

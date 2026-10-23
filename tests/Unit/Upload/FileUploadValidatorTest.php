@@ -9,10 +9,13 @@ use Lemonade\Framework\Mime\MimeType;
 use Lemonade\Framework\Mime\MimeTypeCatalog;
 use Lemonade\Framework\Mime\MimeTypeDefinition;
 use Lemonade\Framework\Mime\MimeTypeDetectorInterface;
+use Lemonade\Framework\Mime\MimeRisk;
 use Lemonade\Framework\Upload\Exception\UploadValidationException;
 use Lemonade\Framework\Upload\FileUploadOptions;
 use Lemonade\Framework\Upload\FileUploadValidator;
-use Nyholm\Psr7\UploadedFile;
+use Lemonade\Framework\Upload\Staging\StagedUpload;
+use Lemonade\Framework\Upload\UploadVisibility;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class FileUploadValidatorTest extends TestCase
@@ -114,6 +117,76 @@ final class FileUploadValidatorTest extends TestCase
         $validator->validate($upload, $options);
     }
 
+    #[DataProvider('publicUnsafeFormatProvider')]
+    public function testPublicStorageRejectsActiveExecutableAndUnclassifiedFormats(
+        string $extension,
+        string $mime,
+        MimeRisk $risk,
+    ): void {
+        $catalog = MimeTypeCatalog::default();
+
+        if ($risk === MimeRisk::Unclassified) {
+            $catalog = MimeTypeCatalog::fromDefaultAndAdditionalDefinitions([
+                new MimeTypeDefinition(
+                    MimeType::fromString($mime),
+                    [$extension],
+                    risk: MimeRisk::Unclassified,
+                ),
+            ]);
+        }
+
+        $validator = $this->validator($mime, $catalog);
+        $upload = $this->upload('payload.' . $extension, 'risk-policy-payload');
+        $options = $this->options(
+            [$extension],
+            UploadVisibility::Public,
+            [$risk],
+        );
+
+        $this->expectException(UploadValidationException::class);
+        $validator->validate($upload, $options);
+    }
+
+    /**
+     * @return iterable<string, array{string, string, MimeRisk}>
+     */
+    public static function publicUnsafeFormatProvider(): iterable
+    {
+        yield 'html' => ['html', 'text/html', MimeRisk::ActiveContent];
+        yield 'svg' => ['svg', 'image/svg+xml', MimeRisk::ActiveContent];
+        yield 'javascript' => ['js', 'text/javascript', MimeRisk::ActiveContent];
+        yield 'php' => ['php', 'application/x-httpd-php', MimeRisk::Executable];
+        yield 'phtml' => ['phtml', 'application/x-httpd-php', MimeRisk::Executable];
+        yield 'phar' => ['phar', 'application/x-httpd-php-source', MimeRisk::Executable];
+        yield 'unclassified' => ['acme-unknown', 'application/vnd.acme.unknown', MimeRisk::Unclassified];
+    }
+
+    public function testPrivateStorageRequiresAndHonorsExplicitRiskAuthorization(): void
+    {
+        $validator = $this->validator('text/html');
+        $upload = $this->upload('document.html', '<!doctype html><title>Private</title>');
+
+        $this->expectException(UploadValidationException::class);
+
+        try {
+            $validator->validate(
+                $upload,
+                $this->options(['html'], UploadVisibility::Private),
+            );
+        } finally {
+            $allowed = $validator->validate(
+                $upload,
+                $this->options(
+                    ['html'],
+                    UploadVisibility::Private,
+                    [MimeRisk::ActiveContent],
+                ),
+            );
+
+            self::assertSame('text/html', $allowed->value());
+        }
+    }
+
     public function testDetectsMimeExactlyOnceForAValidatedGenericUpload(): void
     {
         $detector = new CountingMimeTypeDetector(MimeType::fromString('application/pdf'));
@@ -133,6 +206,7 @@ final class FileUploadValidatorTest extends TestCase
             new MimeTypeDefinition(
                 MimeType::fromString($customMime),
                 ['acme'],
+                risk: MimeRisk::Passive,
             ),
         ]);
         $validator = $this->validator($customMime, $catalog);
@@ -162,8 +236,14 @@ final class FileUploadValidatorTest extends TestCase
         );
     }
 
-    private function upload(string $filename, string $contents, string $clientMime = 'application/octet-stream'): UploadedFile
+    private function upload(
+        string $filename,
+        string $contents,
+        string $clientMime = 'application/octet-stream',
+    ): StagedUpload
     {
+        unset($clientMime);
+
         $path = tempnam(sys_get_temp_dir(), 'lemonade-upload-');
 
         if ($path === false) {
@@ -173,24 +253,29 @@ final class FileUploadValidatorTest extends TestCase
         file_put_contents($path, $contents);
         $this->temporaryFiles[] = $path;
 
-        return new UploadedFile(
-            $path,
-            strlen($contents),
-            UPLOAD_ERR_OK,
-            $filename,
-            $clientMime,
+        return new StagedUpload(
+            path: $path,
+            clientFilename: $filename,
+            sizeBytes: strlen($contents),
+            sha256: hash('sha256', $contents),
         );
     }
 
     /**
      * @param list<string> $extensions
+     * @param list<MimeRisk> $allowedRisks
      */
-    private function options(array $extensions): FileUploadOptions
-    {
+    private function options(
+        array $extensions,
+        UploadVisibility $visibility = UploadVisibility::Public,
+        array $allowedRisks = [],
+    ): FileUploadOptions {
         return new FileUploadOptions(
             targetDirectory: 'files',
             targetRelativeDirectory: 'files',
             allowedExtensions: $extensions,
+            visibility: $visibility,
+            allowedRisks: $allowedRisks,
         );
     }
 }

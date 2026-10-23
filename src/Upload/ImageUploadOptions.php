@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload;
 
+use Lemonade\Framework\Mime\MimeRisk;
+
 /**
  * Carries image upload policy with catalog-backed extension validation.
  */
@@ -13,6 +15,7 @@ final readonly class ImageUploadOptions
      * Creates an immutable image policy that applies catalog MIME matching before image decoding.
      *
      * @param list<string> $allowedExtensions Explicit normalized filename suffixes permitted by this upload operation
+     * @param list<MimeRisk> $allowedRisks Non-passive categories explicitly authorized for private storage
      */
     public function __construct(
         private string $targetDirectory,
@@ -24,6 +27,8 @@ final readonly class ImageUploadOptions
         private ?int $maxWidth = null,
         private ?int $minHeight = null,
         private ?int $maxHeight = null,
+        private UploadVisibility $visibility = UploadVisibility::Public,
+        private array $allowedRisks = [],
     ) {
     }
 
@@ -36,7 +41,7 @@ final readonly class ImageUploadOptions
     }
 
     /**
-     * Provides the public-relative directory retained in the uploaded image reference.
+     * Provides the directory retained relative to either the public root or private writable root.
      */
     public function targetRelativeDirectory(): string
     {
@@ -99,5 +104,23 @@ final readonly class ImageUploadOptions
     public function maxHeight(): ?int
     {
         return $this->maxHeight;
+    }
+
+    /**
+     * Identifies whether the validated image is published publicly or retained in private writable storage.
+     */
+    public function visibility(): UploadVisibility
+    {
+        return $this->visibility;
+    }
+
+    /**
+     * Provides the non-passive risk categories explicitly authorized for private storage.
+     *
+     * @return list<MimeRisk>
+     */
+    public function allowedRisks(): array
+    {
+        return $this->allowedRisks;
     }
 }
