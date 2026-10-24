@@ -83,7 +83,7 @@ final readonly class RequestLoggingMiddleware implements MiddlewareInterface
 
     private function shouldLogResponse(ResponseInterface $response): bool
     {
-        $minStatus = $this->config->requestMinStatus;
+        $minStatus = $this->config->requestMinStatus();
 
         if ($minStatus <= 0) {
             return true;

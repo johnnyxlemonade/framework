@@ -34,7 +34,7 @@ final class LogFilePathResolverTest extends TestCase
         }
     }
 
-    public function testBuiltInChannelsResolveToPrivateCanonicalStorageFiles(): void
+    public function testBuiltInChannelsResolveToCanonicalStorageFilesWithoutCreatingDirectories(): void
     {
         $resolver = $this->resolver();
 
@@ -42,11 +42,10 @@ final class LogFilePathResolverTest extends TestCase
         self::assertSame($this->logPath('error.log'), $resolver->resolve('error'));
         self::assertSame($this->logPath('request.log'), $resolver->resolve('request'));
         self::assertSame($this->logPath('benchmark.log'), $resolver->resolve('benchmark'));
-        self::assertSame(0700, fileperms(dirname($this->logPath('app.log'))) & 0777);
-        self::assertSame(0700, fileperms($this->root . '/storage/writable') & 0777);
+        self::assertDirectoryDoesNotExist(dirname($this->logPath('app.log')));
     }
 
-    public function testExistingLogDirectoriesAreRestrictedWithoutChangingDirectoryManagerDefaults(): void
+    public function testResolverDoesNotChangeStorageOrLogDirectoryPermissions(): void
     {
         mkdir($this->root . '/storage/writable/logs', 0777, true);
         chmod($this->root . '/storage', 0777);
@@ -55,9 +54,9 @@ final class LogFilePathResolverTest extends TestCase
 
         $this->resolver()->resolve('app');
 
-        self::assertSame(0, fileperms($this->root . '/storage') & 0022);
-        self::assertSame(0700, fileperms($this->root . '/storage/writable') & 0777);
-        self::assertSame(0700, fileperms($this->root . '/storage/writable/logs') & 0777);
+        self::assertSame(0777, fileperms($this->root . '/storage') & 0777);
+        self::assertSame(0777, fileperms($this->root . '/storage/writable') & 0777);
+        self::assertSame(0777, fileperms($this->root . '/storage/writable/logs') & 0777);
     }
 
     public function testUnsafeChannelCannotIntroduceTraversal(): void
@@ -93,25 +92,21 @@ final class LogFilePathResolverTest extends TestCase
         );
 
         $this->expectException(LogStorageException::class);
-        $this->expectExceptionMessage('Canonical log storage overlaps the public web root');
+        $this->expectExceptionMessage('separated from the public web root');
 
         (new LogFilePathResolver($context))->resolve('app');
     }
 
-    public function testSymbolicApplicationAncestorIsRejected(): void
+    public function testSymbolicParentCannotRedirectLogDirectoryOutsideStorage(): void
     {
-        mkdir($this->root . '/actual', 0755);
-        symlink($this->root . '/actual', $this->root . '/linked');
-        $context = new ApplicationContext(
-            Environment::Testing,
-            new Path($this->root . '/linked', $this->root . '/public'),
-            DebugMode::disabled(),
-        );
+        mkdir($this->root . '/storage', 0755);
+        mkdir($this->root . '/outside', 0755);
+        symlink($this->root . '/outside', $this->root . '/storage/writable');
 
         $this->expectException(LogStorageException::class);
-        $this->expectExceptionMessage('symbolic links');
+        $this->expectExceptionMessage('symbolic link');
 
-        (new LogFilePathResolver($context))->resolve('app');
+        $this->resolver()->resolve('app');
     }
 
     public function testSymbolicLinkInLogDirectoryIsRejectedWithoutTouchingItsTarget(): void
@@ -131,15 +126,12 @@ final class LogFilePathResolverTest extends TestCase
         self::assertSame(0755, fileperms($target) & 0777);
     }
 
-    public function testNonDirectoryLogPathFailsWithClearStorageException(): void
+    public function testResolverLeavesFilesystemTypeValidationToLogger(): void
     {
         mkdir($this->root . '/storage/writable', 0700, true);
         file_put_contents($this->root . '/storage/writable/logs', 'occupied');
 
-        $this->expectException(LogStorageException::class);
-        $this->expectExceptionMessage('cannot be created securely');
-
-        $this->resolver()->resolve('app');
+        self::assertSame($this->logPath('app.log'), $this->resolver()->resolve('app'));
     }
 
     private function resolver(): LogFilePathResolver

@@ -13,8 +13,14 @@ use Lemonade\Framework\Core\Logging\Config\LoggingConfigResolver;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Registers logging policy, named channels, and the default PSR-3 application logger.
+ */
 final class LoggingServiceProvider implements ServiceProviderInterface
 {
+    /**
+     * Binds root-owned logging services and retains compatibility aliases without duplicating instances.
+     */
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(LoggingConfigResolver::class, LoggingConfigResolver::class);
@@ -28,25 +34,17 @@ final class LoggingServiceProvider implements ServiceProviderInterface
         });
         $container->singleton(LogFilePathResolver::class, LogFilePathResolver::class);
         $container->singleton(LogManager::class, LogManager::class);
-        $container->singleton('log', LogManager::class);
+        $container->alias('log', LogManager::class);
 
-        $container->singleton('log.app', static function (ContainerInterface $container): LoggerInterface {
-            /** @var LogManager $manager */
-            $manager = $container->get(LogManager::class);
-            $logger = $manager->app();
+        $container->singleton(
+            LoggerInterface::class,
+            static fn(ContainerInterface $container): LoggerInterface => $container->get(LogManager::class)->app(),
+        );
+        $container->alias('log.app', LoggerInterface::class);
 
-            return $logger;
-        });
-
-        $container->singleton(LoggerInterface::class, static function (ContainerInterface $container): LoggerInterface {
-            /** @var LoggerInterface $logger */
-            $logger = $container->get('log.app');
-
-            return $logger;
-        });
-
-        $container->singleton('log.benchmark', static function (ContainerInterface $container): LoggerInterface {
-            return $container->get(LogManager::class)->benchmark();
-        });
+        $container->singleton(
+            'log.benchmark',
+            static fn(ContainerInterface $container): LoggerInterface => $container->get(LogManager::class)->benchmark(),
+        );
     }
 }

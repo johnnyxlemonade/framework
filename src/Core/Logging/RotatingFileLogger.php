@@ -9,6 +9,7 @@ use DateTimeInterface;
 use JsonException;
 use Lemonade\Framework\Core\Logging\Exception\LogStorageException;
 use Lemonade\Framework\Filesystem\Contract\DirectoryManagerInterface;
+use OverflowException;
 use Psr\Log\AbstractLogger;
 use Stringable;
 use Throwable;
@@ -17,12 +18,15 @@ use UnitEnum;
 /**
  * Writes private daily JSON-line logs without following symbolic links or weakening filesystem permissions.
  *
- * The containing directory must be a private local directory with mode 0700. Existing daily files are
- * restricted to mode 0600 while locked before they are appended to or considered for rotation.
+ * The containing directory must be a private local directory with mode 0700. Daily files retained or
+ * appended by this logger are restricted to mode 0600.
  */
 final class RotatingFileLogger extends AbstractLogger
 {
-    private const int CREATE_ATTEMPTS = 5;
+    private const int MAX_CONTEXT_DEPTH = 16;
+
+    private bool $directoryReady = false;
+    private ?string $rotationDate = null;
 
     /**
      * Configures one absolute local log path and the number of daily files retained by future writes.
@@ -41,53 +45,60 @@ final class RotatingFileLogger extends AbstractLogger
      * Appends one complete record under an exclusive lock after enforcing directory and file privacy.
      *
      * @throws LogStorageException When the log target cannot be used without crossing its filesystem boundary.
+     * @throws JsonException When the normalized record contains a value that JSON cannot represent.
+     * @throws OverflowException When context nesting exceeds the supported depth.
      */
     public function log($level, Stringable|string $message, array $context = []): void
     {
-        $this->ensureDirectoryExists();
-        $this->rotate();
-        $normalizedContext = $this->normalizeContextArray($context);
+        $normalizedContext = $this->normalizeContext($context);
         $levelValue = is_scalar($level) || $level instanceof Stringable ? (string) $level : 'info';
 
-        $record = [
+        $record = json_encode([
             'timestamp' => (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
             'level' => strtolower($levelValue),
             'message' => $this->interpolate((string) $message, $normalizedContext),
-            'context' => $this->normalize($normalizedContext),
-        ];
+            'context' => $normalizedContext,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        $this->append($this->encode($record) . PHP_EOL);
+        $this->ensureDirectoryExists();
+        $date = date('Y-m-d');
+        $currentFile = $this->currentFile($date);
+
+        if ($this->rotationDate !== $date) {
+            $this->rotate($currentFile);
+            $this->rotationDate = $date;
+        }
+
+        $this->append($currentFile, $record . PHP_EOL);
     }
 
-    private function currentFile(): string
+    private function currentFile(string $date): string
     {
         $directory = dirname($this->file);
         $filename = pathinfo($this->file, PATHINFO_FILENAME);
         $extension = pathinfo($this->file, PATHINFO_EXTENSION);
-        $date = date('Y-m-d');
+        $suffix = $extension === '' ? '' : '.' . $extension;
 
-        if ($extension === '') {
-            return $directory . DIRECTORY_SEPARATOR . $filename . '-' . $date;
-        }
-
-        return $directory . DIRECTORY_SEPARATOR . $filename . '-' . $date . '.' . $extension;
+        return $directory . DIRECTORY_SEPARATOR . $filename . '-' . $date . $suffix;
     }
 
     private function ensureDirectoryExists(): void
     {
+        if ($this->directoryReady) {
+            return;
+        }
+
         $directory = dirname($this->file);
 
         $this->assertSafePath($this->file);
 
-        if (!is_dir($directory)) {
-            try {
-                $this->directoryManager->create($directory, 0700);
-            } catch (Throwable $exception) {
-                throw new LogStorageException(
-                    sprintf('Log directory "%s" cannot be created securely.', $directory),
-                    previous: $exception,
-                );
-            }
+        try {
+            $this->directoryManager->create($directory, 0700);
+        } catch (Throwable $exception) {
+            throw new LogStorageException(
+                sprintf('Log directory "%s" cannot be created securely.', $directory),
+                previous: $exception,
+            );
         }
 
         clearstatcache(true, $directory);
@@ -95,68 +106,128 @@ final class RotatingFileLogger extends AbstractLogger
 
         if (
             !is_array($stat)
-            || is_link($directory)
             || ($stat['mode'] & 0170000) !== 0040000
-            || ($stat['mode'] & 0777) !== 0700
         ) {
             throw new LogStorageException(sprintf(
-                'Log directory "%s" must be a non-symbolic directory with mode 0700.',
+                'Log directory "%s" must be a non-symbolic directory.',
                 $directory,
             ));
         }
-    }
 
-    private function rotate(): void
-    {
-        $directory = dirname($this->file);
-
-        if (!is_dir($directory)) {
-            return;
+        if (($stat['mode'] & 0777) !== 0700 && !@chmod($directory, 0700)) {
+            throw new LogStorageException(sprintf(
+                'Log directory "%s" permissions cannot be restricted to mode 0700.',
+                $directory,
+            ));
         }
 
+        $this->directoryReady = true;
+    }
+
+    private function rotate(string $currentFile): void
+    {
+        $directory = dirname($this->file);
         $filename = pathinfo($this->file, PATHINFO_FILENAME);
         $extension = pathinfo($this->file, PATHINFO_EXTENSION);
+        $suffix = $extension === '' ? '' : '.' . $extension;
+        $pattern = $directory . DIRECTORY_SEPARATOR . $filename . '-*' . $suffix;
 
-        $pattern = $extension === ''
-            ? $directory . DIRECTORY_SEPARATOR . $filename . '-*'
-            : $directory . DIRECTORY_SEPARATOR . $filename . '-*.' . $extension;
-
-        $files = glob($pattern, GLOB_NOSORT);
+        $files = @glob($pattern, GLOB_NOSORT);
 
         if ($files === false) {
             throw new LogStorageException('Log rotation candidates cannot be enumerated safely.');
         }
 
-        $threshold = strtotime(sprintf('-%d days', max(1, $this->retentionDays)));
-
-        if ($threshold === false) {
-            throw new LogStorageException('Log retention threshold cannot be calculated.');
-        }
+        $threshold = time() - (max(1, $this->retentionDays) * 86400);
+        $dailyFilenamePattern = sprintf(
+            '/^%s-\d{4}-\d{2}-\d{2}%s$/D',
+            preg_quote($filename, '/'),
+            preg_quote($suffix, '/'),
+        );
 
         foreach ($files as $file) {
-            $handle = $this->openExistingFile($file, false);
-
-            if ($handle === null) {
+            if (
+                $file === $currentFile
+                || preg_match($dailyFilenamePattern, basename($file)) !== 1
+            ) {
                 continue;
             }
 
-            try {
-                $stat = @fstat($handle);
+            clearstatcache(true, $file);
+            $stat = @lstat($file);
 
-                if (!is_array($stat)) {
+            if (!is_array($stat)) {
+                if (!file_exists($file) && !is_link($file)) {
+                    continue;
+                }
+
+                throw new LogStorageException(sprintf(
+                    'Log file "%s" metadata cannot be inspected.',
+                    $file,
+                ));
+            }
+
+            if (($stat['mode'] & 0170000) !== 0100000) {
+                throw new LogStorageException(sprintf(
+                    'Log path "%s" must identify a non-symbolic regular file.',
+                    $file,
+                ));
+            }
+
+            if ($stat['mtime'] >= $threshold) {
+                if (($stat['mode'] & 0777) !== 0600 && !@chmod($file, 0600)) {
                     throw new LogStorageException(sprintf(
-                        'Log file "%s" metadata cannot be inspected.',
+                        'Log file "%s" permissions cannot be restricted to mode 0600.',
                         $file,
                     ));
                 }
 
-                if ($stat['mtime'] >= $threshold) {
+                continue;
+            }
+
+            $handle = @fopen($file, 'r+b');
+
+            if (!is_resource($handle)) {
+                if (!file_exists($file) && !is_link($file)) {
                     continue;
                 }
 
-                $this->assertOpenFileIdentity($file, $stat);
+                throw new LogStorageException(sprintf(
+                    'Expired log file "%s" cannot be opened safely.',
+                    $file,
+                ));
+            }
 
-                if (!@unlink($file)) {
+            $wouldBlock = 0;
+
+            if (!@flock($handle, LOCK_EX | LOCK_NB, $wouldBlock)) {
+                fclose($handle);
+
+                if ($wouldBlock === 1) {
+                    continue;
+                }
+
+                throw new LogStorageException(sprintf(
+                    'Expired log file "%s" cannot be locked.',
+                    $file,
+                ));
+            }
+
+            try {
+                $openStat = @fstat($handle);
+
+                if (!is_array($openStat)) {
+                    throw new LogStorageException(sprintf(
+                        'Expired log file "%s" metadata cannot be inspected.',
+                        $file,
+                    ));
+                }
+
+                if ($openStat['mtime'] >= $threshold) {
+                    continue;
+                }
+
+                if (!@unlink($file) && (file_exists($file) || is_link($file))) {
                     throw new LogStorageException(sprintf(
                         'Expired log file "%s" cannot be removed safely.',
                         $file,
@@ -169,24 +240,43 @@ final class RotatingFileLogger extends AbstractLogger
         }
     }
 
-    private function append(string $record): void
+    private function append(string $path, string $record): void
     {
-        $path = $this->currentFile();
-        $handle = $this->openCurrentFile($path);
-        $initialSize = null;
+        clearstatcache(true, $path);
+
+        if (is_link($path)) {
+            throw new LogStorageException(sprintf('Log file "%s" cannot be a symbolic link.', $path));
+        }
+
+        $handle = @fopen($path, 'ab');
+
+        if (!is_resource($handle)) {
+            throw new LogStorageException(sprintf(
+                'Log file "%s" cannot be opened or created.',
+                $path,
+            ));
+        }
+
+        if (!@flock($handle, LOCK_EX)) {
+            fclose($handle);
+
+            throw new LogStorageException(sprintf('Log file "%s" cannot be locked.', $path));
+        }
 
         try {
-            if (fseek($handle, 0, SEEK_END) !== 0) {
-                throw new LogStorageException(sprintf('Log file "%s" cannot be positioned safely.', $path));
+            $stat = @fstat($handle);
+
+            if (!is_array($stat) || ($stat['mode'] & 0170000) !== 0100000) {
+                throw new LogStorageException(sprintf('Log file "%s" is not a regular file.', $path));
             }
 
-            $position = ftell($handle);
-
-            if (!is_int($position) || $position < 0) {
-                throw new LogStorageException(sprintf('Log file "%s" size cannot be determined.', $path));
+            if (($stat['mode'] & 0777) !== 0600 && !@chmod($path, 0600)) {
+                throw new LogStorageException(sprintf(
+                    'Log file "%s" permissions cannot be restricted to mode 0600.',
+                    $path,
+                ));
             }
 
-            $initialSize = $position;
             $remaining = $record;
 
             while ($remaining !== '') {
@@ -199,201 +289,12 @@ final class RotatingFileLogger extends AbstractLogger
                 $remaining = substr($remaining, $written);
             }
 
-            if (!fflush($handle)) {
+            if (!@fflush($handle)) {
                 throw new LogStorageException(sprintf('Log record cannot be flushed to "%s".', $path));
             }
-        } catch (Throwable $exception) {
-            if (is_int($initialSize)) {
-                @ftruncate($handle, $initialSize);
-                @fflush($handle);
-            }
-
-            if ($exception instanceof LogStorageException) {
-                throw $exception;
-            }
-
-            throw new LogStorageException(sprintf(
-                'Log record cannot be persisted to "%s".',
-                $path,
-            ), previous: $exception);
         } finally {
             @flock($handle, LOCK_UN);
             fclose($handle);
-        }
-    }
-
-    /**
-     * @return resource
-     */
-    private function openCurrentFile(string $path)
-    {
-        for ($attempt = 0; $attempt < self::CREATE_ATTEMPTS; ++$attempt) {
-            clearstatcache(true, $path);
-            $existing = @lstat($path);
-
-            if (is_array($existing)) {
-                $handle = $this->openExistingFile($path, true);
-
-                if ($handle !== null) {
-                    return $handle;
-                }
-
-                continue;
-            }
-
-            if (is_link($path)) {
-                throw new LogStorageException(sprintf('Log file "%s" cannot be a symbolic link.', $path));
-            }
-
-            $handle = @fopen($path, 'x+b');
-
-            if (!is_resource($handle)) {
-                continue;
-            }
-
-            if (!flock($handle, LOCK_EX)) {
-                fclose($handle);
-
-                throw new LogStorageException(sprintf('Log file "%s" cannot be locked.', $path));
-            }
-
-            try {
-                $this->secureOpenFile($path, $handle);
-
-                return $handle;
-            } catch (Throwable $exception) {
-                $this->removeCreatedFileIfOwned($path, $handle);
-                @flock($handle, LOCK_UN);
-                fclose($handle);
-
-                throw $exception;
-            }
-        }
-
-        throw new LogStorageException(sprintf(
-            'Log file "%s" cannot be opened without a filesystem race.',
-            $path,
-        ));
-    }
-
-    /**
-     * @return resource|null
-     */
-    private function openExistingFile(string $path, bool $blocking)
-    {
-        clearstatcache(true, $path);
-        $before = @lstat($path);
-
-        if (!is_array($before)) {
-            return null;
-        }
-
-        if (is_link($path) || ($before['mode'] & 0170000) !== 0100000) {
-            throw new LogStorageException(sprintf(
-                'Log path "%s" must identify a non-symbolic regular file.',
-                $path,
-            ));
-        }
-
-        $handle = @fopen($path, 'r+b');
-
-        if (!is_resource($handle)) {
-            throw new LogStorageException(sprintf('Log file "%s" cannot be opened securely.', $path));
-        }
-
-        $lockOperation = LOCK_EX | ($blocking ? 0 : LOCK_NB);
-
-        if (!flock($handle, $lockOperation)) {
-            fclose($handle);
-
-            return null;
-        }
-
-        try {
-            $this->secureOpenFile($path, $handle);
-
-            return $handle;
-        } catch (Throwable $exception) {
-            @flock($handle, LOCK_UN);
-            fclose($handle);
-
-            throw $exception;
-        }
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function secureOpenFile(string $path, $handle): void
-    {
-        $stat = @fstat($handle);
-
-        if (!is_array($stat) || ($stat['mode'] & 0170000) !== 0100000) {
-            throw new LogStorageException(sprintf('Log file "%s" is not a regular file.', $path));
-        }
-
-        $this->assertOpenFileIdentity($path, $stat);
-
-        if (!@chmod($path, 0600)) {
-            throw new LogStorageException(sprintf(
-                'Log file "%s" permissions cannot be restricted to mode 0600.',
-                $path,
-            ));
-        }
-
-        $secured = @fstat($handle);
-
-        if (!is_array($secured) || ($secured['mode'] & 0777) !== 0600) {
-            throw new LogStorageException(sprintf(
-                'Log file "%s" permissions remain less restrictive than mode 0600.',
-                $path,
-            ));
-        }
-
-        $this->assertOpenFileIdentity($path, $secured);
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function removeCreatedFileIfOwned(string $path, $handle): void
-    {
-        $openStat = @fstat($handle);
-        clearstatcache(true, $path);
-        $pathStat = @lstat($path);
-
-        if (
-            !is_array($openStat)
-            || !is_array($pathStat)
-            || is_link($path)
-            || $pathStat['dev'] !== $openStat['dev']
-            || $pathStat['ino'] !== $openStat['ino']
-        ) {
-            return;
-        }
-
-        @unlink($path);
-    }
-
-    /**
-     * @param array<mixed> $openStat
-     */
-    private function assertOpenFileIdentity(string $path, array $openStat): void
-    {
-        clearstatcache(true, $path);
-        $pathStat = @lstat($path);
-
-        if (
-            !is_array($pathStat)
-            || is_link($path)
-            || ($pathStat['mode'] & 0170000) !== 0100000
-            || $pathStat['dev'] !== $openStat['dev']
-            || $pathStat['ino'] !== $openStat['ino']
-        ) {
-            throw new LogStorageException(sprintf(
-                'Log file "%s" changed identity during a filesystem operation.',
-                $path,
-            ));
         }
     }
 
@@ -417,22 +318,6 @@ final class RotatingFileLogger extends AbstractLogger
                 'Log file must use an absolute local path without traversal or glob metacharacters.',
             );
         }
-
-        $cursor = dirname($path);
-
-        while (true) {
-            if (is_link($cursor)) {
-                throw new LogStorageException('Log directory path cannot contain symbolic links.');
-            }
-
-            $parent = dirname($cursor);
-
-            if ($parent === $cursor) {
-                return;
-            }
-
-            $cursor = $parent;
-        }
     }
 
     private function isAbsolutePath(string $path): bool
@@ -454,49 +339,17 @@ final class RotatingFileLogger extends AbstractLogger
         $replace = [];
 
         foreach ($context as $key => $value) {
-            if (!$this->isInterpolable($value)) {
+            if ($value !== null && !is_scalar($value)) {
                 continue;
             }
 
-            $replace['{' . $key . '}'] = $this->stringify($value);
+            $replace['{' . $key . '}'] = $value === null ? '' : (string) $value;
         }
 
         return strtr($message, $replace);
     }
 
-    private function isInterpolable(mixed $value): bool
-    {
-        return $value === null
-            || is_scalar($value)
-            || $value instanceof Stringable
-            || $value instanceof UnitEnum
-            || $value instanceof DateTimeInterface;
-    }
-
-    private function stringify(mixed $value): string
-    {
-        if ($value === null) {
-            return '';
-        }
-
-        if ($value instanceof DateTimeInterface) {
-            return $value->format(DateTimeInterface::ATOM);
-        }
-
-        if ($value instanceof UnitEnum) {
-            return $value instanceof \BackedEnum
-                ? (string) $value->value
-                : $value->name;
-        }
-
-        if (is_scalar($value) || $value instanceof Stringable) {
-            return (string) $value;
-        }
-
-        return '';
-    }
-
-    private function normalize(mixed $value): mixed
+    private function normalize(mixed $value, int $depth = 0): mixed
     {
         if ($value === null || is_scalar($value)) {
             return $value;
@@ -527,10 +380,17 @@ final class RotatingFileLogger extends AbstractLogger
         }
 
         if (is_array($value)) {
+            if ($depth >= self::MAX_CONTEXT_DEPTH) {
+                throw new OverflowException(sprintf(
+                    'Log context exceeds the maximum depth of %d.',
+                    self::MAX_CONTEXT_DEPTH,
+                ));
+            }
+
             $normalized = [];
 
             foreach ($value as $key => $item) {
-                $normalized[$key] = $this->normalize($item);
+                $normalized[$key] = $this->normalize($item, $depth + 1);
             }
 
             return $normalized;
@@ -555,43 +415,16 @@ final class RotatingFileLogger extends AbstractLogger
      * @param array<mixed> $context
      * @return array<string, mixed>
      */
-    private function normalizeContextArray(array $context): array
+    private function normalizeContext(array $context): array
     {
         $normalized = [];
 
         foreach ($context as $key => $value) {
             if (is_string($key)) {
-                $normalized[$key] = $value;
+                $normalized[$key] = $this->normalize($value);
             }
         }
 
         return $normalized;
-    }
-
-    /**
-     * @param array<string, mixed> $record
-     */
-    private function encode(array $record): string
-    {
-        try {
-            return json_encode(
-                $record,
-                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-            );
-        } catch (JsonException $exception) {
-            $fallback = json_encode([
-                'timestamp' => (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
-                'level' => 'error',
-                'message' => 'Failed to encode log record.',
-                'context' => [
-                    'exception' => $exception::class,
-                    'message' => $exception->getMessage(),
-                ],
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-            return $fallback !== false
-                ? $fallback
-                : '{"level":"error","message":"Failed to encode log record."}';
-        }
     }
 }

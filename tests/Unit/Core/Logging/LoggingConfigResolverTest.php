@@ -14,10 +14,10 @@ final class LoggingConfigResolverTest extends TestCase
     {
         $config = (new LoggingConfigResolver())->resolve(LoggingConfigDefinition::create());
 
-        self::assertSame(7, $config->retentionDays);
-        self::assertFalse($config->requestEnabled);
-        self::assertSame(0, $config->requestMinStatus);
-        self::assertFalse($config->benchmarkEnabled);
+        self::assertSame(7, $config->retentionDays());
+        self::assertFalse($config->requestEnabled());
+        self::assertSame(0, $config->requestMinStatus());
+        self::assertFalse($config->benchmarkEnabled());
     }
 
     public function testResolvesCanonicalLoggingPolicy(): void
@@ -30,10 +30,10 @@ final class LoggingConfigResolverTest extends TestCase
                 ->benchmarkEnabled(),
         );
 
-        self::assertSame(14, $config->retentionDays);
-        self::assertTrue($config->requestEnabled);
-        self::assertSame(400, $config->requestMinStatus);
-        self::assertTrue($config->benchmarkEnabled);
+        self::assertSame(14, $config->retentionDays());
+        self::assertTrue($config->requestEnabled());
+        self::assertSame(400, $config->requestMinStatus());
+        self::assertTrue($config->benchmarkEnabled());
     }
 
     public function testLegacyLoggingKeysDoNotChangeTheCanonicalContract(): void
@@ -47,9 +47,9 @@ final class LoggingConfigResolverTest extends TestCase
 
         $config = (new LoggingConfigResolver())->resolve($legacy);
 
-        self::assertSame(7, $config->retentionDays);
-        self::assertFalse($config->requestEnabled);
-        self::assertSame(0, $config->requestMinStatus);
-        self::assertFalse($config->benchmarkEnabled);
+        self::assertSame(7, $config->retentionDays());
+        self::assertFalse($config->requestEnabled());
+        self::assertSame(0, $config->requestMinStatus());
+        self::assertFalse($config->benchmarkEnabled());
     }
 }

@@ -163,7 +163,7 @@ final class ExceptionLogger
                 ? $this->container->get(LoggingConfig::class)
                 : null;
             $retentionDays = $config instanceof LoggingConfig
-                ? $config->retentionDays
+                ? $config->retentionDays()
                 : 7;
         }
 

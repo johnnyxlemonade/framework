@@ -79,7 +79,7 @@ final class PhpDiagnostics
         string $file,
         int $line,
     ): bool {
-        if (self::$active === null) {
+        if (self::$active === null || (error_reporting() & $severity) === 0) {
             return false;
         }
 
@@ -106,10 +106,6 @@ final class PhpDiagnostics
         string $file,
         int $line,
     ): bool {
-        if (error_reporting() === 0) {
-            return false;
-        }
-
         if ($this->throwsDiagnostic($severity)) {
             throw new ErrorException($message, 0, $severity, $file, $line);
         }

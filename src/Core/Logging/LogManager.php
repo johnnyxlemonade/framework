@@ -68,8 +68,8 @@ final class LogManager
     {
         return match ($channel) {
             'app', 'error' => true,
-            'request' => $this->config->requestEnabled,
-            'benchmark' => $this->config->benchmarkEnabled,
+            'request' => $this->config->requestEnabled(),
+            'benchmark' => $this->config->benchmarkEnabled(),
             default => $default,
         };
     }
@@ -87,7 +87,7 @@ final class LogManager
         return $this->loggers[$channel] = new RotatingFileLogger(
             file: $this->pathResolver->resolve($channel),
             directoryManager: $this->directoryManager,
-            retentionDays: $this->config->retentionDays,
+            retentionDays: $this->config->retentionDays(),
         );
     }
 }

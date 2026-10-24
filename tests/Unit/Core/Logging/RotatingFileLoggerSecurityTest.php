@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Core\Logging;
 
+use Lemonade\Framework\Container\Container;
+use Lemonade\Framework\Core\Context\ApplicationContext;
+use Lemonade\Framework\Core\Context\DebugMode;
+use Lemonade\Framework\Core\Context\Environment;
+use Lemonade\Framework\Core\Context\Path;
+use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Logging\Exception\LogStorageException;
 use Lemonade\Framework\Core\Logging\RotatingFileLogger;
 use Lemonade\Framework\Filesystem\Manager\DirectoryManager;
@@ -43,6 +49,35 @@ final class RotatingFileLoggerSecurityTest extends TestCase
         self::assertSame(0600, fileperms($this->dailyFile()) & 0777);
     }
 
+    public function testFirstWriteCreatesMissingDailyFileWithActivePhpDiagnostics(): void
+    {
+        self::assertFileDoesNotExist($this->dailyFile());
+
+        $this->withPhpDiagnostics(function (): void {
+            $this->logger()->info('first record');
+        });
+
+        self::assertFileExists($this->dailyFile());
+        self::assertSame(0600, fileperms($this->dailyFile()) & 0777);
+    }
+
+    public function testFirstWriteOfNewDayCreatesNewDailyFile(): void
+    {
+        mkdir($this->root . '/logs', 0700, true);
+        $previousDailyFile = $this->root
+            . '/logs/app-'
+            . date('Y-m-d', strtotime('-1 day'))
+            . '.log';
+        file_put_contents($previousDailyFile, "previous day\n");
+        chmod($previousDailyFile, 0600);
+
+        $this->logger()->info('new day');
+
+        self::assertFileExists($previousDailyFile);
+        self::assertFileExists($this->dailyFile());
+        self::assertSame(0600, fileperms($this->dailyFile()) & 0777);
+    }
+
     public function testExistingLogFileIsRestrictedBeforeAppending(): void
     {
         mkdir($this->root . '/logs', 0700, true);
@@ -60,16 +95,22 @@ final class RotatingFileLoggerSecurityTest extends TestCase
         mkdir($this->root . '/logs', 0700, true);
         $expired = $this->root . '/logs/app-2000-01-01.log';
         $retained = $this->root . '/logs/app-' . date('Y-m-d', strtotime('-1 day')) . '.log';
+        $unrelated = $this->root . '/logs/app-backup.log';
         file_put_contents($expired, 'expired');
         file_put_contents($retained, 'retained');
+        file_put_contents($unrelated, 'unrelated');
         chmod($expired, 0644);
         chmod($retained, 0644);
+        chmod($unrelated, 0644);
         touch($expired, strtotime('-10 days'));
         touch($retained, strtotime('-1 hour'));
+        touch($unrelated, strtotime('-10 days'));
 
         $this->logger(2)->info('rotate');
 
         self::assertFileDoesNotExist($expired);
+        self::assertFileExists($unrelated);
+        self::assertSame(0644, fileperms($unrelated) & 0777);
         self::assertSame(0600, fileperms($retained) & 0777);
     }
 
@@ -85,11 +126,28 @@ final class RotatingFileLoggerSecurityTest extends TestCase
             $this->logger()->info('must not escape');
             self::fail('A symbolic log file must be rejected.');
         } catch (LogStorageException $exception) {
-            self::assertStringContainsString('non-symbolic regular file', $exception->getMessage());
+            self::assertStringContainsString('symbolic link', $exception->getMessage());
         }
 
         self::assertSame('secret', file_get_contents($target));
         self::assertSame(0644, fileperms($target) & 0777);
+    }
+
+    public function testSymbolicLogDirectoryIsRejectedWithoutWritingToTarget(): void
+    {
+        $target = $this->root . '/target';
+        mkdir($this->root, 0700);
+        mkdir($target, 0700);
+        symlink($target, $this->root . '/logs');
+
+        try {
+            $this->logger()->info('must not escape');
+            self::fail('A symbolic log directory must be rejected.');
+        } catch (LogStorageException $exception) {
+            self::assertStringContainsString('non-symbolic directory', $exception->getMessage());
+        }
+
+        self::assertSame(['.', '..'], scandir($target));
     }
 
     public function testSymbolicRotationCandidateIsRejectedWithoutDeletingTarget(): void
@@ -125,34 +183,61 @@ final class RotatingFileLoggerSecurityTest extends TestCase
         $logger->info('must not escape');
     }
 
-    public function testUnsafeExistingDirectoryIsRejectedInsteadOfSilentlyRepermissioned(): void
+    public function testExistingLogDirectoryIsRestrictedToPrivateMode(): void
     {
         mkdir($this->root . '/logs', 0777, true);
         chmod($this->root . '/logs', 0777);
 
-        $this->expectException(LogStorageException::class);
-        $this->expectExceptionMessage('mode 0700');
+        $this->logger()->info('must repair permissions');
 
-        $this->logger()->info('must fail');
+        self::assertSame(0700, fileperms($this->root . '/logs') & 0777);
+        self::assertSame(0600, fileperms($this->dailyFile()) & 0777);
+    }
+
+    public function testRepeatedWritesProduceCompleteJsonLines(): void
+    {
+        $logger = $this->logger();
+
+        for ($record = 0; $record < 10; ++$record) {
+            $logger->info('repeated', ['record' => $record]);
+        }
+
+        $lines = file($this->dailyFile(), FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        self::assertIsArray($lines);
+        self::assertCount(10, $lines);
+
+        foreach ($lines as $record => $line) {
+            $decoded = json_decode($line, true, 16, JSON_THROW_ON_ERROR);
+
+            self::assertIsArray($decoded);
+            self::assertSame($record, $decoded['context']['record'] ?? null);
+        }
     }
 
     #[RequiresPhpExtension('pcntl')]
-    public function testConcurrentWritersProduceCompletePrivateRecords(): void
+    public function testConcurrentFirstWritesCreateOnePrivateFileWithCompleteRecords(): void
     {
         mkdir($this->root . '/logs', 0700, true);
+        $startMarker = $this->root . '/start-concurrent-writes';
         $children = [];
 
-        for ($worker = 0; $worker < 4; ++$worker) {
+        for ($worker = 0; $worker < 8; ++$worker) {
             $processId = pcntl_fork();
 
             self::assertNotSame(-1, $processId);
 
             if ($processId === 0) {
-                for ($record = 0; $record < 25; ++$record) {
+                while (!file_exists($startMarker)) {
+                    usleep(1_000);
+                }
+
+                try {
                     $this->logger()->info('concurrent', [
                         'worker' => $worker,
-                        'record' => $record,
                     ]);
+                } catch (\Throwable) {
+                    exit(1);
                 }
 
                 exit(0);
@@ -160,6 +245,8 @@ final class RotatingFileLoggerSecurityTest extends TestCase
 
             $children[] = $processId;
         }
+
+        touch($startMarker);
 
         foreach ($children as $processId) {
             pcntl_waitpid($processId, $status);
@@ -170,11 +257,27 @@ final class RotatingFileLoggerSecurityTest extends TestCase
         $lines = file($this->dailyFile(), FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
         self::assertIsArray($lines);
-        self::assertCount(100, $lines);
+        self::assertCount(8, $lines);
         self::assertSame(0600, fileperms($this->dailyFile()) & 0777);
 
         foreach ($lines as $line) {
             self::assertIsArray(json_decode($line, true, 16, JSON_THROW_ON_ERROR));
+        }
+    }
+
+    public function testFilesystemCreationFailureRemainsLogStorageExceptionWithActivePhpDiagnostics(): void
+    {
+        mkdir($this->root, 0700);
+        file_put_contents($this->root . '/logs', 'directory blocker');
+
+        try {
+            $this->withPhpDiagnostics(function (): void {
+                $this->logger()->info('must fail');
+            });
+            self::fail('A real filesystem failure must not be treated as a missing daily file.');
+        } catch (LogStorageException $exception) {
+            self::assertStringContainsString('cannot be created securely', $exception->getMessage());
+            self::assertNotNull($exception->getPrevious());
         }
     }
 
@@ -223,5 +326,31 @@ final class RotatingFileLoggerSecurityTest extends TestCase
     private function dailyFile(): string
     {
         return $this->root . '/logs/app-' . date('Y-m-d') . '.log';
+    }
+
+    /**
+     * @param callable(): void $operation
+     */
+    private function withPhpDiagnostics(callable $operation): void
+    {
+        $errorReporting = error_reporting();
+        $displayErrors = ini_get('display_errors');
+        $displayStartupErrors = ini_get('display_startup_errors');
+        $context = new ApplicationContext(
+            Environment::Development,
+            new Path($this->root, $this->root . '/public'),
+            DebugMode::disabled(),
+        );
+        $diagnostics = new PhpDiagnostics($context, new Container());
+        $diagnostics->install();
+
+        try {
+            $operation();
+        } finally {
+            $diagnostics->uninstall();
+            error_reporting($errorReporting);
+            ini_set('display_errors', (string) $displayErrors);
+            ini_set('display_startup_errors', (string) $displayStartupErrors);
+        }
     }
 }

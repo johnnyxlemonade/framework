@@ -72,19 +72,18 @@ The framework owns the built-in channel convention and file location:
 - `storage/writable/logs/request-YYYY-MM-DD.log`
 - `storage/writable/logs/benchmark-YYYY-MM-DD.log`
 
-The path resolver keeps this directory outside the configured public web root. It rejects traversal,
-stream-wrapper paths, and symbolic-link components. The dedicated `storage/writable` and
-`storage/writable/logs` directories are created or repaired to mode `0700`; daily log files, including
-existing files encountered during append or rotation, are restricted to `0600`. A group- or world-writable
-application `storage` root is restricted before logging continues. If the process does not own these paths,
-cannot change their permissions, or encounters an unsafe filesystem object, logging fails with a
+The path resolver keeps this directory inside application storage and outside the configured public web root.
+It rejects traversal, stream-wrapper paths, and a symbolic log directory. The logger creates or repairs the
+dedicated `storage/writable/logs` directory to mode `0700` without changing the permissions of the general
+application storage root or its other children. Daily log files encountered during append or rotation are
+restricted to `0600`. If these boundaries or permissions cannot be enforced, logging fails with a
 `LogStorageException` instead of falling back to a less private location.
 
-Appending and rotation use exclusive file locks and verify that the opened file still has the same device and
-inode as its path. Rotation uses non-blocking locks for old files, so it skips a file still used by another
-writer and considers it again on a later write. Deployments must therefore keep application storage on a local
-filesystem with reliable advisory locks and must grant the PHP process ownership of its private writable
-directories. The framework does not recursively change permissions outside these logging-specific paths.
+Appending rejects a symbolic target, confirms that the opened handle is a regular file, and uses one exclusive
+file lock. Rotation considers only exact daily filenames and uses non-blocking locks for expired files, so it
+skips a file still used by another writer and considers it again on a later rotation pass. Deployments must keep
+application storage on a local filesystem with reliable advisory locks and grant the PHP process control of its
+private log directory.
 
 All built-in channels use one retention period, with a framework default of seven days. Applications configure policy rather than filenames, sinks or per-channel rotation:
 

@@ -10,8 +10,8 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
-use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
+use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogFilePathResolver;
 use Lemonade\Framework\Core\Logging\LogManager;
@@ -52,6 +52,35 @@ final class PhpDiagnosticsTest extends TestCase
         $this->expectExceptionMessage('Development warning.');
 
         $diagnostics->reportError(E_WARNING, 'Development warning.', __FILE__, __LINE__);
+    }
+
+    public function testSuppressedWarningIsLeftToTheCallingFilesystemOperation(): void
+    {
+        $diagnostics = $this->diagnostics(Environment::Development);
+        $diagnostics->install();
+
+        try {
+            $result = @lstat($this->root . '/missing-file');
+        } finally {
+            $diagnostics->uninstall();
+        }
+
+        self::assertFalse($result);
+    }
+
+    public function testUnsuppressedWarningIsConvertedByInstalledDiagnostics(): void
+    {
+        $diagnostics = $this->diagnostics(Environment::Development);
+        $diagnostics->install();
+
+        try {
+            trigger_error('Installed development warning.', E_USER_WARNING);
+            self::fail('An unsuppressed development warning must be converted.');
+        } catch (ErrorException $exception) {
+            self::assertSame('Installed development warning.', $exception->getMessage());
+        } finally {
+            $diagnostics->uninstall();
+        }
     }
 
     public function testDevelopmentDeprecationIsReportedWithoutThrowing(): void

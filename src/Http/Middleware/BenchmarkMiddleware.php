@@ -156,7 +156,7 @@ final readonly class BenchmarkMiddleware implements MiddlewareInterface
         int $status,
         ?string $exceptionClass = null,
     ): void {
-        if (!$this->config->benchmarkEnabled) {
+        if (!$this->config->benchmarkEnabled()) {
             return;
         }
 
