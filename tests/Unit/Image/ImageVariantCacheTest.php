@@ -16,6 +16,7 @@ use Lemonade\Framework\Filesystem\Exception\FilesystemException;
 use Lemonade\Framework\Filesystem\Filesystem;
 use Lemonade\Framework\Filesystem\Manager\DirectoryManager;
 use Lemonade\Framework\Filesystem\Manager\FileManager;
+use Lemonade\Framework\Filesystem\Manager\LockManager;
 use Lemonade\Framework\Image\Exception\ImageDecodeException;
 use Lemonade\Framework\Image\Exception\ImageEncodeException;
 use Lemonade\Framework\Image\Exception\ImageTransformException;
@@ -50,7 +51,7 @@ final class ImageVariantCacheTest extends TestCase
 
     public function testMissPublishesAndNextHitDoesNotGenerate(): void
     {
-        $cache = $this->cache();
+        $cache = $this->cache(lock: new LockManager(new DirectoryManager()));
         $asset = $this->asset();
         $definition = $this->definition();
         $calls = 0;
@@ -79,6 +80,53 @@ final class ImageVariantCacheTest extends TestCase
         self::assertSame(1, $calls);
     }
 
+    public function testPublishedVariantUsesExplicitPublicPermissions(): void
+    {
+        $cache = $this->cache(lock: new LockManager(new DirectoryManager()));
+        $asset = $this->asset();
+        $definition = $this->definition();
+        $previousUmask = umask(0000);
+
+        try {
+            $cache->remember(
+                $asset,
+                $definition,
+                fn (): EncodedImage => $this->encoded($definition),
+            );
+        } finally {
+            umask($previousUmask);
+        }
+
+        $target = $this->resolver()->variantPath($asset, $definition);
+        self::assertSame(0644, fileperms($target) & 0777);
+        self::assertSame(0755, fileperms(dirname($target)) & 0777);
+        self::assertFileDoesNotExist($target . '.lock');
+        self::assertFileExists($this->resolver()->variantLockPath($asset, $definition));
+    }
+
+    public function testForgetRemovesOnlyExactAssetSourceVersion(): void
+    {
+        $cache = $this->cache();
+        $definition = $this->definition();
+        $removed = $this->asset();
+        $otherVersion = $this->asset(sourceVersion: 'v2');
+        $otherAsset = $this->asset(assetId: 'other-asset');
+
+        foreach ([$removed, $otherVersion, $otherAsset] as $asset) {
+            $cache->remember(
+                $asset,
+                $definition,
+                fn (): EncodedImage => $this->encoded($definition),
+            );
+        }
+
+        $cache->forget($removed);
+
+        self::assertDirectoryDoesNotExist($this->resolver()->variantDirectory($removed));
+        self::assertFileExists($this->resolver()->variantPath($otherVersion, $definition));
+        self::assertFileExists($this->resolver()->variantPath($otherAsset, $definition));
+    }
+
     public function testSecondCheckReturnsTargetCreatedWhileWaitingForLock(): void
     {
         $asset = $this->asset();
@@ -86,7 +134,6 @@ final class ImageVariantCacheTest extends TestCase
         $target = $this->resolver()->variantPath($asset, $definition);
         $lock = new CacheLockManager();
         $lock->beforeCallback = static function () use ($target): void {
-            mkdir(dirname($target), 0775, true);
             file_put_contents($target, 'first-consumer');
         };
         $calls = 0;
@@ -203,7 +250,7 @@ final class ImageVariantCacheTest extends TestCase
         }
     }
 
-    private function cache(?CacheDirectoryManager $directory = null, ?CacheLockManager $lock = null): ImageVariantCache
+    private function cache(?CacheDirectoryManager $directory = null, ?LockManagerInterface $lock = null): ImageVariantCache
     {
         $directory ??= new CacheDirectoryManager();
         $lock ??= new CacheLockManager();
@@ -230,14 +277,14 @@ final class ImageVariantCacheTest extends TestCase
         );
     }
 
-    private function asset(): ImageAsset
+    private function asset(string $assetId = 'asset', string $sourceVersion = 'v1'): ImageAsset
     {
         return new ImageAsset(
-            'asset',
+            $assetId,
             new ImageOriginalReference(
                 ImageOriginalStorage::Storage,
                 'source.jpg',
-                'v1',
+                $sourceVersion,
                 ImageFormat::Jpeg,
                 new ImageDimensions(100, 50),
             ),

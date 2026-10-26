@@ -186,8 +186,6 @@ final class NativeValueInspector implements ValueInspectorInterface
                     break;
                 }
 
-                $property->setAccessible(true);
-
                 $children[] = new DumpNode(
                     type: DumpType::PROPERTY,
                     label: $this->propertyLabel($property),

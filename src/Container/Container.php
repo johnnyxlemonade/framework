@@ -50,7 +50,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      *     parameters: list<array{
      *         name: string,
      *         kind: 'class'|'interface'|'unresolvable',
-     *         dependency: string|null,
+     *         dependency: class-string|null,
      *         hasDefaultValue: bool,
      *         defaultValue: mixed
      *     }>
@@ -535,7 +535,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
      *     parameters: list<array{
      *         name: string,
      *         kind: 'class'|'interface'|'unresolvable',
-     *         dependency: string|null,
+     *         dependency: class-string|null,
      *         hasDefaultValue: bool,
      *         defaultValue: mixed
      *     }>
@@ -588,9 +588,11 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
                 $dependencyName = $type->getName();
 
                 if ($this->interfaceExists($dependencyName)) {
+                    /** @var class-string $dependencyName */
                     $kind = 'interface';
                     $dependency = $dependencyName;
                 } elseif ($this->classExists($dependencyName)) {
+                    /** @var class-string $dependencyName */
                     $kind = 'class';
                     $dependency = $dependencyName;
                 }
@@ -618,6 +620,11 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $plan;
     }
 
+    /**
+     * Vyresi hodnotu constructor parametru podle zkompilovaneho autowiring planu
+     *
+     * @param class-string|null $dependency
+     */
     private function resolveConstructorParameter(
         ContainerInterface $runtimeContainer,
         string $className,
@@ -651,6 +658,16 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         $scopeHasBinding = $dependency !== ''
             && $runtimeContainer instanceof ScopedContainerInterface
             && $runtimeContainer->hasScopedBinding($dependency);
+
+        if (
+            $kind === 'class'
+            && $hasDefaultValue
+            && !$scopeHasBinding
+            && !$this->isBound($dependency)
+            && !(new ReflectionClass($dependency))->isInstantiable()
+        ) {
+            return $defaultValue;
+        }
 
         if ($kind === 'interface' && !$scopeHasBinding && !$this->isBound($dependency)) {
             if ($hasDefaultValue) {
@@ -689,6 +706,9 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $binding->value->value;
     }
 
+    /**
+     * Overi existenci tridy a znovu pouzije drive zjisteny vysledek
+     */
     private function classExists(string $className): bool
     {
         if (array_key_exists($className, $this->classExistenceCache)) {
@@ -700,6 +720,9 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
         return $this->classExistenceCache[$className];
     }
 
+    /**
+     * Overi existenci rozhrani a znovu pouzije drive zjisteny vysledek
+     */
     private function interfaceExists(string $interfaceName): bool
     {
         if (array_key_exists($interfaceName, $this->interfaceExistenceCache)) {

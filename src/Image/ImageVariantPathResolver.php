@@ -21,8 +21,8 @@ use Lemonade\Framework\Image\Value\ImageVariantKey;
 final readonly class ImageVariantPathResolver
 {
     public function __construct(
-        private readonly ApplicationContext $context,
-        private readonly DirectoryPathGenerator $directories,
+        private ApplicationContext     $context,
+        private DirectoryPathGenerator $directories,
     ) {
     }
 
@@ -77,6 +77,44 @@ final readonly class ImageVariantPathResolver
         $relativePath = $this->variantRelativePath($asset, $definition);
 
         return $this->context->uploadPath($relativePath);
+    }
+
+    /**
+     * Resolves the exact public directory owned by one immutable source version.
+     */
+    public function variantDirectory(ImageAsset $asset): string
+    {
+        $assetId = $asset->id();
+        $sourceVersion = $asset->original()->sourceVersion();
+        $shard = rtrim($this->directories->shard($assetId), '/');
+
+        return $this->context->uploadPath(sprintf(
+            'images/variants/%s/%s/%s',
+            $shard,
+            $assetId,
+            $sourceVersion,
+        ));
+    }
+
+    /**
+     * Resolves a non-public lock path for one deterministic variant.
+     */
+    public function variantLockPath(
+        ImageAsset $asset,
+        ImageVariantDefinition $definition,
+    ): string {
+        $assetId = $asset->id();
+        $sourceVersion = $asset->original()->sourceVersion();
+        $key = ImageVariantKey::from($asset, $definition);
+        $shard = rtrim($this->directories->shard($assetId), '/');
+
+        return $this->context->storagePath(sprintf(
+            'cache/images/variant-locks/%s/%s/%s/%s.lock',
+            $shard,
+            $assetId,
+            $sourceVersion,
+            $key->value(),
+        ));
     }
 
     /**

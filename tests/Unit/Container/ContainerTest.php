@@ -69,6 +69,13 @@ final class NeedsDefaultScalarValue
     ) {}
 }
 
+final class NeedsOptionalNonInstantiableDependency
+{
+    public function __construct(
+        public readonly ?\Closure $callback = null,
+    ) {}
+}
+
 final class SingletonDependency
 {
     public function __construct(
@@ -398,6 +405,15 @@ final class ContainerTest extends TestCase
         $resolved = $container->get(NeedsDefaultScalarValue::class);
 
         self::assertSame('default-name', $resolved->name);
+    }
+
+    public function testDefaultConstructorValueIsUsedForUnboundNonInstantiableClass(): void
+    {
+        $container = new Container();
+
+        $resolved = $container->get(NeedsOptionalNonInstantiableDependency::class);
+
+        self::assertNull($resolved->callback);
     }
 
     public function testAutowiringPlanIsReusedAcrossRepeatedBuilds(): void

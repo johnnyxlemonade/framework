@@ -15,7 +15,6 @@ use function file_exists;
 use function filemtime;
 use function fileperms;
 use function filesize;
-use function finfo_close;
 use function finfo_file;
 use function finfo_open;
 use function fopen;
@@ -208,7 +207,6 @@ final class FileManager implements FileManagerInterface
                 $finfo = @finfo_open(FILEINFO_MIME_TYPE);
                 if ($finfo !== false) {
                     $mime = @finfo_file($finfo, $file);
-                    finfo_close($finfo);
                 }
             } catch (Exception $exception) {
                 $previous = $exception;

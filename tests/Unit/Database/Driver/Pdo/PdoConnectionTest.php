@@ -198,7 +198,6 @@ final class PdoConnectionTest extends TestCase
         ]), new Benchmark());
 
         $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
-        $method->setAccessible(true);
 
         /** @var array<int, mixed> $options */
         $options = $method->invoke($connection);
@@ -223,7 +222,6 @@ final class PdoConnectionTest extends TestCase
         ]), new Benchmark());
 
         $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
-        $method->setAccessible(true);
 
         /** @var array<int, mixed> $options */
         $options = $method->invoke($connection);

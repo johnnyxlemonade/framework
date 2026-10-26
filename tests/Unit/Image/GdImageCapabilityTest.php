@@ -75,7 +75,7 @@ final class GdImageCapabilityTest extends TestCase
         self::assertIsInt($index);
         $color = imagecolorsforindex($image, $index);
         self::assertSame(127, $color['alpha']);
-        imagedestroy($image);
+        unset($image);
     }
 
     public function testTransparentPngIsCompositedOntoWhiteForJpeg(): void
@@ -91,7 +91,7 @@ final class GdImageCapabilityTest extends TestCase
         self::assertGreaterThanOrEqual(250, $rgb['red']);
         self::assertGreaterThanOrEqual(250, $rgb['green']);
         self::assertGreaterThanOrEqual(250, $rgb['blue']);
-        imagedestroy($image);
+        unset($image);
     }
 
     public function testWebpOrMissingCodecIsHandled(): void
@@ -105,7 +105,7 @@ final class GdImageCapabilityTest extends TestCase
         $source = imagecreatetruecolor(2, 2);
         $path = $this->directory . '/image.webp';
         imagewebp($source, $path, 85);
-        imagedestroy($source);
+        unset($source);
         $decoded = $this->processor()->decode(ImageSource::fromFile($path));
         self::assertSame(ImageFormat::Webp, $decoded->sourceFormat());
         self::assertNotSame('', $this->encoder()->encode($decoded, ImageFormat::Webp, ImageQuality::fromInt(85))->contents());
@@ -124,7 +124,7 @@ final class GdImageCapabilityTest extends TestCase
         $gif = $this->directory . '/image.gif';
         $image = imagecreatetruecolor(20, 20);
         imagegif($image, $gif);
-        imagedestroy($image);
+        unset($image);
         try {
             $this->processor()->decode(ImageSource::fromFile($gif));
             self::fail('GIF must not be accepted.');
@@ -196,7 +196,7 @@ final class GdImageCapabilityTest extends TestCase
         $path = $this->directory . '/image-' . $width . 'x' . $height . '.jpg';
         $image = imagecreatetruecolor(max(1, $width), max(1, $height));
         imagejpeg($image, $path, 90);
-        imagedestroy($image);
+        unset($image);
         return $path;
     }
 
@@ -210,7 +210,7 @@ final class GdImageCapabilityTest extends TestCase
         self::assertIsInt($transparent);
         imagefill($image, 0, 0, $transparent);
         imagepng($image, $path);
-        imagedestroy($image);
+        unset($image);
         return $path;
     }
 }

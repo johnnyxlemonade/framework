@@ -284,7 +284,6 @@ final class ComponentServiceProviderTest extends TestCase
     private function overrideComponentDefinitionMap(ComponentConfigDefinition $definition, array $components): void
     {
         $property = new \ReflectionProperty($definition, 'components');
-        $property->setAccessible(true);
         $property->setValue($definition, $components);
     }
 }

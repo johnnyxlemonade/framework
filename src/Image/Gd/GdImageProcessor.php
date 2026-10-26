@@ -79,7 +79,7 @@ final readonly class GdImageProcessor implements ImageProcessorInterface
         try {
             return $this->decoded($resource, $dimensions, $format);
         } finally {
-            imagedestroy($resource);
+            unset($resource);
         }
     }
 
@@ -96,7 +96,7 @@ final readonly class GdImageProcessor implements ImageProcessorInterface
             $target = new ImageDimensions(max(1, (int) round($sourceDimensions->width * $scale)), max(1, (int) round($sourceDimensions->height * $scale)));
             return $this->resample($source, $sourceDimensions, $target, $image->sourceFormat());
         } finally {
-            imagedestroy($source);
+            unset($source);
         }
     }
 
@@ -115,10 +115,10 @@ final readonly class GdImageProcessor implements ImageProcessorInterface
                 }
                 return $this->decoded($target, $rectangle->dimensions, $image->sourceFormat());
             } finally {
-                imagedestroy($target);
+                unset($target);
             }
         } finally {
-            imagedestroy($source);
+            unset($source);
         }
     }
 
@@ -214,7 +214,7 @@ final readonly class GdImageProcessor implements ImageProcessorInterface
         $savedAlpha = @imagesavealpha($canvas, true);
         $transparent = @imagecolorallocatealpha($canvas, 0, 0, 0, 127);
         if ($blending !== true || $savedAlpha !== true || $transparent === false || !@imagefill($canvas, 0, 0, $transparent)) {
-            imagedestroy($canvas);
+            unset($canvas);
             throw new ImageTransformException('Transparent image canvas cannot be initialized.');
         }
         return $canvas;
@@ -229,7 +229,7 @@ final readonly class GdImageProcessor implements ImageProcessorInterface
             }
             return $this->decoded($target, $targetDimensions, $sourceFormat);
         } finally {
-            imagedestroy($target);
+            unset($target);
         }
     }
 

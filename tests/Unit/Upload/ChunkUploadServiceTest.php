@@ -229,7 +229,7 @@ final class ChunkUploadServiceTest extends TestCase
         ob_start();
         imagepng($image);
         $bytes = ob_get_clean();
-        imagedestroy($image);
+        unset($image);
 
         if (!is_string($bytes)) {
             self::fail('PNG fixture cannot be generated.');

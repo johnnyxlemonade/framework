@@ -32,6 +32,9 @@ final class ImageVariantPathResolverTest extends TestCase
         self::assertStringContainsString('/public/uploads/images/variants/' . $shard . '/asset-1/v1/', $path);
         self::assertStringEndsWith('.webp', $path);
         self::assertSame($path, $resolver->variantPath($asset, $definition));
+        self::assertSame(dirname($path), $resolver->variantDirectory($asset));
+        self::assertStringContainsString('/storage/cache/images/variant-locks/' . $shard . '/asset-1/v1/', $resolver->variantLockPath($asset, $definition));
+        self::assertStringEndsWith('.lock', $resolver->variantLockPath($asset, $definition));
         self::assertStringStartsNotWith('/', $resolver->reference($asset, $definition)->publicPath());
     }
 

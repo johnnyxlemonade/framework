@@ -323,7 +323,7 @@ final class GdImageVariantRendererTest extends TestCase
         $path = $this->root . '/' . $width . '-' . $height . '.jpg';
         $image = imagecreatetruecolor(max(1, $width), max(1, $height));
         imagejpeg($image, $path);
-        imagedestroy($image);
+        unset($image);
 
         return $path;
     }
@@ -341,7 +341,7 @@ final class GdImageVariantRendererTest extends TestCase
         self::assertNotFalse($color);
         imagefill($image, 0, 0, $color);
         imagepng($image, $path);
-        imagedestroy($image);
+        unset($image);
 
         return $path;
     }
@@ -357,7 +357,7 @@ final class GdImageVariantRendererTest extends TestCase
         imagefilledrectangle($image, 0, 0, 99, 99, $red);
         imagefilledrectangle($image, 0, 100, 99, 199, $blue);
         imagepng($image, $path);
-        imagedestroy($image);
+        unset($image);
 
         return $path;
     }
@@ -372,7 +372,7 @@ final class GdImageVariantRendererTest extends TestCase
         self::assertNotFalse($transparent);
         imagefill($image, 0, 0, $transparent);
         imagepng($image, $path);
-        imagedestroy($image);
+        unset($image);
 
         return $path;
     }
@@ -410,7 +410,7 @@ final class GdImageVariantRendererTest extends TestCase
         $image = imagecreatefromstring($contents);
         self::assertInstanceOf(GdImage::class, $image);
         self::assertGreaterThanOrEqual($minimum, (imagecolorat($image, $x, $y) >> 24) & 0x7f);
-        imagedestroy($image);
+        unset($image);
     }
 
     /**
@@ -423,7 +423,7 @@ final class GdImageVariantRendererTest extends TestCase
         $pixel = imagecolorat($image, $x, $y);
         self::assertNotFalse($pixel);
         $color = imagecolorsforindex($image, $pixel);
-        imagedestroy($image);
+        unset($image);
 
         return $color;
     }

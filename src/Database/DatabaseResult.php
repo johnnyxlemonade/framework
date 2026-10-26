@@ -94,7 +94,6 @@ abstract class DatabaseResult implements DatabaseResultInterface
                 }
 
                 $property = new \ReflectionProperty($object, $key);
-                $property->setAccessible(true);
                 $property->setValue($object, $value);
             }
 

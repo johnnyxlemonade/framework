@@ -106,10 +106,10 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
 
                 return $this->encode($target, $definition);
             } finally {
-                imagedestroy($target);
+                unset($target);
             }
         } finally {
-            imagedestroy($input);
+            unset($input);
         }
     }
 
@@ -136,7 +136,7 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
             return $target;
         }
 
-        imagedestroy($target);
+        unset($target);
         throw new ImageTransformException('Image canvas background cannot be prepared.');
     }
 

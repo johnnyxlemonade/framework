@@ -141,7 +141,7 @@ final class ImageUploadValidatorTest extends TestCase
         self::assertStringNotContainsString($trailingPayload, $published);
         $decoded = imagecreatefrompng($uploaded->storedPath());
         self::assertInstanceOf(\GdImage::class, $decoded);
-        imagedestroy($decoded);
+        unset($decoded);
         self::assertSame([], $this->stagedFiles());
     }
 
@@ -281,7 +281,7 @@ final class ImageUploadValidatorTest extends TestCase
 
         imagepng($image);
         $contents = ob_get_clean();
-        imagedestroy($image);
+        unset($image);
 
         if (!is_string($contents)) {
             throw new \RuntimeException('PNG fixture cannot be encoded.');

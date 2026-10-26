@@ -18,9 +18,12 @@ use Lemonade\Framework\Image\Value\ImageVariantDefinition;
  */
 final readonly class ImageVariantCache
 {
+    private const int PUBLIC_DIRECTORY_MODE = 0755;
+    private const int PUBLIC_FILE_MODE = 0644;
+
     public function __construct(
-        private readonly Filesystem $filesystem,
-        private readonly ImageVariantPathResolver $paths,
+        private Filesystem               $filesystem,
+        private ImageVariantPathResolver $paths,
     ) {
     }
 
@@ -52,7 +55,9 @@ final readonly class ImageVariantCache
             return $hit;
         }
         try {
-            return $this->filesystem->lock($target . '.lock', function () use (
+            $this->filesystem->create(dirname($target), self::PUBLIC_DIRECTORY_MODE);
+
+            return $this->filesystem->lock($this->paths->variantLockPath($asset, $definition), function () use (
                 $asset,
                 $definition,
                 $target,
@@ -72,6 +77,7 @@ final readonly class ImageVariantCache
                     $this->filesystem->write(
                         $temporary,
                         $encoded->contents(),
+                        self::PUBLIC_FILE_MODE,
                     );
                     $this->filesystem->move($temporary, $target);
                 } catch (ImageException $exception) {
@@ -89,6 +95,14 @@ final readonly class ImageVariantCache
             }
             throw new ImageWriteException('Image variant lock cannot be acquired.', previous: $exception);
         }
+    }
+
+    /**
+     * Removes only variants derived from one exact asset source version.
+     */
+    public function forget(ImageAsset $asset): void
+    {
+        $this->filesystem->delete($this->paths->variantDirectory($asset));
     }
 
     private function cleanupTemporary(?string $temporary): void

@@ -732,7 +732,7 @@ final class ChunkUploadSecurityTest extends TestCase
         ob_start();
         imagepng($image);
         $contents = ob_get_clean();
-        imagedestroy($image);
+        unset($image);
 
         if (!is_string($contents)) {
             self::fail('PNG fixture cannot be generated.');

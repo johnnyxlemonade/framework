@@ -51,11 +51,11 @@ final class GdImageEncoder implements ImageEncoderInterface
                 return new EncodedImage($contents, $format, $image->dimensions());
             } finally {
                 if ($output !== $resource) {
-                    imagedestroy($output);
+                    unset($output);
                 }
             }
         } finally {
-            imagedestroy($resource);
+            unset($resource);
         }
     }
 
@@ -68,7 +68,7 @@ final class GdImageEncoder implements ImageEncoderInterface
         }
         $white = @imagecolorallocate($canvas, 255, 255, 255);
         if (@imagealphablending($canvas, true) !== true || $white === false || !@imagefill($canvas, 0, 0, $white) || !@imagecopy($canvas, $source, 0, 0, 0, 0, $dimensions->width, $dimensions->height)) {
-            imagedestroy($canvas);
+            unset($canvas);
             throw new ImageEncodeException('JPEG background cannot be composited.');
         }
         return $canvas;
