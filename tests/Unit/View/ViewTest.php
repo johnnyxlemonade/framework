@@ -144,6 +144,18 @@ final class ViewTest extends TestCase
         $view->asset('css/app.css');
     }
 
+    public function testDelegatedRequestHelperWithoutRequestBindingFailsClearly(): void
+    {
+        $view = new View($this->viewsPath);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Request view helpers are not bound. Render through the request-scoped ViewRendererInterface.',
+        );
+
+        $view->currentPath();
+    }
+
     public function testShareOnceIsAvailableOnlyForNextRender(): void
     {
         $this->writeView('temporary', '<?= $requestHelpers ?? "missing" ?>');

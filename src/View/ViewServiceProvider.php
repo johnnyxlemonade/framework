@@ -37,23 +37,26 @@ final class ViewServiceProvider implements ServiceProviderInterface
     public function register(ContainerBuilderInterface $container): void
     {
         $container->singleton(ViewResourceRegistry::class, ViewResourceRegistry::class);
-        $container->scoped(ViewRendererInterface::class, static function (ContainerInterface $container): ViewRendererInterface {
+        $container->scoped(RequestViewHelpers::class, static function (ContainerInterface $container): RequestViewHelpers {
             $flash = $container->has(FlashBagInterface::class) ? $container->get(FlashBagInterface::class) : null;
             $session = $container->has(SessionInterface::class) ? $container->get(SessionInterface::class) : null;
 
+            return new RequestViewHelpers(
+                request: $container->get(ServerRequestInterface::class),
+                urlGenerator: $container->get(UrlGenerator::class),
+                flash: $flash instanceof FlashBagInterface ? $flash : null,
+                session: $session instanceof SessionInterface ? $session : null,
+                absoluteUrl: static fn(string $path): string => $container
+                    ->get(BaseUrlResolver::class)
+                    ->baseUrl($path),
+            );
+        });
+        $container->scoped(ViewRendererInterface::class, static function (ContainerInterface $container): ViewRendererInterface {
             $view = $container->get(View::class)->forRequest(
                 $container->get(ViewHelpers::class),
+                $container->get(RequestViewHelpers::class),
                 [
                     'csrf' => $container->get(CsrfViewHelper::class),
-                    'requestHelpers' => new RequestViewHelpers(
-                        request: $container->get(ServerRequestInterface::class),
-                        urlGenerator: $container->get(UrlGenerator::class),
-                        flash: $flash instanceof FlashBagInterface ? $flash : null,
-                        session: $session instanceof SessionInterface ? $session : null,
-                        absoluteUrl: static fn(string $path): string => $container
-                            ->get(BaseUrlResolver::class)
-                            ->baseUrl($path),
-                    ),
                     'component' => $container->get(ComponentRegistry::class),
                 ],
             );

@@ -38,6 +38,7 @@ final class View
     private ?string $extends = null;
     private ?string $content = null;
     private ?ViewHelpers $helpers = null;
+    private ?RequestViewHelpers $requestHelpers = null;
 
     /**
      * Creates an unbound view prototype for the configured template root.
@@ -54,6 +55,7 @@ final class View
     public function __clone(): void
     {
         $this->helpers = null;
+        $this->requestHelpers = null;
         $this->requestShared = [];
         $this->temporaryShared = [];
         $this->renderDepth = 0;
@@ -67,11 +69,18 @@ final class View
      *
      * @internal The framework renderer lifecycle owns request binding.
      */
-    public function forRequest(ViewHelpers $helpers, array $shared = []): self
-    {
+    public function forRequest(
+        ViewHelpers $helpers,
+        RequestViewHelpers $requestHelpers,
+        array $shared = [],
+    ): self {
         $view = clone $this;
         $view->helpers = $helpers;
-        $view->requestShared = array_merge($shared, ['helpers' => $helpers]);
+        $view->requestHelpers = $requestHelpers;
+        $view->requestShared = array_merge($shared, [
+            'helpers' => $helpers,
+            'requestHelpers' => $requestHelpers,
+        ]);
 
         return $view;
     }
@@ -265,6 +274,56 @@ final class View
     }
 
     /**
+     * Returns the active request path without its query string.
+     */
+    public function currentPath(): string
+    {
+        return $this->requestScopedHelpers()->currentPath();
+    }
+
+    /**
+     * Returns the active request query string without a leading question mark.
+     */
+    public function currentQuery(): string
+    {
+        return $this->requestScopedHelpers()->currentQuery();
+    }
+
+    /**
+     * Returns the active request path with an optional query string.
+     */
+    public function currentUrl(bool $withQuery = true): string
+    {
+        return $this->requestScopedHelpers()->currentUrl($withQuery);
+    }
+
+    /**
+     * Returns the canonical absolute request URL with an optional query string.
+     */
+    public function currentFullUrl(bool $withQuery = true): string
+    {
+        return $this->requestScopedHelpers()->currentFullUrl($withQuery);
+    }
+
+    /**
+     * Compares a URL against the active request path using exact or prefix matching.
+     */
+    public function isUrlActive(string $url, bool $startsWith = false): bool
+    {
+        return $this->requestScopedHelpers()->isUrlActive($url, $startsWith);
+    }
+
+    /**
+     * Generates a route URL and compares it with the active request path.
+     *
+     * @param array<string, scalar|null> $params
+     */
+    public function isRouteActive(string $route, array $params = [], bool $startsWith = false): bool
+    {
+        return $this->requestScopedHelpers()->isRouteActive($route, $params, $startsWith);
+    }
+
+    /**
      * Generates a URL for a named route.
      *
      * @param array<string, scalar|null> $params
@@ -387,5 +446,16 @@ final class View
         }
 
         return $this->helpers;
+    }
+
+    private function requestScopedHelpers(): RequestViewHelpers
+    {
+        if ($this->requestHelpers === null) {
+            throw new LogicException(
+                'Request view helpers are not bound. Render through the request-scoped ViewRendererInterface.',
+            );
+        }
+
+        return $this->requestHelpers;
     }
 }

@@ -38,6 +38,7 @@ use Lemonade\Framework\Session\Contract\SessionInterface;
 use Lemonade\Framework\Support\BaseUrlResolver;
 use Lemonade\Framework\View\Config\ViewConfigDefinition;
 use Lemonade\Framework\View\Config\ViewConfigResolver;
+use Lemonade\Framework\View\RequestViewHelpers;
 use Lemonade\Framework\View\View;
 use Lemonade\Framework\View\ViewRendererInterface;
 use Lemonade\Framework\View\ViewResourceRegistry;
@@ -75,6 +76,7 @@ final class ViewServiceProviderTest extends TestCase
 
         self::assertTrue($container->isBound(View::class));
         self::assertTrue($container->isBound(ViewResourceRegistry::class));
+        self::assertTrue($container->isBound(RequestViewHelpers::class));
 
         $viewA = $container->get(View::class);
         $viewB = $container->get(View::class);
@@ -129,6 +131,11 @@ final class ViewServiceProviderTest extends TestCase
         $router = new Router();
         $router->localizedGroup(static function (Router $router): void {
             $router->getNamed(
+                'article.index',
+                '/articles',
+                ControllerAction::for('ArticleController', 'index'),
+            );
+            $router->getNamed(
                 'article.show',
                 '/articles/{id}',
                 ControllerAction::for('ArticleController', 'show'),
@@ -161,13 +168,24 @@ final class ViewServiceProviderTest extends TestCase
 <?= json_encode($this->langGroup('messages', 'cs'), JSON_THROW_ON_ERROR) ?>|
 <?= json_encode($this->langAll('en'), JSON_THROW_ON_ERROR) ?>|
 <?= $this->currentLocale() ?>|
+<?= $this->currentPath() ?>|
+<?= $this->currentQuery() ?>|
+<?= $this->currentUrl() ?>|
+<?= $this->currentUrl(false) ?>|
+<?= $this->currentFullUrl() ?>|
+<?= $this->currentFullUrl(false) ?>|
+<?= $this->isUrlActive('/articles/7') ? 'url-exact' : 'url-missing' ?>|
+<?= $this->isUrlActive('/articles', true) ? 'url-prefix' : 'url-prefix-missing' ?>|
+<?= $this->isRouteActive('article.show', ['id' => 7]) ? 'route-active' : 'route-missing' ?>|
+<?= $this->isRouteActive('article.index', startsWith: true) ? 'route-prefix' : 'route-prefix-missing' ?>|
 <?= $this->url('article.show', ['id' => 7]) ?>|
 <?= $this->localizedUrl('article.show', ['id' => 7], 'cs') ?>|
 <?= $this->asset('css/app.css') ?>|
 <?= $this->image($image, new \Lemonade\Framework\Image\ImageViewOptions(alt: 'Cover')) ?>|
 <?= $token ?>|
 <?= $this->csrfField('profile') ?>|
-<?= $helpers === $boundHelpers ? 'legacy' : 'missing' ?>
+<?= $helpers === $boundHelpers ? 'legacy' : 'missing' ?>|
+<?= $requestHelpers->currentPath() === $this->currentPath() ? 'request-legacy' : 'request-missing' ?>
 PHP,
         );
 
@@ -176,7 +194,7 @@ PHP,
         try {
             $scope->bindScopedInstance(
                 \Psr\Http\Message\ServerRequestInterface::class,
-                new ServerRequest('GET', '/delegates'),
+                new ServerRequest('GET', 'https://attacker.example/articles/7?preview=1'),
             );
             $helpers = $scope->get(ViewHelpers::class);
             $image = new ImageReference(
@@ -196,6 +214,14 @@ PHP,
             self::assertStringContainsString('{"messages":{"hello":"Hello {name}"}}|', $output);
             self::assertStringContainsString('cs|', $output);
             self::assertStringContainsString('/articles/7|', $output);
+            self::assertStringContainsString('preview=1|', $output);
+            self::assertStringContainsString('/articles/7?preview=1|', $output);
+            self::assertStringContainsString('https://example.test/articles/7?preview=1|', $output);
+            self::assertStringContainsString('https://example.test/articles/7|', $output);
+            self::assertStringContainsString('url-exact|', $output);
+            self::assertStringContainsString('url-prefix|', $output);
+            self::assertStringContainsString('route-active|', $output);
+            self::assertStringContainsString('route-prefix|', $output);
             self::assertStringContainsString('/cs/articles/7|', $output);
             self::assertStringContainsString('/css/app.css|', $output);
             self::assertStringContainsString(
@@ -204,7 +230,8 @@ PHP,
             );
             self::assertStringContainsString('name="LEMONADE_CSRF"', $output);
             self::assertStringContainsString('value="' . $this->csrfTokenFromOutput($output) . '"', $output);
-            self::assertStringEndsWith('legacy', $output);
+            self::assertStringContainsString('legacy|', $output);
+            self::assertStringEndsWith('request-legacy', $output);
         } finally {
             $scope->close();
         }
@@ -293,6 +320,7 @@ PHP,
             );
             $requestView = $container->get(View::class)->forRequest(
                 $scope->get(ViewHelpers::class),
+                $scope->get(RequestViewHelpers::class),
                 ['requestMarker' => 'previous-request'],
             );
             $clone = clone $requestView;
@@ -300,8 +328,8 @@ PHP,
             self::assertSame('missing', $clone->render('request-marker'));
 
             $this->expectException(LogicException::class);
-            $this->expectExceptionMessage('View helpers are not bound.');
-            $clone->currentLocale();
+            $this->expectExceptionMessage('Request view helpers are not bound.');
+            $clone->currentPath();
         } finally {
             $scope->close();
         }
@@ -398,6 +426,7 @@ PHP,
         self::assertFalse($this->hasContainerInstance($container, ViewConfigResolver::class));
         self::assertFalse($this->hasContainerInstance($container, \Lemonade\Framework\View\Config\ViewConfig::class));
         self::assertFalse($this->hasContainerInstance($container, ViewHelpers::class));
+        self::assertFalse($this->hasContainerInstance($container, RequestViewHelpers::class));
         self::assertFalse($this->hasContainerInstance($container, View::class));
     }
 
@@ -414,6 +443,7 @@ PHP,
         self::assertTrue($this->hasContainerInstance($container, ViewConfigResolver::class));
         self::assertTrue($this->hasContainerInstance($container, \Lemonade\Framework\View\Config\ViewConfig::class));
         self::assertFalse($this->hasContainerInstance($container, ViewHelpers::class));
+        self::assertFalse($this->hasContainerInstance($container, RequestViewHelpers::class));
         self::assertTrue($this->hasContainerInstance($container, View::class));
     }
 
@@ -428,12 +458,26 @@ PHP,
         $secondScope = $container->beginScope(ScopeKind::Request);
 
         try {
+            $firstScope->bindScopedInstance(
+                \Psr\Http\Message\ServerRequestInterface::class,
+                new ServerRequest('GET', '/first'),
+            );
+            $secondScope->bindScopedInstance(
+                \Psr\Http\Message\ServerRequestInterface::class,
+                new ServerRequest('GET', '/second'),
+            );
             $helpersA = $firstScope->get(ViewHelpers::class);
             $helpersB = $secondScope->get(ViewHelpers::class);
+            $requestHelpersA = $firstScope->get(RequestViewHelpers::class);
+            $requestHelpersB = $secondScope->get(RequestViewHelpers::class);
 
             self::assertSame($viewA, $viewB);
             self::assertSame($helpersA, $firstScope->get(ViewHelpers::class));
             self::assertNotSame($helpersA, $helpersB);
+            self::assertSame($requestHelpersA, $firstScope->get(RequestViewHelpers::class));
+            self::assertNotSame($requestHelpersA, $requestHelpersB);
+            self::assertSame('/first', $requestHelpersA->currentPath());
+            self::assertSame('/second', $requestHelpersB->currentPath());
         } finally {
             $firstScope->close();
             $secondScope->close();
@@ -464,6 +508,7 @@ PHP,
         self::assertFalse($this->hasContainerInstance($container, ViewConfigResolver::class));
         self::assertFalse($this->hasContainerInstance($container, \Lemonade\Framework\View\Config\ViewConfig::class));
         self::assertFalse($this->hasContainerInstance($container, ViewHelpers::class));
+        self::assertFalse($this->hasContainerInstance($container, RequestViewHelpers::class));
         self::assertFalse($this->hasContainerInstance($container, View::class));
     }
 
@@ -506,7 +551,7 @@ PHP,
 
     public function testViewRenderersDoNotShareRequestDataOrLegacyTemporaryData(): void
     {
-        $this->writeView('current', '<?= $requestHelpers->currentPath() ?>|<?= $temporary ?? "missing" ?>');
+        $this->writeView('current', '<?= $this->currentPath() ?>|<?= $requestHelpers->currentPath() ?>|<?= $temporary ?? "missing" ?>');
         $container = $this->rendererContainer();
         $container->get(View::class)->shareOnce('temporary', 'root-only');
 
@@ -520,8 +565,8 @@ PHP,
             $secondRenderer = $secondScope->get(ViewRendererInterface::class);
 
             self::assertNotSame($firstRenderer, $secondRenderer);
-            self::assertSame('/first|missing', $firstRenderer->content('current'));
-            self::assertSame('/second|missing', $secondRenderer->content('current'));
+            self::assertSame('/first|/first|missing', $firstRenderer->content('current'));
+            self::assertSame('/second|/second|missing', $secondRenderer->content('current'));
         } finally {
             $firstScope->close();
             $secondScope->close();
