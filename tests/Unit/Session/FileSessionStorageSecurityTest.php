@@ -71,24 +71,50 @@ final class FileSessionStorageSecurityTest extends TestCase
         new FileSessionStorage($this->workspace, $this->publicRoot);
     }
 
-    public function testSymbolicLinkPathComponentIsRejected(): void
+    public function testSymbolicSessionRootIsRejected(): void
     {
         if (!function_exists('symlink')) {
             self::markTestSkipped('Symbolic links are unavailable.');
         }
 
         $outside = $this->workspace . '/outside';
-        $link = $this->workspace . '/private';
         mkdir($outside, 0700, true);
+        mkdir(dirname($this->directory), 0700, true);
 
-        if (!@symlink($outside, $link)) {
+        if (!@symlink($outside, $this->directory)) {
             self::markTestSkipped('Symbolic links cannot be created in this environment.');
         }
 
         $this->expectException(SessionStorageException::class);
-        $this->expectExceptionMessage('cannot contain symbolic links');
+        $this->expectExceptionMessage('cannot be a symbolic link');
 
-        new FileSessionStorage($link . '/sessions', $this->publicRoot);
+        new FileSessionStorage($this->directory, $this->publicRoot);
+    }
+
+    public function testTrustedParentSymlinkIsAllowed(): void
+    {
+        if (!function_exists('symlink')) {
+            self::markTestSkipped('Symbolic links are unavailable.');
+        }
+
+        $application = $this->workspace . '/application';
+        $releaseLink = $this->workspace . '/current';
+        mkdir($application . '/private', 0700, true);
+        mkdir($application . '/public', 0700, true);
+
+        if (!@symlink($application, $releaseLink)) {
+            self::markTestSkipped('Symbolic links cannot be created in this environment.');
+        }
+
+        $this->directory = $releaseLink . '/private/sessions';
+        $this->publicRoot = $releaseLink . '/public';
+        $emissions = [];
+        $storage = $this->storage($emissions);
+
+        $storage->set('name', 'Ada');
+
+        self::assertSame('Ada', $storage->get('name'));
+        self::assertDirectoryExists($application . '/private/sessions');
     }
 
     public function testCanonicalPublicWebrootOverlapThroughAliasIsRejected(): void
@@ -111,7 +137,92 @@ final class FileSessionStorageSecurityTest extends TestCase
         new FileSessionStorage($served . '/sessions', $publicAlias);
     }
 
-    public function testExistingDirectoryFilesAndControlFilesAreRestrictedAndOwned(): void
+    public function testFileStorageWorksWithinApplicationOpenBasedir(): void
+    {
+        if (!function_exists('proc_open')) {
+            self::markTestSkipped('Process execution is unavailable.');
+        }
+
+        $frameworkRoot = dirname(__DIR__, 3);
+        $workspace = $frameworkRoot . '/build/open-basedir-' . bin2hex(random_bytes(8));
+        $sessionDirectory = $workspace . '/storage/writable/sessions';
+        $publicRoot = $workspace . '/public';
+        mkdir($publicRoot, 0700, true);
+
+        $script = sprintf(
+            <<<'PHP'
+require %s;
+set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+$emissions = [];
+$storage = new Lemonade\Framework\Session\Storage\FileSessionStorage(
+    directory: %s,
+    publicRoot: %s,
+    lifetimeSeconds: 60,
+    cookieName: 'OPEN_BASEDIR_SESSION',
+    cookie: new Lemonade\Framework\Session\Storage\SessionCookie(
+        name: 'OPEN_BASEDIR_SESSION',
+        lifetimeSeconds: 60,
+        sameSite: Lemonade\Framework\Session\Cookie\SessionCookieSameSite::Lax,
+        emitter: static function (string $name, string $value, array $options) use (&$emissions): bool {
+            $emissions[] = [$name, $value, $options];
+
+            return true;
+        },
+        secure: Lemonade\Framework\Session\Cookie\SessionCookieSecure::Always,
+    ),
+    garbageCollectionPolicy: new Lemonade\Framework\Session\SessionGarbageCollectionPolicy(0, 1),
+);
+$storage->set('name', 'Ada');
+if ($storage->get('name') !== 'Ada') {
+    exit(2);
+}
+echo 'open_basedir-ok';
+PHP,
+            var_export($frameworkRoot . '/vendor/autoload.php', true),
+            var_export($sessionDirectory, true),
+            var_export($publicRoot, true),
+        );
+
+        try {
+            $process = proc_open(
+                [
+                    PHP_BINARY,
+                    '-d',
+                    'open_basedir=' . $frameworkRoot,
+                    '-d',
+                    'display_errors=1',
+                    '-r',
+                    $script,
+                ],
+                [
+                    1 => ['pipe', 'w'],
+                    2 => ['pipe', 'w'],
+                ],
+                $pipes,
+                $frameworkRoot,
+            );
+
+            if (!is_resource($process)) {
+                self::fail('The open_basedir regression process could not be started.');
+            }
+
+            $output = stream_get_contents($pipes[1]);
+            $errorOutput = stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $exitCode = proc_close($process);
+
+            self::assertSame(0, $exitCode, is_string($errorOutput) ? $errorOutput : '');
+            self::assertSame('open_basedir-ok', $output);
+            self::assertSame(0700, fileperms($sessionDirectory) & 0777);
+        } finally {
+            $this->removeTree($workspace);
+        }
+    }
+
+    public function testExistingDirectoryFilesAndControlFilesAreRestricted(): void
     {
         $sessionId = str_repeat('a', 64);
         mkdir($this->directory, 0777, true);
@@ -134,24 +245,6 @@ final class FileSessionStorageSecurityTest extends TestCase
         self::assertSame(0600, fileperms($this->sessionFile($sessionId)) & 0777);
         self::assertSame(0600, fileperms($lockFile) & 0777);
         self::assertSame(0600, fileperms($cursorFile) & 0777);
-        self::assertSame(fileowner($this->directory), fileowner($this->sessionFile($sessionId)));
-        self::assertSame(fileowner($this->directory), fileowner($lockFile));
-        self::assertSame(fileowner($this->directory), fileowner($cursorFile));
-    }
-
-    public function testOwnershipGuardRejectsForeignFileMetadata(): void
-    {
-        mkdir($this->directory, 0700, true);
-        $file = $this->directory . '/ownership-fixture';
-        file_put_contents($file, 'fixture');
-        $stat = lstat($file);
-        self::assertIsArray($stat);
-        $stat['uid'] = (int) $stat['uid'] + 1;
-        $emissions = [];
-        $storage = $this->storage($emissions);
-        $ownershipGuard = (new \ReflectionObject($storage))->getMethod('ownedRegularFile');
-
-        self::assertFalse($ownershipGuard->invoke($storage, $stat));
     }
 
     public function testSessionSymlinkCannotReadOrOverwriteOutsideFile(): void
@@ -216,42 +309,6 @@ final class FileSessionStorageSecurityTest extends TestCase
         }
     }
 
-    public function testHardLinkedSessionFileIsRejectedWithoutChangingSource(): void
-    {
-        if (!function_exists('link')) {
-            self::markTestSkipped('Hard links are unavailable.');
-        }
-
-        $sessionId = str_repeat('d', 64);
-        $outside = $this->workspace . '/outside-hardlink';
-        $outsideContents = serialize(['secret' => 'outside']);
-        mkdir($this->directory, 0700, true);
-        file_put_contents($outside, $outsideContents);
-        chmod($outside, 0600);
-
-        if (!@link($outside, $this->sessionFile($sessionId))) {
-            self::markTestSkipped('Hard links cannot be created in this environment.');
-        }
-
-        $_COOKIE['SECURE_SESSION'] = $sessionId;
-        $emissions = [];
-        $storage = $this->storage($emissions);
-
-        try {
-            $storage->start();
-            self::fail('Expected a hard-linked session file to be rejected.');
-        } catch (SessionStorageException) {
-            self::assertSame($outsideContents, file_get_contents($outside));
-            $outsideStat = stat($outside);
-
-            if (!is_array($outsideStat)) {
-                self::fail('Expected hard-link metadata to remain readable.');
-            }
-
-            self::assertSame(2, $outsideStat['nlink']);
-        }
-    }
-
     public function testAtomicReplacementKeepsConcurrentReaderSnapshotComplete(): void
     {
         $firstEmissions = [];
@@ -277,21 +334,6 @@ final class FileSessionStorageSecurityTest extends TestCase
         self::assertIsString($newSnapshot);
         self::assertSame(['value' => 'before'], unserialize($oldSnapshot));
         self::assertSame(['value' => 'after'], unserialize($newSnapshot));
-    }
-
-    public function testActiveStorageRejectsReplacementOfManagedRoot(): void
-    {
-        $emissions = [];
-        $storage = $this->storage($emissions);
-        $storage->set('value', 'before');
-        $retired = $this->workspace . '/retired-sessions';
-        rename($this->directory, $retired);
-        mkdir($this->directory, 0700, true);
-
-        $this->expectException(SessionStorageException::class);
-        $this->expectExceptionMessage('root identity changed');
-
-        $storage->set('value', 'after');
     }
 
     /**

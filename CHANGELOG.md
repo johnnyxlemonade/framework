@@ -15,14 +15,15 @@ This project has not published tagged releases. This section summarizes notable 
   `joinSubqueryRaw()` make intentionally raw ON clauses explicit. The historical `join()` and
   `joinSubquery()` signatures remain compatible trusted-raw contracts, but now reject unsafe table
   identifiers, unknown or empty JOIN types, and empty conditions.
-- **Breaking security change:** Hardened file-backed sessions around an explicit private filesystem
-  boundary. File session roots must be absolute after application-context resolution, outside the
-  public webroot, traversal-free, non-symbolic and process-owned; directories use mode `0700`, while
-  session, lock and GC files use mode `0600` with inode, ownership and hardlink checks. Reads,
-  atomic publication, retention refresh and deletion now coordinate through an owner-only boundary
-  lock and fail with `SessionStorageException` instead of following unsafe paths or changing storage.
-  Direct internal construction of `FileSessionStorage` now also supplies the public-root boundary;
-  normal `SessionInterface` and `SessionFactory` use remains unchanged.
+- **Breaking security change:** File-backed sessions now use an explicit private filesystem boundary.
+  File session roots must be absolute after application-context resolution, outside the public
+  webroot, traversal-free and non-symbolic; directories use mode `0700`, while session and control
+  files use mode `0600`. Atomic publication provides complete reader snapshots and a short mutation
+  lock coordinates publication, retention refresh, deletion and bounded garbage collection. The
+  storage rejects symbolic managed paths without traversing trusted parents, so it remains compatible
+  with deployment symlinks and PHP `open_basedir`. Direct internal construction of
+  `FileSessionStorage` now also supplies the public-root boundary; normal `SessionInterface` and
+  `SessionFactory` use remains unchanged.
 - **Breaking security change:** Replaced executable PHP application-config cache files with
   authenticated, versioned `.cache` data envelopes. A separate atomically initialized local key,
   private permissions, storage/public-root separation, symbolic-link rejection, bounded typed data,
