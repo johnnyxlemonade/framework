@@ -16,6 +16,8 @@ use Lemonade\Framework\Database\DatabaseFactory;
 use Lemonade\Framework\Database\DatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
+use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
+use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
 use Lemonade\Framework\Database\Model;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
@@ -25,6 +27,26 @@ use RuntimeException;
 
 final class DatabaseServiceProviderTest extends TestCase
 {
+    public function testContextualRegistrationPreservesPreviouslyRegisteredDatabaseDrivers(): void
+    {
+        $container = new Container();
+        $config = $this->config();
+        $connection = new PdoConnection($config, new Benchmark());
+        (new DatabaseServiceProvider())->register($container);
+        (new PdoDatabaseServiceProvider())->register($container);
+        (new SqliteDatabaseServiceProvider())->register($container);
+        $container->instance(DatabaseConfig::class, $config);
+        $container->instance(ConnectionInterface::class, $connection);
+        $registry = $container->get(DatabaseDriverRegistry::class);
+
+        $container->when(ContextualDatabaseConsumer::class)->needs(Database::class)->give(Database::class);
+        $container->freeze();
+
+        self::assertInstanceOf(PdoDatabaseDriver::class, $container->get(DatabaseDriverInterface::class));
+        self::assertSame($registry, $container->get(DatabaseDriverRegistry::class));
+        self::assertSame($connection, $container->get(ContextualDatabaseConsumer::class)->database->connection());
+    }
+
     public function testContainerManagedDatabaseAndModelShareTransactionConnection(): void
     {
         [$container, $connection, $driver, $factory] = $this->container();
@@ -131,4 +153,9 @@ final class DatabaseServiceProviderTest extends TestCase
             identifierProtector: new IdentifierProtector($escaper),
         );
     }
+}
+
+final readonly class ContextualDatabaseConsumer
+{
+    public function __construct(public Database $database) {}
 }

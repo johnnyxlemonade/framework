@@ -141,6 +141,22 @@ final class ContextualBindingTest extends TestCase
         self::assertSame($container->get(ContextualClock::class), $container->get('clock.alias'));
     }
 
+    public function testLateContextualBindingsPreserveSingletonIdentityAndUpdateNewConsumers(): void
+    {
+        $container = new Container();
+        $container->singleton(ContextualClock::class, ContextualSystemClock::class);
+        $clock = $container->get(ContextualClock::class);
+        self::assertSame($clock, $container->get(ContextualClockConsumer::class)->clock);
+
+        $container->when(ContextualClockConsumer::class)->needs(ContextualClock::class)->give(ContextualFrozenClock::class);
+        $container->when(ContextualDefaultDelimiterConsumer::class)->parameter('delimiter')->value(';');
+
+        self::assertSame($clock, $container->get(ContextualClock::class));
+        self::assertSame($clock, $container->get(ContextualOtherClockConsumer::class)->clock);
+        self::assertInstanceOf(ContextualFrozenClock::class, $container->get(ContextualClockConsumer::class)->clock);
+        self::assertSame(';', $container->get(ContextualDefaultDelimiterConsumer::class)->delimiter);
+    }
+
     public function testLegacySingletonBindingRemainsCompatible(): void
     {
         $container = new Container();

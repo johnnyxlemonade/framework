@@ -175,7 +175,7 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     }
 
     /**
-     * Starts a consumer-specific binding declaration and clears already resolved root instances on change.
+     * Updates the definition plan for future resolutions while preserving existing singleton identities.
      *
      * @param class-string|string $consumer
      */
@@ -183,7 +183,6 @@ final class Container implements ContainerInterface, ContainerBuilderInterface, 
     {
         $this->assertMutable();
         return $this->builder->contextualBindingBuilder($consumer, function (): void {
-            $this->instances = [];
             $this->compiledPlan = null;
         });
     }
