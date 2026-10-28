@@ -34,6 +34,29 @@ jobs:
       matrix:
         php: ['8.5', '8.4', '8.3']
 
+    env:
+      DB_HOST: 127.0.0.1
+      DB_NAME: framework_test
+      DB_USER: framework
+      DB_PASS: framework
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: framework_test
+          MARIADB_USER: framework
+          MARIADB_PASSWORD: framework
+          MARIADB_RANDOM_ROOT_PASSWORD: '1'
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+          --health-start-period=10s
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -44,7 +67,7 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: composer:v2
-          extensions: fileinfo, mbstring, xmlwriter
+          extensions: fileinfo, mbstring, xmlwriter, mysqli, pdo_mysql, pdo_sqlite
 
       - name: Validate composer.json
         run: composer validate --strict
@@ -65,6 +88,8 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run PHPUnit
+        env:
+          DB_PORT: ${{ job.services.mariadb.ports[3306] }}
         run: composer test:ci
 
       - name: Run property tests
