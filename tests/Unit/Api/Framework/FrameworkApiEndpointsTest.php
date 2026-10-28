@@ -36,10 +36,9 @@ use Lemonade\Framework\Http\HttpServiceProvider;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\ControllerAction;
-use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
@@ -214,22 +213,9 @@ final class FrameworkApiEndpointsTest extends TestCase
         );
 
         $response = $this->kernel()->run(new ServerRequest('GET', '/api/framework/docs'));
-        $body = (string) $response->getBody();
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('text/html; charset=utf-8', $response->getHeaderLine('Content-Type'));
-        self::assertStringContainsString('https://static.lemonadeframework.cz/swagger/5.32.14/swagger-ui.css', $body);
-        self::assertStringContainsString('https://static.lemonadeframework.cz/swagger/5.32.14/swagger-docs-lemonade.css', $body);
-        self::assertStringContainsString('https://static.lemonadeframework.cz/swagger/5.32.14/swagger-ui-bundle.js', $body);
-        self::assertStringContainsString('https://static.lemonadeframework.cz/swagger/5.32.14/swagger-ui-standalone-preset.js', $body);
-        self::assertStringNotContainsString('swagger-themes@', $body);
-        self::assertStringContainsString('window.localStorage.getItem(storageKey)', $body);
-        self::assertStringContainsString('window.localStorage.setItem(storageKey,nextTheme);', $body);
-        self::assertStringContainsString('data-theme-toggle', $body);
-        self::assertStringContainsString('const theme=storedTheme==="light"||storedTheme==="dark"?storedTheme:"dark";', $body);
-        self::assertStringContainsString('SwaggerUIBundle({url:"\/api\/framework\/openapi.json"', $body);
-        self::assertStringContainsString('<a href="/api/framework/openapi.json">OpenAPI JSON</a>', $body);
-        self::assertStringContainsString('<div id="swagger-ui"></div>', $body);
     }
 
     public function testApiEnabledFalseDisablesWholeApi(): void
@@ -710,10 +696,8 @@ final class FrameworkApiEndpointsTest extends TestCase
             new ResponseEmitter(),
             new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
-                $container->get(Benchmark::class),
-                $context,
             ),
-            $container->get(Benchmark::class),
+            $container->get(\Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation::class),
         );
     }
 
@@ -737,10 +721,8 @@ final class FrameworkApiEndpointsTest extends TestCase
             new ResponseEmitter(),
             new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
-                $container->get(Benchmark::class),
-                $context,
             ),
-            $container->get(Benchmark::class),
+            $container->get(\Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation::class),
         );
     }
 

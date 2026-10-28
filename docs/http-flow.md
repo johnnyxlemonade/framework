@@ -9,13 +9,15 @@ public/index.php
 -> ApplicationContextFactory::fromGlobals()
 -> KernelFactory::create()
 -> Kernel::handle()
-   -> create ServerRequest from globals when no request is provided
    -> enter the shared HTTP lifecycle
 or Kernel::run($request)
    -> enter the same shared HTTP lifecycle
 -> shared HTTP lifecycle
-   -> start a fresh benchmark run for this invocation
+   -> start the shared HttpInstrumentation boundary
+   -> create ServerRequest from globals when no request is provided
+   -> create an explicitly supplied early diagnostics observer, if any
    -> load HTTP config definitions once into the root config registry
+   -> otherwise activate an observer factory from explicitly configured application providers
    -> create a Request scope
    -> bind the provided ServerRequestInterface only in that scope
    -> try the framework health fast-path
@@ -30,7 +32,7 @@ or Kernel::run($request)
    -> resolve tagged RouteRegistrarInterface services
    -> finalize and freeze routing
 -> Framework::runInScope()
-   -> continue the benchmark run owned by Kernel
+   -> dispatch within the Kernel-owned instrumentation boundary
    -> resolve global middleware stack
    -> execute PSR-15 middleware pipeline
    -> DispatchRequestHandler
@@ -44,7 +46,8 @@ or Kernel::run($request)
       -> resolve action arguments
       -> call controller action
       -> normalize result to PSR response
--> stop and detach the benchmark run
+-> close the request scope and convert escaping errors
+-> complete HttpMetrics, publish diagnostics and detach observers
 -> ResponseEmitter for Kernel::handle()
 ```
 
@@ -74,10 +77,12 @@ remain requestless: the root container never stores a request-specific binding. 
 in a `finally` block after a normal response, a not-found response, or any middleware/controller
 exception. This also applies to the health fast path.
 
-`Benchmark` is a root singleton so bootstrap and root-owned database connections can report to the
-same active run. Every `Kernel::run()` invocation nevertheless starts a fresh `BenchmarkRun` and
-stops and detaches it in `finally`. `Framework::run()` owns the same lifecycle when used directly;
-`Framework::runInScope()` requires the caller's active run and never creates a second one.
+`HttpInstrumentation` owns one HTTP interval and shares `DatabaseInstrumentation` with root-owned
+connections. `Kernel::run()` and `Kernel::handle()` use the same boundary, including health and
+error responses. `Framework::run()` owns the boundary when used directly; `Framework::runInScope()`
+dispatches in the caller's scope without starting another interval. Logging, header formatting,
+Profiler publication and response emission are outside the measured interval. See
+[HTTP diagnostics](http-diagnostics-foundation.md) for consumer activation and SQL boundaries.
 
 Configuration definitions are loaded before the Request scope is created. The health fast-path runs
 after the request is bound locally but before `Kernel::bootstrap()`: a matching public health request

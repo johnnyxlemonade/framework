@@ -91,7 +91,7 @@ The framework source is organized into focused modules under `src/`. Application
 
 - `Core` — application context, HTTP and CLI kernels, provider bootstrap, controller dispatch and response normalization; each HTTP run uses an isolated Request scope
 - `Http` — PSR-7 request and response handling, PSR-15 middleware pipeline, response emitting, `HttpStatus` enum and Nyholm PSR-17 integration
-- HTTP middleware for errors, CORS, `OPTIONS`, request logging, benchmarks, HTML minification and response headers
+- HTTP middleware for errors, CORS, `OPTIONS`, HTML minification and response headers
 - `Routing` — explicit controller actions, normalized route paths, route collections, named routes and URL generation, route groups and localized routes
 - `Api` — configurable endpoint registry, health endpoint, OpenAPI and HTML documentation, Problem Details responses, and bearer-token scope authorization
 
@@ -123,7 +123,7 @@ The framework source is organized into focused modules under `src/`. Application
 - `Security` — CSRF token management, middleware and view helpers
 - `Upload` — profile-based file and image uploads, MIME and dimension validation, storage, and optional GD re-encoding
 - `View` and `Component` — view resources and helpers plus reusable pagination, breadcrumb and metadata components
-- `Logging`, `Debug` and `Observability` — PSR-3 logging, diagnostics and request/database benchmark data
+- `Logging`, `Debug` and `Observability` — PSR-3 logging and opt-in HTTP/SQL diagnostics
 
 ### Support Utilities
 
@@ -415,3 +415,19 @@ The framework package does not provide a standalone HTTP application entrypoint 
 Licensed under the Apache License, Version 2.0. See `LICENSE` for details.
 
 Third-party components retain their respective licenses. See `NOTICE` for attribution and license details.
+
+## HTTP diagnostics and optional Profiler
+
+HTTP diagnostics default to disabled in every environment. Load `HttpDiagnostics` through
+`Config.yaml` and explicitly set `http_diagnostics.enabled` to expose only
+`X-Lemonade-Time-Ms`, `X-Lemonade-PHP-Peak-Bytes`, `X-Lemonade-SQL-Count` and
+`X-Lemonade-SQL-Time-Ms`. The response body and other headers remain unchanged.
+
+For local request history, sanitized SQL details, rendering intervals and an automatic HTML
+toolbar, install the separate `johnnyxlemonade/profiler` development package and append
+`Lemonade\Profiler\ProfilerServiceProvider` to the standard `Providers.yaml`. Keep `Providers`
+in the configuration manifest; no additional PHP registration is needed. The Profiler itself
+runs only in development. Omit its YAML entry when the package is absent.
+
+See [HTTP diagnostics](docs/http-diagnostics-foundation.md) for measurement boundaries,
+provider activation and migration from the removed Benchmark API.

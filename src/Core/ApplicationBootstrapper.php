@@ -15,7 +15,8 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Logging\LoggingServiceProvider;
 use Lemonade\Framework\Filesystem\FilesystemServiceProvider;
 use Lemonade\Framework\Http\HttpServiceProvider;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Http\HttpCheckpoint;
+use Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation;
 
 /**
  * Coordinates the shared root-container bootstrap for application entrypoints.
@@ -31,11 +32,14 @@ final class ApplicationBootstrapper
     /** @var array<string, true> */
     private array $loadedConfigurations = [];
 
+    /**
+     * Shares the root bootstrap services and the HTTP boundary without starting a request.
+     */
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly ContainerInterface $container,
         private readonly Framework $framework,
-        private readonly Benchmark $benchmark,
+        private readonly HttpInstrumentation $diagnostics,
     ) {
     }
 
@@ -58,7 +62,7 @@ final class ApplicationBootstrapper
         );
 
         $this->loadedConfigurations[$entrypoint->value] = true;
-        $this->markBenchmark('config_loaded');
+        $this->diagnostics->checkpoint(HttpCheckpoint::ConfigurationLoaded);
     }
 
     /**
@@ -67,29 +71,23 @@ final class ApplicationBootstrapper
     public function bootstrap(BootstrapEntrypoint $entrypoint): void
     {
         if ($entrypoint === BootstrapEntrypoint::Http) {
-            $this->markBenchmark('bootstrap_start');
+            $this->diagnostics->checkpoint(HttpCheckpoint::BootstrapStarted);
         }
 
         $this->loadConfiguration($entrypoint);
         $this->applyRuntimeAppConfig();
         $plan = $this->providerPlan($entrypoint);
         $this->framework->registerPlan($plan);
-        $this->markBenchmark(
-            $entrypoint === BootstrapEntrypoint::Http
-                ? 'core_providers_registered'
-                : 'core_logger_ready',
-        );
-
-        $this->markProviderRegistration($entrypoint);
+        $this->diagnostics->checkpoint(HttpCheckpoint::ProvidersRegistered);
 
         $this->framework->bootProviders();
-        $this->markBenchmark('providers_booted');
+        $this->diagnostics->checkpoint(HttpCheckpoint::ProvidersBooted);
 
         $this->registerRoutes($entrypoint);
         $this->framework->finalizeRoutes();
 
         if ($entrypoint === BootstrapEntrypoint::Http) {
-            $this->markBenchmark('routes_registered');
+            $this->diagnostics->checkpoint(HttpCheckpoint::RoutesRegistered);
         }
     }
 
@@ -132,7 +130,6 @@ final class ApplicationBootstrapper
     private function commonFrameworkProviders(): array
     {
         $providerClasses = $this->container->get(FrameworkConfig::class)->providers;
-        $this->markBenchmark('framework_config_runtime_resolved');
 
         return $this->providerInstances($providerClasses);
     }
@@ -141,7 +138,6 @@ final class ApplicationBootstrapper
     private function configuredProviders(): array
     {
         $providerClasses = $this->container->get(ProvidersConfig::class)->providers;
-        $this->markBenchmark('app_provider_config_resolved');
 
         return $this->providerInstances($providerClasses);
     }
@@ -162,21 +158,6 @@ final class ApplicationBootstrapper
         return $providers;
     }
 
-    private function markProviderRegistration(BootstrapEntrypoint $entrypoint): void
-    {
-        if ($entrypoint === BootstrapEntrypoint::Http) {
-            $this->markBenchmark('http_provider_registered');
-            $this->markBenchmark('common_provider_registration_finished');
-            $this->markBenchmark('app_providers_registered');
-
-            return;
-        }
-
-        $this->markBenchmark('framework_providers_registered');
-        $this->markBenchmark('app_providers_registered');
-        $this->markBenchmark('providers_registered');
-    }
-
     private function registerRoutes(BootstrapEntrypoint $entrypoint): void
     {
         $routingConfig = $this->context->configPath('Routing.php');
@@ -188,13 +169,4 @@ final class ApplicationBootstrapper
         $this->framework->routesFromFile($routingConfig);
     }
 
-    private function markBenchmark(string $name): void
-    {
-        $run = $this->benchmark->current();
-        if ($run === null || $run->isStopped()) {
-            return;
-        }
-
-        $run->mark($name);
-    }
 }

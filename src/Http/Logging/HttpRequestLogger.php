@@ -2,21 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Lemonade\Framework\Http\Middleware;
+namespace Lemonade\Framework\Http\Logging;
 
 use Lemonade\Framework\Core\Logging\Config\LoggingConfig;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Http\HttpStatus;
-use Lemonade\Framework\Http\Logging\HttpLogContext;
+use Lemonade\Framework\Observability\Http\HttpMetrics;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * Records completed HTTP exchanges that satisfy the configured request-log threshold.
  */
-final readonly class RequestLoggingMiddleware implements MiddlewareInterface
+final readonly class HttpRequestLogger
 {
     /**
      * Connects logging policy, channel selection, and structured HTTP context generation.
@@ -29,27 +27,15 @@ final readonly class RequestLoggingMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Measures delegated handling and records eligible responses at a status-derived log level.
+     * Logs an eligible completed response using the common HTTP duration, rounded to integer milliseconds.
      */
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    public function log(ServerRequestInterface $request, ResponseInterface $response, HttpMetrics $metrics): void
     {
-        if (!$this->logs->enabled('request', false)) {
-            return $handler->handle($request);
+        if (!$this->logs->enabled('request', false) || !$this->shouldLogResponse($response)) {
+            return;
         }
 
-        $startedAt = microtime(true);
-
-        $response = $handler->handle($request);
-
-        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
-
-        if (!$this->shouldLogResponse($response)) {
-            return $response;
-        }
-
-        $this->logRequest($request, $response, $durationMs);
-
-        return $response;
+        $this->logRequest($request, $response, (int) round($metrics->durationMs()));
     }
 
     private function logRequest(

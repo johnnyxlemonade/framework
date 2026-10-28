@@ -19,7 +19,6 @@ use Lemonade\Framework\Http\Config\ErrorConfigResolver;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfig;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfigDefinition;
 use Lemonade\Framework\Http\Config\HtmlMinifyConfigResolver;
-use Lemonade\Framework\Http\Middleware\BenchmarkMiddleware;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware;
@@ -28,7 +27,6 @@ use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
 use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Http\Middleware\OptionsMiddleware;
 use Lemonade\Framework\Http\Middleware\PoweredByMiddleware;
-use Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware;
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
 use Lemonade\Framework\Http\Request\ServerHelper;
 use Psr\Http\Message\ServerRequestInterface;
@@ -93,8 +91,6 @@ final readonly class HttpServiceProvider implements ServiceProviderInterface
     private function registerMiddleware(ContainerBuilderInterface $container): void
     {
         $container->singleton(MiddlewareStack::class, static fn(): MiddlewareStack => new MiddlewareStack([
-            RequestLoggingMiddleware::class,
-            BenchmarkMiddleware::class,
             ErrorHandlingMiddleware::class,
             CorsMiddleware::class,
             PoweredByMiddleware::class,

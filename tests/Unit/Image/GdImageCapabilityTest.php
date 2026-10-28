@@ -172,9 +172,14 @@ final class GdImageCapabilityTest extends TestCase
             public function url(ImageReference $reference): string { return 'https://example.test/uploads/' . $reference->publicPath() . '?x="'; }
         });
         $html = $helper->image($reference, new ImageViewOptions(alt: '<avatar>', class: 'x" onclick="bad'));
-        self::assertStringContainsString('loading="lazy"', $html);
-        self::assertStringContainsString('width="256" height="256"', $html);
-        self::assertStringContainsString('&quot;', $html);
+        $document = new \DOMDocument();
+        $document->loadHTML($html);
+        $image = $document->getElementsByTagName('img')->item(0);
+        self::assertInstanceOf(\DOMElement::class, $image);
+        self::assertSame('https://example.test/uploads/avatars/a.webp?x="', $image->getAttribute('src'));
+        self::assertSame('<avatar>', $image->getAttribute('alt'));
+        self::assertSame('x" onclick="bad', $image->getAttribute('class'));
+        self::assertFalse($image->hasAttribute('onclick'));
         self::assertSame('', $helper->image(null));
         $this->expectException(ImageValidationException::class);
         new ImageReference('../secret.jpg', new ImageDimensions(1, 1), ImageFormat::Jpeg);

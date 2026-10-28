@@ -17,6 +17,9 @@ use Lemonade\Framework\Http\Config\HttpServerConfigDefinition;
 use Lemonade\Framework\Http\Config\HttpServerConfigResolver;
 use Lemonade\Framework\Http\Request\RequestContextResolver;
 use Lemonade\Framework\Http\Request\TrustedProxyMatcher;
+use Lemonade\Framework\Observability\Http\Config\HttpDiagnosticsConfig;
+use Lemonade\Framework\Observability\Http\Config\HttpDiagnosticsConfigDefinition;
+use Lemonade\Framework\Observability\Http\Config\HttpDiagnosticsConfigResolver;
 
 /**
  * Registers the root typed-configuration services used before application providers run.
@@ -30,6 +33,15 @@ final class CoreConfigurationServiceProvider implements ServiceProviderInterface
     {
         $container->singleton(Config::class, new Config());
         $container->singleton(ConfigDefinitionRegistry::class, new ConfigDefinitionRegistry());
+        $container->transient(HttpDiagnosticsConfigResolver::class, HttpDiagnosticsConfigResolver::class);
+        $container->transient(HttpDiagnosticsConfig::class, static function (ContainerInterface $container): HttpDiagnosticsConfig {
+            return $container
+                ->get(HttpDiagnosticsConfigResolver::class)
+                ->resolve(...$container->get(ConfigDefinitionRegistry::class)->typedEntriesFor(
+                    HttpDiagnosticsConfigDefinition::moduleKey(),
+                    HttpDiagnosticsConfigDefinition::class,
+                ));
+        });
         $container->transient(HttpServerConfigResolver::class, HttpServerConfigResolver::class);
         $container->transient(HttpServerConfig::class, static function (ContainerInterface $container): HttpServerConfig {
             return $container

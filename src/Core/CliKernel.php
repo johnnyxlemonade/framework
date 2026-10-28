@@ -12,7 +12,7 @@ use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Diagnostics\ExceptionLogger;
 use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation;
 use Throwable;
 
 /**
@@ -47,7 +47,6 @@ final class CliKernel
         private readonly ApplicationContext $context,
         private readonly ContainerInterface $container,
         private readonly Framework $framework,
-        private readonly Benchmark $benchmark,
         mixed $stdout = null,
         mixed $stderr = null,
     ) {
@@ -64,7 +63,7 @@ final class CliKernel
             $this->context,
             $this->container,
             $this->framework,
-            $this->benchmark,
+            $this->container->get(HttpInstrumentation::class),
         );
     }
 
@@ -77,8 +76,7 @@ final class CliKernel
      * command list and return `0`. Unknown commands print an error and return
      * `1`. Known commands return their own exit code. Uncaught exceptions are
      * logged, written to stderr, and converted to exit code `1`, with a stack
-     * trace included in debug mode. Every invocation owns a fresh benchmark run
-     * that is stopped and detached before the method returns.
+     * trace included in debug mode. Commands do not automatically activate HTTP or SQL diagnostics.
      *
      * @param list<string> $argv
      */
@@ -87,11 +85,6 @@ final class CliKernel
         /** @var PhpDiagnostics $phpDiagnostics */
         $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
         $phpDiagnostics->install();
-
-        $this->benchmark->start([
-            'entrypoint' => 'cli',
-            'started_at' => 'cli-kernel.handle',
-        ])->mark('kernel_start');
 
         try {
             $this->bootstrap();
@@ -123,13 +116,6 @@ final class CliKernel
                     output: new CommandOutput($this->stdout, $this->stderr),
                 );
         } catch (Throwable $exception) {
-            $run = $this->benchmark->current();
-            if ($run !== null && !$run->isStopped()) {
-                $run->with('exception', $exception::class);
-                $run->mark('kernel_exception');
-                $run->stop();
-            }
-
             $this->logException($exception);
 
             $this->writeStderr(sprintf("CLI error: %s\n", $exception->getMessage()));
@@ -140,7 +126,6 @@ final class CliKernel
 
             return 1;
         } finally {
-            $this->benchmark->end();
             $phpDiagnostics->uninstall();
         }
     }

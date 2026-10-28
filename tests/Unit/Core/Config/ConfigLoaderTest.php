@@ -275,6 +275,24 @@ YAML,
         );
     }
 
+    public function testExtensionlessProviderAliasDoesNotResolveRenamedPhpFile(): void
+    {
+        $this->writeConfigFile('Config.yaml', "shared:\n  - Providers\n");
+        $this->writeConfigFile('Providers.php', <<<'PHP'
+<?php
+return \Lemonade\Framework\Core\Config\ProvidersConfigDefinition::create();
+PHP);
+        $context = $this->context();
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Config file "Providers" declared by manifest "Config.yaml" was not found.');
+
+        (new ConfigLoader())->loadApplication(
+            $this->framework($context),
+            $context,
+            ConfigLoader::ENTRYPOINT_HTTP,
+        );
+    }
+
     public function testInvalidManifestNotReturningArrayThrowsLogicException(): void
     {
         $this->writeConfigFile('Config.yaml', "invalid\n");

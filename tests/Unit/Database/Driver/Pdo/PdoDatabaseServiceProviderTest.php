@@ -16,7 +16,7 @@ use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSchemaGrammar;
 use Lemonade\Framework\Database\Exception\DatabaseException;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use PHPUnit\Framework\TestCase;
 
 final class PdoDatabaseServiceProviderTest extends TestCase
@@ -161,7 +161,7 @@ final class PdoDatabaseServiceProviderTest extends TestCase
 
         $driver = $registry->resolveDriver(
             Driver::Pdo,
-            new PdoConnection($config, new Benchmark()),
+            new PdoConnection($config, new DatabaseInstrumentation()),
             $config,
             $container,
         );
@@ -182,7 +182,7 @@ final class PdoDatabaseServiceProviderTest extends TestCase
 
         $driver = $registry->resolveDriver(
             Driver::Pdo,
-            new PdoConnection($config, new Benchmark()),
+            new PdoConnection($config, new DatabaseInstrumentation()),
             $config,
             $container,
         );

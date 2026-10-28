@@ -20,6 +20,7 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Exception\InvalidRequestScopeException;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
@@ -30,12 +31,11 @@ use Lemonade\Framework\Http\Request\Exception\InvalidRequestMetadataException;
 use Lemonade\Framework\Http\Request\RequestContextResolver;
 use Lemonade\Framework\Http\Request\ResolvedRequestContext;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Lemonade\Framework\Observability\Benchmark\BenchmarkServiceProvider;
+use Lemonade\Framework\Observability\Http\HttpDiagnosticsObserverFactoryInterface;
+use Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\RouteRegistrarInterface;
 use Lemonade\Framework\Routing\RouteRegistrarRegistry;
-use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -70,6 +70,7 @@ final class Framework
     public function __construct(
         private readonly ContainerInterface $container,
         private readonly ApplicationContext $context,
+        private readonly ?HttpDiagnosticsObserverFactoryInterface $diagnostics = null,
     ) {
         if (!$this->container instanceof ContainerBuilderInterface) {
             throw new RuntimeException(sprintf(
@@ -106,7 +107,13 @@ final class Framework
 
         $this->builder->singleton(Psr17Factory::class, Psr17Factory::class);
         $this->builder->singleton(ServerRequestFactory::class, ServerRequestFactory::class);
-        $this->register(new BenchmarkServiceProvider());
+        $databaseInstrumentation = new DatabaseInstrumentation();
+        $this->builder->singleton(DatabaseInstrumentation::class, $databaseInstrumentation);
+        $this->builder->singleton(HttpInstrumentation::class, new HttpInstrumentation(
+            $this->container,
+            $databaseInstrumentation,
+            $this->diagnostics,
+        ));
 
         $this->config(
             AppConfigDefinition::create()
@@ -300,25 +307,28 @@ final class Framework
      * When no request is supplied, a server request is created from global PHP
      * state through the server request factory. Any deferred middleware
      * configuration is applied before middleware is resolved. This convenience
-     * entrypoint creates and closes its own benchmark lifecycle and request scope;
-     * Kernel callers pass their already-active lifecycle and scope to
+     * entrypoint owns its HTTP measurement boundary and request scope;
+     * Kernel callers pass their already-active scope to
      * {@see runInScope()} instead.
      */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
-        /** @var Benchmark $benchmark */
-        $benchmark = $this->container->get(Benchmark::class);
-        $benchmark->start([
-            'entrypoint' => 'http',
-            'started_at' => 'framework.run',
-        ])->mark('framework_start');
+        return $this->container->get(HttpInstrumentation::class)->handle(
+            $request,
+            static function (): void {
+            },
+            fn(ServerRequestInterface $current): ResponseInterface => $this->runStandalone($current),
+            static function (\Throwable $exception): never {
+                throw $exception;
+            },
+        );
+    }
+
+    private function runStandalone(ServerRequestInterface $request): ResponseInterface
+    {
         $scope = null;
 
         try {
-            $request ??= $this->container
-                ->get(ServerRequestFactory::class)
-                ->fromGlobals();
-
             if (!$this->container instanceof ScopeFactoryInterface) {
                 throw new RuntimeException(sprintf(
                     'Framework container must implement %s to run an HTTP request.',
@@ -343,7 +353,6 @@ final class Framework
                 ->withBody($responseFactory->createStream('400 Bad Request'));
         } finally {
             $scope?->close();
-            $benchmark->end();
         }
     }
 
@@ -353,11 +362,9 @@ final class Framework
      * The scope must be {@see ScopeKind::Request}, must hold a scope-local
      * {@see ServerRequestInterface} binding, and that binding must be the same
      * object as the request argument. The method resolves and locally binds the
-     * trusted request context when the caller has not already done so. An active benchmark run must already be
-     * owned by the Kernel or {@see run()}; this method never starts another run.
+     * trusted request context when the caller has not already done so. Dispatch does not require diagnostics.
      *
      * @throws InvalidRequestScopeException When the supplied scope does not satisfy the request contract.
-     * @throws LogicException When no active benchmark run exists
      */
     public function runInScope(ScopedContainerInterface $scope, ServerRequestInterface $request): ResponseInterface
     {
@@ -400,14 +407,6 @@ final class Framework
     private function runWithContainer(ContainerInterface $runtimeContainer, ServerRequestInterface $request): ResponseInterface
     {
 
-        /** @var Benchmark $benchmark */
-        $benchmark = $runtimeContainer->get(Benchmark::class);
-        $run = $benchmark->current();
-        if ($run === null || $run->isStopped()) {
-            throw new LogicException('Framework request dispatch requires an active benchmark run.');
-        }
-        $run->mark('request_received');
-
         $stack = $runtimeContainer->get(MiddlewareStack::class);
         $this->applyPendingMiddlewareConfiguration($stack);
         $middleware = $runtimeContainer
@@ -418,9 +417,6 @@ final class Framework
             $middleware,
             $runtimeContainer->get(DispatchRequestHandler::class),
         );
-
-        $run->mark('middleware_resolved');
-        $run->mark('middleware_enter');
 
         return $pipeline->handle($request);
     }

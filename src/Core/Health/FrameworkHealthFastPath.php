@@ -13,13 +13,9 @@ use Lemonade\Framework\Api\Http\Response\ApiResponseFactory;
 use Lemonade\Framework\Clock\SystemClock;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
-use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\FrameworkInfo;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Middleware\CorsMiddleware;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Lemonade\Framework\Observability\Benchmark\BenchmarkResponseInjector;
-use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -32,16 +28,14 @@ use Throwable;
  *
  * Unsupported, unmatched or protected requests return null and continue through the standard lifecycle.
  */
-final class FrameworkHealthFastPath
+final readonly class FrameworkHealthFastPath
 {
     /**
-     * Binds pre-bootstrap health handling to loaded definitions, benchmark state and application context.
+     * Binds pre-bootstrap health handling to loaded definitions.
      */
     public function __construct(
-        private readonly ConfigDefinitionRegistry $definitions,
-        private readonly Benchmark $benchmark,
-        private readonly ApplicationContext $context,
-        private readonly ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
+        private ConfigDefinitionRegistry $definitions,
+        private ApiRoutePathResolver $pathResolver = new ApiRoutePathResolver(),
     ) {
     }
 
@@ -55,14 +49,6 @@ final class FrameworkHealthFastPath
     {
         if (!$this->isSupportedMethod($request->getMethod())) {
             return null;
-        }
-
-        $run = $this->benchmark->current();
-        if ($run !== null && $run->isStopped()) {
-            $run = null;
-        }
-        if ($run !== null) {
-            $run->mark('health_fast_path_start');
         }
 
         $snapshot = (new FrameworkHealthConfigSnapshotLoader($this->definitions))->load();
@@ -118,22 +104,6 @@ final class FrameworkHealthFastPath
                         return $this->response;
                     }
                 },
-            );
-        }
-
-        if ($run !== null) {
-            $run->mark('response_created');
-            $run->mark('response_ready');
-            $run->stop();
-        }
-
-        if ($run instanceof BenchmarkRun) {
-            $response = (new BenchmarkResponseInjector(
-                $snapshot->benchmark(),
-                $this->context,
-            ))->inject(
-                $response,
-                $run,
             );
         }
 

@@ -7,7 +7,6 @@ namespace Lemonade\Framework\Core;
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Context\ApplicationContext;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 
 /**
  * Factory for constructing CLI application kernels.
@@ -18,13 +17,13 @@ use Lemonade\Framework\Observability\Benchmark\Benchmark;
  * around the provided application context. The factory itself does not
  * bootstrap the application or dispatch commands.
  */
-final class CliKernelFactory
+final readonly class CliKernelFactory
 {
     /** @var resource|null */
-    private readonly mixed $stdout;
+    private mixed $stdout;
 
     /** @var resource|null */
-    private readonly mixed $stderr;
+    private mixed $stderr;
 
     /**
      * Creates a factory with optional container and output stream overrides.
@@ -36,7 +35,7 @@ final class CliKernelFactory
      * @throws \InvalidArgumentException If stdout or stderr is not a valid resource.
      */
     public function __construct(
-        private readonly ?ContainerInterface $container = null,
+        private ?ContainerInterface $container = null,
         mixed $stdout = null,
         mixed $stderr = null,
     ) {
@@ -73,7 +72,6 @@ final class CliKernelFactory
             context: $context,
             container: $container,
             framework: $framework,
-            benchmark: $container->get(Benchmark::class),
             stdout: $this->stdout,
             stderr: $this->stderr,
         );

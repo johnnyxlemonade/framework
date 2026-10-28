@@ -7,7 +7,7 @@ namespace Lemonade\Framework\Database\Driver\Odbc;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Throwable;
 
 /**
@@ -27,8 +27,7 @@ final class OdbcConnection implements ConnectionInterface
      */
     public function __construct(
         private readonly DatabaseConfig $config,
-        private readonly Benchmark $benchmark,
-        private readonly bool $captureQueryDetails = false,
+        private readonly DatabaseInstrumentation $instrumentation = new DatabaseInstrumentation(),
     ) {
     }
 
@@ -41,9 +40,7 @@ final class OdbcConnection implements ConnectionInterface
             return $this->connection;
         }
 
-        $startedAt = microtime(true);
-
-        try {
+        return $this->instrumentation->connection(function () {
             if (!function_exists('odbc_connect')) {
                 throw DatabaseException::connectionFailed(
                     'ODBC extension is not available in current PHP runtime.',
@@ -69,9 +66,7 @@ final class OdbcConnection implements ConnectionInterface
             $this->connection = $resource;
 
             return $this->connection;
-        } finally {
-            $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
-        }
+        });
     }
 
     /**
@@ -343,19 +338,12 @@ final class OdbcConnection implements ConnectionInterface
 
     /**
      * @param array<int|string, mixed> $bindings
-     */
-    /**
-     * @param array<int|string, mixed> $bindings
      * @return resource
      */
     private function executeStatement(string $sql, array $bindings): mixed
     {
         $resource = $this->resource();
-        $originalSql = $sql;
-        $originalBindings = $bindings;
-        $startedAt = microtime(true);
-
-        try {
+        return $this->instrumentation->query($sql, function () use ($resource, $sql, $bindings) {
             [$sql, $bindings] = $this->normalizeBindingsForOdbc($sql, $bindings);
 
             if ($bindings === []) {
@@ -377,14 +365,7 @@ final class OdbcConnection implements ConnectionInterface
             }
 
             return $statement;
-        } finally {
-            $this->benchmark->recordDatabaseQuery(
-                $originalSql,
-                $originalBindings,
-                (microtime(true) - $startedAt) * 1000,
-                $this->captureQueryDetails,
-            );
-        }
+        });
     }
 
     /**

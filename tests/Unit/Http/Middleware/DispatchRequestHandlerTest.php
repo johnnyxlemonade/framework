@@ -10,13 +10,12 @@ use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Http\Middleware\DispatchRequestHandler;
 use Lemonade\Framework\Http\Middleware\MiddlewarePipeline;
 use Lemonade\Framework\Http\Middleware\MiddlewareResolver;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\RouteMatch;
-use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Lemonade\Framework\Routing\Router;
+use Lemonade\Framework\Routing\RouteRequestAttributes;
 use Nyholm\Psr7\Factory\Psr17Factory;
-use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -66,7 +65,7 @@ final class DispatchRequestHandlerTest extends TestCase
         $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
     }
 
-    public function testBenchmarkWithNullCurrentDoesNotCrash(): void
+    public function testDispatchWorksWithoutDiagnostics(): void
     {
         $container = $this->buildContainer();
         $router = new Router();
@@ -76,28 +75,6 @@ final class DispatchRequestHandlerTest extends TestCase
         $response = $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
 
         self::assertSame('controller', (string) $response->getBody());
-    }
-
-    public function testBenchmarkMarksRouteMatchStartAndRouteMatchedWhenRunExists(): void
-    {
-        $container = $this->buildContainer();
-        $benchmark = new Benchmark();
-        $run = $benchmark->start();
-        $container->singleton(Benchmark::class, $benchmark);
-
-        $router = new Router();
-        $router->get('/demo', \Lemonade\Framework\Routing\ControllerAction::for(DispatchTestController::class, 'index'));
-
-        $handler = $this->buildHandler($router, $container);
-        $handler->handle((new Psr17Factory())->createServerRequest('GET', '/demo'));
-
-        $names = array_map(
-            static fn(array $mark): string => $mark['name'],
-            $run->marks(),
-        );
-
-        self::assertContains('route_match_start', $names);
-        self::assertContains('route_matched', $names);
     }
 
     public function testMatchedRouteContextIsSharedByRouteMiddlewareAndController(): void
@@ -157,26 +134,6 @@ final class DispatchRequestHandlerTest extends TestCase
         }
     }
 
-    public function testMatchedRouteAddsBenchmarkMetadataFromRequestAttributeContract(): void
-    {
-        $container = $this->buildContainer();
-        $benchmark = new Benchmark();
-        $run = $benchmark->start();
-        $container->singleton(Benchmark::class, $benchmark);
-
-        $router = new Router();
-        $router->getNamed('dispatch.context', '/context/{id}', \Lemonade\Framework\Routing\ControllerAction::for(DispatchContextController::class, 'show'));
-
-        $this->buildHandler($router, $container)
-            ->handle((new Psr17Factory())->createServerRequest('GET', '/context/42'));
-
-        $context = $run->toArray()['context'];
-
-        self::assertSame('dispatch.context', $context['route']);
-        self::assertSame(DispatchContextController::class, $context['controller']);
-        self::assertSame('show', $context['action']);
-    }
-
     public function testMatchedRequestReplacesTheScopeLocalRequestBinding(): void
     {
         $container = $this->buildContainer();
@@ -186,12 +143,10 @@ final class DispatchRequestHandlerTest extends TestCase
 
         $router = new Router();
         $router->get('/context/{id}', \Lemonade\Framework\Routing\ControllerAction::for(DispatchContextController::class, 'show'));
-        $benchmark = $container->get(Benchmark::class);
         $handler = new DispatchRequestHandler(
             router: $router,
-            resolver: new ControllerResolver($scope, $benchmark),
+            resolver: new ControllerResolver($scope),
             middlewareResolver: new MiddlewareResolver($scope),
-            benchmark: $benchmark,
             scope: $scope,
         );
 
@@ -301,7 +256,6 @@ final class DispatchRequestHandlerTest extends TestCase
         $container->singleton(DispatchMiddlewareTwo::class, DispatchMiddlewareTwo::class);
         $container->singleton(DispatchTestController::class, DispatchTestController::class);
         $container->singleton(DispatchContextController::class, DispatchContextController::class);
-        $container->singleton(Benchmark::class, new Benchmark());
 
         return $container;
     }
@@ -310,9 +264,8 @@ final class DispatchRequestHandlerTest extends TestCase
     {
         return new DispatchRequestHandler(
             router: $router,
-            resolver: new ControllerResolver($container, $container->get(Benchmark::class)),
+            resolver: new ControllerResolver($container),
             middlewareResolver: new MiddlewareResolver($container),
-            benchmark: $container->get(Benchmark::class),
         );
     }
 }

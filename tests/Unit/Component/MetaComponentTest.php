@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Component;
 
+use DOMDocument;
+use DOMXPath;
 use Lemonade\Framework\Component\Meta\Config\MetaConfig;
 use Lemonade\Framework\Component\Meta\MetaComponent;
 use Lemonade\Framework\Component\Meta\MetaData;
@@ -11,26 +13,23 @@ use PHPUnit\Framework\TestCase;
 
 final class MetaComponentTest extends TestCase
 {
-    public function testMakeAppliesTypedDefaults(): void
+    public function testMetadataDefaultsKeepExplicitPageValues(): void
     {
-        $component = new MetaComponent(new MetaConfig(
+        $data = (new MetaData(title: 'Article', titleSeparator: ' :: '))->withDefaults(
             websiteName: 'Lemonade',
             charset: 'UTF-8',
             viewport: 'width=device-width, initial-scale=1',
             rating: 'General',
             titleSeparator: ' | ',
-        ));
+        );
 
-        $meta = $component->make((new MetaData())->withTitleSeparator(' :: '));
-        $html = $meta->toHtml();
-
-        self::assertStringContainsString('charset="UTF-8"', $html);
-        self::assertStringContainsString('content="width=device-width, initial-scale=1"', $html);
-        self::assertStringContainsString('content="General"', $html);
-        self::assertStringContainsString('content="Lemonade"', $html);
+        self::assertSame('Article :: Lemonade', $data->getTitle());
+        self::assertSame('UTF-8', $data->getCharset());
+        self::assertSame('width=device-width, initial-scale=1', $data->getViewport());
+        self::assertSame('General', $data->getRating());
     }
 
-    public function testRendersTypedOpenGraphMetadataWithoutReservedCustomDuplicates(): void
+    public function testTypedSocialMetadataOverridesReservedCustomValuesWithoutDuplication(): void
     {
         $component = new MetaComponent(new MetaConfig(
             websiteName: 'Lemonade',
@@ -40,7 +39,8 @@ final class MetaComponentTest extends TestCase
             titleSeparator: ' | ',
         ));
 
-        $html = $component->render(new MetaData(
+        $document = new DOMDocument();
+        $document->loadHTML('<html><head>' . $component->render(new MetaData(
             canonical: 'https://example.test/canonical',
             url: 'https://example.test/current?filter=active',
             type: 'article',
@@ -58,26 +58,28 @@ final class MetaComponentTest extends TestCase
                 'twitter:creator' => '@example',
                 'fb:app_id' => '123',
             ],
-        ));
+        )) . '</head></html>');
+        $xpath = new DOMXPath($document);
 
-        self::assertStringContainsString('<link rel="canonical" href="https://example.test/canonical">', $html);
-        self::assertStringContainsString('<meta property="og:url" content="https://example.test/current?filter=active">', $html);
-        self::assertStringContainsString('<meta property="og:type" content="article">', $html);
-        self::assertStringContainsString('<meta property="og:locale" content="cs_CZ">', $html);
-        self::assertStringContainsString('<meta property="og:image:alt" content="Image &amp; &quot;description&quot;">', $html);
-        self::assertStringContainsString('<meta name="twitter:image:alt" content="Image &amp; &quot;description&quot;">', $html);
-        self::assertSame(1, substr_count($html, 'property="og:url"'));
-        self::assertSame(1, substr_count($html, 'property="og:type"'));
-        self::assertSame(1, substr_count($html, 'property="og:locale"'));
-        self::assertSame(1, substr_count($html, 'property="og:image:alt"'));
-        self::assertSame(1, substr_count($html, 'name="twitter:image:alt"'));
-        self::assertStringContainsString('<meta property="og:site_name" content="Example">', $html);
-        self::assertStringContainsString('<meta name="twitter:card" content="summary_large_image">', $html);
-        self::assertStringContainsString('<meta name="twitter:creator" content="@example">', $html);
-        self::assertStringContainsString('<meta property="fb:app_id" content="123">', $html);
+        self::assertSame('https://example.test/canonical', $xpath->evaluate('string(//link[@rel="canonical"]/@href)'));
+        foreach ([
+            'og:url' => 'https://example.test/current?filter=active',
+            'og:type' => 'article',
+            'og:locale' => 'cs_CZ',
+            'og:image:alt' => 'Image & "description"',
+        ] as $property => $expected) {
+            self::assertSame(1.0, $xpath->evaluate('count(//meta[@property="' . $property . '"])'));
+            self::assertSame($expected, $xpath->evaluate('string(//meta[@property="' . $property . '"]/@content)'));
+        }
+        self::assertSame(1.0, $xpath->evaluate('count(//meta[@name="twitter:image:alt"])'));
+        self::assertSame('Image & "description"', $xpath->evaluate('string(//meta[@name="twitter:image:alt"]/@content)'));
+        self::assertSame('Example', $xpath->evaluate('string(//meta[@property="og:site_name"]/@content)'));
+        self::assertSame('summary_large_image', $xpath->evaluate('string(//meta[@name="twitter:card"]/@content)'));
+        self::assertSame('@example', $xpath->evaluate('string(//meta[@name="twitter:creator"]/@content)'));
+        self::assertSame('123', $xpath->evaluate('string(//meta[@property="fb:app_id"]/@content)'));
     }
 
-    public function testOpenGraphUrlFallsBackToCanonicalAndTypeFallsBackToWebsite(): void
+    public function testOpenGraphUrlAndTypeFallbackToCanonicalAndWebsite(): void
     {
         $component = new MetaComponent(new MetaConfig(
             websiteName: 'Lemonade',
@@ -87,10 +89,12 @@ final class MetaComponentTest extends TestCase
             titleSeparator: ' | ',
         ));
 
-        $html = $component->render(new MetaData(canonical: 'https://example.test/canonical?page=2'));
+        $document = new DOMDocument();
+        $document->loadHTML('<html><head>' . $component->render(new MetaData(canonical: 'https://example.test/canonical?page=2')) . '</head></html>');
+        $xpath = new DOMXPath($document);
 
-        self::assertStringContainsString('<link rel="canonical" href="https://example.test/canonical?page=2">', $html);
-        self::assertStringContainsString('<meta property="og:url" content="https://example.test/canonical?page=2">', $html);
-        self::assertStringContainsString('<meta property="og:type" content="website">', $html);
+        self::assertSame('https://example.test/canonical?page=2', $xpath->evaluate('string(//link[@rel="canonical"]/@href)'));
+        self::assertSame('https://example.test/canonical?page=2', $xpath->evaluate('string(//meta[@property="og:url"]/@content)'));
+        self::assertSame('website', $xpath->evaluate('string(//meta[@property="og:type"]/@content)'));
     }
 }

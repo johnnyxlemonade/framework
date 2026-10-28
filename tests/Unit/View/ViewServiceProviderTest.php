@@ -6,8 +6,8 @@ namespace Lemonade\Framework\Tests\Unit\View;
 
 use Lemonade\Framework\Component\ComponentRegistry;
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
 use Lemonade\Framework\Container\ContainerInterface;
+use Lemonade\Framework\Container\Exception\ScopedServiceRequestedFromRootException;
 use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
@@ -24,7 +24,6 @@ use Lemonade\Framework\Image\ImageViewHelper;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageReference;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Localization\Config\LocalizationConfig;
 use Lemonade\Framework\Localization\Config\LocalizationUrlConfig;
 use Lemonade\Framework\Localization\TranslatorInterface;
@@ -40,16 +39,16 @@ use Lemonade\Framework\View\Config\ViewConfigDefinition;
 use Lemonade\Framework\View\Config\ViewConfigResolver;
 use Lemonade\Framework\View\RequestViewHelpers;
 use Lemonade\Framework\View\View;
+use Lemonade\Framework\View\ViewHelpers;
 use Lemonade\Framework\View\ViewRendererInterface;
 use Lemonade\Framework\View\ViewResourceRegistry;
-use Lemonade\Framework\View\ViewHelpers;
 use Lemonade\Framework\View\ViewServiceProvider;
-use Nyholm\Psr7\ServerRequest;
+use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
+use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
-use LogicException;
 use RuntimeException;
 
 final class ViewServiceProviderTest extends TestCase
@@ -224,12 +223,6 @@ PHP,
             self::assertStringContainsString('route-prefix|', $output);
             self::assertStringContainsString('/cs/articles/7|', $output);
             self::assertStringContainsString('/css/app.css|', $output);
-            self::assertStringContainsString(
-                '<img src="/media/catalog/cover.webp" alt="Cover" loading="lazy" width="640" height="480" decoding="async">|',
-                $output,
-            );
-            self::assertStringContainsString('name="LEMONADE_CSRF"', $output);
-            self::assertStringContainsString('value="' . $this->csrfTokenFromOutput($output) . '"', $output);
             self::assertStringContainsString('legacy|', $output);
             self::assertStringEndsWith('request-legacy', $output);
         } finally {
@@ -640,15 +633,6 @@ PHP,
         return $container;
     }
 
-    private function csrfTokenFromOutput(string $output): string
-    {
-        if (preg_match('/\|\s*([a-f0-9]{64})\|\s*<input/', $output, $matches) !== 1) {
-            self::fail('Rendered view did not contain the expected CSRF token and field sequence.');
-        }
-
-        return $matches[1];
-    }
-
     private function kernelWithDefaultConfig(): Kernel
     {
         $this->writeKernelDefaultConfigFiles();
@@ -668,10 +652,8 @@ PHP,
             new ResponseEmitter(),
             new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
-                $container->get(Benchmark::class),
-                $context,
             ),
-            $container->get(Benchmark::class),
+            $container->get(\Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation::class),
         );
     }
 

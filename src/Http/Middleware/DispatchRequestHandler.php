@@ -6,7 +6,8 @@ namespace Lemonade\Framework\Http\Middleware;
 
 use Lemonade\Framework\Container\ScopedContainerInterface;
 use Lemonade\Framework\Core\ControllerResolver;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Http\HttpCheckpoint;
+use Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation;
 use Lemonade\Framework\Routing\RouteMatch;
 use Lemonade\Framework\Routing\Router;
 use Lemonade\Framework\Routing\RouteRequestAttributes;
@@ -29,7 +30,7 @@ final readonly class DispatchRequestHandler implements RequestHandlerInterface
         private Router $router,
         private ControllerResolver $resolver,
         private MiddlewareResolver $middlewareResolver,
-        private Benchmark $benchmark,
+        private ?HttpInstrumentation $diagnostics = null,
         private ?ScopedContainerInterface $scope = null,
     ) {
     }
@@ -39,17 +40,17 @@ final readonly class DispatchRequestHandler implements RequestHandlerInterface
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $this->markBenchmark('route_match_start');
+        $this->diagnostics?->checkpoint(HttpCheckpoint::RouteMatchStarted);
         $dispatchPath = $request->getAttribute(RouteRequestAttributes::DISPATCH_PATH);
         $match = $request->getAttribute(RouteRequestAttributes::MATCH);
         if (!$match instanceof RouteMatch) {
             $match = $this->router->match($request, is_string($dispatchPath) ? $dispatchPath : null);
         }
-        $this->markBenchmark('route_matched');
+        $this->diagnostics?->checkpoint(HttpCheckpoint::RouteMatched);
 
         $request = $request->withAttribute(RouteRequestAttributes::MATCH, $match);
         $this->scope?->bindScopedInstance(ServerRequestInterface::class, $request);
-        $this->captureBenchmarkRouteMetadata($request);
+        $this->diagnostics?->matched($match);
 
         $handler = new ControllerRequestHandler(
             resolver: $this->resolver,
@@ -62,29 +63,4 @@ final readonly class DispatchRequestHandler implements RequestHandlerInterface
             ->handle($request);
     }
 
-    /**
-     * Records a dispatch milestone only when a benchmark run is active.
-     */
-    private function markBenchmark(string $name): void
-    {
-        $run = $this->benchmark->current();
-        if ($run === null) {
-            return;
-        }
-
-        $run->mark($name);
-    }
-
-    /**
-     * Copies matched-route metadata into the active benchmark context when present.
-     */
-    private function captureBenchmarkRouteMetadata(ServerRequestInterface $request): void
-    {
-        $run = $this->benchmark->current();
-        if ($run === null) {
-            return;
-        }
-
-        BenchmarkMiddleware::captureRouteMetadata($run, $request);
-    }
 }

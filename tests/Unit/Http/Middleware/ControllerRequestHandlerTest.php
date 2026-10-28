@@ -6,7 +6,6 @@ namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
 
 use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Core\ControllerResolver;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Http\Middleware\ControllerRequestHandler;
 use Lemonade\Framework\Routing\RouteMatch;
 use Nyholm\Psr7\Factory\Psr17Factory;
@@ -28,7 +27,7 @@ final class ControllerRequestHandlerTest extends TestCase
         $container->singleton(\Psr\Http\Message\StreamFactoryInterface::class, $factory);
         $container->singleton(ControllerHandlerTestController::class, ControllerHandlerTestController::class);
 
-        $resolver = new ControllerResolver($container, new Benchmark());
+        $resolver = new ControllerResolver($container);
         $match = new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ControllerHandlerTestController::class, 'show'), ['id' => '42']);
         $handler = new ControllerRequestHandler($resolver, $match);
         $request = $factory->createServerRequest('GET', '/users/42');

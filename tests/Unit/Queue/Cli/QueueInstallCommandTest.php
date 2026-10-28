@@ -17,6 +17,7 @@ use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSchemaGrammar;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSqlEscaper;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Schema\Schema;
 use Lemonade\Framework\Database\Schema\SchemaCompiler;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
@@ -25,7 +26,6 @@ use Lemonade\Framework\Queue\Config\QueueConfig;
 use Lemonade\Framework\Queue\Config\QueueDatabaseConfig;
 use Lemonade\Framework\Queue\Internal\DatabaseQueueDialect;
 use Lemonade\Framework\Queue\Internal\DatabaseQueueSchemaValidator;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PHPUnit\Framework\TestCase;
 
 final class QueueInstallCommandTest extends TestCase
@@ -146,7 +146,7 @@ final class QueueInstallCommandTest extends TestCase
             'dialect' => 'sqlite',
             'dsn' => 'sqlite::memory:',
         ]);
-        $connection = new PdoConnection($config, new Benchmark());
+        $connection = new PdoConnection($config, new DatabaseInstrumentation());
         $schema = $this->pdoSqliteSchema($config, $connection);
         $identifierEscaper = new SqliteIdentifierEscaper($config->prefix());
         $db = new PdoDatabaseDriver(
@@ -189,7 +189,7 @@ final class QueueInstallCommandTest extends TestCase
     public function testExistingPreLeaseTableIsRejectedWithoutAutomaticAlter(): void
     {
         $config = $this->sqliteConfig();
-        $connection = new PdoConnection($config, new Benchmark());
+        $connection = new PdoConnection($config, new DatabaseInstrumentation());
         $connection->statement(
             'CREATE TABLE system_queue_job ('
             . 'id INTEGER PRIMARY KEY AUTOINCREMENT, queue_name TEXT NOT NULL, payload TEXT NOT NULL, '
@@ -448,7 +448,7 @@ final class QueueInstallCommandConnectionStub implements ConnectionInterface
 
         if (str_starts_with($sql, 'PRAGMA table_info')) {
             return array_map(
-                static fn (string $name): array => ['name' => $name],
+                static fn(string $name): array => ['name' => $name],
                 [
                     'id',
                     'job_id',
@@ -484,11 +484,17 @@ final class QueueInstallCommandConnectionStub implements ConnectionInterface
         return 0;
     }
 
-    public function beginTransaction(): void {}
+    public function beginTransaction(): void
+    {
+    }
 
-    public function commit(): void {}
+    public function commit(): void
+    {
+    }
 
-    public function rollBack(): void {}
+    public function rollBack(): void
+    {
+    }
 
     public function inTransaction(): bool
     {
@@ -510,9 +516,13 @@ final class QueueInstallCommandConnectionStub implements ConnectionInterface
         return 0;
     }
 
-    public function reconnect(): void {}
+    public function reconnect(): void
+    {
+    }
 
-    public function close(): void {}
+    public function close(): void
+    {
+    }
 
     public function serverVersion(): string
     {

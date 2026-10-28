@@ -7,7 +7,6 @@ namespace Lemonade\Framework\Core\Health;
 use Lemonade\Framework\Api\Config\ApiConfig;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Http\Config\CorsConfig;
-use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
 
 /**
  * Carries the immutable configuration subset required by the pre-bootstrap health fast path.
@@ -15,13 +14,12 @@ use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
 final readonly class FrameworkHealthConfigSnapshot
 {
     /**
-     * Captures resolved API, application, CORS and benchmark policies as one atomic snapshot.
+     * Captures resolved API, application and CORS policies as one atomic snapshot.
      */
     public function __construct(
         private ApiConfig $api,
         private AppConfig $app,
         private ?CorsConfig $cors,
-        private BenchmarkConfig $benchmark,
     ) {
     }
 
@@ -49,11 +47,4 @@ final readonly class FrameworkHealthConfigSnapshot
         return $this->cors;
     }
 
-    /**
-     * Returns benchmark response-injection settings for the fast path.
-     */
-    public function benchmark(): BenchmarkConfig
-    {
-        return $this->benchmark;
-    }
 }

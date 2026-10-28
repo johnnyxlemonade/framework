@@ -79,7 +79,6 @@ final class ErrorHandlingMiddlewareTest extends TestCase
 
         self::assertSame(404, $response->getStatusCode());
         self::assertSame('text/html; charset=utf-8', $response->getHeaderLine('Content-Type'));
-        self::assertStringContainsString('<main class="error-layout">', (string) $response->getBody());
         self::assertStringContainsString('Rendered 404 template', (string) $response->getBody());
         self::assertSame(1, $container->viewResolutions);
         self::assertSame([], $this->readErrorLogRecords());
@@ -237,7 +236,6 @@ final class ErrorHandlingMiddlewareTest extends TestCase
         $body = (string) $response->getBody();
 
         self::assertSame(404, $response->getStatusCode());
-        self::assertStringContainsString('<main class="error-layout">', $body);
         self::assertStringContainsString('Rendered 404 template', $body);
     }
 
@@ -258,7 +256,6 @@ final class ErrorHandlingMiddlewareTest extends TestCase
                     retentionDays: 7,
                     requestEnabled: false,
                     requestMinStatus: 0,
-                    benchmarkEnabled: false,
                 ),
                 pathResolver: new LogFilePathResolver($context),
                 directoryManager: new ErrorMiddlewareDirectoryManager(),

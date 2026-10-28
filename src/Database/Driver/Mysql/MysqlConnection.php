@@ -7,7 +7,7 @@ namespace Lemonade\Framework\Database\Driver\Mysql;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use mysqli;
 use mysqli_driver;
 use mysqli_result;
@@ -15,7 +15,7 @@ use mysqli_stmt;
 use Throwable;
 
 /**
- * Owns a lazily connected MySQLi session, parameter binding, transaction state, and benchmark instrumentation.
+ * Owns a lazily connected MySQLi session, parameter binding, transaction state, and optional database instrumentation.
  */
 final class MysqlConnection implements ConnectionInterface, MysqlConnectionInterface
 {
@@ -26,12 +26,11 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
     private bool $transactionActive = false;
 
     /**
-     * Creates a lazy MySQLi adapter from normalized connection settings and shared benchmark instrumentation.
+     * Creates a lazy MySQLi adapter from normalized connection settings and shared optional database instrumentation.
      */
     public function __construct(
         private readonly DatabaseConfig $config,
-        private readonly Benchmark $benchmark,
-        private readonly bool $captureQueryDetails = false,
+        private readonly DatabaseInstrumentation $instrumentation = new DatabaseInstrumentation(),
     ) {
     }
 
@@ -48,44 +47,42 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-        $startedAt = microtime(true);
+        return $this->instrumentation->connection(function (): mysqli {
+            try {
+                $driver = new mysqli_driver();
+                $driver->report_mode = MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT;
 
-        try {
-            $driver = new mysqli_driver();
-            $driver->report_mode = MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT;
+                $connection = mysqli_init();
 
-            $connection = mysqli_init();
+                if (!$connection instanceof mysqli) {
+                    throw DatabaseException::connectionFailed('Unable to initialize mysqli.');
+                }
 
-            if (!$connection instanceof mysqli) {
-                throw DatabaseException::connectionFailed('Unable to initialize mysqli.');
+                $connection->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
+
+                $host = $this->config->persistent()
+                    ? 'p:' . $this->config->host()
+                    : $this->config->host();
+
+                $connection->real_connect(
+                    hostname: $host,
+                    username: $this->config->username(),
+                    password: $this->config->password(),
+                    database: $this->config->database(),
+                    port: $this->config->port(),
+                );
+
+                $connection->set_charset($this->config->charset());
+
+                $this->configureSession($connection);
+
+                $this->connection = $connection;
+
+                return $this->connection;
+            } catch (Throwable $exception) {
+                throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
             }
-
-            $connection->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
-
-            $host = $this->config->persistent()
-                ? 'p:' . $this->config->host()
-                : $this->config->host();
-
-            $connection->real_connect(
-                hostname: $host,
-                username: $this->config->username(),
-                password: $this->config->password(),
-                database: $this->config->database(),
-                port: $this->config->port(),
-            );
-
-            $connection->set_charset($this->config->charset());
-
-            $this->configureSession($connection);
-
-            $this->connection = $connection;
-
-            return $this->connection;
-        } catch (Throwable $exception) {
-            throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
-        } finally {
-            $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
-        }
+        });
     }
 
     /**
@@ -95,49 +92,43 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
      */
     public function execute(string $sql, array $bindings = []): MysqlExecutionResult
     {
-        $startedAt = 0.0;
-
         try {
             $connection = $this->mysqli();
-            $startedAt = microtime(true);
-
-            if ($bindings === []) {
-                $result = $connection->query($sql);
-
-                $this->affectedRows = (int) $connection->affected_rows;
-
-                return new MysqlExecutionResult(
-                    result: $result,
-                    affectedRows: $this->affectedRows,
-                    insertId: $this->mysqli()->insert_id,
-                );
-            }
-
-            $statement = $this->executePrepared($sql, $bindings);
-            $result = $statement->get_result();
-
-            $this->affectedRows = (int) $statement->affected_rows;
-            $insertId = $connection->insert_id;
-
-            $statement->close();
-
-            return new MysqlExecutionResult(
-                result: $result instanceof mysqli_result ? $result : true,
-                affectedRows: $this->affectedRows,
-                insertId: $insertId,
-            );
         } catch (Throwable $exception) {
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
-        } finally {
-            if ($startedAt > 0.0) {
-                $this->benchmark->recordDatabaseQuery(
-                    $sql,
-                    $bindings,
-                    (microtime(true) - $startedAt) * 1000,
-                    $this->captureQueryDetails,
-                );
-            }
         }
+
+        return $this->instrumentation->query($sql, function () use ($connection, $sql, $bindings): MysqlExecutionResult {
+            try {
+                if ($bindings === []) {
+                    $result = $connection->query($sql);
+
+                    $this->affectedRows = (int) $connection->affected_rows;
+
+                    return new MysqlExecutionResult(
+                        result: $result,
+                        affectedRows: $this->affectedRows,
+                        insertId: $this->mysqli()->insert_id,
+                    );
+                }
+
+                $statement = $this->executePrepared($sql, $bindings);
+                $result = $statement->get_result();
+
+                $this->affectedRows = (int) $statement->affected_rows;
+                $insertId = $connection->insert_id;
+
+                $statement->close();
+
+                return new MysqlExecutionResult(
+                    result: $result instanceof mysqli_result ? $result : true,
+                    affectedRows: $this->affectedRows,
+                    insertId: $insertId,
+                );
+            } catch (Throwable $exception) {
+                throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
+            }
+        });
     }
 
     /**

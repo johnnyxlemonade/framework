@@ -10,13 +10,12 @@ namespace Lemonade\Framework\Core\Logging\Config;
 final readonly class LoggingConfig
 {
     /**
-     * Initializes shared retention and optional request and benchmark logging policies.
+     * Initializes shared retention and optional request logging policies.
      */
     public function __construct(
         private int $retentionDays,
         private bool $requestEnabled,
         private int $requestMinStatus,
-        private bool $benchmarkEnabled,
     ) {
     }
 
@@ -42,13 +41,5 @@ final readonly class LoggingConfig
     public function requestMinStatus(): int
     {
         return $this->requestMinStatus;
-    }
-
-    /**
-     * Reports whether completed benchmark runs are written to their dedicated channel.
-     */
-    public function benchmarkEnabled(): bool
-    {
-        return $this->benchmarkEnabled;
     }
 }

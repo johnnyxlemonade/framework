@@ -8,8 +8,8 @@ use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Driver\Mysql\MysqlIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Queue\Exception\QueueLeaseLostException;
 use Lemonade\Framework\Queue\Internal\DatabaseQueueDialect;
 use Lemonade\Framework\Queue\Internal\DatabaseQueueSchemaValidator;
@@ -113,7 +113,7 @@ final class DatabaseQueueTransportMysqlTest extends TestCase
 
     private function connection(): PdoConnection
     {
-        return new PdoConnection($this->config(), new Benchmark());
+        return new PdoConnection($this->config(), new DatabaseInstrumentation());
     }
 
     private function config(): DatabaseConfig

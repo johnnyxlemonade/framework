@@ -9,8 +9,8 @@ use Lemonade\Framework\Database\Driver\Mysql\MysqlIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PHPUnit\Framework\TestCase;
 
 final class PdoDatabaseDriverTest extends TestCase
@@ -24,7 +24,7 @@ final class PdoDatabaseDriverTest extends TestCase
         ]);
 
         $driver = new PdoDatabaseDriver(
-            connection: new PdoConnection($config, new Benchmark()),
+            connection: new PdoConnection($config, new DatabaseInstrumentation()),
             identifierEscaper: new MysqlIdentifierEscaper($config->prefix()),
             identifierProtector: new IdentifierProtector(new MysqlIdentifierEscaper($config->prefix())),
         );
@@ -44,7 +44,7 @@ final class PdoDatabaseDriverTest extends TestCase
         ]);
 
         $driver = new PdoDatabaseDriver(
-            connection: new PdoConnection($config, new Benchmark()),
+            connection: new PdoConnection($config, new DatabaseInstrumentation()),
             identifierEscaper: new MysqlIdentifierEscaper($config->prefix()),
             identifierProtector: new IdentifierProtector(new MysqlIdentifierEscaper($config->prefix())),
         );
@@ -63,7 +63,7 @@ final class PdoDatabaseDriverTest extends TestCase
         ]);
 
         $driver = new PdoDatabaseDriver(
-            connection: new PdoConnection($config, new Benchmark()),
+            connection: new PdoConnection($config, new DatabaseInstrumentation()),
             identifierEscaper: new SqliteIdentifierEscaper($config->prefix()),
             identifierProtector: new IdentifierProtector(new SqliteIdentifierEscaper($config->prefix())),
         );
@@ -81,7 +81,7 @@ final class PdoDatabaseDriverTest extends TestCase
         ]);
         $escaper = new SqliteIdentifierEscaper('');
         $driver = new PdoDatabaseDriver(
-            connection: new PdoConnection($config, new Benchmark()),
+            connection: new PdoConnection($config, new DatabaseInstrumentation()),
             identifierEscaper: $escaper,
             identifierProtector: new IdentifierProtector($escaper),
         );

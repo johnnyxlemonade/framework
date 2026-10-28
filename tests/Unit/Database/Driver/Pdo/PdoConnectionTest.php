@@ -9,8 +9,11 @@ use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Exception\DatabaseException;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Database\Instrumentation\DatabaseObserverInterface;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseMeasurements;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use RuntimeException;
@@ -30,7 +33,7 @@ final class PdoConnectionTest extends TestCase
             'driver' => 'pdo',
             'database' => '',
             'dsn' => '',
-        ]), new Benchmark());
+        ]), new DatabaseInstrumentation());
 
         $this->expectException(DatabaseException::class);
         $this->expectExceptionMessage('PDO requires "dsn" or non-empty "database"');
@@ -144,44 +147,77 @@ final class PdoConnectionTest extends TestCase
         );
     }
 
-    public function testBenchmarkCapturesDirectSelectStatementAndCursorExecutions(): void
+    public function testInstrumentationCapturesDirectSelectStatementAndCursorExactlyOnce(): void
     {
-        $benchmark = new Benchmark();
-        $connection = new PdoConnection(
-            DatabaseConfig::fromArray([
-                'driver' => 'pdo',
-                'dsn' => 'sqlite::memory:',
-            ]),
-            $benchmark,
+        $instrumentation = new DatabaseInstrumentation();
+        $connection = new PdoConnection(DatabaseConfig::fromArray([
+            'driver' => 'pdo',
+            'dsn' => 'sqlite::memory:',
+        ]), $instrumentation);
+        $this->prepareUsers($connection);
+        $observer = $this->createMock(DatabaseObserverInterface::class);
+        $observer->expects(self::exactly(3))->method('queryCompleted')->with(
+            self::isType('string'),
+            self::greaterThanOrEqual(0.0),
             true,
         );
-        $this->prepareUsers($connection);
-        $run = $benchmark->start();
+        $observer->expects(self::never())->method('connectionCompleted');
+        $first = $instrumentation->collect(function (DatabaseMeasurements $measurements) use ($connection): DatabaseMeasurements {
+            $connection->select('SELECT id FROM users WHERE name = ?', ['Alice']);
+            $connection->statement('UPDATE users SET name = ? WHERE id = ?', ['Alice', 1]);
+            iterator_to_array($connection->cursor('SELECT id FROM users'));
+            return $measurements;
+        }, $observer);
+        self::assertSame(3, $first->queryCount());
+        self::assertGreaterThan(0.0, $first->queryMs());
+        $second = $instrumentation->collect(function (DatabaseMeasurements $measurements) use ($connection): DatabaseMeasurements {
+            $connection->select('SELECT 1');
+            return $measurements;
+        });
+        self::assertSame(1, $second->queryCount());
+        self::assertSame(3, $first->queryCount());
+        $connection->select('SELECT 2');
+        self::assertSame(1, $second->queryCount());
+    }
 
-        $connection->select('SELECT id FROM users WHERE name = ?', ['Alice']);
-        $connection->statement('UPDATE users SET name = ? WHERE id = ?', ['Alice', 1]);
-        iterator_to_array($connection->cursor('SELECT id FROM users'));
+    public function testLazyConnectionIsMeasuredSeparatelyFromSql(): void
+    {
+        $instrumentation = new DatabaseInstrumentation();
+        $connection = new PdoConnection(DatabaseConfig::fromArray([
+            'driver' => 'pdo', 'dsn' => 'sqlite::memory:',
+        ]), $instrumentation);
+        $observer = $this->createMock(DatabaseObserverInterface::class);
+        $observer->expects(self::once())->method('connectionCompleted')->with(self::greaterThan(0.0), true);
+        $observer->expects(self::once())->method('queryCompleted')->with('SELECT 1', self::greaterThan(0.0), true);
+        $instrumentation->collect(function (DatabaseMeasurements $measurements) use ($connection): void {
+            self::assertSame(0, $measurements->queryCount());
+            $connection->select('SELECT 1');
+            self::assertSame(1, $measurements->queryCount());
+        }, $observer);
+    }
 
-        $database = $run->database();
-
-        self::assertSame(3, $database['query_count']);
-        self::assertCount(3, $database['queries']);
-        self::assertSame('SELECT id FROM users WHERE name = ?', $database['queries'][0]['sql']);
-        self::assertSame(['Alice'], $database['queries'][0]['bindings']);
-
-        $lazyBenchmark = new Benchmark();
-        $lazyConnection = new PdoConnection(
-            DatabaseConfig::fromArray([
-                'driver' => 'pdo',
-                'dsn' => 'sqlite::memory:',
-            ]),
-            $lazyBenchmark,
-        );
-        $lazyRun = $lazyBenchmark->start();
-        $lazyConnection->select('SELECT 1');
-
-        self::assertGreaterThan(0.0, $lazyRun->database()['connection_ms']);
-        self::assertSame(1, $lazyRun->database()['query_count']);
+    public function testObserverFailureDoesNotReplaceQueryResultsOrDatabaseExceptions(): void
+    {
+        $instrumentation = new DatabaseInstrumentation();
+        $connection = new PdoConnection(DatabaseConfig::fromArray([
+            'driver' => 'pdo', 'dsn' => 'sqlite::memory:',
+        ]), $instrumentation);
+        $observer = $this->createMock(DatabaseObserverInterface::class);
+        $observer->expects(self::once())->method('queryCompleted')->willThrowException(new RuntimeException('Observer failure'));
+        $instrumentation->collect(function (DatabaseMeasurements $measurements) use ($connection): void {
+            self::assertSame([['value' => 'secret']], $connection->select(
+                'SELECT :value AS value',
+                ['value' => 'secret'],
+            ));
+            try {
+                $connection->select('SELECT * FROM missing_observer_test_table');
+                self::fail('The failed SQL statement must still throw.');
+            } catch (DatabaseException $exception) {
+                self::assertInstanceOf(PDOException::class, $exception->getPrevious());
+                self::assertStringContainsString('missing_observer_test_table', $exception->getMessage());
+            }
+            self::assertSame(2, $measurements->queryCount());
+        }, $observer);
     }
 
     public function testPdoOptionsAreNormalizedAndMergedWithDefaults(): void
@@ -195,7 +231,7 @@ final class PdoConnectionTest extends TestCase
                 PDO::ATTR_EMULATE_PREPARES => true,
                 PDO::ATTR_PERSISTENT => false,
             ],
-        ]), new Benchmark());
+        ]), new DatabaseInstrumentation());
 
         $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
 
@@ -219,7 +255,7 @@ final class PdoConnectionTest extends TestCase
                 'foo' => 'bar',
                 (string) PDO::ATTR_TIMEOUT => 3,
             ],
-        ]), new Benchmark());
+        ]), new DatabaseInstrumentation());
 
         $method = new ReflectionMethod(PdoConnection::class, 'resolveOptions');
 
@@ -236,7 +272,7 @@ final class PdoConnectionTest extends TestCase
             'driver' => 'pdo',
             'dsn' => 'sqlite::memory:',
             'options' => [],
-        ]), new Benchmark());
+        ]), new DatabaseInstrumentation());
     }
 
     private function prepareUsers(PdoConnection $connection): void

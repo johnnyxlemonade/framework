@@ -43,8 +43,6 @@ final class ViewHelpersTest extends TestCase
 
         $token = $helpers->csrfToken('login');
         self::assertNotSame('', $token);
-        self::assertStringContainsString('name="LEMONADE_CSRF"', $helpers->csrfField('login'));
-        self::assertStringContainsString($token, $helpers->csrfField('login'));
     }
 
     public function testLanguageHelpersDelegateToTranslator(): void

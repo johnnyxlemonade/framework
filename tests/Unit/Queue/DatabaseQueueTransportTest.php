@@ -4,22 +4,22 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Queue;
 
-use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
+use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
 use Lemonade\Framework\Database\DatabaseResultInterface;
 use Lemonade\Framework\Database\Driver\Pdo\PdoConnection;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Queue\Exception\QueueLeaseLostException;
+use Lemonade\Framework\Queue\Internal\DatabaseQueueDialect;
+use Lemonade\Framework\Queue\Internal\DatabaseQueueSchemaValidator;
 use Lemonade\Framework\Queue\MessageCodecInterface;
 use Lemonade\Framework\Queue\MessageCodecRegistry;
 use Lemonade\Framework\Queue\MessageSerializer;
 use Lemonade\Framework\Queue\QueuedMessage;
-use Lemonade\Framework\Queue\Exception\QueueLeaseLostException;
-use Lemonade\Framework\Queue\Internal\DatabaseQueueDialect;
-use Lemonade\Framework\Queue\Internal\DatabaseQueueSchemaValidator;
 use Lemonade\Framework\Queue\Transport\DatabaseQueueTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -54,7 +54,7 @@ final class DatabaseQueueTransportTest extends TestCase
 
         self::assertInstanceOf(QueuedMessage::class, $reserved);
         $row = $connection->select(
-            "SELECT reservation_token, available_at, reserved_at, reserved_until, created_at, "
+            'SELECT reservation_token, available_at, reserved_at, reserved_until, created_at, '
             . "CAST(strftime('%s', 'now') AS INTEGER) AS database_now "
             . 'FROM system_queue_job',
         )[0];
@@ -220,7 +220,7 @@ final class DatabaseQueueTransportTest extends TestCase
     public function testConnectionFailureDuringClaimRollsBackReservation(): void
     {
         $config = $this->databaseConfig();
-        $inner = new PdoConnection($config, new Benchmark());
+        $inner = new PdoConnection($config, new DatabaseInstrumentation());
         $this->createSchema($inner);
         $connection = new FailingReservationConnection($inner);
         $escaper = new SqliteIdentifierEscaper('');
@@ -357,7 +357,7 @@ final class DatabaseQueueTransportTest extends TestCase
             'dialect' => 'sqlite',
             'dsn' => 'sqlite::memory:',
         ]);
-        $connection = new PdoConnection($config, new Benchmark());
+        $connection = new PdoConnection($config, new DatabaseInstrumentation());
         $this->createSchema($connection);
 
         return [
@@ -793,7 +793,7 @@ final class FailingReservationConnection implements ConnectionInterface
 
     public function transaction(callable $callback): mixed
     {
-        return $this->inner->transaction(fn (): mixed => $callback($this));
+        return $this->inner->transaction(fn(): mixed => $callback($this));
     }
 
     public function lastInsertId(): int|string|null

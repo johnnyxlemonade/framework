@@ -41,7 +41,6 @@ final class LogFilePathResolverTest extends TestCase
         self::assertSame($this->logPath('app.log'), $resolver->resolve('app'));
         self::assertSame($this->logPath('error.log'), $resolver->resolve('error'));
         self::assertSame($this->logPath('request.log'), $resolver->resolve('request'));
-        self::assertSame($this->logPath('benchmark.log'), $resolver->resolve('benchmark'));
         self::assertDirectoryDoesNotExist(dirname($this->logPath('app.log')));
     }
 

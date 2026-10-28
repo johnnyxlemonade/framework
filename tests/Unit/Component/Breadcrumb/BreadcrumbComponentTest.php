@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Component\Breadcrumb;
 
+use DOMDocument;
+use DOMXPath;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbComponent;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbRenderer;
 use Lemonade\Framework\Component\Breadcrumb\BreadcrumbServiceProvider;
@@ -37,18 +39,20 @@ final class BreadcrumbComponentTest extends TestCase
 
         $html = (new BreadcrumbRenderer())->render($trail);
 
-        self::assertStringContainsString('class="breadcrumb"', $html);
-        self::assertStringContainsString('href="/search?q=&lt;term&gt;&amp;page=1"', $html);
-        self::assertStringContainsString('&lt;Home &amp;&gt;', $html);
-        self::assertStringContainsString('class="breadcrumb-item active"', $html);
-        self::assertStringContainsString('aria-current="page"', $html);
-        self::assertStringNotContainsString('href="/current"', $html);
-        self::assertStringContainsString('content="1"', $html);
-        self::assertStringContainsString('content="2"', $html);
-        self::assertLessThan(
-            strpos($html, 'content="2"'),
-            strpos($html, 'content="1"'),
-        );
+        $document = new DOMDocument();
+        $previousErrorHandling = libxml_use_internal_errors(true);
+        $document->loadHTML($html);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousErrorHandling);
+        $xpath = new DOMXPath($document);
+
+        self::assertSame(0, $document->getElementsByTagName('home')->length);
+        self::assertSame(0, $document->getElementsByTagName('term')->length);
+        self::assertSame('<Home &>', $xpath->evaluate('string((//ol/li)[1]//span[@itemprop="name"])'));
+        self::assertSame('/search?q=<term>&page=1', $xpath->evaluate('string((//ol/li)[1]/a/@href)'));
+        self::assertSame('Current <page>', $xpath->evaluate('string((//ol/li)[2]/span[@itemprop="name"])'));
+        self::assertSame(0.0, $xpath->evaluate('count((//ol/li)[2]/a)'));
+        self::assertSame('page', $xpath->evaluate('string((//ol/li)[2]/span/@aria-current)'));
     }
 
     public function testServiceProviderResolvesComponentWithoutBreadcrumbConfig(): void

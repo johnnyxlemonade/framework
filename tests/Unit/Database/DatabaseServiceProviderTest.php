@@ -19,9 +19,9 @@ use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseDriver;
 use Lemonade\Framework\Database\Driver\Pdo\PdoDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteDatabaseServiceProvider;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Model;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -31,7 +31,7 @@ final class DatabaseServiceProviderTest extends TestCase
     {
         $container = new Container();
         $config = $this->config();
-        $connection = new PdoConnection($config, new Benchmark());
+        $connection = new PdoConnection($config, new DatabaseInstrumentation());
         (new DatabaseServiceProvider())->register($container);
         (new PdoDatabaseServiceProvider())->register($container);
         (new SqliteDatabaseServiceProvider())->register($container);
@@ -55,7 +55,7 @@ final class DatabaseServiceProviderTest extends TestCase
         $database = $container->get(Database::class);
         /** @var DatabaseDriverInterface $resolvedDriver */
         $resolvedDriver = $container->get(DatabaseDriverInterface::class);
-        $model = new class($resolvedDriver) extends Model {
+        $model = new class ($resolvedDriver) extends Model {
             protected string $table = 'framework_model_transaction_records';
 
             /** @var list<string> */
@@ -104,8 +104,8 @@ final class DatabaseServiceProviderTest extends TestCase
     {
         $container = new Container();
         $config = $this->config();
-        $benchmark = new Benchmark();
-        $connection = new PdoConnection($config, $benchmark);
+        $instrumentation = new DatabaseInstrumentation();
+        $connection = new PdoConnection($config, $instrumentation);
         $driver = $this->driver($connection);
         $registry = new DatabaseDriverRegistry();
         $registry->registerDriver(
@@ -119,7 +119,7 @@ final class DatabaseServiceProviderTest extends TestCase
             },
         );
         $factory = new DatabaseFactory(
-            new ConnectionFactory($benchmark),
+            new ConnectionFactory($instrumentation),
             $registry,
             $container,
         );
@@ -157,5 +157,7 @@ final class DatabaseServiceProviderTest extends TestCase
 
 final readonly class ContextualDatabaseConsumer
 {
-    public function __construct(public Database $database) {}
+    public function __construct(public Database $database)
+    {
+    }
 }

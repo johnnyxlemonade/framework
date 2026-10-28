@@ -10,7 +10,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Provides framework-owned app, error, request and benchmark log channels.
+ * Provides framework-owned app, error and request log channels.
  */
 final class LogManager
 {
@@ -54,14 +54,6 @@ final class LogManager
     }
 
     /**
-     * Returns the optional benchmark file channel or a null logger when disabled.
-     */
-    public function benchmark(): LoggerInterface
-    {
-        return $this->logger('benchmark');
-    }
-
-    /**
      * Reports whether a built-in channel writes records under the active policy.
      */
     public function enabled(string $channel, bool $default = false): bool
@@ -69,7 +61,6 @@ final class LogManager
         return match ($channel) {
             'app', 'error' => true,
             'request' => $this->config->requestEnabled(),
-            'benchmark' => $this->config->benchmarkEnabled(),
             default => $default,
         };
     }

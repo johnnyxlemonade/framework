@@ -7,7 +7,6 @@ namespace Lemonade\Framework\Database;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
 use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
-use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Config\DatabaseConfigDefinition;
 use Lemonade\Framework\Database\Config\DatabaseConfigResolver;
@@ -16,8 +15,8 @@ use Lemonade\Framework\Database\Connection\ConnectionFactory;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Schema\SchemaGrammarInterface;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 
 /**
  * Registers the configured connection, driver, query facade, and schema services.
@@ -29,10 +28,12 @@ final readonly class DatabaseServiceProvider implements ServiceProviderInterface
      */
     public function register(ContainerBuilderInterface $container): void
     {
+        if (!$container->isBound(DatabaseInstrumentation::class)) {
+            $container->singleton(DatabaseInstrumentation::class, DatabaseInstrumentation::class);
+        }
         $container->set(ConnectionFactory::class, static function (ContainerInterface $container): ConnectionFactory {
             return new ConnectionFactory(
-                benchmark: $container->get(Benchmark::class),
-                captureQueryDetails: $container->get(ApplicationContext::class)->isDebug(),
+                instrumentation: $container->get(DatabaseInstrumentation::class),
             );
         });
         $container->singleton(DatabaseDriverRegistry::class, DatabaseDriverRegistry::class);

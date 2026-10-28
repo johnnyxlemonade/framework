@@ -26,7 +26,6 @@ final class LoggingServiceProviderTest extends TestCase
         $container = $this->container();
         $manager = $container->get(LogManager::class);
         $app = $container->get(LoggerInterface::class);
-        $benchmark = $container->get('log.benchmark');
         $config = $container->get(LoggingConfig::class);
 
         self::assertSame($manager, $container->get(LogManager::class));
@@ -34,10 +33,7 @@ final class LoggingServiceProviderTest extends TestCase
         self::assertSame($app, $container->get(LoggerInterface::class));
         self::assertSame($app, $container->get('log.app'));
         self::assertSame($app, $manager->app());
-        self::assertSame($benchmark, $container->get('log.benchmark'));
-        self::assertSame($benchmark, $manager->benchmark());
         self::assertSame($config, $container->get(LoggingConfig::class));
-        self::assertTrue($config->benchmarkEnabled());
     }
 
     private function container(): Container
@@ -48,7 +44,7 @@ final class LoggingServiceProviderTest extends TestCase
             . bin2hex(random_bytes(8));
         $registry = new ConfigDefinitionRegistry();
         $registry->addDefinition(
-            LoggingConfigDefinition::create()->benchmarkEnabled(),
+            LoggingConfigDefinition::create(),
         );
 
         $container = new Container();

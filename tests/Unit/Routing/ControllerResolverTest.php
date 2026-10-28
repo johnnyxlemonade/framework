@@ -8,12 +8,11 @@ use Lemonade\Framework\Container\Container;
 use Lemonade\Framework\Container\ScopeKind;
 use Lemonade\Framework\Core\ControllerResolver;
 use Lemonade\Framework\Http\Response\Responses;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use Lemonade\Framework\Routing\RouteMatch;
 use Lemonade\Framework\View\ViewRendererInterface;
 use Nyholm\Psr7\Factory\Psr17Factory;
-use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -180,7 +179,7 @@ final class ControllerResolverTest extends TestCase
         $firstRequest = $psr17->createServerRequest('GET', '/first');
         $firstScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
         $firstScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $firstRequest);
-        $firstResponse = (new ControllerResolver($firstScope, new Benchmark()))->handle(
+        $firstResponse = (new ControllerResolver($firstScope))->handle(
             new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithConstructorRequestController::class, 'index')),
             $firstRequest,
         );
@@ -189,7 +188,7 @@ final class ControllerResolverTest extends TestCase
         $secondRequest = $psr17->createServerRequest('GET', '/second');
         $secondScope = $container->beginScope(\Lemonade\Framework\Container\ScopeKind::Request);
         $secondScope->bindScopedInstance(\Psr\Http\Message\ServerRequestInterface::class, $secondRequest);
-        $secondResponse = (new ControllerResolver($secondScope, new Benchmark()))->handle(
+        $secondResponse = (new ControllerResolver($secondScope))->handle(
             new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PlainWithConstructorRequestController::class, 'index')),
             $secondRequest,
         );
@@ -236,7 +235,7 @@ final class ControllerResolverTest extends TestCase
         $scope = $container->beginScope(ScopeKind::Request);
 
         try {
-            $response = (new ControllerResolver($scope, new Benchmark()))->handle(
+            $response = (new ControllerResolver($scope))->handle(
                 new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(ViewRendererController::class, 'index')),
                 $factory->createServerRequest('GET', '/page'),
             );
@@ -307,31 +306,6 @@ final class ControllerResolverTest extends TestCase
         $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(LegacyInvalidReturnController::class, 'index')), $this->request());
     }
 
-    public function testBenchmarkMarksAreEmittedWhenBenchmarkServiceIsBound(): void
-    {
-        $container = new Container();
-        $psr17 = new Psr17Factory();
-        $benchmark = new Benchmark();
-        $benchmark->start();
-
-        $container->singleton(ResponseFactoryInterface::class, $psr17);
-        $container->singleton(StreamFactoryInterface::class, $psr17);
-        $container->singleton(Benchmark::class, $benchmark);
-
-        $resolver = new ControllerResolver($container, $benchmark);
-        $resolver->handle(new RouteMatch(\Lemonade\Framework\Routing\ControllerAction::for(PsrStyleController::class, 'show')), $this->request());
-
-        $run = $benchmark->current();
-        self::assertNotNull($run);
-        $markNames = array_map(static fn(array $mark): string => (string) $mark['name'], $run->marks());
-
-        self::assertContains('controller_resolve_start', $markNames);
-        self::assertContains('controller_resolved', $markNames);
-        self::assertContains('controller_action_start', $markNames);
-        self::assertContains('controller_action_finished', $markNames);
-        self::assertContains('response_created', $markNames);
-    }
-
     private function resolver(): ControllerResolver
     {
         $container = new Container();
@@ -340,7 +314,7 @@ final class ControllerResolverTest extends TestCase
         $container->singleton(ResponseFactoryInterface::class, $psr17);
         $container->singleton(StreamFactoryInterface::class, $psr17);
 
-        return new ControllerResolver($container, new Benchmark());
+        return new ControllerResolver($container);
     }
 
     private function request(): \Psr\Http\Message\ServerRequestInterface
@@ -387,7 +361,8 @@ final class PlainWithDependencyController
 {
     public function __construct(
         private readonly PlainDependencyService $service,
-    ) {}
+    ) {
+    }
 
     public function show(): ResponseInterface
     {
@@ -415,7 +390,8 @@ final class PlainWithConstructorRequestController
 {
     public function __construct(
         private readonly ServerRequestInterface $request,
-    ) {}
+    ) {
+    }
 
     public function index(): ResponseInterface
     {
@@ -441,7 +417,8 @@ final class ResponsesController
 {
     public function __construct(
         private readonly Responses $responses,
-    ) {}
+    ) {
+    }
 
     public function index(): ResponseInterface
     {
@@ -453,7 +430,8 @@ final class ViewRendererController
 {
     public function __construct(
         private readonly ViewRendererInterface $views,
-    ) {}
+    ) {
+    }
 
     public function index(): ResponseInterface
     {
@@ -465,7 +443,8 @@ final class ResolverViewRendererStub implements ViewRendererInterface
 {
     public function __construct(
         private readonly Psr17Factory $factory,
-    ) {}
+    ) {
+    }
 
     public function render(string $template, array $data = [], int $status = 200): ResponseInterface
     {

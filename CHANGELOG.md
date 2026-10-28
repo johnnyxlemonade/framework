@@ -1,5 +1,9 @@
 # Changelog
 
+- Removed the former Benchmark subsystem and its configuration, logging channel and public API.
+  HTTP/SQL diagnostics now use the shared instrumentation exclusively; see
+  [migration guidance](docs/http-diagnostics-foundation.md#migration-from-the-former-benchmark).
+
 - Made the application config manifest optional for zero-config HTTP and CLI bootstrap, treated
   omitted or empty `shared`, `http`, and `cli` sections as empty lists, rejected unknown keys and
   invalid section types, and made explicitly declared missing config files fail clearly across both
@@ -79,8 +83,8 @@ This project has not published tagged releases. This section summarizes notable 
 - Added the opt-in discovery capability for `robots.txt`, sitemap generation, and the sitemap CLI command.
 - Added framework API documentation endpoints and Swagger UI.
 - Added image processing, MIME validation, and configurable image-variant scaling and background policies.
-- Made HTML error presentation environment-driven, centralized PHP diagnostics and fatal-shutdown handling, and limited benchmark response diagnostics to development.
+- Made HTML error presentation environment-driven, centralized PHP diagnostics and fatal-shutdown handling, and kept production error responses generic.
 - **Breaking:** Removed configurable container autowiring. Concrete classes always autowire; interfaces, scalars, and explicit lifecycles require their corresponding explicit bindings.
-- Simplified built-in logging to canonical app, error, request, and benchmark channels with shared retention; request and benchmark file logging remain opt-in.
+- Simplified built-in logging to canonical app, error, and request channels with shared retention; request file logging remains opt-in.
 - **Breaking:** Removed the unused legacy `integrations` configuration module.
 - **Breaking:** Simplified breadcrumbs to a generic caller-owned trail; removed application-specific root modes and breadcrumb configuration.

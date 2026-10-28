@@ -24,7 +24,7 @@ use Lemonade\Framework\Http\Config\HtmlMinifyConfigDefinition;
 use Lemonade\Framework\Http\Config\HttpClientConfigDefinition;
 use Lemonade\Framework\Http\Config\HttpServerConfigDefinition;
 use Lemonade\Framework\Localization\Config\LocalizationConfigDefinition;
-use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigDefinition;
+use Lemonade\Framework\Observability\Http\Config\HttpDiagnosticsConfigDefinition;
 use Lemonade\Framework\Queue\Config\QueueConfigDefinition;
 use Lemonade\Framework\Session\Config\SessionConfigDefinition;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
@@ -57,7 +57,6 @@ final class YamlDefinitionClassMap
         $map->register('Framework', FrameworkConfigDefinition::class);
         $map->register('Providers', ProvidersConfigDefinition::class);
         $map->register('Api', ApiConfigDefinition::class);
-        $map->register('Benchmark', BenchmarkConfigDefinition::class);
         $map->register('Cache', CacheConfigDefinition::class);
         $map->register('Commands', CommandsConfigDefinition::class);
         $map->register('Components', ComponentConfigDefinition::class);
@@ -68,6 +67,7 @@ final class YamlDefinitionClassMap
         $map->register('Events', EventsConfigDefinition::class);
         $map->register('HtmlMinify', HtmlMinifyConfigDefinition::class);
         $map->register('HttpClient', HttpClientConfigDefinition::class);
+        $map->register('HttpDiagnostics', HttpDiagnosticsConfigDefinition::class);
         $map->register('HttpServer', HttpServerConfigDefinition::class);
         $map->register('Localization', LocalizationConfigDefinition::class);
         $map->register('Logging', LoggingConfigDefinition::class);

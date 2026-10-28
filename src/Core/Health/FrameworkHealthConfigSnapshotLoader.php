@@ -15,9 +15,6 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Http\Config\CorsConfig;
 use Lemonade\Framework\Http\Config\CorsConfigDefinition;
 use Lemonade\Framework\Http\Config\CorsConfigResolver;
-use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
-use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigDefinition;
-use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfigResolver;
 
 final class FrameworkHealthConfigSnapshotLoader
 {
@@ -43,7 +40,6 @@ final class FrameworkHealthConfigSnapshotLoader
             api: $apiConfig,
             app: $appConfig,
             cors: $this->resolveCorsConfig($definitions),
-            benchmark: $this->resolveBenchmarkConfig($definitions),
         );
     }
 
@@ -56,7 +52,6 @@ final class FrameworkHealthConfigSnapshotLoader
             ...$this->definitions->entriesFor(ApiConfigDefinition::moduleKey()),
             ...$this->definitions->entriesFor(AppConfigDefinition::moduleKey()),
             ...$this->definitions->entriesFor(CorsConfigDefinition::moduleKey()),
-            ...$this->definitions->entriesFor(BenchmarkConfigDefinition::moduleKey()),
         ];
     }
 
@@ -100,17 +95,6 @@ final class FrameworkHealthConfigSnapshotLoader
 
         /** @var list<CorsConfigDefinition> $resolved */
         return (new CorsConfigResolver())->resolve(...$resolved);
-    }
-
-    /**
-     * @param list<ConfigDefinitionInterface> $definitions
-     */
-    private function resolveBenchmarkConfig(array $definitions): BenchmarkConfig
-    {
-        /** @var list<BenchmarkConfigDefinition> $resolved */
-        $resolved = $this->filterDefinitions($definitions, BenchmarkConfigDefinition::class);
-
-        return (new BenchmarkConfigResolver())->resolve(...$resolved);
     }
 
     /**

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Tests\Unit\Core;
 
 use Lemonade\Framework\Api\Config\ApiConfig;
-use Lemonade\Framework\Cli\CommandInterface;
 use Lemonade\Framework\Cli\CommandContext;
 use Lemonade\Framework\Cli\CommandInput;
+use Lemonade\Framework\Cli\CommandInterface;
 use Lemonade\Framework\Cli\CommandOutput;
 use Lemonade\Framework\Core\CliKernel;
 use Lemonade\Framework\Core\CliKernelFactory;
@@ -15,8 +15,6 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
 use Lemonade\Framework\Core\Context\Environment;
 use Lemonade\Framework\Core\Context\Path;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
 use PHPUnit\Framework\TestCase;
 
 final class CliKernelTest extends TestCase
@@ -36,7 +34,6 @@ final class CliKernelTest extends TestCase
         CliKernelLazyAlphaCommand::reset();
         CliKernelLazyZuluCommand::reset();
         CliKernelScopedCommand::reset();
-        CliKernelBenchmarkCommand::reset();
         $this->writeConfigFile(
             'Config.yaml',
             "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",
@@ -158,25 +155,6 @@ final class CliKernelTest extends TestCase
         self::assertSame(12, $exit);
         self::assertSame(['first', 'second'], CliKernelRecorderCommand::$lastArgs);
         self::assertSame(1, CliKernelRecorderCommand::$runCount);
-    }
-
-    public function testEachHandleInvocationUsesAFreshDetachedBenchmarkRun(): void
-    {
-        $this->writeCommandsConfig([CliKernelBenchmarkCommand::class]);
-        $kernel = $this->kernel();
-
-        self::assertSame(0, $kernel->handle(['bin/lemonade', 'benchmark:capture', 'first']));
-        self::assertNull(CliKernelBenchmarkCommand::$benchmark?->current());
-        self::assertSame(0, $kernel->handle(['bin/lemonade', 'benchmark:capture', 'second']));
-
-        self::assertCount(2, CliKernelBenchmarkCommand::$runs);
-        [$first, $second] = CliKernelBenchmarkCommand::$runs;
-        self::assertNotSame($first, $second);
-        self::assertTrue($first->isStopped());
-        self::assertTrue($second->isStopped());
-        self::assertSame('first', $first->toArray()['context']['command_argument'] ?? null);
-        self::assertSame('second', $second->toArray()['context']['command_argument'] ?? null);
-        self::assertNull(CliKernelBenchmarkCommand::$benchmark?->current());
     }
 
     public function testCommandsConfigFileMustReturnDefinition(): void
@@ -388,6 +366,26 @@ PHP);
         self::assertStringContainsString('<loc>https://example.test/</loc>', $contents);
     }
 
+    public function testRepeatedCommandsDoNotActivateHttpOrSqlMeasurements(): void
+    {
+        $this->writeCommandsConfig([CliKernelRecorderCommand::class]);
+        $container = new \Lemonade\Framework\Container\Container();
+        $context = new ApplicationContext(Environment::Testing, new Path($this->root, $this->root . '/public'), DebugMode::disabled());
+        $this->stdout = $this->createTempStream();
+        $this->stderr = $this->createTempStream();
+        $kernel = (new CliKernelFactory($container, $this->stdout, $this->stderr))->create($context);
+        foreach (['first', 'second'] as $argument) {
+            self::assertSame(12, $kernel->handle(['bin/lemonade', 'recorder', $argument]));
+            self::assertNull($container->get(\Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation::class)->observer());
+        }
+        self::assertSame(2, CliKernelRecorderCommand::$runCount);
+        $container->get(\Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation::class)->collect(
+            static function (\Lemonade\Framework\Database\Instrumentation\Internal\DatabaseMeasurements $measurements): void {
+                self::assertSame(0, $measurements->queryCount());
+            },
+        );
+    }
+
     private function kernel(): CliKernel
     {
         $this->stdout ??= $this->createTempStream();
@@ -545,7 +543,9 @@ final class CliKernelFailingCommand implements CommandInterface
     }
 }
 
-final class CliKernelNotACommand {}
+final class CliKernelNotACommand
+{
+}
 
 final class CliKernelApiConfigProbeCommand implements CommandInterface
 {
@@ -553,7 +553,8 @@ final class CliKernelApiConfigProbeCommand implements CommandInterface
 
     public function __construct(
         private readonly ApiConfig $config,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {
@@ -675,47 +676,5 @@ final class CliKernelScopedCommand implements CommandInterface
         $this->output->errorln('scoped stderr');
 
         return 29;
-    }
-}
-
-final class CliKernelBenchmarkCommand implements CommandInterface
-{
-    /** @var list<BenchmarkRun> */
-    public static array $runs = [];
-
-    public static ?Benchmark $benchmark = null;
-
-    public function __construct(Benchmark $benchmark)
-    {
-        self::$benchmark = $benchmark;
-    }
-
-    public static function reset(): void
-    {
-        self::$runs = [];
-        self::$benchmark = null;
-    }
-
-    public function name(): string
-    {
-        return 'benchmark:capture';
-    }
-
-    public function description(): string
-    {
-        return 'Captures the active benchmark run.';
-    }
-
-    public function run(array $args): int
-    {
-        $run = self::$benchmark?->current();
-        if (!$run instanceof BenchmarkRun) {
-            throw new \LogicException('Expected an active CLI benchmark run.');
-        }
-
-        $run->with('command_argument', $args[0] ?? null);
-        self::$runs[] = $run;
-
-        return 0;
     }
 }

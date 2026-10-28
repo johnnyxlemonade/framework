@@ -177,7 +177,6 @@ final class PhpDiagnosticsTest extends TestCase
                     retentionDays: 7,
                     requestEnabled: false,
                     requestMinStatus: 0,
-                    benchmarkEnabled: false,
                 ),
                 new LogFilePathResolver($context),
                 new DirectoryManager(),

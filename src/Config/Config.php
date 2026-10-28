@@ -8,7 +8,6 @@ return [
         'Framework.php',
         'Container.php',
         'Api.php',
-        'Benchmark.php',
         'HttpClient.php',
         'Discovery.php',
         'Logging.php',

@@ -10,7 +10,8 @@ use Lemonade\Framework\Core\Config\Definition\ConfigDefinitionRegistry;
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Http\HttpDiagnosticsObserverFactoryInterface;
+use Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation;
 
 /**
  * Factory for assembling the HTTP application kernel.
@@ -20,7 +21,7 @@ use Lemonade\Framework\Observability\Benchmark\Benchmark;
  * default container and response emitter, builds a framework runtime for the
  * provided application context, and returns a fully wired kernel instance.
  */
-final class KernelFactory
+final readonly class KernelFactory
 {
     /**
      * Configures optional runtime dependencies used when creating kernels.
@@ -28,11 +29,14 @@ final class KernelFactory
      * The supplied container is reused by both the framework runtime and the
      * resulting kernel. When no container is provided, a default container is
      * created. The supplied emitter is used by {@see Kernel::handle()}, and a
-     * default response emitter is created when none is provided.
+     * default response emitter is created when none is provided. An explicit diagnostics
+     * factory may opt into profiling before configuration. Otherwise only explicitly configured
+     * application providers implementing the observer factory contract can activate profiling.
      */
     public function __construct(
-        private readonly ?ContainerInterface $container = null,
-        private readonly ?ResponseEmitter $emitter = null,
+        private ?ContainerInterface $container = null,
+        private ?ResponseEmitter $emitter = null,
+        private ?HttpDiagnosticsObserverFactoryInterface $diagnostics = null,
     ) {
     }
 
@@ -53,6 +57,7 @@ final class KernelFactory
         $framework = new Framework(
             container: $container,
             context: $context,
+            diagnostics: $this->diagnostics,
         );
 
         return new Kernel(
@@ -62,10 +67,8 @@ final class KernelFactory
             emitter: $this->emitter ?? new ResponseEmitter(),
             healthFastPath: new FrameworkHealthFastPath(
                 $container->get(ConfigDefinitionRegistry::class),
-                $container->get(Benchmark::class),
-                $context,
             ),
-            benchmark: $container->get(Benchmark::class),
+            diagnostics: $container->get(HttpInstrumentation::class),
         );
     }
 }

@@ -39,8 +39,6 @@ use Lemonade\Framework\Http\Middleware\MiddlewareStack;
 use Lemonade\Framework\Image\ImageServiceProvider;
 use Lemonade\Framework\Localization\LocalizationServiceProvider;
 use Lemonade\Framework\Mime\MimeServiceProvider;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
-use Lemonade\Framework\Observability\Benchmark\BenchmarkRun;
 use Lemonade\Framework\Queue\QueueServiceProvider;
 use Lemonade\Framework\RateLimit\RateLimitServiceProvider;
 use Lemonade\Framework\Routing\RoutingServiceProvider;
@@ -49,7 +47,6 @@ use Lemonade\Framework\Session\SessionServiceProvider;
 use Lemonade\Framework\Upload\UploadServiceProvider;
 use Lemonade\Framework\Validation\ValidationServiceProvider;
 use Lemonade\Framework\View\ViewServiceProvider;
-use LogicException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -228,8 +225,6 @@ final class FrameworkTest extends TestCase
         $stack = $framework->container()->get(MiddlewareStack::class);
 
         self::assertSame([
-            \Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class,
-            \Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class,
             \Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class,
             \Lemonade\Framework\Http\Middleware\CorsMiddleware::class,
             \Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class,
@@ -260,9 +255,7 @@ final class FrameworkTest extends TestCase
         $container->singleton(FrameworkStackTerminalMiddleware::class, FrameworkStackTerminalMiddleware::class);
 
         $framework->middleware(static function (MiddlewareStack $stack): void {
-            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
+            $stack->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
@@ -345,7 +338,7 @@ final class FrameworkTest extends TestCase
         }
     }
 
-    public function testRunInScopeRequiresAnOuterBenchmarkLifecycle(): void
+    public function testRunInScopeDispatchesInCallerScope(): void
     {
         $framework = $this->framework();
         $request = (new Psr17Factory())->createServerRequest('GET', '/');
@@ -353,44 +346,11 @@ final class FrameworkTest extends TestCase
         $scope->bindScopedInstance(ServerRequestInterface::class, $request);
 
         try {
-            $this->expectException(LogicException::class);
-            $this->expectExceptionMessage('requires an active benchmark run');
+            $this->expectException(\Lemonade\Framework\Routing\Exception\RouteNotFoundException::class);
             $framework->runInScope($scope, $request);
         } finally {
             $scope->close();
         }
-    }
-
-    public function testStandaloneRunOwnsAndDetachesAFreshBenchmarkLifecycle(): void
-    {
-        FrameworkBenchmarkCaptureMiddleware::reset();
-        $framework = $this->framework();
-        $framework->register(new HttpServiceProvider());
-        $container = $framework->container();
-        $framework->middleware(static function (MiddlewareStack $stack): void {
-            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\OptionsMiddleware::class)
-                ->add(FrameworkBenchmarkCaptureMiddleware::class)
-                ->add(FrameworkStackTerminalMiddleware::class);
-        });
-
-        self::assertSame(200, $framework->run(new \Nyholm\Psr7\ServerRequest('GET', '/first'))->getStatusCode());
-        self::assertNull($container->get(Benchmark::class)->current());
-        self::assertSame(200, $framework->run(new \Nyholm\Psr7\ServerRequest('GET', '/second'))->getStatusCode());
-
-        self::assertCount(2, FrameworkBenchmarkCaptureMiddleware::$runs);
-        self::assertNotSame(
-            FrameworkBenchmarkCaptureMiddleware::$runs[0],
-            FrameworkBenchmarkCaptureMiddleware::$runs[1],
-        );
-        self::assertTrue(FrameworkBenchmarkCaptureMiddleware::$runs[0]->isStopped());
-        self::assertTrue(FrameworkBenchmarkCaptureMiddleware::$runs[1]->isStopped());
-        self::assertNull($container->get(Benchmark::class)->current());
     }
 
     public function testStandaloneRunMapsInvalidRequestMetadataToSafeBadRequest(): void
@@ -403,7 +363,7 @@ final class FrameworkTest extends TestCase
 
         self::assertSame(400, $response->getStatusCode());
         self::assertSame('400 Bad Request', (string) $response->getBody());
-        self::assertNull($framework->container()->get(Benchmark::class)->current());
+        self::assertNull($framework->container()->get(\Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation::class)->observer());
     }
 
     public function testMiddlewareQueuedBeforeHttpServiceProviderRegistrationIsAppliedInRun(): void
@@ -415,9 +375,7 @@ final class FrameworkTest extends TestCase
         $container->singleton(FrameworkQueuedTerminalMiddleware::class, FrameworkQueuedTerminalMiddleware::class);
 
         $framework->middleware(static function (MiddlewareStack $stack): void {
-            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
+            $stack->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
@@ -444,9 +402,7 @@ final class FrameworkTest extends TestCase
         $calls = 0;
         $framework->middleware(static function (MiddlewareStack $stack) use (&$calls): void {
             $calls++;
-            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
+            $stack->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
@@ -472,9 +428,7 @@ final class FrameworkTest extends TestCase
         $container->singleton(FrameworkMutableTraceMiddleware::class, FrameworkMutableTraceMiddleware::class);
 
         $framework->middleware(static function (MiddlewareStack $stack): void {
-            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
+            $stack->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
@@ -508,9 +462,7 @@ final class FrameworkTest extends TestCase
         $container->singleton(FrameworkOrderTerminalMiddleware::class, FrameworkOrderTerminalMiddleware::class);
 
         $framework->middleware(static function (MiddlewareStack $stack): void {
-            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
+            $stack->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
@@ -548,9 +500,7 @@ final class FrameworkTest extends TestCase
         );
 
         $framework->middleware(static function (MiddlewareStack $stack): void {
-            $stack->remove(\Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\BenchmarkMiddleware::class)
-                ->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
+            $stack->remove(\Lemonade\Framework\Http\Middleware\ErrorHandlingMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\CorsMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\PoweredByMiddleware::class)
                 ->remove(\Lemonade\Framework\Http\Middleware\HtmlMinifyMiddleware::class)
@@ -700,34 +650,6 @@ final class FrameworkCorsTerminalMiddleware implements MiddlewareInterface
         $factory = new Psr17Factory();
 
         return $factory->createResponse(200)->withBody($factory->createStream('cors-terminal'));
-    }
-}
-
-final class FrameworkBenchmarkCaptureMiddleware implements MiddlewareInterface
-{
-    /** @var list<BenchmarkRun> */
-    public static array $runs = [];
-
-    public function __construct(
-        private readonly Benchmark $benchmark,
-    ) {
-    }
-
-    public static function reset(): void
-    {
-        self::$runs = [];
-    }
-
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
-    {
-        $run = $this->benchmark->current();
-        if (!$run instanceof BenchmarkRun) {
-            throw new LogicException('Expected an active framework benchmark run.');
-        }
-
-        self::$runs[] = $run;
-
-        return $handler->handle($request);
     }
 }
 

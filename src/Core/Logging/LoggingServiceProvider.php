@@ -41,10 +41,5 @@ final class LoggingServiceProvider implements ServiceProviderInterface
             static fn(ContainerInterface $container): LoggerInterface => $container->get(LogManager::class)->app(),
         );
         $container->alias('log.app', LoggerInterface::class);
-
-        $container->singleton(
-            'log.benchmark',
-            static fn(ContainerInterface $container): LoggerInterface => $container->get(LogManager::class)->benchmark(),
-        );
     }
 }

@@ -14,11 +14,10 @@ use Lemonade\Framework\Core\Diagnostics\PhpDiagnostics;
 use Lemonade\Framework\Core\Health\FrameworkHealthFastPath;
 use Lemonade\Framework\Http\HttpStatus;
 use Lemonade\Framework\Http\Psr\ResponseEmitter;
-use Lemonade\Framework\Http\Psr\ServerRequestFactory;
 use Lemonade\Framework\Http\Request\Exception\InvalidRequestMetadataException;
 use Lemonade\Framework\Http\Request\RequestContextResolver;
 use Lemonade\Framework\Http\Request\ResolvedRequestContext;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation;
 use Lemonade\Framework\Routing\Exception\RouteNotFoundException;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Message\ResponseInterface;
@@ -51,13 +50,13 @@ final class Kernel
         private readonly Framework $framework,
         private readonly ResponseEmitter $emitter,
         private readonly FrameworkHealthFastPath $healthFastPath,
-        private readonly Benchmark $benchmark,
+        private readonly HttpInstrumentation $diagnostics,
     ) {
         $this->bootstrapper = new ApplicationBootstrapper(
             $this->context,
             $this->container,
             $this->framework,
-            $this->benchmark,
+            $this->diagnostics,
         );
     }
 
@@ -95,8 +94,7 @@ final class Kernel
      * dispatch to {@see Framework::runInScope()}.
      * The scope is closed in a finally block. Route-not-found failures are converted
      * to a 404 text response and all other throwables are converted to a 500 text
-     * response. Captured exceptions are recorded in the benchmark; non-routing
-     * failures are logged through the sanitized HTTP boundary. Debug mode may
+     * response. Non-routing failures are logged through the sanitized HTTP boundary. Debug mode may
      * include exception details in the response body.
      *
      * The method does not propagate request failures because it converts them to
@@ -105,98 +103,68 @@ final class Kernel
      */
     public function run(?ServerRequestInterface $request = null): ResponseInterface
     {
-        return $this->runLifecycle($request, 'kernel.run')['response'];
+        return $this->runLifecycle($request);
     }
 
     /**
      * Handles an incoming HTTP request and emits the resulting response.
      *
-     * The method executes the same isolated benchmark and request-scope lifecycle
+     * The method executes the same isolated measurement and request-scope lifecycle
      * as {@see run()} before passing the response to the configured emitter.
      */
     public function handle(?ServerRequestInterface $request = null): void
     {
-        $result = $this->runLifecycle($request, 'kernel.handle');
-
-        $this->emitter->emit(
-            $result['response'],
-            $result['request'],
-        );
+        $response = $this->runLifecycle($request);
+        $this->emitter->emit($response, $request);
     }
 
-    /**
-     * @return array{response: ResponseInterface, request: ServerRequestInterface}
-     */
-    private function runLifecycle(?ServerRequestInterface $request, string $startedAt): array
+    private function runLifecycle(?ServerRequestInterface &$request): ResponseInterface
     {
-        /** @var PhpDiagnostics $phpDiagnostics */
         $phpDiagnostics = $this->container->get(PhpDiagnostics::class);
         $phpDiagnostics->install(sanitizeMessages: true);
-        $this->benchmark->start([
-            'entrypoint' => 'http',
-            'started_at' => $startedAt,
-        ])->mark('kernel_start');
-
-        $request ??= $this->container
-            ->get(ServerRequestFactory::class)
-            ->fromGlobals();
 
         try {
-            $this->bootstrapper->loadConfiguration(BootstrapEntrypoint::Http);
-            $requestContext = $this->container
-                ->get(RequestContextResolver::class)
-                ->resolve($request);
-            $scope = $this->beginRequestScope();
-            $scope->bindScopedInstance(ServerRequestInterface::class, $request);
-            $scope->bindScopedInstance(ResolvedRequestContext::class, $requestContext);
+            return $this->diagnostics->handle(
+                $request,
+                fn() => $this->bootstrapper->loadConfiguration(BootstrapEntrypoint::Http),
+                function (ServerRequestInterface $current): ResponseInterface {
+                    $requestContext = $this->container->get(RequestContextResolver::class)->resolve($current);
+                    $scope = $this->beginRequestScope();
 
-            try {
-                $response = $this->healthFastPath->tryHandle(
-                    $request,
-                );
+                    try {
+                        $scope->bindScopedInstance(ServerRequestInterface::class, $current);
+                        $scope->bindScopedInstance(ResolvedRequestContext::class, $requestContext);
+                        $response = $this->healthFastPath->tryHandle($current);
+                        if ($response !== null) {
+                            return $response;
+                        }
 
-                if ($response instanceof ResponseInterface) {
-                    return [
-                        'response' => $response,
-                        'request' => $request,
-                    ];
-                }
+                        $this->bootstrap();
 
-                $this->bootstrap();
-
-                return [
-                    'response' => $this->framework->runInScope($scope, $request),
-                    'request' => $request,
-                ];
-            } finally {
-                $scope->close();
-            }
-        } catch (InvalidRequestMetadataException $exception) {
-            $this->recordBenchmarkException($exception);
-
-            return [
-                'response' => $this->badRequestResponse(),
-                'request' => $request,
-            ];
-        } catch (RouteNotFoundException $exception) {
-            $this->recordBenchmarkException($exception);
-
-            return [
-                'response' => $this->notFoundResponse($exception),
-                'request' => $request,
-            ];
-        } catch (Throwable $exception) {
-            $this->recordBenchmarkException($exception);
-            $this->logException($exception);
-
-            return [
-                'response' => $this->errorResponse($exception),
-                'request' => $request,
-            ];
+                        return $this->framework->runInScope($scope, $current);
+                    } finally {
+                        $scope->close();
+                    }
+                },
+                fn(Throwable $exception): ResponseInterface => $this->failureResponse($exception),
+            );
         } finally {
-            $this->benchmark->end();
             $phpDiagnostics->uninstall();
         }
+    }
+
+    private function failureResponse(Throwable $exception): ResponseInterface
+    {
+        if ($exception instanceof InvalidRequestMetadataException) {
+            return $this->badRequestResponse();
+        }
+        if ($exception instanceof RouteNotFoundException) {
+            return $this->notFoundResponse($exception);
+        }
+
+        $this->logException($exception);
+
+        return $this->errorResponse($exception);
     }
 
     /**
@@ -233,18 +201,6 @@ final class Kernel
         }
 
         return $this->container->beginScope(ScopeKind::Request);
-    }
-
-    private function recordBenchmarkException(Throwable $exception): void
-    {
-        $run = $this->benchmark->current();
-        if ($run === null || $run->isStopped()) {
-            return;
-        }
-
-        $run->with('exception', $exception::class);
-        $run->mark('kernel_exception');
-        $run->stop();
     }
 
     private function notFoundResponse(RouteNotFoundException $exception): ResponseInterface

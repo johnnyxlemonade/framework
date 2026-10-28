@@ -12,7 +12,6 @@ bin/lemonade
 -> ApplicationContextFactory::fromGlobals()
 -> CliKernelFactory::create()
 -> CliKernel::handle($argv)
-   -> start benchmark run with entrypoint=cli
 -> CliKernel::bootstrap()
    -> load the manifest-selected shared and CLI config definitions
    -> apply runtime app config
@@ -32,7 +31,6 @@ bin/lemonade
    -> resolve only the selected command class from that scope
 -> CommandInterface::run($args)
 -> integer exit code
--> stop and detach the benchmark run
 ```
 
 ## Command example
@@ -83,10 +81,8 @@ config:
 
 Internally this YAML payload is still mapped to `CommandsConfigDefinition` and resolved into runtime `CommandsConfig`.
 
-`Benchmark` remains a root singleton so root-owned services can contribute measurements, but every
-`CliKernel::handle()` invocation starts a fresh `BenchmarkRun` and stops and detaches it in `finally`.
-Repeated command dispatches through the same kernel therefore do not share benchmark context or
-database measurements.
+CLI does not create HTTP diagnostics or automatic SQL capture. Command scopes still close in
+`finally`, including when command execution throws.
 
 The legacy class-string entry is still accepted, but it constructs the command to obtain its metadata. Prefer the definition mapping so list and help remain lazy. When `CliKernel` runs a known command, it creates an isolated `Command` scope, binds `CommandContext`, `CommandInput` and `CommandOutput`, and closes the scope in `finally`. List, help and unknown-command handling do not create a command scope; direct calls to `CommandInterface::run()` outside `CliKernel` do not create one either.
 

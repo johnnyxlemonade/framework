@@ -9,7 +9,8 @@ use Lemonade\Framework\Core\Controller\ControllerActionInspector;
 use Lemonade\Framework\Core\Controller\ControllerArgumentBinder;
 use Lemonade\Framework\Core\Controller\ControllerResultNormalizer;
 use Lemonade\Framework\Http\Response\Responses;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Observability\Http\HttpCheckpoint;
+use Lemonade\Framework\Observability\Http\Internal\HttpInstrumentation;
 use Lemonade\Framework\Routing\RouteMatch;
 use Psr\Http\Message\ResponseInterface as PsrResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -33,11 +34,11 @@ final class ControllerResolver
     private ?ControllerResultNormalizer $resultNormalizer = null;
 
     /**
-     * Accepts the scoped container used for controller resolution and benchmark access.
+     * Accepts the scoped container used for controller resolution and optional diagnostics.
      */
     public function __construct(
         private readonly ContainerInterface $container,
-        private readonly Benchmark $benchmark,
+        private readonly ?HttpInstrumentation $diagnostics = null,
     ) {
         $this->actionInspector = new ControllerActionInspector();
         $this->argumentBinder = new ControllerArgumentBinder();
@@ -77,7 +78,7 @@ final class ControllerResolver
         }
         /** @var non-empty-string $controllerClass */
 
-        $this->markBenchmark('controller_resolve_start');
+        $this->diagnostics?->checkpoint(HttpCheckpoint::ControllerResolutionStarted);
         $controller = $this->container->get($controllerClass);
         if (!is_object($controller)) {
             throw new RuntimeException(sprintf(
@@ -88,30 +89,21 @@ final class ControllerResolver
 
         $resolvedAction = $this->actionInspector->inspect($controller, $controllerClass, $action);
 
-        $this->markBenchmark('controller_resolved');
+        $this->diagnostics?->checkpoint(HttpCheckpoint::ControllerResolved);
         $args = $this->argumentBinder->bind($resolvedAction, $match, $request);
 
-        $this->markBenchmark('controller_action_start');
+        $this->diagnostics?->checkpoint(HttpCheckpoint::ControllerActionStarted);
         $result = $resolvedAction->method()->invokeArgs($resolvedAction->controller(), $args);
-        $this->markBenchmark('controller_action_finished');
+        $this->diagnostics?->checkpoint(HttpCheckpoint::ControllerActionFinished);
 
         $response = $result instanceof PsrResponseInterface
             ? $result
             : ($this->resultNormalizer ??= new ControllerResultNormalizer(
                 $this->container->get(Responses::class),
             ))->normalize($result);
-        $this->markBenchmark('response_created');
+        $this->diagnostics?->checkpoint(HttpCheckpoint::ResponseCreated);
 
         return $response;
     }
 
-    private function markBenchmark(string $name): void
-    {
-        $run = $this->benchmark->current();
-        if ($run === null) {
-            return;
-        }
-
-        $run->mark($name);
-    }
 }

@@ -32,24 +32,21 @@ final class LogManagerTest extends TestCase
 
     public function testAppAndErrorChannelsAlwaysWriteToCanonicalDailyFiles(): void
     {
-        $logs = $this->logs(new LoggingConfig(7, false, 0, false));
+        $logs = $this->logs(new LoggingConfig(7, false, 0));
         $logs->app()->info('application event');
         $logs->error()->error('runtime event');
 
         self::assertFileExists($this->logFile('app'));
         self::assertFileExists($this->logFile('error'));
         self::assertFalse($logs->enabled('request'));
-        self::assertFalse($logs->enabled('benchmark'));
     }
 
-    public function testOptionalChannelsUseCanonicalDailyFilesWhenEnabled(): void
+    public function testRequestChannelUsesCanonicalDailyFileWhenEnabled(): void
     {
-        $logs = $this->logs(new LoggingConfig(7, true, 400, true));
+        $logs = $this->logs(new LoggingConfig(7, true, 400));
         $logs->request()->warning('request event');
-        $logs->benchmark()->info('benchmark event');
 
         self::assertFileExists($this->logFile('request'));
-        self::assertFileExists($this->logFile('benchmark'));
     }
 
     public function testSharedRetentionAppliesToEveryBuiltInChannel(): void
@@ -59,7 +56,7 @@ final class LogManagerTest extends TestCase
         file_put_contents($oldFile, 'old');
         touch($oldFile, strtotime('-2 days'));
 
-        $this->logs(new LoggingConfig(1, false, 0, false))->app()->info('application event');
+        $this->logs(new LoggingConfig(1, false, 0))->app()->info('application event');
 
         self::assertFileDoesNotExist($oldFile);
     }

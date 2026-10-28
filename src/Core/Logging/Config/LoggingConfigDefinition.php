@@ -47,12 +47,4 @@ final class LoggingConfigDefinition extends AbstractConfigDefinition
     {
         return $this->set('request.min_status', $statusCode);
     }
-
-    /**
-     * Enables or disables optional benchmark-run file logging.
-     */
-    public function benchmarkEnabled(bool $enabled = true): self
-    {
-        return $this->set('benchmark.enabled', $enabled);
-    }
 }

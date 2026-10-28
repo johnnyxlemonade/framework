@@ -8,8 +8,6 @@ Global middleware wraps route matching and controller execution. Route-specific 
 
 The default middleware stack contains framework middleware for:
 
-- request logging
-- benchmarking
 - error handling
 - CORS
 - powered-by headers

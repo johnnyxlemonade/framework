@@ -1,65 +1,40 @@
 # Observability
 
-The framework includes benchmark integration for HTTP and CLI runtime.
-
-Benchmark marks are used to make the lifecycle visible during development and diagnostics.
-
-The `Benchmark` coordinator is shared by the root container so bootstrap and long-lived infrastructure
-services can report to the active lifecycle. Each HTTP request or CLI handle invocation owns a fresh
-`BenchmarkRun`; completion stops the run and detaches it from the coordinator in `finally`, including
-health fast-path and exception responses. A completed run cannot accept further context, marks, or
-database measurements.
-
-## Runtime marks
-
-The kernels and dispatch flow mark important lifecycle points such as:
-
-- kernel start
-- config loaded
-- providers registered
-- routes registered
-- request received
-- middleware enter
-- route match start
-- route matched
-- controller resolve start
-- controller resolved
-- controller action start
-- controller action finished
-- response created
-- response ready
-- kernel exception
-
-This is useful for diagnosing slow bootstrap, routing, controller execution or response generation.
-
-## HTTP response diagnostics
-
-Benchmark data is collected for the request lifecycle, but benchmark response exposure is development-only.
-In `development`, the framework adds `X-Benchmark-*` response headers. Its optional HTML benchmark
-comment is controlled independently and defaults to enabled:
+HTTP diagnostics use one shared HTTP interval and SQL aggregation pipeline. They are
+**disabled by default**, independently of environment and debug mode. To expose the
+four performance headers, list `HttpDiagnostics` in the HTTP section of the application's
+`Config.yaml` manifest and create `HttpDiagnostics.yaml`:
 
 ```yaml
-module: benchmark
+module: http_diagnostics
 config:
-  inject_html_comment: true
+  enabled: true
 ```
 
-In every non-development environment the framework adds neither headers nor comment, regardless of this
-setting. Benchmark file logging is a separate policy controlled by `logging.benchmark.enabled`; when enabled,
-it writes benchmark runs to `benchmark-YYYY-MM-DD.log`.
+The PHP definition is `HttpDiagnosticsConfigDefinition::create()->enabled()`.
+`HttpDiagnosticsConfig::enabled()` is the explicit runtime policy. `HttpDiagnosticsHeaders`
+adds `X-Lemonade-Time-Ms`, `X-Lemonade-PHP-Peak-Bytes`, `X-Lemonade-SQL-Count` and
+`X-Lemonade-SQL-Time-Ms`. Existing cache policy is preserved. It never adds HTML comments or
+reads or changes the response body. Enabling these headers also works in production.
 
-## Database summary
+`HttpInstrumentation` publishes one immutable `HttpMetrics` after scope cleanup and error
+conversion. `DatabaseInstrumentation` supplies the same SQL totals to every consumer.
+See [HTTP diagnostics](http-diagnostics-foundation.md) for exact HTTP and driver measurement
+boundaries, failure handling, observer contracts and migration guidance.
 
-Database connections report their timing to the active benchmark run. The response includes:
+## Optional Profiler
 
-- `X-Benchmark-Db-Connection-Ms` for lazy connection open and driver session setup
-- `X-Benchmark-Db-Time-Ms` for SQL prepare/bind/execute time, excluding connection open
-- `X-Benchmark-Db-Query-Count` for executed SQL statements
+`johnnyxlemonade/profiler` is a separate development dependency. It supplies bounded request
+history, SQL details, rendering spans and an optional HTML toolbar. The framework itself
+keeps no history or query list. Diagnostic headers do not require this package.
 
-The structured `request.benchmark` log includes the same aggregate values under `database`.
-SQL text and bindings are never written by the HTTP benchmark logger, including in debug mode.
-Detailed query data may still exist in the request-local `BenchmarkRun` for development
-diagnostics, but it does not cross the framework file-logging boundary.
+Add `Lemonade\Profiler\ProfilerServiceProvider` last in `app/Config/Providers.yaml` and
+keep `Providers` in `Config.yaml`. That single explicit registration enables capture before
+provider bootstrap as well as UI and renderer integration. The entrypoint stays unchanged.
+The provider enforces development-only operation. Remove its YAML entry when the optional
+package is not installed; a configured missing provider is an error. Configuration loading
+precedes activation, but its elapsed time remains included in the shared HTTP duration.
+See the Profiler README and [factory boundaries](http-diagnostics-foundation.md#profiler-contracts).
 
 ## Logging
 
@@ -70,7 +45,6 @@ The framework owns the built-in channel convention and file location:
 - `storage/writable/logs/app-YYYY-MM-DD.log`
 - `storage/writable/logs/error-YYYY-MM-DD.log`
 - `storage/writable/logs/request-YYYY-MM-DD.log`
-- `storage/writable/logs/benchmark-YYYY-MM-DD.log`
 
 The path resolver keeps this directory inside application storage and outside the configured public web root.
 It rejects traversal, stream-wrapper paths, and a symbolic log directory. The logger creates or repairs the
@@ -95,14 +69,11 @@ config:
   request:
     enabled: false
     min_status: 0
-
-  benchmark:
-    enabled: false
 ```
 
 `app` and `error` are always available. `error` is reserved for runtime and application exceptions, so ordinary HTTP 404 responses are not written there. Request logging is opt-in; when enabled, `min_status: 0` records every response, `400` records client and server failures, and `500` records server failures. This makes a 404 observable in `request.log` only when request logging is enabled and its threshold includes 404.
 
-Framework-generated HTTP request, benchmark, and error records use a fixed metadata allowlist.
+Framework-generated HTTP request and error records use a fixed metadata allowlist.
 They retain the normalized method, URI path without a query string, validated request ID,
 response status, and elapsed time where applicable. They do not record query strings, cookies,
 request bodies, form values, SQL bindings, raw exception messages and traces, or request and
@@ -116,5 +87,6 @@ not automatically redacted. Applications should pass an explicit non-sensitive c
 of raw request objects or credentials. Credentials should not be embedded in URI paths because a
 path is intentionally retained for request diagnostics.
 
-Benchmark file logging is opt-in and does not control development-only benchmark response diagnostics or the
-HTML comment setting.
+`HttpRequestLogger` uses the completed HTTP duration, rounded to integer `duration_ms`.
+Request logging alone does not activate SQL capture or expose diagnostic headers. It includes
+health responses and outer-kernel error responses under the same status and privacy policy.

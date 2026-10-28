@@ -6,8 +6,8 @@ namespace Lemonade\Framework\Tests\Unit\Database\Migration;
 
 use Lemonade\Framework\Cli\CommandRegistry;
 use Lemonade\Framework\Container\Container;
-use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Container\ContainerBuilderInterface;
+use Lemonade\Framework\Container\ContainerInterface;
 use Lemonade\Framework\Core\ServiceProviderInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\DatabaseDriverInterface;
@@ -21,19 +21,19 @@ use Lemonade\Framework\Database\Driver\Sqlite\SqliteIdentifierEscaper;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSchemaGrammar;
 use Lemonade\Framework\Database\Driver\Sqlite\SqliteSqlEscaper;
 use Lemonade\Framework\Database\Exception\DatabaseException;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Migration\Cli\MigrateCommand;
 use Lemonade\Framework\Database\Migration\Cli\MigrationStatusCommand;
 use Lemonade\Framework\Database\Migration\MigrationInterface;
 use Lemonade\Framework\Database\Migration\MigrationRegistry;
 use Lemonade\Framework\Database\Migration\MigrationRunner;
 use Lemonade\Framework\Database\Migration\MigrationServiceProvider;
-use Lemonade\Framework\Database\Migration\MigrationStateRepository;
 use Lemonade\Framework\Database\Migration\MigrationState;
+use Lemonade\Framework\Database\Migration\MigrationStateRepository;
 use Lemonade\Framework\Database\Migration\MigrationStatus;
 use Lemonade\Framework\Database\Schema\Schema;
 use Lemonade\Framework\Database\Schema\SchemaCompiler;
 use Lemonade\Framework\Database\Sql\IdentifierProtector;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
 use PHPUnit\Framework\TestCase;
 
 final class MigrationSubsystemTest extends TestCase
@@ -260,7 +260,7 @@ final class MigrationSubsystemTest extends TestCase
     private function migrationContainer(): array
     {
         $config = DatabaseConfig::fromArray(['driver' => 'pdo', 'dialect' => 'sqlite', 'dsn' => 'sqlite::memory:']);
-        $connection = new PdoConnection($config, new Benchmark());
+        $connection = new PdoConnection($config, new DatabaseInstrumentation());
         $escaper = new SqliteIdentifierEscaper($config->prefix());
         $driver = new PdoDatabaseDriver($connection, $escaper, new IdentifierProtector($escaper));
         $schema = new Schema(new SchemaCompiler(new SqliteSchemaGrammar(new SqliteSqlEscaper($escaper), $config)), $driver);
@@ -281,9 +281,15 @@ final class MigrationSubsystemTest extends TestCase
     }
 
     /** @return resource */
-    private function stdout() { return $this->stdout ??= $this->stream(); }
+    private function stdout()
+    {
+        return $this->stdout ??= $this->stream();
+    }
     /** @return resource */
-    private function stderr() { return $this->stderr ??= $this->stream(); }
+    private function stderr()
+    {
+        return $this->stderr ??= $this->stream();
+    }
     /** @return resource */
     private function stream()
     {
@@ -310,44 +316,134 @@ final class MigrationSubsystemTest extends TestCase
 final class TestMigration implements MigrationInterface
 {
     public static int $instances = 0;
-    public static function reset(): void { self::$instances = 0; }
-    public function __construct() { self::$instances++; }
-    public static function identifier(): string { return '20260908090000_test'; }
-    public function up(Schema $schema): void { unset($schema); }
+    public static function reset(): void
+    {
+        self::$instances = 0;
+    }
+    public function __construct()
+    {
+        self::$instances++;
+    }
+    public static function identifier(): string
+    {
+        return '20260908090000_test';
+    }
+    public function up(Schema $schema): void
+    {
+        unset($schema);
+    }
 }
 
 final class DeferredMigration implements MigrationInterface
 {
     public static int $instances = 0;
-    public static function reset(): void { self::$instances = 0; }
-    public function __construct() { self::$instances++; }
-    public static function identifier(): string { return '20260908091500_deferred'; }
-    public function up(Schema $schema): void { unset($schema); }
+    public static function reset(): void
+    {
+        self::$instances = 0;
+    }
+    public function __construct()
+    {
+        self::$instances++;
+    }
+    public static function identifier(): string
+    {
+        return '20260908091500_deferred';
+    }
+    public function up(Schema $schema): void
+    {
+        unset($schema);
+    }
 }
 
 final class FailingMigration implements MigrationInterface
 {
     public static int $instances = 0;
-    public static function reset(): void { self::$instances = 0; }
-    public function __construct() { self::$instances++; }
-    public static function identifier(): string { return '20260908090000_failing'; }
-    public function up(Schema $schema): void { unset($schema); throw new \RuntimeException('migration failed'); }
+    public static function reset(): void
+    {
+        self::$instances = 0;
+    }
+    public function __construct()
+    {
+        self::$instances++;
+    }
+    public static function identifier(): string
+    {
+        return '20260908090000_failing';
+    }
+    public function up(Schema $schema): void
+    {
+        unset($schema);
+        throw new \RuntimeException('migration failed');
+    }
 }
 
 final class DependentMigration implements MigrationInterface
 {
     public static ?string $dependencyValue = null;
-    public static function reset(): void { self::$dependencyValue = null; }
-    public function __construct(private readonly MigrationDependency $dependency) {}
-    public static function identifier(): string { return '20260908100000_dependent'; }
-    public function up(Schema $schema): void { unset($schema); self::$dependencyValue = $this->dependency->value; }
+    public static function reset(): void
+    {
+        self::$dependencyValue = null;
+    }
+    public function __construct(private readonly MigrationDependency $dependency)
+    {
+    }
+    public static function identifier(): string
+    {
+        return '20260908100000_dependent';
+    }
+    public function up(Schema $schema): void
+    {
+        unset($schema);
+        self::$dependencyValue = $this->dependency->value;
+    }
 }
 
-final class MigrationDependency { public function __construct(public readonly string $value) {} }
-final class EmptyIdentifierMigration implements MigrationInterface { public static function identifier(): string { return ' '; } public function up(Schema $schema): void { unset($schema); } }
-final class InvalidFormatMigration implements MigrationInterface { public static function identifier(): string { return 'migration'; } public function up(Schema $schema): void { unset($schema); } }
-final class InvalidTimestampMigration implements MigrationInterface { public static function identifier(): string { return '20269999009999_invalid'; } public function up(Schema $schema): void { unset($schema); } }
-final class DuplicateIdentifierMigration implements MigrationInterface { public static function identifier(): string { return '20260908090000_test'; } public function up(Schema $schema): void { unset($schema); } }
+final class MigrationDependency
+{
+    public function __construct(public readonly string $value)
+    {
+    }
+}
+final class EmptyIdentifierMigration implements MigrationInterface
+{
+    public static function identifier(): string
+    {
+        return ' ';
+    } public function up(Schema $schema): void
+    {
+        unset($schema);
+    }
+}
+final class InvalidFormatMigration implements MigrationInterface
+{
+    public static function identifier(): string
+    {
+        return 'migration';
+    } public function up(Schema $schema): void
+    {
+        unset($schema);
+    }
+}
+final class InvalidTimestampMigration implements MigrationInterface
+{
+    public static function identifier(): string
+    {
+        return '20269999009999_invalid';
+    } public function up(Schema $schema): void
+    {
+        unset($schema);
+    }
+}
+final class DuplicateIdentifierMigration implements MigrationInterface
+{
+    public static function identifier(): string
+    {
+        return '20260908090000_test';
+    } public function up(Schema $schema): void
+    {
+        unset($schema);
+    }
+}
 
 final class TestApplicationMigrationProvider implements ServiceProviderInterface
 {
@@ -361,17 +457,63 @@ final class RecordingDriver implements DatabaseDriverInterface
 {
     /** @var list<string> */
     public array $queries = [];
-    public function tableExists(string $table): bool { unset($table); return false; }
-    public function query(string $sql, array|false $binds = false): DatabaseResultInterface|bool { unset($binds); $this->queries[] = $sql; return true; }
-    public function cursor(string $sql, array|false $binds = false): \Generator { unset($sql, $binds); yield from []; }
-    public function simple_query(string $sql): bool { unset($sql); return true; }
-    public function affected_rows(): int { return 0; }
-    public function insert_id(): int|string|null { return null; }
-    public function escape(mixed $value): string { return is_scalar($value) || $value instanceof \Stringable ? (string) $value : ''; }
-    public function escape_str(string $value, bool $like = false): string { unset($like); return $value; }
-    public function escape_like_str(string $value): string { return $value; }
-    public function escape_identifiers(string $item): string { return $item; }
-    public function protect_identifiers(string $item, bool $prefixSingle = false, ?bool $protectIdentifiers = null, bool $fieldExists = true): string { unset($prefixSingle, $protectIdentifiers, $fieldExists); return $item; }
-    public function platform(): string { return 'test'; }
-    public function version(): string { return 'test'; }
+    public function tableExists(string $table): bool
+    {
+        unset($table);
+        return false;
+    }
+    public function query(string $sql, array|false $binds = false): DatabaseResultInterface|bool
+    {
+        unset($binds);
+        $this->queries[] = $sql;
+        return true;
+    }
+    public function cursor(string $sql, array|false $binds = false): \Generator
+    {
+        unset($sql, $binds);
+        yield from [];
+    }
+    public function simple_query(string $sql): bool
+    {
+        unset($sql);
+        return true;
+    }
+    public function affected_rows(): int
+    {
+        return 0;
+    }
+    public function insert_id(): int|string|null
+    {
+        return null;
+    }
+    public function escape(mixed $value): string
+    {
+        return is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
+    }
+    public function escape_str(string $value, bool $like = false): string
+    {
+        unset($like);
+        return $value;
+    }
+    public function escape_like_str(string $value): string
+    {
+        return $value;
+    }
+    public function escape_identifiers(string $item): string
+    {
+        return $item;
+    }
+    public function protect_identifiers(string $item, bool $prefixSingle = false, ?bool $protectIdentifiers = null, bool $fieldExists = true): string
+    {
+        unset($prefixSingle, $protectIdentifiers, $fieldExists);
+        return $item;
+    }
+    public function platform(): string
+    {
+        return 'test';
+    }
+    public function version(): string
+    {
+        return 'test';
+    }
 }

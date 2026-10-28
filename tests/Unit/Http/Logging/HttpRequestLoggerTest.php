@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Lemonade\Framework\Tests\Unit\Http\Middleware;
+namespace Lemonade\Framework\Tests\Unit\Http\Logging;
 
 use Lemonade\Framework\Core\Context\ApplicationContext;
 use Lemonade\Framework\Core\Context\DebugMode;
@@ -13,15 +13,14 @@ use Lemonade\Framework\Core\Logging\LogFilePathResolver;
 use Lemonade\Framework\Core\Logging\LogManager;
 use Lemonade\Framework\Filesystem\Manager\DirectoryManager;
 use Lemonade\Framework\Http\Logging\HttpLogContext;
-use Lemonade\Framework\Http\Middleware\RequestLoggingMiddleware;
+use Lemonade\Framework\Http\Logging\HttpRequestLogger;
 use Lemonade\Framework\Http\Request\HttpRequestInspector;
+use Lemonade\Framework\Observability\Http\HttpMetrics;
 use Nyholm\Psr7\Factory\Psr17Factory;
+use Nyholm\Psr7\Response;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 
-final class RequestLoggingMiddlewareTest extends TestCase
+final class HttpRequestLoggerTest extends TestCase
 {
     private string $root = '';
 
@@ -39,34 +38,34 @@ final class RequestLoggingMiddlewareTest extends TestCase
 
     public function testDisabledRequestLoggingDoesNotCreateAFile(): void
     {
-        $response = $this->middleware(new LoggingConfig(7, false, 0, false))->process(
+        $this->logger(new LoggingConfig(7, false, 0))->log(
             (new Psr17Factory())->createServerRequest('GET', '/missing'),
-            new RequestLoggingResponseHandler(404),
+            new Response(404),
+            new HttpMetrics(12.6, 1024, 0, 0.0),
         );
 
-        self::assertSame(404, $response->getStatusCode());
         self::assertFileDoesNotExist($this->requestLogFile());
     }
 
     public function testRequestLoggingRecords404WhenMinStatusIncludesIt(): void
     {
-        $response = $this->middleware(new LoggingConfig(7, true, 400, false))->process(
+        $this->logger(new LoggingConfig(7, true, 400))->log(
             (new Psr17Factory())->createServerRequest('GET', '/missing'),
-            new RequestLoggingResponseHandler(404),
+            new Response(404),
+            new HttpMetrics(12.6, 1024, 0, 0.0),
         );
 
-        self::assertSame(404, $response->getStatusCode());
         self::assertFileExists($this->requestLogFile());
     }
 
     public function testRequestLoggingSkips404WhenMinStatusIs500(): void
     {
-        $response = $this->middleware(new LoggingConfig(7, true, 500, false))->process(
+        $this->logger(new LoggingConfig(7, true, 500))->log(
             (new Psr17Factory())->createServerRequest('GET', '/missing'),
-            new RequestLoggingResponseHandler(404),
+            new Response(404),
+            new HttpMetrics(12.6, 1024, 0, 0.0),
         );
 
-        self::assertSame(404, $response->getStatusCode());
         self::assertFileDoesNotExist($this->requestLogFile());
     }
 
@@ -88,18 +87,17 @@ final class RequestLoggingMiddlewareTest extends TestCase
             ])
             ->withBody($factory->createStream('raw-body-secret'));
 
-        $response = $this->middleware(new LoggingConfig(7, true, 0, false))->process(
+        $this->logger(new LoggingConfig(7, true, 0))->log(
             $request,
-            new RequestLoggingResponseHandler(
+            new Response(
                 status: 201,
                 headers: [
                     'Set-Cookie' => 'session=response-cookie-secret',
                     'X-Diagnostic-Token' => 'response-header-secret',
                 ],
             ),
+            new HttpMetrics(12.6, 1024, 0, 0.0),
         );
-
-        self::assertSame(201, $response->getStatusCode());
 
         $records = $this->readRequestLogRecords();
         self::assertCount(1, $records);
@@ -108,7 +106,7 @@ final class RequestLoggingMiddlewareTest extends TestCase
         self::assertSame('/account/profile', $records[0]['context']['path'] ?? null);
         self::assertSame('request-123', $records[0]['context']['request_id'] ?? null);
         self::assertSame(201, $records[0]['context']['status'] ?? null);
-        self::assertIsInt($records[0]['context']['duration_ms'] ?? null);
+        self::assertSame(13, $records[0]['context']['duration_ms'] ?? null);
         self::assertSame(
             ['method', 'path', 'request_id', 'status', 'duration_ms'],
             array_keys($records[0]['context']),
@@ -131,7 +129,7 @@ final class RequestLoggingMiddlewareTest extends TestCase
         }
     }
 
-    private function middleware(LoggingConfig $config): RequestLoggingMiddleware
+    private function logger(LoggingConfig $config): HttpRequestLogger
     {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -139,7 +137,7 @@ final class RequestLoggingMiddlewareTest extends TestCase
             DebugMode::disabled(),
         );
 
-        return new RequestLoggingMiddleware(
+        return new HttpRequestLogger(
             config: $config,
             logs: new LogManager(
                 config: $config,
@@ -183,30 +181,5 @@ final class RequestLoggingMiddlewareTest extends TestCase
         }
 
         return $records;
-    }
-}
-
-final class RequestLoggingResponseHandler implements RequestHandlerInterface
-{
-    /**
-     * @param array<string, string> $headers
-     */
-    public function __construct(
-        private readonly int $status,
-        private readonly array $headers = [],
-    ) {
-    }
-
-    public function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        unset($request);
-
-        $response = (new Psr17Factory())->createResponse($this->status);
-
-        foreach ($this->headers as $name => $value) {
-            $response = $response->withHeader($name, $value);
-        }
-
-        return $response;
     }
 }

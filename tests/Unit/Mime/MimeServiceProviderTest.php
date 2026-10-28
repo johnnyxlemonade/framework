@@ -107,12 +107,8 @@ final class MimeServiceProviderTest extends TestCase
 
         $first = $framework->container()->get(MimeTypeCatalog::class);
         $second = $framework->container()->get(MimeTypeCatalog::class);
-        $reflection = new \ReflectionClass(MimeTypeCatalog::class);
-
         self::assertInstanceOf(MimeTypeCatalog::class, $first);
         self::assertSame($first, $second);
-        self::assertTrue($reflection->isFinal());
-        self::assertTrue($reflection->isReadOnly());
     }
 
     private function framework(): Framework

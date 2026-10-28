@@ -7,7 +7,7 @@ namespace Lemonade\Framework\Database\Driver\Pdo;
 use Lemonade\Framework\Database\Connection\ConnectionInterface;
 use Lemonade\Framework\Database\Connection\DatabaseConfig;
 use Lemonade\Framework\Database\Exception\DatabaseException;
-use Lemonade\Framework\Observability\Benchmark\Benchmark;
+use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use PDO;
 use PDOException;
 use PDOStatement;
@@ -15,7 +15,7 @@ use Stringable;
 use Throwable;
 
 /**
- * Adapts a PDO connection to the framework connection contract with transaction and benchmark support.
+ * Adapts a PDO connection to the framework connection contract with transaction and optional instrumentation.
  */
 final class PdoConnection implements ConnectionInterface
 {
@@ -28,8 +28,7 @@ final class PdoConnection implements ConnectionInterface
      */
     public function __construct(
         private readonly DatabaseConfig $config,
-        private readonly Benchmark $benchmark,
-        private readonly bool $captureQueryDetails = false,
+        private readonly DatabaseInstrumentation $instrumentation = new DatabaseInstrumentation(),
     ) {
     }
 
@@ -42,22 +41,20 @@ final class PdoConnection implements ConnectionInterface
             return $this->connection;
         }
 
-        $startedAt = microtime(true);
+        return $this->instrumentation->connection(function (): PDO {
+            try {
+                $this->connection = new PDO(
+                    dsn: PdoDsnResolver::resolve($this->config),
+                    username: $this->config->username(),
+                    password: $this->config->password(),
+                    options: $this->resolveOptions(),
+                );
+            } catch (Throwable $exception) {
+                throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
+            }
 
-        try {
-            $this->connection = new PDO(
-                dsn: PdoDsnResolver::resolve($this->config),
-                username: $this->config->username(),
-                password: $this->config->password(),
-                options: $this->resolveOptions(),
-            );
-        } catch (Throwable $exception) {
-            throw DatabaseException::connectionFailed($exception->getMessage(), $exception);
-        } finally {
-            $this->benchmark->recordDatabaseConnection((microtime(true) - $startedAt) * 1000);
-        }
-
-        return $this->connection;
+            return $this->connection;
+        });
     }
 
     /**
@@ -264,41 +261,37 @@ final class PdoConnection implements ConnectionInterface
     }
 
     /**
+     * Executes and measures one prepared statement after opening the lazy connection.
+     *
      * @param array<int|string, mixed> $bindings
      */
     public function execute(string $sql, array $bindings = []): PDOStatement
     {
-        $startedAt = 0.0;
-
         try {
             $pdo = $this->pdo();
-            $startedAt = microtime(true);
-
-            $statement = $pdo->prepare($sql);
-
-            if (!$statement instanceof PDOStatement) {
-                throw DatabaseException::queryFailed($sql, 'Unable to prepare PDO statement.');
-            }
-
-            $this->bindValues($statement, $bindings, $sql);
-            $statement->execute();
-            $this->affectedRows = $statement->rowCount();
-
-            return $statement;
-        } catch (PDOException $exception) {
-            throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
         } catch (Throwable $exception) {
             throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
-        } finally {
-            if ($startedAt > 0.0) {
-                $this->benchmark->recordDatabaseQuery(
-                    $sql,
-                    $bindings,
-                    (microtime(true) - $startedAt) * 1000,
-                    $this->captureQueryDetails,
-                );
-            }
         }
+
+        return $this->instrumentation->query($sql, function () use ($pdo, $sql, $bindings): PDOStatement {
+            try {
+                $statement = $pdo->prepare($sql);
+
+                if (!$statement instanceof PDOStatement) {
+                    throw DatabaseException::queryFailed($sql, 'Unable to prepare PDO statement.');
+                }
+
+                $this->bindValues($statement, $bindings, $sql);
+                $statement->execute();
+                $this->affectedRows = $statement->rowCount();
+
+                return $statement;
+            } catch (PDOException $exception) {
+                throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
+            } catch (Throwable $exception) {
+                throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
+            }
+        });
     }
 
     /**

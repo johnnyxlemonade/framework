@@ -7,7 +7,6 @@ namespace Lemonade\Framework\Tests\Unit\Core\Health;
 use Lemonade\Framework\Api\Config\ApiConfigResolver;
 use Lemonade\Framework\Core\Config\AppConfig;
 use Lemonade\Framework\Core\Health\FrameworkHealthConfigSnapshot;
-use Lemonade\Framework\Observability\Benchmark\Config\BenchmarkConfig;
 use PHPUnit\Framework\TestCase;
 
 final class FrameworkHealthConfigSnapshotTest extends TestCase
@@ -26,18 +25,15 @@ final class FrameworkHealthConfigSnapshotTest extends TestCase
             configPath: '/app/app/Config',
             storagePath: '/app/storage',
         );
-        $benchmark = new BenchmarkConfig(false);
         $snapshot = new FrameworkHealthConfigSnapshot(
             api: $api,
             app: $app,
             cors: null,
-            benchmark: $benchmark,
         );
 
         self::assertSame($api, $snapshot->api());
         self::assertSame($app, $snapshot->app());
         self::assertNull($snapshot->cors());
-        self::assertSame($benchmark, $snapshot->benchmark());
         self::assertSame([], get_object_vars($snapshot));
     }
 }

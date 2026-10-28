@@ -19,12 +19,10 @@ final class LoggingConfigResolver
         $retentionDays = 7;
         $requestEnabled = false;
         $requestMinStatus = 0;
-        $benchmarkEnabled = false;
 
         foreach ($definitions as $definition) {
             $data = $definition->toArray();
             $request = ConfigValueNormalizer::assoc($data['request'] ?? null);
-            $benchmark = ConfigValueNormalizer::assoc($data['benchmark'] ?? null);
 
             if (array_key_exists('retention_days', $data)) {
                 $retentionDays = max(1, ConfigValueNormalizer::intOr($data['retention_days'], $retentionDays));
@@ -37,18 +35,12 @@ final class LoggingConfigResolver
             if (array_key_exists('min_status', $request)) {
                 $requestMinStatus = max(0, ConfigValueNormalizer::intOr($request['min_status'], $requestMinStatus));
             }
-
-            if (array_key_exists('enabled', $benchmark)) {
-                $benchmarkEnabled = ConfigValueNormalizer::boolOr($benchmark['enabled'], $benchmarkEnabled);
-            }
         }
 
         return new LoggingConfig(
             retentionDays: $retentionDays,
             requestEnabled: $requestEnabled,
             requestMinStatus: $requestMinStatus,
-            benchmarkEnabled: $benchmarkEnabled,
         );
     }
-
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Debug\Dump;
 
+use DOMDocument;
 use Lemonade\Framework\Debug\Dump\Context\DumpContext;
 use Lemonade\Framework\Debug\Dump\Context\DumpSourceLocation;
 use Lemonade\Framework\Debug\Dump\DumpOptions;
@@ -45,11 +46,17 @@ final class HtmlDumpRendererTest extends TestCase
         $first = $renderer->render($dump);
         $second = $renderer->render($dump);
 
-        self::assertStringContainsString('<style>', $first);
-        self::assertStringNotContainsString('<style>', $second);
-        self::assertStringContainsString('&lt;label&gt;', $first);
-        self::assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $first);
-        self::assertStringContainsString('Debug #1 of 1', $first);
+        $firstDocument = new DOMDocument();
+        $firstDocument->loadHTML($first);
+        $secondDocument = new DOMDocument();
+        $secondDocument->loadHTML($second);
+
+        self::assertSame(1, $firstDocument->getElementsByTagName('style')->length);
+        self::assertSame(0, $secondDocument->getElementsByTagName('style')->length);
+        self::assertSame(0, $firstDocument->getElementsByTagName('script')->length);
+        self::assertStringContainsString('<label>', $firstDocument->textContent);
+        self::assertStringContainsString('<script>alert(1)</script>', $firstDocument->textContent);
+        self::assertStringContainsString('Debug #1 of 1', $firstDocument->textContent);
     }
 
     public function testRenderCanDisableInlineStyles(): void
@@ -66,8 +73,10 @@ final class HtmlDumpRendererTest extends TestCase
             ],
         ));
 
-        self::assertStringNotContainsString('<style>', $output);
-        self::assertStringContainsString('int', $output);
+        $document = new DOMDocument();
+        $document->loadHTML($output);
+
+        self::assertSame(0, $document->getElementsByTagName('style')->length);
     }
 
     private function context(bool $cli): DumpContext
