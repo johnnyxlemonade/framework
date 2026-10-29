@@ -200,6 +200,7 @@ framework translations
 For a conflicting translation key, the last registered provider resource wins. Application
 translations always provide the final override. Merging happens per translation key, not by
 replacing an entire group, so unrelated keys from earlier resources remain available.
+The catalog loads each locale lazily and reuses requested groups for subsequent lookups within the same instance.
 
 The resource root must exist and be a directory. Equivalent paths, including paths with a trailing
 slash or a symlink to the same directory, are canonicalized and registered only once.

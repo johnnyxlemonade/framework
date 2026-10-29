@@ -58,6 +58,41 @@ final class TranslationRuntimeExtensionTest extends TestCase
         self::assertSame('package.second', $entry->contributions[1]->provenance->owner);
     }
 
+    public function testRepeatedGroupLookupsPreserveLocaleAndSourcePriority(): void
+    {
+        $resource = $this->root . '/module/Resources/lang';
+        $this->writeResource($resource, 'cs', 'messages', [
+            'title' => 'Provider',
+            'empty' => 'Provider value',
+            'provider_only' => 'Provider only',
+        ]);
+        $this->writeFile($this->root . '/app/Language/cs/messages.php', [
+            'title' => 'Ahoj',
+            'empty' => '',
+        ]);
+        $this->writeApplication('cs', 'navigation', ['home' => 'Domů']);
+        $this->writeApplication('en', 'messages', ['title' => 'Hello']);
+        $this->writeApplication('en', 'navigation', ['home' => 'Home']);
+
+        $resources = new TranslationResourceRegistry();
+        $resources->register($resource);
+        $catalog = new FileTranslationSourceCatalog($this->context(), $resources);
+
+        $czech = ['title' => 'Ahoj', 'empty' => '', 'provider_only' => 'Provider only'];
+        self::assertSame([$czech, $czech], [
+            $catalog->lines('cs', 'messages'),
+            $catalog->lines('cs', 'messages'),
+        ]);
+        self::assertSame(['home' => 'Domů'], $catalog->lines('cs', 'navigation'));
+        self::assertSame(['title' => 'Hello'], $catalog->lines('en', 'messages'));
+        self::assertSame(['home' => 'Home'], $catalog->lines('en', 'navigation'));
+        self::assertSame([[], []], [
+            $catalog->lines('cs', 'missing'),
+            $catalog->lines('cs', 'missing'),
+        ]);
+        self::assertSame($czech, $catalog->lines('cs', 'messages'));
+    }
+
     public function testTargetOverrideIsUsedByGetGroupAndAllWithoutSourceCacheInvalidation(): void
     {
         $this->writeApplication('cs', 'messages', ['hello' => 'Ahoj']);

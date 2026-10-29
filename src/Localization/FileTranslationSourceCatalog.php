@@ -17,6 +17,11 @@ final class FileTranslationSourceCatalog implements TranslationSourceCatalogInte
     private array $entriesByLocale = [];
 
     /**
+     * @var array<string, array<string, array<string, string>>>
+     */
+    private array $linesByLocaleAndGroup = [];
+
+    /**
      * Configures application paths and the registry of provider resource contributions
      */
     public function __construct(
@@ -103,6 +108,10 @@ final class FileTranslationSourceCatalog implements TranslationSourceCatalogInte
      */
     public function lines(string $locale, string $group): array
     {
+        if (isset($this->linesByLocaleAndGroup[$locale][$group])) {
+            return $this->linesByLocaleAndGroup[$locale][$group];
+        }
+
         $lines = [];
         foreach ($this->entriesForLocale($locale) as $entry) {
             if ($entry->group === $group) {
@@ -110,7 +119,7 @@ final class FileTranslationSourceCatalog implements TranslationSourceCatalogInte
             }
         }
 
-        return $lines;
+        return $this->linesByLocaleAndGroup[$locale][$group] = $lines;
     }
 
     /**
