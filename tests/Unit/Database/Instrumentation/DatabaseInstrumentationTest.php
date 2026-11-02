@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Tests\Unit\Database\Instrumentation;
 
+use Lemonade\Framework\Database\Connection\DatabaseDialect;
 use Lemonade\Framework\Database\Instrumentation\DatabaseObserverInterface;
 use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseInstrumentation;
 use Lemonade\Framework\Database\Instrumentation\Internal\DatabaseMeasurements;
@@ -53,7 +54,7 @@ final class DatabaseInstrumentationTest extends TestCase
             self::assertSame(0, $measurements->queryCount());
             self::assertSame(0.0, $measurements->queryMs());
 
-            self::assertSame($result, $instrumentation->query('SELECT 1', static fn(): object => $result));
+            self::assertSame($result, $instrumentation->query('SELECT 1', static fn(): object => $result, ['id' => 42], DatabaseDialect::Mysql));
             $caught = null;
             try {
                 $instrumentation->query('invalid SQL', static function () use ($failure): void {
@@ -68,6 +69,8 @@ final class DatabaseInstrumentationTest extends TestCase
             self::assertSame(array_sum(array_column($observer->queries, 'duration')), $measurements->queryMs());
             self::assertSame([true, false], array_column($observer->queries, 'successful'));
             self::assertSame(['SELECT 1', 'invalid SQL'], array_column($observer->queries, 'sql'));
+            self::assertSame(['id' => 42], $observer->queries[0]['bindings']);
+            self::assertSame(DatabaseDialect::Mysql, $observer->queries[0]['dialect']);
             self::assertCount(1, $observer->connections);
             self::assertTrue($observer->connections[0]['successful']);
             self::assertGreaterThanOrEqual(0.0, $measurements->queryMs());
@@ -274,7 +277,7 @@ final class DatabaseInstrumentationTest extends TestCase
 final class RecordingObserver implements DatabaseObserverInterface
 {
     /**
-     * @var list<array{sql: string, duration: float, successful: bool}>
+     * @var list<array{sql: string, duration: float, successful: bool, bindings: array<int|string, mixed>, dialect: DatabaseDialect|null}>
      */
     public array $queries = [];
 
@@ -283,9 +286,9 @@ final class RecordingObserver implements DatabaseObserverInterface
      */
     public array $connections = [];
 
-    public function queryCompleted(string $sql, float $durationMs, bool $successful): void
+    public function queryCompleted(string $sql, float $durationMs, bool $successful, array $bindings = [], ?\Lemonade\Framework\Database\Connection\DatabaseDialect $dialect = null): void
     {
-        $this->queries[] = ['sql' => $sql, 'duration' => $durationMs, 'successful' => $successful];
+        $this->queries[] = ['sql' => $sql, 'duration' => $durationMs, 'successful' => $successful, 'bindings' => $bindings, 'dialect' => $dialect];
     }
 
     public function connectionCompleted(float $durationMs, bool $successful): void

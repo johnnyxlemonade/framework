@@ -291,7 +291,7 @@ final class PdoConnection implements ConnectionInterface
             } catch (Throwable $exception) {
                 throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
             }
-        });
+        }, $bindings, $this->config->dialect());
     }
 
     /**

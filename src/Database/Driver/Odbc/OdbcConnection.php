@@ -365,7 +365,7 @@ final class OdbcConnection implements ConnectionInterface
             }
 
             return $statement;
-        });
+        }, $bindings, $this->config->dialect());
     }
 
     /**

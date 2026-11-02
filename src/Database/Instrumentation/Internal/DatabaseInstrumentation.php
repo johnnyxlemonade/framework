@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Database\Instrumentation\Internal;
 
+use Lemonade\Framework\Database\Connection\DatabaseDialect;
 use Lemonade\Framework\Database\Instrumentation\DatabaseObserverInterface;
 use LogicException;
 use Throwable;
@@ -57,10 +58,11 @@ final class DatabaseInstrumentation
      *
      * @template T
      * @param callable(): T $operation
+     * @param array<int|string, mixed> $bindings
      * @return T
      * @throws Throwable Propagates the operation's original failure after recording the attempt.
      */
-    public function query(string $sql, callable $operation): mixed
+    public function query(string $sql, callable $operation, array $bindings = [], ?DatabaseDialect $dialect = null): mixed
     {
         $measurements = $this->measurements;
         if ($measurements === null) {
@@ -80,7 +82,7 @@ final class DatabaseInstrumentation
             $measurements->recordQuery($durationMs);
 
             try {
-                $this->observer?->queryCompleted($sql, $durationMs, $successful);
+                $this->observer?->queryCompleted($sql, $durationMs, $successful, $bindings, $dialect);
             } catch (Throwable) {
                 $this->observer = null;
             }

@@ -128,7 +128,7 @@ final class MysqlConnection implements ConnectionInterface, MysqlConnectionInter
             } catch (Throwable $exception) {
                 throw DatabaseException::queryFailed($sql, $exception->getMessage(), $exception);
             }
-        });
+        }, $bindings, $this->config->dialect());
     }
 
     /**

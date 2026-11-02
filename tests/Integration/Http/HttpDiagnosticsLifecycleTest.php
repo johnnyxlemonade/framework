@@ -337,7 +337,7 @@ final class RecordingHttpCapture implements HttpDiagnosticsObserverInterface, Da
         return $response;
     }
 
-    public function queryCompleted(string $sql, float $durationMs, bool $successful): void
+    public function queryCompleted(string $sql, float $durationMs, bool $successful, array $bindings = [], ?\Lemonade\Framework\Database\Connection\DatabaseDialect $dialect = null): void
     {
         $this->queries[] = $durationMs;
     }
