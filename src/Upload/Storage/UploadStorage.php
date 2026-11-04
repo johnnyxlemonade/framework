@@ -648,11 +648,7 @@ final readonly class UploadStorage
                 throw new \RuntimeException('Upload publication temporary directory cannot be a symbolic link.');
             }
 
-            $this->filesystem->create($directory, 0700);
-
-            if (!@chmod($directory, 0700)) {
-                throw new \RuntimeException('Upload publication temporary permissions cannot be restricted.');
-            }
+            $this->filesystem->create($directory);
 
             $this->assertPublicationTemporaryDirectory($directory, $visibility);
         } catch (\Throwable $exception) {
@@ -679,12 +675,6 @@ final readonly class UploadStorage
             throw new \RuntimeException('Upload publication temporary directory is unsafe.');
         }
 
-        clearstatcache(true, $directory);
-        $permissions = @fileperms($directory);
-
-        if (!is_int($permissions) || ($permissions & 0777) !== 0700) {
-            throw new \RuntimeException('Upload publication temporary directory permissions are unsafe.');
-        }
     }
 
     private function publicationTemporaryDirectory(string $targetDirectory): string

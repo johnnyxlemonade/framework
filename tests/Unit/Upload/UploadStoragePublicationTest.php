@@ -62,6 +62,12 @@ final class UploadStoragePublicationTest extends TestCase
         $snapshot = $this->staging->stageBytes('complete bytes', 'note.txt', 1024);
         $storage = $this->storage(new FileManager());
         $storage->ensureTargetDirectory($this->targetDirectory);
+        $publicationDirectory = $this->targetDirectory . '/.lemonade-publication';
+        mkdir($publicationDirectory, 0755);
+
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            chmod($publicationDirectory, 0755);
+        }
 
         $size = $storage->publishSnapshot(
             $snapshot,
@@ -77,8 +83,8 @@ final class UploadStoragePublicationTest extends TestCase
         if (DIRECTORY_SEPARATOR !== '\\') {
             self::assertSame(0755, fileperms($this->targetDirectory) & 0777);
             self::assertSame(
-                0700,
-                fileperms($this->targetDirectory . '/.lemonade-publication') & 0777,
+                0755,
+                fileperms($publicationDirectory) & 0777,
             );
             self::assertSame(0644, fileperms($this->targetDirectory . '/published.txt') & 0777);
         }
