@@ -128,7 +128,7 @@ final readonly class ImageVariantPathResolver
 
         return new ImageReference(
             $relativePath,
-            $definition->dimensions(),
+            $definition->outputDimensions($asset->original()->dimensions()),
             $definition->format(),
         );
     }

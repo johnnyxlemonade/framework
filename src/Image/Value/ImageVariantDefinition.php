@@ -10,8 +10,8 @@ use Lemonade\Framework\Image\Exception\ImageValidationException;
  * Defines the complete immutable rendering contract for one derived image.
  *
  * Center cover fills the target by cropping when scaling permits it, while contain
- * keeps the full source visible. A smaller downscale-only source exposes this
- * definition's explicit background on the unused target canvas.
+ * keeps the full source visible on a fixed canvas. Fit preserves the full source
+ * without a canvas border inside the configured maximum dimensions.
  */
 final readonly class ImageVariantDefinition
 {
@@ -47,6 +47,29 @@ final readonly class ImageVariantDefinition
     public function dimensions(): ImageDimensions
     {
         return $this->dimensions;
+    }
+
+    /**
+     * Returns the actual output size for the source under the selected geometry policy.
+     */
+    public function outputDimensions(ImageDimensions $source): ImageDimensions
+    {
+        if ($this->mode !== ImageVariantMode::Fit) {
+            return $this->dimensions;
+        }
+
+        $scale = min(
+            $this->dimensions->width / $source->width,
+            $this->dimensions->height / $source->height,
+        );
+        if ($this->scalePolicy === ImageScalePolicy::DownscaleOnly) {
+            $scale = min(1, $scale);
+        }
+
+        return new ImageDimensions(
+            max(1, min($this->dimensions->width, (int) round($source->width * $scale))),
+            max(1, min($this->dimensions->height, (int) round($source->height * $scale))),
+        );
     }
 
     /**

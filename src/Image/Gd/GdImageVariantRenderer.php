@@ -25,7 +25,8 @@ use Lemonade\Framework\Image\Value\ImageVariantMode;
 /**
  * Produces a derived variant directly from a source file in one GD decode and resample pass.
  *
- * Center cover crops to fill when upscaling is allowed; contain preserves the full source.
+ * Center cover crops to fill when upscaling is allowed; contain preserves the full source
+ * on a fixed canvas, while fit writes only the proportionally scaled source pixels.
  * It keeps source and target resources private and releases both before returning encoded bytes.
  */
 final readonly class GdImageVariantRenderer implements ImageVariantRendererInterface
@@ -85,15 +86,16 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
             ) {
                 throw new ImageValidationException('Image dimensions exceed allowed limits.');
             }
-            $targetDimensions = $definition->dimensions();
+            $maximumDimensions = $definition->dimensions();
             if (
-                $targetDimensions->width > 4096
-                || $targetDimensions->height > 4096
-                || $targetDimensions->pixels() > 10_000_000
+                $maximumDimensions->width > 4096
+                || $maximumDimensions->height > 4096
+                || $maximumDimensions->pixels() > 10_000_000
             ) {
                 throw new ImageValidationException('Image dimensions exceed allowed limits.');
             }
-            $target = $this->createTarget($definition);
+            $targetDimensions = $definition->outputDimensions($sourceDimensions);
+            $target = $this->createTarget($definition, $targetDimensions);
             try {
                 $this->transform(
                     $input,
@@ -104,7 +106,7 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
                     $definition->scalePolicy(),
                 );
 
-                return $this->encode($target, $definition);
+                return $this->encode($target, $definition, $targetDimensions);
             } finally {
                 unset($target);
             }
@@ -116,9 +118,8 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
     /**
      * Creates the single target canvas with the output format's explicit background policy.
      */
-    private function createTarget(ImageVariantDefinition $definition): GdImage
+    private function createTarget(ImageVariantDefinition $definition, ImageDimensions $dimensions): GdImage
     {
-        $dimensions = $definition->dimensions();
         $target = @imagecreatetruecolor(
             max(1, $dimensions->width),
             max(1, $dimensions->height),
@@ -165,6 +166,18 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
                 $sourceDimensions,
                 $targetDimensions,
                 $scalePolicy,
+            ),
+            ImageVariantMode::Fit => @imagecopyresampled(
+                $target,
+                $source,
+                0,
+                0,
+                0,
+                0,
+                $targetDimensions->width,
+                $targetDimensions->height,
+                $sourceDimensions->width,
+                $sourceDimensions->height,
             ),
         };
         if (!$transformed) {
@@ -278,8 +291,11 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
             && @imagefill($target, 0, 0, $transparent);
     }
 
-    private function encode(GdImage $image, ImageVariantDefinition $definition): EncodedImage
-    {
+    private function encode(
+        GdImage $image,
+        ImageVariantDefinition $definition,
+        ImageDimensions $dimensions,
+    ): EncodedImage {
         if (!ob_start()) {
             throw new ImageEncodeException('Image output buffer cannot be started.');
         }
@@ -297,6 +313,6 @@ final readonly class GdImageVariantRenderer implements ImageVariantRendererInter
             throw new ImageEncodeException('Image encoding failed.');
         }
 
-        return new EncodedImage($contents, $definition->format(), $definition->dimensions());
+        return new EncodedImage($contents, $definition->format(), $dimensions);
     }
 }
