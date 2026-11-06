@@ -66,10 +66,6 @@ final class PdoConnection implements ConnectionInterface
         $statement = $this->execute($sql, $bindings);
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
 
-        if (!is_array($rows)) {
-            return [];
-        }
-
         /** @var list<array<string, mixed>> $normalized */
         $normalized = [];
 

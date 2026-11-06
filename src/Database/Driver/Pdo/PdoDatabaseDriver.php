@@ -118,21 +118,19 @@ final class PdoDatabaseDriver implements DatabaseDriverInterface
                 $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
                 $normalized = [];
 
-                if (is_array($rows)) {
-                    foreach ($rows as $row) {
-                        if (!is_array($row)) {
-                            continue;
-                        }
-
-                        $assoc = [];
-                        foreach ($row as $key => $value) {
-                            if (is_string($key)) {
-                                $assoc[$key] = $value;
-                            }
-                        }
-
-                        $normalized[] = $assoc;
+                foreach ($rows as $row) {
+                    if (!is_array($row)) {
+                        continue;
                     }
+
+                    $assoc = [];
+                    foreach ($row as $key => $value) {
+                        if (is_string($key)) {
+                            $assoc[$key] = $value;
+                        }
+                    }
+
+                    $normalized[] = $assoc;
                 }
 
                 /** @var list<array<string, mixed>> $normalized */
