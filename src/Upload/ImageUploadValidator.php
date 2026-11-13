@@ -6,6 +6,7 @@ namespace Lemonade\Framework\Upload;
 
 use Lemonade\Framework\Image\Contract\ImageProcessorInterface;
 use Lemonade\Framework\Image\Exception\ImageException;
+use Lemonade\Framework\Image\Exception\ImageValidationException;
 use Lemonade\Framework\Image\Value\DecodedImage;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageSource;
@@ -57,8 +58,19 @@ final readonly class ImageUploadValidator
                 ImageSource::fromFile($file->path()),
             );
         } catch (ImageException $exception) {
+            $messageKey = 'upload.image_not_valid';
+            $parameters = [];
+            if ($exception instanceof ImageValidationException) {
+                $messageKey = match ($exception->getCode()) {
+                    ImageValidationException::DIMENSIONS_EXCEEDED => 'upload.image_dimensions_exceeded',
+                    ImageValidationException::DECODE_MEMORY_EXCEEDED => 'upload.image_decode_memory_exceeded',
+                    default => 'upload.image_not_valid',
+                };
+                $parameters = $exception->parameters;
+            }
+
             throw new UploadValidationException(
-                $this->translator->get('upload.image_not_valid'),
+                $this->translator->get($messageKey, $parameters),
                 previous: $exception,
             );
         }

@@ -139,7 +139,15 @@ final readonly class GdImageProcessor implements ImageProcessorInterface
     private function assertDimensionsAllowed(ImageDimensions $dimensions): void
     {
         if ($dimensions->width > $this->maxWidth || $dimensions->height > $this->maxHeight || $dimensions->pixels() > $this->maxPixels) {
-            throw new ImageValidationException('Image dimensions exceed allowed limits.');
+            throw new ImageValidationException(
+                message: 'Image dimensions exceed allowed limits.',
+                code: ImageValidationException::DIMENSIONS_EXCEEDED,
+                parameters: [
+                    'width' => $this->maxWidth,
+                    'height' => $this->maxHeight,
+                    'pixels' => $this->maxPixels,
+                ],
+            );
         }
     }
 
@@ -157,7 +165,10 @@ final readonly class GdImageProcessor implements ImageProcessorInterface
             + self::DECODE_MEMORY_RESERVE;
 
         if ($required > $limit) {
-            throw new ImageValidationException('Image decoding would exceed the available memory budget.');
+            throw new ImageValidationException(
+                message: 'Image decoding would exceed the available memory budget.',
+                code: ImageValidationException::DECODE_MEMORY_EXCEEDED,
+            );
         }
     }
 

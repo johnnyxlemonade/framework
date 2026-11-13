@@ -26,6 +26,8 @@ return [
     'filename_generation_failed' => 'Could not generate the stored filename.',
 
     'image_not_valid' => 'The uploaded file is not a valid image.',
+    'image_dimensions_exceeded' => 'The image exceeds the allowed limits: maximum width {width} px, height {height} px and {pixels} pixels in total. Resize it and upload it again.',
+    'image_decode_memory_exceeded' => 'There is not enough memory to process the image. Resize it and upload it again.',
     'image_min_width' => 'The image width must be at least {width} px.',
     'image_max_width' => 'The image width must be at most {width} px.',
     'image_min_height' => 'The image height must be at least {height} px.',

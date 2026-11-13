@@ -23,6 +23,8 @@ return [
     'file_size_not_detected' => 'Impossible de détecter la taille du fichier stocké.',
     'filename_generation_failed' => 'Impossible de générer le nom du fichier stocké.',
     'image_not_valid' => 'Le fichier téléversé n’est pas une image valide.',
+    'image_dimensions_exceeded' => 'L’image dépasse les limites autorisées : largeur maximale de {width} px, hauteur de {height} px et {pixels} pixels au total. Réduisez l’image et téléversez-la à nouveau.',
+    'image_decode_memory_exceeded' => 'La mémoire disponible est insuffisante pour traiter l’image. Réduisez l’image et téléversez-la à nouveau.',
     'image_min_width' => 'La largeur de l’image doit être d’au moins {width} px.',
     'image_max_width' => 'La largeur de l’image doit être d’au plus {width} px.',
     'image_min_height' => 'La hauteur de l’image doit être d’au moins {height} px.',

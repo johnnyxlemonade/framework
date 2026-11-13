@@ -23,6 +23,8 @@ return [
     'file_size_not_detected' => 'Nepodarilo sa zistiť veľkosť uloženého súboru.',
     'filename_generation_failed' => 'Nepodarilo sa vygenerovať názov uloženého súboru.',
     'image_not_valid' => 'Nahraný súbor nie je platný obrázok.',
+    'image_dimensions_exceeded' => 'Obrázok prekračuje povolené limity: maximálna šírka {width} px, výška {height} px a celkovo {pixels} pixelov. Zmenšite ho a nahrajte znova.',
+    'image_decode_memory_exceeded' => 'Na spracovanie obrázka nie je dostatok pamäte. Zmenšite ho a nahrajte znova.',
     'image_min_width' => 'Šírka obrázka musí byť aspoň {width} px.',
     'image_max_width' => 'Šírka obrázka môže byť najviac {width} px.',
     'image_min_height' => 'Výška obrázka musí byť aspoň {height} px.',

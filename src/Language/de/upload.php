@@ -23,6 +23,8 @@ return [
     'file_size_not_detected' => 'Die Größe der gespeicherten Datei konnte nicht ermittelt werden.',
     'filename_generation_failed' => 'Der Name der gespeicherten Datei konnte nicht erzeugt werden.',
     'image_not_valid' => 'Die hochgeladene Datei ist kein gültiges Bild.',
+    'image_dimensions_exceeded' => 'Das Bild überschreitet die zulässigen Grenzen: maximale Breite {width} px, Höhe {height} px und insgesamt {pixels} Pixel. Verkleinern Sie es und laden Sie es erneut hoch.',
+    'image_decode_memory_exceeded' => 'Es ist nicht genügend Speicher verfügbar, um das Bild zu verarbeiten. Verkleinern Sie es und laden Sie es erneut hoch.',
     'image_min_width' => 'Die Bildbreite muss mindestens {width} px betragen.',
     'image_max_width' => 'Die Bildbreite darf höchstens {width} px betragen.',
     'image_min_height' => 'Die Bildhöhe muss mindestens {height} px betragen.',

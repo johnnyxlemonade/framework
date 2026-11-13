@@ -26,6 +26,8 @@ return [
     'filename_generation_failed' => 'Nepodařilo se vygenerovat název uloženého souboru.',
 
     'image_not_valid' => 'Nahraný soubor není validní obrázek.',
+    'image_dimensions_exceeded' => 'Obrázek překračuje povolené limity: maximální šířka {width} px, výška {height} px a celkem {pixels} pixelů. Zmenšete jej a nahrajte znovu.',
+    'image_decode_memory_exceeded' => 'Na zpracování obrázku není dostatek paměti. Zmenšete jej a nahrajte znovu.',
     'image_min_width' => 'Šířka obrázku musí být alespoň {width} px.',
     'image_max_width' => 'Šířka obrázku může být maximálně {width} px.',
     'image_min_height' => 'Výška obrázku musí být alespoň {height} px.',
