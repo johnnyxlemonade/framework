@@ -28,7 +28,6 @@ use Lemonade\Framework\Image\Value\ImageAsset;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageOriginalReference;
-use Lemonade\Framework\Image\Value\ImageOriginalStorage;
 use Lemonade\Framework\Image\Value\ImageQuality;
 use Lemonade\Framework\Image\Value\ImageVariantDefinition;
 use PHPUnit\Framework\TestCase;
@@ -76,11 +75,11 @@ final class ImageVariantCacheTest extends TestCase
                 return $this->encoded($definition, 'other');
             },
         );
-        self::assertSame($reference->publicPath(), $cached->publicPath());
+        self::assertEquals($reference, $cached);
         self::assertSame(1, $calls);
     }
 
-    public function testPublishedVariantUsesExplicitPublicPermissions(): void
+    public function testPublishedVariantUsesExplicitPrivatePermissions(): void
     {
         $cache = $this->cache(lock: new LockManager(new DirectoryManager()));
         $asset = $this->asset();
@@ -98,8 +97,8 @@ final class ImageVariantCacheTest extends TestCase
         }
 
         $target = $this->resolver()->variantPath($asset, $definition);
-        self::assertSame(0644, fileperms($target) & 0777);
-        self::assertSame(0755, fileperms(dirname($target)) & 0777);
+        self::assertSame(0600, fileperms($target) & 0777);
+        self::assertSame(0700, fileperms(dirname($target)) & 0777);
         self::assertFileDoesNotExist($target . '.lock');
         self::assertFileExists($this->resolver()->variantLockPath($asset, $definition));
     }
@@ -148,9 +147,9 @@ final class ImageVariantCacheTest extends TestCase
         );
 
         self::assertSame(0, $calls);
-        self::assertSame(
-            $this->resolver()->reference($asset, $definition)->publicPath(),
-            $reference->publicPath(),
+        self::assertEquals(
+            $this->resolver()->reference($asset, $definition),
+            $reference,
         );
         self::assertSame('first-consumer', file_get_contents($target));
     }
@@ -282,7 +281,7 @@ final class ImageVariantCacheTest extends TestCase
         return new ImageAsset(
             $assetId,
             new ImageOriginalReference(
-                ImageOriginalStorage::Storage,
+
                 'source.jpg',
                 $sourceVersion,
                 ImageFormat::Jpeg,

@@ -215,10 +215,11 @@ final class ChunkUploadSecurityTest extends TestCase
             declaredSize: 1,
             maxBytes: 64,
             currentOffset: 0,
-            chunkCount: 0,
-            maxChunks: $config->maxChunksPerSession(),
             createdAt: 1,
             expiresAt: 2,
+            publicationToken: bin2hex(random_bytes(32)),
+            chunkCount: 0,
+            maxChunks: $config->maxChunksPerSession(),
         );
         $processId = pcntl_fork();
 
@@ -271,10 +272,11 @@ final class ChunkUploadSecurityTest extends TestCase
                 declaredSize: 1,
                 maxBytes: 64,
                 currentOffset: 0,
-                chunkCount: 0,
-                maxChunks: $config->maxChunksPerSession(),
                 createdAt: 1,
                 expiresAt: 2,
+                publicationToken: bin2hex(random_bytes(32)),
+                chunkCount: 0,
+                maxChunks: $config->maxChunksPerSession(),
             ));
         }
 
@@ -504,10 +506,11 @@ final class ChunkUploadSecurityTest extends TestCase
             declaredSize: 1,
             maxBytes: 64,
             currentOffset: 0,
-            chunkCount: 0,
-            maxChunks: $config->maxChunksPerSession(),
             createdAt: 1,
             expiresAt: 2,
+            publicationToken: bin2hex(random_bytes(32)),
+            chunkCount: 0,
+            maxChunks: $config->maxChunksPerSession(),
         );
         $system->store->create($expired);
 
@@ -628,10 +631,11 @@ final class ChunkUploadSecurityTest extends TestCase
             declaredSize: 1,
             maxBytes: 64,
             currentOffset: 0,
-            chunkCount: 0,
-            maxChunks: $config->maxChunksPerSession(),
             createdAt: time(),
             expiresAt: time() + $config->ttlSeconds(),
+            publicationToken: bin2hex(random_bytes(32)),
+            chunkCount: 0,
+            maxChunks: $config->maxChunksPerSession(),
         );
     }
 
@@ -720,7 +724,7 @@ final class ChunkUploadSecurityTest extends TestCase
      */
     private function publishedFiles(string $directory): array
     {
-        $files = glob($this->basePath . '/public/uploads/' . $directory . '/*');
+        $files = glob($this->basePath . '/storage/uploads/' . $directory . str_repeat('/*', 9));
 
         return $files === false ? [] : $files;
     }

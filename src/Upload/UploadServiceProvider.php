@@ -87,17 +87,7 @@ final readonly class UploadServiceProvider implements ServiceProviderInterface, 
      */
     public function boot(ContainerInterface $container): void
     {
-        $pathPolicy = $container->get(UploadPathPolicy::class);
-        $config = $container->get(UploadConfig::class);
-
-        foreach ([...$config->files, ...$config->images] as $profile) {
-            if ($profile->visibility() !== UploadVisibility::Private) {
-                continue;
-            }
-
-            $pathPolicy->assertStorageRootsSeparated();
-
-            return;
-        }
+        $container->get(UploadPathPolicy::class);
+        $container->get(UploadConfig::class);
     }
 }

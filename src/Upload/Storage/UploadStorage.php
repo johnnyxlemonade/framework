@@ -7,15 +7,13 @@ namespace Lemonade\Framework\Upload\Storage;
 use Closure;
 use Lemonade\Framework\Filesystem\Filesystem;
 use Lemonade\Framework\Localization\TranslatorInterface;
-use Lemonade\Framework\Upload\Chunk\ChunkUploadConfig;
 use Lemonade\Framework\Upload\Exception\UploadStorageException;
 use Lemonade\Framework\Upload\Staging\StagedUpload;
 use Lemonade\Framework\Upload\UploadPathPolicy;
-use Lemonade\Framework\Upload\UploadVisibility;
 use Lemonade\Framework\Upload\ValueObject\UploadedFile;
 
 /**
- * Publishes caller-asserted snapshots inside visibility-specific storage boundaries.
+ * Publishes caller-asserted snapshots inside private upload storage.
  *
  * This trusted-code boundary enforces paths, permissions, identity, and atomic no-clobber publication, but does not
  * perform MIME, risk, or image validation. Applications must use UploadFactory for untrusted input.
@@ -33,30 +31,23 @@ final readonly class UploadStorage
      */
     private Closure $hardLink;
 
-    private ChunkUploadConfig $cleanupConfig;
-
     /**
      * Retains filesystem and path-policy collaborators used for constrained publication.
-     *
-     * Omitting the path policy is retained only for constructor compatibility; such an instance refuses storage.
      */
     public function __construct(
         private TranslatorInterface $translator,
         private Filesystem $filesystem,
-        private ?UploadPathPolicy $pathPolicy = null,
+        private UploadPathPolicy $pathPolicy,
         ?Closure $hardLink = null,
-        ?ChunkUploadConfig $cleanupConfig = null,
     ) {
         $this->hardLink = $hardLink ?? static fn(string $source, string $target): bool => @link($source, $target);
-        $this->cleanupConfig = $cleanupConfig ?? new ChunkUploadConfig();
     }
 
     /**
-     * Creates a visibility-constrained target and verifies containment before and after filesystem mutation.
+     * Validates the upload target and creates missing directories without changing existing permissions.
      */
     public function ensureTargetDirectory(
         string $targetDirectory,
-        UploadVisibility $visibility = UploadVisibility::Public,
     ): string {
         $targetDir = rtrim($targetDirectory, '/\\');
 
@@ -65,30 +56,13 @@ final readonly class UploadStorage
         }
 
         try {
-            if (!$this->pathPolicy instanceof UploadPathPolicy) {
-                throw new \LogicException('Upload path policy is required for storage.');
-            }
-
-            if ($visibility === UploadVisibility::Private) {
-                $this->pathPolicy->assertStorageRootsSeparated();
-            }
-
-            $mode = $visibility === UploadVisibility::Public ? 0755 : 0700;
-            $root = $this->pathPolicy->root($visibility);
-
-            $this->pathPolicy->assertTargetDirectory($targetDir, $visibility);
-            $this->filesystem->create($root, $mode);
-            $this->secureDirectoryTree($root, $root, $mode);
-            $this->pathPolicy->assertTargetDirectory($targetDir, $visibility);
-            $this->filesystem->create($targetDir, $mode);
-            $this->secureDirectoryTree($root, $targetDir, $mode);
-
-            $this->pathPolicy->assertTargetDirectory($targetDir, $visibility);
-        } catch (\Throwable) {
+            $this->pathPolicy->assertTargetDirectory($targetDir);
+            $this->filesystem->create($targetDir, 0700);
+        } catch (\Throwable $exception) {
             throw new UploadStorageException($this->translator->get(
                 'upload.create_target_directory_failed',
                 ['directory' => $targetDir],
-            ));
+            ), previous: $exception);
         }
 
         return $targetDir;
@@ -177,14 +151,12 @@ final readonly class UploadStorage
         StagedUpload $upload,
         string $targetDirectory,
         string $storedFilename,
-        UploadVisibility $visibility,
         bool $allowExistingIdentical = false,
     ): int {
-        $this->assertReadyTarget($targetDirectory, $visibility);
-        $this->cleanupPublicationOrphans($targetDirectory, $visibility);
+        $this->assertReadyTarget($targetDirectory);
 
         $storedPath = $this->buildPath($targetDirectory, $storedFilename);
-        $temporaryDirectory = $this->ensurePublicationTemporaryDirectory($targetDirectory, $visibility);
+        $temporaryDirectory = $this->ensurePublicationTemporaryDirectory($targetDirectory);
         $temporaryPath = null;
         $sourceHandle = null;
         $temporaryHandle = null;
@@ -219,24 +191,20 @@ final readonly class UploadStorage
             }
 
             $this->flushPublication($temporaryHandle);
-            $this->close($sourceHandle, $upload->path());
-            $sourceHandle = null;
+            $stat = fstat($temporaryHandle);
 
-            $mode = $visibility === UploadVisibility::Public ? 0644 : 0600;
-
-            if (!@chmod($temporaryPath, $mode)) {
+            if ($stat === false || $stat['size'] !== $written) {
                 throw new UploadStorageException($this->translator->get('upload.move_failed'));
             }
 
-            $this->assertReadyTarget($targetDirectory, $visibility);
+            $this->close($sourceHandle, $upload->path());
+            $sourceHandle = null;
 
             if (!(($this->hardLink)($temporaryPath, $storedPath))) {
                 throw new UploadStorageException($this->translator->get('upload.move_failed'));
             }
 
             $published = true;
-            $this->assertHardLinkIdentity($temporaryPath, $storedPath);
-            $this->assertPublishedIdentity($storedPath, $upload);
 
             if (!@unlink($temporaryPath)) {
                 throw new UploadStorageException($this->translator->get('upload.move_failed'));
@@ -283,23 +251,9 @@ final readonly class UploadStorage
     }
 
     /**
-     * Reports the persisted byte count or maps filesystem failures to the upload storage category.
-     */
-    public function fileSize(string $path): int
-    {
-        try {
-            $size = $this->filesystem->size($path);
-        } catch (\Throwable) {
-            throw new UploadStorageException($this->translator->get('upload.file_size_not_detected'));
-        }
-
-        return $size;
-    }
-
-    /**
      * Removes one just-published result when its owning higher-level transaction cannot be confirmed.
      *
-     * The path is revalidated against its visibility root and symbolic links are never followed.
+     * The path is revalidated against the private upload root and symbolic links are never followed.
      *
      * @throws UploadStorageException When the result no longer identifies a safely removable regular file
      */
@@ -312,7 +266,7 @@ final readonly class UploadStorage
             throw new UploadStorageException($this->translator->get('upload.move_failed'));
         }
 
-        $this->assertReadyTarget($directory, $upload->visibility());
+        $this->assertReadyTarget($directory);
 
         if (!is_file($expectedPath) || is_link($expectedPath)) {
             throw new UploadStorageException($this->translator->get('upload.move_failed'));
@@ -321,100 +275,10 @@ final readonly class UploadStorage
         $this->removePublishedPath($expectedPath);
     }
 
-    /**
-     * Reclaims a bounded number of old publication temporaries whose process lease is no longer active.
-     *
-     * Only exact framework-owned temporary basenames inside the validated target directory are considered. Symbolic
-     * links, recent files, changed path identities, and files locked by an active publisher are skipped.
-     */
-    public function cleanupPublicationOrphans(
-        string $targetDirectory,
-        UploadVisibility $visibility,
-        ?int $now = null,
-    ): int {
-        $targetDirectory = rtrim($targetDirectory, '/\\');
-        $this->assertReadyTarget($targetDirectory, $visibility);
-
-        if (!is_dir($targetDirectory) || is_link($targetDirectory)) {
-            return 0;
-        }
-
-        $temporaryDirectory = $this->publicationTemporaryDirectory($targetDirectory);
-
-        if (!is_dir($temporaryDirectory) || is_link($temporaryDirectory)) {
-            return 0;
-        }
-
-        try {
-            $this->assertPublicationTemporaryDirectory($temporaryDirectory, $visibility);
-        } catch (\Throwable $exception) {
-            throw new UploadStorageException(
-                $this->translator->get('upload.move_failed'),
-                previous: $exception,
-            );
-        }
-
-        $now ??= time();
-        $cutoff = $now - $this->cleanupConfig->stagingOrphanTtlSeconds();
-        $removed = 0;
-        $examined = 0;
-
-        try {
-            foreach ($this->filesystem->tree($temporaryDirectory, false) as $entry) {
-                if (++$examined > $this->cleanupConfig->cleanupBatchSize()) {
-                    break;
-                }
-
-                $path = $entry->getPathname();
-
-                if (!$this->isPublicationOrphanCandidate($path, $temporaryDirectory, $cutoff)) {
-                    continue;
-                }
-
-                $handle = @fopen($path, 'rb');
-
-                if ($handle === false) {
-                    continue;
-                }
-
-                try {
-                    if (!@flock($handle, LOCK_EX | LOCK_NB)) {
-                        continue;
-                    }
-
-                    if (
-                        !$this->openedFileMatchesPath($handle, $path)
-                        || !$this->isPublicationOrphanCandidate($path, $temporaryDirectory, $cutoff)
-                    ) {
-                        continue;
-                    }
-
-                    if (@unlink($path)) {
-                        ++$removed;
-                    }
-                } finally {
-                    @flock($handle, LOCK_UN);
-                    @fclose($handle);
-                }
-            }
-        } catch (\Throwable $exception) {
-            throw new UploadStorageException(
-                $this->translator->get('upload.move_failed'),
-                previous: $exception,
-            );
-        }
-
-        return $removed;
-    }
-
-    private function assertReadyTarget(string $targetDirectory, UploadVisibility $visibility): void
+    private function assertReadyTarget(string $targetDirectory): void
     {
-        if (!$this->pathPolicy instanceof UploadPathPolicy) {
-            throw new UploadStorageException($this->translator->get('upload.target_directory_missing'));
-        }
-
         try {
-            $this->pathPolicy->assertTargetDirectory($targetDirectory, $visibility);
+            $this->pathPolicy->assertTargetDirectory($targetDirectory);
         } catch (\Throwable $exception) {
             throw new UploadStorageException(
                 $this->translator->get('upload.target_directory_missing'),
@@ -444,13 +308,6 @@ final readonly class UploadStorage
 
             if ($handle !== false) {
                 if (!@chmod($path, 0600)) {
-                    $this->closeQuietly($handle);
-                    $this->removeQuietly($path);
-
-                    continue;
-                }
-
-                if (!@flock($handle, LOCK_SH)) {
                     $this->closeQuietly($handle);
                     $this->removeQuietly($path);
 
@@ -541,43 +398,6 @@ final readonly class UploadStorage
         }
     }
 
-    private function assertPublishedIdentity(string $storedPath, StagedUpload $upload): void
-    {
-        if (!is_file($storedPath) || is_link($storedPath)) {
-            throw new UploadStorageException($this->translator->get('upload.move_failed'));
-        }
-
-        try {
-            $size = $this->filesystem->size($storedPath);
-            $hash = $this->filesystem->hash($storedPath, 'sha256');
-        } catch (\Throwable $exception) {
-            throw new UploadStorageException(
-                $this->translator->get('upload.move_failed'),
-                previous: $exception,
-            );
-        }
-
-        if ($size !== $upload->sizeBytes() || !hash_equals($upload->sha256(), $hash)) {
-            throw new UploadStorageException($this->translator->get('upload.move_failed'));
-        }
-    }
-
-    private function assertHardLinkIdentity(string $temporaryPath, string $storedPath): void
-    {
-        $temporary = @lstat($temporaryPath);
-        $published = @lstat($storedPath);
-
-        if (
-            $temporary === false
-            || $published === false
-            || $temporary['dev'] !== $published['dev']
-            || $temporary['ino'] !== $published['ino']
-            || $published['nlink'] < 2
-        ) {
-            throw new UploadStorageException($this->translator->get('upload.move_failed'));
-        }
-    }
-
     private function existingFileMatchesSnapshot(string $storedPath, StagedUpload $upload): bool
     {
         if (!is_file($storedPath) || is_link($storedPath)) {
@@ -595,62 +415,13 @@ final readonly class UploadStorage
             && hash_equals($upload->sha256(), $hash);
     }
 
-    private function secureDirectoryTree(string $root, string $target, int $mode): void
-    {
-        $resolvedRoot = realpath($root);
-        $resolvedTarget = realpath($target);
-
-        if (!is_string($resolvedRoot) || !is_string($resolvedTarget)) {
-            throw new \RuntimeException('Upload directory identity cannot be resolved.');
-        }
-
-        $directories = [];
-        $cursor = $resolvedTarget;
-
-        while (true) {
-            array_unshift($directories, $cursor);
-
-            if ($cursor === $resolvedRoot) {
-                break;
-            }
-
-            $parent = dirname($cursor);
-
-            if ($parent === $cursor) {
-                throw new \RuntimeException('Upload directory escapes its managed root.');
-            }
-
-            $cursor = $parent;
-        }
-
-        foreach ($directories as $directory) {
-            if (!is_dir($directory) || is_link($directory) || !@chmod($directory, $mode)) {
-                throw new \RuntimeException('Upload directory permissions cannot be restricted.');
-            }
-
-            clearstatcache(true, $directory);
-            $permissions = @fileperms($directory);
-
-            if (!is_int($permissions) || ($permissions & 0777) !== $mode) {
-                throw new \RuntimeException('Upload directory permissions remain unsafe.');
-            }
-        }
-    }
-
     private function ensurePublicationTemporaryDirectory(
         string $targetDirectory,
-        UploadVisibility $visibility,
     ): string {
-        $directory = $this->publicationTemporaryDirectory($targetDirectory);
+        $directory = $targetDirectory . DIRECTORY_SEPARATOR . self::TEMPORARY_DIRECTORY;
 
         try {
-            if (is_link($directory)) {
-                throw new \RuntimeException('Upload publication temporary directory cannot be a symbolic link.');
-            }
-
-            $this->filesystem->create($directory);
-
-            $this->assertPublicationTemporaryDirectory($directory, $visibility);
+            $this->filesystem->create($directory, 0700);
         } catch (\Throwable $exception) {
             throw new UploadStorageException(
                 $this->translator->get('upload.create_target_directory_failed', ['directory' => $directory]),
@@ -659,62 +430,6 @@ final readonly class UploadStorage
         }
 
         return $directory;
-    }
-
-    private function assertPublicationTemporaryDirectory(
-        string $directory,
-        UploadVisibility $visibility,
-    ): void {
-        if (!$this->pathPolicy instanceof UploadPathPolicy) {
-            throw new \LogicException('Upload path policy is required for storage.');
-        }
-
-        $this->pathPolicy->assertTargetDirectory($directory, $visibility);
-
-        if (!is_dir($directory) || is_link($directory)) {
-            throw new \RuntimeException('Upload publication temporary directory is unsafe.');
-        }
-
-    }
-
-    private function publicationTemporaryDirectory(string $targetDirectory): string
-    {
-        return $targetDirectory . DIRECTORY_SEPARATOR . self::TEMPORARY_DIRECTORY;
-    }
-
-    /** @phpstan-impure */
-    private function isPublicationOrphanCandidate(string $path, string $temporaryDirectory, int $cutoff): bool
-    {
-        clearstatcache(true, $path);
-
-        if (
-            dirname($path) !== $temporaryDirectory
-            || preg_match('/^\.lemonade-publish-[a-f0-9]{32}\.tmp$/', basename($path)) !== 1
-            || !is_file($path)
-            || is_link($path)
-        ) {
-            return false;
-        }
-
-        $modified = @filemtime($path);
-
-        return is_int($modified) && $modified <= $cutoff;
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function openedFileMatchesPath($handle, string $path): bool
-    {
-        $opened = @fstat($handle);
-        $current = @lstat($path);
-
-        return $opened !== false
-            && $current !== false
-            && !is_link($path)
-            && ($opened['mode'] & 0170000) === 0100000
-            && $opened['dev'] === $current['dev']
-            && $opened['ino'] === $current['ino'];
     }
 
     /**

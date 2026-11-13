@@ -28,10 +28,10 @@ final readonly class ChunkUploadSession
         private int $currentOffset,
         private int $createdAt,
         private int $expiresAt,
+        private string $publicationToken,
         private array $context = [],
         private int $chunkCount = 0,
         private int $maxChunks = ChunkUploadConfig::DEFAULT_MAX_CHUNKS_PER_SESSION,
-        private string $publicationToken = '',
     ) {
         if (!in_array($this->kind, ['file', 'image'], true)) {
             throw new InvalidArgumentException('Chunk upload kind must be file or image.');
@@ -41,10 +41,7 @@ final readonly class ChunkUploadSession
             throw new InvalidArgumentException('Chunk upload session requires ID, profile, and original filename.');
         }
 
-        if (
-            $this->publicationToken !== ''
-            && preg_match('/^[a-f0-9]{64}$/', $this->publicationToken) !== 1
-        ) {
+        if (preg_match('/^[a-f0-9]{64}$/', $this->publicationToken) !== 1) {
             throw new InvalidArgumentException('Chunk upload publication token is invalid.');
         }
 
@@ -198,12 +195,12 @@ final readonly class ChunkUploadSession
             declaredSize: $this->declaredSize,
             maxBytes: $this->maxBytes,
             currentOffset: $currentOffset,
-            chunkCount: $this->chunkCount + 1,
-            maxChunks: $this->maxChunks,
             createdAt: $this->createdAt,
             expiresAt: $this->expiresAt,
-            context: $this->context,
             publicationToken: $this->publicationToken,
+            context: $this->context,
+            chunkCount: $this->chunkCount + 1,
+            maxChunks: $this->maxChunks,
         );
     }
 }

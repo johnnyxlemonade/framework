@@ -16,14 +16,14 @@ use Lemonade\Framework\Image\Value\ImageVariantDefinition;
 final readonly class ImageVariantGenerator
 {
     public function __construct(
-        private readonly ImageVariantCache $cache,
-        private readonly ImageVariantPathResolver $paths,
-        private readonly ImageVariantRendererInterface $renderer,
+        private ImageVariantCache $cache,
+        private ImageVariantPathResolver $paths,
+        private ImageVariantRendererInterface $renderer,
     ) {
     }
 
     /**
-     * Generates or retrieves the public reference for one deterministic derived variant
+     * Generates or retrieves the metadata for one deterministic cached variant
      */
     public function generate(
         ImageAsset $asset,

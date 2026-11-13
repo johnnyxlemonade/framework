@@ -78,7 +78,7 @@ final readonly class ConfiguredFileUploader
             'target_directory' => $this->options->targetDirectory(),
             'max_bytes' => $this->options->maxBytes(),
             'allowed_extensions' => $this->options->allowedExtensions(),
-            'visibility' => $this->options->visibility()->value,
+            'visibility' => 'private',
             'allowed_risks' => array_map(
                 static fn(MimeRisk $risk): string => $risk->value,
                 $this->options->allowedRisks(),

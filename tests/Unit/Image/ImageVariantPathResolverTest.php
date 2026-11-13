@@ -13,7 +13,6 @@ use Lemonade\Framework\Image\ImageVariantPathResolver;
 use Lemonade\Framework\Image\Value\ImageAsset;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
-use Lemonade\Framework\Image\Value\ImageOriginalStorage;
 use Lemonade\Framework\Image\Value\ImageQuality;
 use Lemonade\Framework\Image\Value\ImageVariantDefinition;
 use PHPUnit\Framework\TestCase;
@@ -23,26 +22,27 @@ final class ImageVariantPathResolverTest extends TestCase
     public function testCanonicalOriginalAndVariantPathsUseApplicationContextAndSharding(): void
     {
         $resolver = new ImageVariantPathResolver($this->context(), new DirectoryPathGenerator());
-        $original = $resolver->originalReference('asset-1', 'v1', ImageOriginalStorage::Storage, ImageFormat::Png, new ImageDimensions(100, 50));
+        $original = $resolver->originalReference('asset-1', 'v1', ImageFormat::Png, new ImageDimensions(100, 50));
         $asset = new ImageAsset('asset-1', $original);
         $definition = new ImageVariantDefinition(new ImageDimensions(64, 64), ImageFormat::Webp, ImageQuality::fromInt(80));
         $path = $resolver->variantPath($asset, $definition);
         $shard = rtrim((new DirectoryPathGenerator())->shard('asset-1'), '/');
-        self::assertStringContainsString('/storage/images/originals/' . $shard . '/asset-1/v1/original.png', $resolver->originalPath($asset));
-        self::assertStringContainsString('/public/uploads/images/variants/' . $shard . '/asset-1/v1/', $path);
+        self::assertStringContainsString('/storage/uploads/images/originals/' . $shard . '/asset-1/v1/original.png', $resolver->originalPath($asset));
+        self::assertStringContainsString('/storage/cache/images/' . $shard . '/asset-1/v1/', $path);
         self::assertStringEndsWith('.webp', $path);
         self::assertSame($path, $resolver->variantPath($asset, $definition));
         self::assertSame(dirname($path), $resolver->variantDirectory($asset));
         self::assertStringContainsString('/storage/cache/images/variant-locks/' . $shard . '/asset-1/v1/', $resolver->variantLockPath($asset, $definition));
         self::assertStringEndsWith('.lock', $resolver->variantLockPath($asset, $definition));
-        self::assertStringStartsNotWith('/', $resolver->reference($asset, $definition)->publicPath());
+        $this->expectException(\LogicException::class);
+        $resolver->reference($asset, $definition)->publicPath();
     }
 
-    public function testUploadOriginalUsesUploadBoundary(): void
+    public function testOriginalUsesPrivateUploadBoundary(): void
     {
         $resolver = new ImageVariantPathResolver($this->context(), new DirectoryPathGenerator());
-        $original = $resolver->originalReference('asset-1', 'v1', ImageOriginalStorage::Upload, ImageFormat::Jpeg, new ImageDimensions(1, 1));
-        self::assertStringContainsString('/public/uploads/images/originals/', $resolver->originalPath(new ImageAsset('asset-1', $original)));
+        $original = $resolver->originalReference('asset-1', 'v1', ImageFormat::Jpeg, new ImageDimensions(1, 1));
+        self::assertStringContainsString('/storage/uploads/images/originals/', $resolver->originalPath(new ImageAsset('asset-1', $original)));
     }
 
     private function context(): ApplicationContext { return new ApplicationContext(Environment::Testing, new Path('/framework', '/framework/public'), DebugMode::disabled()); }

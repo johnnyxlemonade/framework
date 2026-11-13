@@ -30,7 +30,6 @@ use Lemonade\Framework\Upload\Storage\UploadStorage;
 use Lemonade\Framework\Upload\UploadFactory;
 use Lemonade\Framework\Upload\UploadPathPolicy;
 use Lemonade\Framework\Upload\UploadService;
-use Lemonade\Framework\Upload\UploadVisibility;
 use Nyholm\Psr7\ServerRequest;
 use Nyholm\Psr7\Stream;
 use PHPUnit\Framework\TestCase;
@@ -72,7 +71,6 @@ final class ChunkUploadServiceTest extends TestCase
                         targetDirectory: 'documents',
                         maxBytes: 8,
                         allowedExtensions: ['txt'],
-                        visibility: UploadVisibility::Private,
                     )
                     ->imageProfile('shared', 'images', 4096, ['png'], reencode: false),
             ),
@@ -193,10 +191,8 @@ final class ChunkUploadServiceTest extends TestCase
 
         $uploaded = $this->service->complete($session->uploadId());
 
-        self::assertSame(UploadVisibility::Private, $uploaded->visibility());
-        self::assertNull($uploaded->publicRelativePath());
         self::assertStringStartsWith(
-            $this->basePath . '/storage/writable/uploads/files/documents/',
+            $this->basePath . '/storage/uploads/documents/',
             $uploaded->storedPath(),
         );
         self::assertStringStartsNotWith($this->basePath . '/public/', $uploaded->storedPath());
@@ -267,14 +263,14 @@ final class ChunkUploadServiceTest extends TestCase
             declaredSize: 1,
             maxBytes: 8,
             currentOffset: 0,
-            chunkCount: 0,
-            maxChunks: 1024,
             createdAt: 1,
             expiresAt: 2,
+            publicationToken: bin2hex(random_bytes(32)),
+            chunkCount: 0,
+            maxChunks: 1024,
         );
         $active = $this->service->start('file', 'shared', 'active.txt', 1);
         $this->store->create($expired);
-        @unlink(dirname($this->store->payloadPath($expired->uploadId())) . '/session.lock');
 
         $result = $this->service->cleanupExpired();
 

@@ -15,7 +15,6 @@ use Lemonade\Framework\Filesystem\Manager\DirectoryManager;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
 use Lemonade\Framework\Upload\UploadPathPolicy;
 use Lemonade\Framework\Upload\UploadServiceProvider;
-use Lemonade\Framework\Upload\UploadVisibility;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
@@ -26,8 +25,8 @@ final class UploadPathPolicyTest extends TestCase
     protected function setUp(): void
     {
         $this->basePath = sys_get_temp_dir() . '/lemonade-upload-path-' . bin2hex(random_bytes(8));
-        mkdir($this->basePath . '/public/uploads', 0755, true);
-        mkdir($this->basePath . '/storage/writable/uploads/files', 0700, true);
+        mkdir($this->basePath . '/public', 0755, true);
+        mkdir($this->basePath . '/storage/uploads', 0700, true);
     }
 
     protected function tearDown(): void
@@ -37,23 +36,21 @@ final class UploadPathPolicyTest extends TestCase
         }
     }
 
-    public function testSeparatesPublicAndPrivateTargets(): void
+    public function testResolvesPrivateTargets(): void
     {
         $policy = $this->policy($this->basePath . '/public');
 
-        $policy->assertStorageRootsSeparated();
-
         self::assertSame(
-            $this->basePath . '/public/uploads/images',
-            $policy->targetDirectory(UploadVisibility::Public, 'images'),
+            $this->basePath . '/storage/uploads/images',
+            $policy->targetDirectory('images'),
         );
         self::assertSame(
-            $this->basePath . '/storage/writable/uploads/files/documents',
-            $policy->targetDirectory(UploadVisibility::Private, 'documents'),
+            $this->basePath . '/storage/uploads/documents',
+            $policy->targetDirectory('documents'),
         );
         self::assertSame(
-            'uploads/files/documents',
-            $policy->storedRelativeDirectory(UploadVisibility::Private, 'documents'),
+            'uploads/documents',
+            $policy->storedRelativeDirectory('documents'),
         );
         self::assertSame(
             $this->basePath . '/storage/writable/uploads/chunks',
@@ -66,7 +63,7 @@ final class UploadPathPolicyTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Private upload storage must be outside the public web root.');
 
-        $this->policy($this->basePath)->assertStorageRootsSeparated();
+        $this->policy($this->basePath);
     }
 
     public function testRejectsStagingRootInsidePublicWebRoot(): void
@@ -74,7 +71,7 @@ final class UploadPathPolicyTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Upload staging must be outside the public web root.');
 
-        $this->policy($this->basePath)->assertStagingRootSeparated();
+        $this->policy($this->basePath . '/storage/writable/uploads/staging');
     }
 
     public function testRejectsChunkRootInsidePublicWebRoot(): void
@@ -82,7 +79,7 @@ final class UploadPathPolicyTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Chunk upload storage must be outside the public web root.');
 
-        $this->policy($this->basePath)->assertChunkRootSeparated();
+        $this->policy($this->basePath . '/storage/writable/uploads/chunks');
     }
 
     public function testProviderBootRejectsOverlapWhenPrivateProfileIsConfigured(): void
@@ -94,14 +91,13 @@ final class UploadPathPolicyTest extends TestCase
             targetDirectory: 'documents',
             maxBytes: 1024,
             allowedExtensions: ['txt'],
-            visibility: UploadVisibility::Private,
         ));
         $container->singleton(ConfigDefinitionRegistry::class, $registry);
         $container->singleton(ApplicationContext::class, new ApplicationContext(
             Environment::Testing,
             new Path(
                 $this->basePath,
-                $this->basePath . '/storage/writable/uploads/files',
+                $this->basePath . '/storage/uploads',
             ),
             DebugMode::disabled(),
         ));
@@ -114,14 +110,13 @@ final class UploadPathPolicyTest extends TestCase
         $provider->boot($container);
     }
 
-    public function testRejectsRuntimeTargetOutsideVisibilityRoot(): void
+    public function testRejectsRuntimeTargetOutsideUploadRoot(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('escapes its configured storage root');
 
         $this->policy($this->basePath . '/public')->assertTargetDirectory(
             $this->basePath . '/outside',
-            UploadVisibility::Public,
         );
     }
 
@@ -130,8 +125,7 @@ final class UploadPathPolicyTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         $this->policy($this->basePath . '/public')->assertTargetDirectory(
-            $this->basePath . '/public/uploads/safe/../nested',
-            UploadVisibility::Public,
+            $this->basePath . '/storage/uploads/safe/../nested',
         );
     }
 
@@ -141,7 +135,7 @@ final class UploadPathPolicyTest extends TestCase
             self::markTestSkipped('Symbolic-link containment requires a Unix-like test filesystem.');
         }
 
-        $root = $this->basePath . '/public/uploads';
+        $root = $this->basePath . '/storage/uploads';
         mkdir($root . '/real', 0755);
 
         if (!symlink($root . '/real', $root . '/linked')) {
@@ -153,7 +147,6 @@ final class UploadPathPolicyTest extends TestCase
 
         $this->policy($this->basePath . '/public')->assertTargetDirectory(
             $root . '/linked/nested',
-            UploadVisibility::Public,
         );
     }
 

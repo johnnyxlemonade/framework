@@ -80,7 +80,7 @@ configuration  -> app/Config/
 storage        -> storage/
 logs           -> storage/writable/logs/
 sessions       -> storage/writable/sessions/
-uploads        -> <public path>/uploads/
+uploads        -> <application root>/storage/uploads/
 cache          -> storage/cache/
 ```
 
@@ -91,3 +91,5 @@ Session driver paths are resolved against `storage/writable`; use `sessions`, no
 ## Usage
 
 Config files and services should use the application context instead of hardcoding filesystem paths.
+
+Upload paths and upload-relative identifiers describe private storage, not public URLs.

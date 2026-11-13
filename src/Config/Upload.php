@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Lemonade\Framework\Mime\MimeRisk;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
 
 return UploadConfigDefinition::create()
@@ -10,6 +11,7 @@ return UploadConfigDefinition::create()
         targetDirectory: 'files',
         maxBytes: 2 * 1024 * 1024,
         allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
+        allowedRisks: [MimeRisk::Container],
     )
     ->imageProfile(
         profile: 'default',

@@ -11,7 +11,6 @@ use Lemonade\Framework\Mime\MimeType;
 use Lemonade\Framework\Mime\MimeTypeDefinition;
 use Lemonade\Framework\Upload\Config\UploadConfigDefinition;
 use Lemonade\Framework\Upload\Config\UploadConfigResolver;
-use Lemonade\Framework\Upload\UploadVisibility;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -25,6 +24,7 @@ final class UploadConfigResolverTest extends TestCase
                     'target_directory' => 'documents',
                     'max_bytes' => '10 MB',
                     'allowed_extensions' => ['.PDF', 'docx'],
+                    'allowed_risks' => ['container'],
                 ],
             ],
             'images' => [
@@ -42,15 +42,15 @@ final class UploadConfigResolverTest extends TestCase
         self::assertSame(500 * 1024, $config->images['admin-image']->maxBytes());
         self::assertSame(['jpg', 'jpeg'], $config->images['admin-image']->allowedExtensions());
         self::assertSame('documents', $config->files['documents']->targetDirectory());
-        self::assertSame(UploadVisibility::Public, $config->files['documents']->visibility());
-        self::assertSame([], $config->files['documents']->allowedRisks());
+
+        self::assertSame([MimeRisk::Container], $config->files['documents']->allowedRisks());
         self::assertSame('images', $config->images['admin-image']->targetDirectory());
         self::assertTrue($config->images['admin-image']->reencode());
         self::assertNull($config->images['admin-image']->minWidth());
         self::assertNull($config->images['admin-image']->maxWidth());
         self::assertNull($config->images['admin-image']->minHeight());
         self::assertNull($config->images['admin-image']->maxHeight());
-        self::assertSame(UploadVisibility::Public, $config->images['admin-image']->visibility());
+
         self::assertSame([], $config->images['admin-image']->allowedRisks());
     }
 
@@ -79,6 +79,7 @@ final class UploadConfigResolverTest extends TestCase
                     'target_directory' => 'documents',
                     'max_bytes' => 10485760,
                     'allowed_extensions' => ['jpg', 'pdf', 'docx'],
+                    'allowed_risks' => ['container'],
                 ],
             ],
         ]);
@@ -92,14 +93,15 @@ final class UploadConfigResolverTest extends TestCase
         self::assertFalse($catalog->matches($config->files['documents']->allowedExtensions()[2], 'application/pdf'));
     }
 
-    public function testPublicProfileRejectsActiveRiskEvenWhenAllowedRisksTriesToEnableIt(): void
+    public function testRejectsObsoletePublicStorageConfiguration(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('public storage cannot authorize risk "active_content"');
+        $this->expectExceptionMessage('only private storage is supported.');
 
         $this->resolve([
             'files' => [
                 'public-html' => [
+                    'visibility' => 'public',
                     'target_directory' => 'pages',
                     'allowed_extensions' => ['html'],
                     'allowed_risks' => ['active_content'],
@@ -136,7 +138,6 @@ final class UploadConfigResolverTest extends TestCase
             ],
         ]);
 
-        self::assertSame(UploadVisibility::Private, $config->files['private-html']->visibility());
         self::assertSame([MimeRisk::ActiveContent], $config->files['private-html']->allowedRisks());
     }
 
@@ -154,15 +155,15 @@ final class UploadConfigResolverTest extends TestCase
         try {
             $resolver->resolve(UploadConfigDefinition::fromArrayData([
                 'files' => [
-                    'public-custom' => [
+                    'unauthorized-custom' => [
                         'target_directory' => 'custom',
                         'allowed_extensions' => ['acme-unclassified'],
                     ],
                 ],
             ]));
-            self::fail('An unclassified public format must be rejected.');
+            self::fail('An unclassified format requires explicit authorization.');
         } catch (InvalidArgumentException $exception) {
-            self::assertStringContainsString('public storage risk policy', $exception->getMessage());
+            self::assertStringContainsString('private storage risk policy', $exception->getMessage());
         }
 
         $config = $resolver->resolve(UploadConfigDefinition::fromArrayData([

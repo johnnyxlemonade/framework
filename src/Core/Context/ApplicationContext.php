@@ -150,7 +150,7 @@ final readonly class ApplicationContext
     }
 
     /**
-     * Resolves an upload path using the public upload storage convention.
+     * Resolves an upload path below private application storage.
      */
     public function resolveUploadPath(string $path = ''): string
     {
@@ -158,11 +158,11 @@ final readonly class ApplicationContext
     }
 
     /**
-     * Preserves an absolute path or resolves a relative path below the public uploads directory.
+     * Preserves an absolute path or resolves a relative path below private uploads.
      */
     public function uploadPath(string $path = ''): string
     {
-        return $this->resolvePublicSubPath('uploads', $path);
+        return $this->resolveStorageSubPath('uploads', $path);
     }
 
     /**
@@ -174,7 +174,7 @@ final readonly class ApplicationContext
     }
 
     /**
-     * Returns a portable forward-slash path relative to the public root for an upload location.
+     * Returns a portable upload path relative to application storage, never a public URL.
      */
     public function uploadRelativePath(string $path = ''): string
     {
@@ -215,22 +215,6 @@ final readonly class ApplicationContext
         }
 
         return $base . '/' . $path;
-    }
-
-    private function resolvePublicSubPath(string $base, string $path = ''): string
-    {
-        if ($this->paths->isAbsolute($path)) {
-            return $this->paths->resolve($path);
-        }
-
-        $base = $this->trimRelativePath($base);
-        $path = $this->trimRelativePath($path);
-
-        if ($path === '') {
-            return $this->publicPath($base);
-        }
-
-        return $this->publicPath($base . $this->pathSeparator() . $path);
     }
 
     private function resolveStorageSubPath(string $base, string $path = ''): string

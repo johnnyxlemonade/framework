@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Upload\Config;
 
 use Lemonade\Framework\Mime\MimeRisk;
-use Lemonade\Framework\Upload\UploadVisibility;
 
 /**
  * Carries one resolved image-upload policy, including re-encoding and dimension boundaries.
@@ -30,7 +29,6 @@ final readonly class ImageUploadProfileConfig
         private ?int $maxWidth,
         private ?int $minHeight,
         private ?int $maxHeight,
-        private UploadVisibility $visibility = UploadVisibility::Public,
         private array $allowedRisks = [],
     ) {
     }
@@ -85,12 +83,6 @@ final readonly class ImageUploadProfileConfig
     public function maxHeight(): ?int
     {
         return $this->maxHeight;
-    }
-
-    /** Returns whether accepted images are published to public or private storage. */
-    public function visibility(): UploadVisibility
-    {
-        return $this->visibility;
     }
 
     /**

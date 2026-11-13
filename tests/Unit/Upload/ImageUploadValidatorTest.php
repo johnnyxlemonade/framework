@@ -110,7 +110,7 @@ final class ImageUploadValidatorTest extends TestCase
         try {
             $this->service()->uploadImage($upload, $this->options(reencode: false));
         } finally {
-            self::assertDirectoryDoesNotExist($this->basePath . '/public/uploads/images');
+            self::assertDirectoryDoesNotExist($this->basePath . '/storage/uploads/images');
             self::assertSame([], $this->stagedFiles());
         }
     }
@@ -165,7 +165,7 @@ final class ImageUploadValidatorTest extends TestCase
             $this->createMock(ImageEncoderInterface::class),
             $this->staging(),
         );
-        $targetDirectory = $this->basePath . '/public/uploads/files';
+        $targetDirectory = $this->basePath . '/storage/uploads/files';
         $upload = $this->upload('document.doc', "%PDF-1.4\n");
 
         try {
@@ -212,7 +212,7 @@ final class ImageUploadValidatorTest extends TestCase
         } catch (UploadValidationException) {
             self::assertSame(0, $upload->moveCalls);
             self::assertSame(1, $detector->calls);
-            self::assertDirectoryDoesNotExist($this->basePath . '/public/uploads/images');
+            self::assertDirectoryDoesNotExist($this->basePath . '/storage/uploads/images');
         }
     }
 
@@ -231,7 +231,7 @@ final class ImageUploadValidatorTest extends TestCase
     private function options(bool $reencode = true): ImageUploadOptions
     {
         return new ImageUploadOptions(
-            targetDirectory: $this->basePath . '/public/uploads/images',
+            targetDirectory: $this->basePath . '/storage/uploads/images',
             targetRelativeDirectory: 'uploads/images',
             allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
             reencode: $reencode,

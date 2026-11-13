@@ -47,7 +47,6 @@ final readonly class ImageUploadValidator
             targetRelativeDirectory: $options->targetRelativeDirectory(),
             maxBytes: $options->maxBytes(),
             allowedExtensions: $options->allowedExtensions(),
-            visibility: $options->visibility(),
             allowedRisks: $options->allowedRisks(),
         );
 

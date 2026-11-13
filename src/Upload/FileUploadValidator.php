@@ -78,7 +78,6 @@ final readonly class FileUploadValidator
             $definition === null
             || !$this->riskPolicy->allows(
                 $definition->risk(),
-                $options->visibility(),
                 $options->allowedRisks(),
             )
         ) {

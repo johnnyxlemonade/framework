@@ -23,6 +23,7 @@ final class MigrationCliRegistrationTest extends TestCase
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-migration-cli-' . uniqid('', true);
+        mkdir($this->root . DIRECTORY_SEPARATOR . 'public', 0775, true);
         $this->writeConfig('Config.yaml', "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n");
         $this->writeConfig('App.yaml', "module: app\nconfig: {}\n");
         $this->writeConfig('Commands.yaml', "module: commands\nconfig:\n  commands: []\n");

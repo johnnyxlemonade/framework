@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload\ValueObject;
 
-use Lemonade\Framework\Upload\UploadVisibility;
-
 /**
  * Extends a persisted upload reference with dimensions verified from the final bitmap bytes.
  */
@@ -22,8 +20,6 @@ final class UploadedImage extends UploadedFile
         int $sizeBytes,
         private readonly int $width,
         private readonly int $height,
-        UploadVisibility $visibility = UploadVisibility::Public,
-        ?string $publicRelativePath = null,
     ) {
         parent::__construct(
             storedFilename: $storedFilename,
@@ -31,8 +27,6 @@ final class UploadedImage extends UploadedFile
             storedRelativePath: $storedRelativePath,
             mimeType: $mimeType,
             sizeBytes: $sizeBytes,
-            visibility: $visibility,
-            publicRelativePath: $publicRelativePath,
         );
     }
 

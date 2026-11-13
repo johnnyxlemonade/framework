@@ -88,7 +88,7 @@ final readonly class ConfiguredImageUploader
             'max_width' => $this->options->maxWidth(),
             'min_height' => $this->options->minHeight(),
             'max_height' => $this->options->maxHeight(),
-            'visibility' => $this->options->visibility()->value,
+            'visibility' => 'private',
             'allowed_risks' => array_map(
                 static fn(MimeRisk $risk): string => $risk->value,
                 $this->options->allowedRisks(),

@@ -44,6 +44,7 @@ final class KernelTest extends TestCase
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-kernel-' . uniqid('', true);
+        mkdir($this->root . DIRECTORY_SEPARATOR . 'public', 0775, true);
         KernelRequestContextCaptureMiddleware::reset();
         $this->writeDefaultConfigFiles();
     }

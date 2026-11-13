@@ -29,7 +29,7 @@ final class FilesystemImageFileWriterTest extends TestCase
         (new DirectoryManager())->delete($this->root);
     }
 
-    public function testWriteUsesExplicitPublicFileAndDirectoryPermissions(): void
+    public function testWriteUsesExplicitPrivateFileAndDirectoryPermissions(): void
     {
         $directory = new DirectoryManager();
         $writer = new FilesystemImageFileWriter(new Filesystem(
@@ -50,7 +50,7 @@ final class FilesystemImageFileWriterTest extends TestCase
         }
 
         self::assertSame('png-bytes', file_get_contents($target));
-        self::assertSame(0644, fileperms($target) & 0777);
-        self::assertSame(0755, fileperms(dirname($target)) & 0777);
+        self::assertSame(0600, fileperms($target) & 0777);
+        self::assertSame(0700, fileperms(dirname($target)) & 0777);
     }
 }

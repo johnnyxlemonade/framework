@@ -70,7 +70,7 @@ final class ApplicationContextTest extends TestCase
         $context = $this->context(Environment::Development, DebugMode::enabled(), $base, $base . DIRECTORY_SEPARATOR . 'public');
 
         self::assertSame(
-            $base . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'images',
+            $base . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'images',
             $context->uploadPath('images'),
         );
         self::assertSame(
@@ -142,7 +142,7 @@ final class ApplicationContextTest extends TestCase
 
         try {
             self::assertSame(
-                $base . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'files',
+                $base . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'files',
                 $context->uploadPath('files'),
             );
             self::assertSame(

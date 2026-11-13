@@ -9,7 +9,6 @@ use Lemonade\Framework\Image\Value\ImageBackground;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageOriginalReference;
-use Lemonade\Framework\Image\Value\ImageOriginalStorage;
 use Lemonade\Framework\Image\Value\ImageQuality;
 use Lemonade\Framework\Image\Value\ImageScalePolicy;
 use Lemonade\Framework\Image\Value\ImageVariantDefinition;
@@ -49,7 +48,7 @@ final class ImageVariantKeyTest extends TestCase
 
     private function asset(string $version): ImageAsset
     {
-        return new ImageAsset('asset', new ImageOriginalReference(ImageOriginalStorage::Storage, 'images/originals/a/original.jpg', $version, ImageFormat::Jpeg, new ImageDimensions(100, 50)));
+        return new ImageAsset('asset', new ImageOriginalReference('images/originals/a/original.jpg', $version, ImageFormat::Jpeg, new ImageDimensions(100, 50)));
     }
 
     private function definition(

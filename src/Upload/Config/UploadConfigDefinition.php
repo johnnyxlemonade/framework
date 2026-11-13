@@ -6,7 +6,6 @@ namespace Lemonade\Framework\Upload\Config;
 
 use Lemonade\Framework\Core\Config\Definition\AbstractConfigDefinition;
 use Lemonade\Framework\Mime\MimeRisk;
-use Lemonade\Framework\Upload\UploadVisibility;
 
 /**
  * Defines immutable source values for named generic-file and image upload profiles.
@@ -40,14 +39,12 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
         string $targetDirectory,
         int $maxBytes,
         array $allowedExtensions = [],
-        UploadVisibility $visibility = UploadVisibility::Public,
         array $allowedRisks = [],
     ): self {
         return $this
             ->set("files.{$profile}.target_directory", $targetDirectory)
             ->set("files.{$profile}.max_bytes", $maxBytes)
             ->set("files.{$profile}.allowed_extensions", array_values($allowedExtensions))
-            ->set("files.{$profile}.visibility", $visibility->value)
             ->set("files.{$profile}.allowed_risks", array_map(
                 static fn(MimeRisk $risk): string => $risk->value,
                 array_values($allowedRisks),
@@ -70,7 +67,6 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
         ?int $maxWidth = null,
         ?int $minHeight = null,
         ?int $maxHeight = null,
-        UploadVisibility $visibility = UploadVisibility::Public,
         array $allowedRisks = [],
     ): self {
         $this
@@ -78,7 +74,6 @@ final class UploadConfigDefinition extends AbstractConfigDefinition
             ->set("images.{$profile}.max_bytes", $maxBytes)
             ->set("images.{$profile}.allowed_extensions", array_values($allowedExtensions))
             ->set("images.{$profile}.reencode", $reencode)
-            ->set("images.{$profile}.visibility", $visibility->value)
             ->set("images.{$profile}.allowed_risks", array_map(
                 static fn(MimeRisk $risk): string => $risk->value,
                 array_values($allowedRisks),

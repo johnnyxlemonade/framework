@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Upload\Config;
 
 use Lemonade\Framework\Mime\MimeRisk;
-use Lemonade\Framework\Upload\UploadVisibility;
 
 /**
  * Carries one resolved generic-upload policy after extension validation and byte-size parsing.
@@ -25,7 +24,6 @@ final readonly class FileUploadProfileConfig
         private string $targetDirectory,
         private int $maxBytes,
         private array $allowedExtensions,
-        private UploadVisibility $visibility = UploadVisibility::Public,
         private array $allowedRisks = [],
     ) {
     }
@@ -50,12 +48,6 @@ final readonly class FileUploadProfileConfig
     public function allowedExtensions(): array
     {
         return $this->allowedExtensions;
-    }
-
-    /** Returns whether accepted files are published to public or private storage. */
-    public function visibility(): UploadVisibility
-    {
-        return $this->visibility;
     }
 
     /**

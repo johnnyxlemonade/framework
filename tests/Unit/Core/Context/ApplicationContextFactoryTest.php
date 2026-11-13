@@ -85,7 +85,7 @@ final class ApplicationContextFactoryTest extends TestCase
 
         self::assertSame('C:\\laragon\\www\\framework', $context->basePath());
         self::assertSame('C:\\laragon\\www\\framework\\public', $context->publicPath());
-        self::assertSame('C:\\laragon\\www\\framework\\public\\uploads\\images', $context->uploadPath('images'));
+        self::assertSame('C:\\laragon\\www\\framework\\storage\\uploads\\images', $context->uploadPath('images'));
         self::assertSame('C:\\laragon\\www\\framework\\storage\\writable\\logs', $context->resolveLogPath());
         self::assertSame('C:\\laragon\\www\\framework\\storage\\writable\\sessions', $context->resolveSessionPath());
         self::assertSame('C:\\laragon\\www\\framework\\storage\\cache', $context->resolveCachePath());
@@ -101,7 +101,7 @@ final class ApplicationContextFactoryTest extends TestCase
 
         self::assertSame('/var/www/framework', $context->basePath());
         self::assertSame('/var/www/framework/public', $context->publicPath());
-        self::assertSame('/var/www/framework/public/uploads/images', $context->uploadPath('images'));
+        self::assertSame('/var/www/framework/storage/uploads/images', $context->uploadPath('images'));
         self::assertSame('/var/www/framework/storage/writable/logs', $context->resolveLogPath());
         self::assertSame('/var/www/framework/storage/writable/sessions', $context->resolveSessionPath());
         self::assertSame('/var/www/framework/storage/cache', $context->resolveCachePath());

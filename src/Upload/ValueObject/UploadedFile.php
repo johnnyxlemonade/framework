@@ -4,17 +4,13 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload\ValueObject;
 
-use Lemonade\Framework\Upload\UploadVisibility;
-
 /**
- * Describes a persisted upload while exposing a public-relative path only for public storage.
+ * Describes a persisted private upload without exposing a public URL.
  */
 class UploadedFile
 {
-    private readonly ?string $publicRelativePath;
-
     /**
-     * Records the final storage identity, detected media type, byte count, and delivery visibility.
+     * Records the final storage identity, detected media type, and byte count.
      */
     public function __construct(
         private readonly string $storedFilename,
@@ -22,12 +18,7 @@ class UploadedFile
         private readonly string $storedRelativePath,
         private readonly string $mimeType,
         private readonly int $sizeBytes,
-        private readonly UploadVisibility $visibility = UploadVisibility::Public,
-        ?string $publicRelativePath = null,
     ) {
-        $this->publicRelativePath = $this->visibility === UploadVisibility::Public
-            ? ($publicRelativePath ?? $this->storedRelativePath)
-            : null;
     }
 
     /**
@@ -47,7 +38,7 @@ class UploadedFile
     }
 
     /**
-     * Returns the storage-relative identifier below the public or private upload root.
+     * Returns the identifier relative to application storage.
      */
     public function storedRelativePath(): string
     {
@@ -68,21 +59,5 @@ class UploadedFile
     public function sizeBytes(): int
     {
         return $this->sizeBytes;
-    }
-
-    /**
-     * Identifies whether the stored upload is publicly published or privately retained.
-     */
-    public function visibility(): UploadVisibility
-    {
-        return $this->visibility;
-    }
-
-    /**
-     * Returns the web-root-relative path for public uploads and null for private uploads.
-     */
-    public function publicRelativePath(): ?string
-    {
-        return $this->publicRelativePath;
     }
 }

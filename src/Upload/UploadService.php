@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Lemonade\Framework\Upload;
 
+use Lemonade\Framework\Filesystem\DirectoryPathGenerator;
 use Lemonade\Framework\Image\Contract\ImageEncoderInterface;
 use Lemonade\Framework\Image\Exception\ImageException;
 use Lemonade\Framework\Image\Value\ImageFormat;
@@ -32,6 +33,7 @@ final readonly class UploadService
         private UploadStorage $storage,
         private ImageEncoderInterface $imageEncoder,
         private UploadStaging $staging,
+        private DirectoryPathGenerator $directories = new DirectoryPathGenerator(),
     ) {
     }
 
@@ -49,25 +51,22 @@ final readonly class UploadService
         try {
             $staged = $this->staging->stage($file, $options->maxBytes());
             $mime = $this->fileValidator->validate($staged, $options);
-            $this->staging->assertIntact($staged);
 
-            $targetDir = $this->storage->ensureTargetDirectory(
-                $options->targetDirectory(),
-                $options->visibility(),
-            );
             $extension = $this->clientExtension($staged);
-
             $storedFilename = $this->storage->generateFilename($extension, $publicationToken);
+            $shard = $this->directories->shard(pathinfo($storedFilename, PATHINFO_FILENAME));
+            $targetDir = $this->storage->ensureTargetDirectory(
+                rtrim($options->targetDirectory() . '/' . $shard, '/'),
+            );
             $storedPath = $this->storage->buildPath($targetDir, $storedFilename);
             $storedRelativePath = $this->storage->buildRelativePath(
-                $options->targetRelativeDirectory(),
+                rtrim($options->targetRelativeDirectory() . '/' . $shard, '/'),
                 $storedFilename,
             );
             $size = $this->storage->publishSnapshot(
                 $staged,
                 $targetDir,
                 $storedFilename,
-                $options->visibility(),
                 $allowExistingIdentical,
             );
 
@@ -77,10 +76,6 @@ final readonly class UploadService
                 storedRelativePath: $storedRelativePath,
                 mimeType: $mime->value(),
                 sizeBytes: $size,
-                visibility: $options->visibility(),
-                publicRelativePath: $options->visibility() === UploadVisibility::Public
-                    ? $storedRelativePath
-                    : null,
             );
         } finally {
             $this->staging->discard($staged);
@@ -137,23 +132,20 @@ final readonly class UploadService
                 );
             }
 
-            $this->staging->assertIntact($publication);
-
-            $targetDir = $this->storage->ensureTargetDirectory(
-                $options->targetDirectory(),
-                $options->visibility(),
-            );
             $storedFilename = $this->storage->generateFilename($extension, $publicationToken);
+            $shard = $this->directories->shard(pathinfo($storedFilename, PATHINFO_FILENAME));
+            $targetDir = $this->storage->ensureTargetDirectory(
+                rtrim($options->targetDirectory() . '/' . $shard, '/'),
+            );
             $storedPath = $this->storage->buildPath($targetDir, $storedFilename);
             $storedRelativePath = $this->storage->buildRelativePath(
-                $options->targetRelativeDirectory(),
+                rtrim($options->targetRelativeDirectory() . '/' . $shard, '/'),
                 $storedFilename,
             );
             $size = $this->storage->publishSnapshot(
                 $publication,
                 $targetDir,
                 $storedFilename,
-                $options->visibility(),
                 $allowExistingIdentical,
             );
 
@@ -167,10 +159,6 @@ final readonly class UploadService
                 sizeBytes: $size,
                 width: $dimensions->width,
                 height: $dimensions->height,
-                visibility: $options->visibility(),
-                publicRelativePath: $options->visibility() === UploadVisibility::Public
-                    ? $storedRelativePath
-                    : null,
             );
         } finally {
             if ($publication !== $source) {

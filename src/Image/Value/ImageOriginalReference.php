@@ -15,7 +15,6 @@ final readonly class ImageOriginalReference
      * Creates a safe versioned source reference without exposing an absolute path
      */
     public function __construct(
-        private ImageOriginalStorage $storage,
         private string $relativePath,
         private string $sourceVersion,
         private ImageFormat $format,
@@ -33,15 +32,7 @@ final readonly class ImageOriginalReference
     }
 
     /**
-     * Returns the storage boundary that owns the persistent source
-     */
-    public function storage(): ImageOriginalStorage
-    {
-        return $this->storage;
-    }
-
-    /**
-     * Returns the validated path relative to the selected storage boundary
+     * Returns the validated path relative to the private upload root
      */
     public function relativePath(): string
     {

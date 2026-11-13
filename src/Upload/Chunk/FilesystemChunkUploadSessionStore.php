@@ -26,7 +26,6 @@ use function is_file;
 use function is_link;
 use function json_decode;
 use function json_encode;
-use function lstat;
 use function random_bytes;
 use function strlen;
 
@@ -181,12 +180,6 @@ final readonly class FilesystemChunkUploadSessionStore
             throw new UploadStorageException('Chunk upload lock path is unsafe.');
         }
 
-        if (!is_file($lockPath)) {
-            if (!$this->initializeLegacySessionLock($uploadId)) {
-                return null;
-            }
-        }
-
         $handle = @fopen($lockPath, 'r+b');
 
         if ($handle === false) {
@@ -253,12 +246,12 @@ final readonly class FilesystemChunkUploadSessionStore
                 declaredSize: $this->intValue($decoded, 'declared_size'),
                 maxBytes: $this->intValue($decoded, 'max_bytes'),
                 currentOffset: $this->intValue($decoded, 'current_offset'),
-                chunkCount: $this->intValue($decoded, 'chunk_count'),
-                maxChunks: $this->intValue($decoded, 'max_chunks'),
                 createdAt: $this->intValue($decoded, 'created_at'),
                 expiresAt: $this->intValue($decoded, 'expires_at'),
-                context: $this->contextValue($decoded),
                 publicationToken: $this->stringValue($decoded, 'publication_token'),
+                context: $this->contextValue($decoded),
+                chunkCount: $this->intValue($decoded, 'chunk_count'),
+                maxChunks: $this->intValue($decoded, 'max_chunks'),
             );
         } catch (\Throwable $exception) {
             throw new UploadStorageException('Chunk upload metadata is invalid.', previous: $exception);
@@ -313,6 +306,7 @@ final readonly class FilesystemChunkUploadSessionStore
             throw new UploadStorageException('Chunk upload payload path is unsafe.');
         }
 
+        $isNewPayload = !is_file($path);
         $handle = fopen($path, 'c+b');
 
         if ($handle === false) {
@@ -320,11 +314,9 @@ final readonly class FilesystemChunkUploadSessionStore
         }
 
         try {
-            if (!@chmod($path, 0600)) {
+            if ($isNewPayload && !@chmod($path, 0600)) {
                 throw new RuntimeException('Chunk upload payload permissions cannot be restricted.');
             }
-
-            $this->assertOpenedRegularFile($handle, $path);
 
             if (fseek($handle, 0, SEEK_END) !== 0) {
                 throw new RuntimeException('Chunk upload payload cannot be positioned.');
@@ -701,57 +693,6 @@ final readonly class FilesystemChunkUploadSessionStore
         $this->filesystem->move($initializingDirectory, $directory);
     }
 
-    private function initializeLegacySessionLock(string $uploadId): bool
-    {
-        $directory = $this->sessionDirectory($uploadId);
-        $lockPath = $directory . DIRECTORY_SEPARATOR . 'session.lock';
-
-        if (!is_dir($directory) || is_link($directory)) {
-            return false;
-        }
-
-        if (is_link($lockPath)) {
-            throw new UploadStorageException('Chunk upload lock path is unsafe.');
-        }
-
-        if (is_file($lockPath)) {
-            return true;
-        }
-
-        $directoryModifiedAt = @filemtime($directory);
-        $handle = @fopen($lockPath, 'x+b');
-
-        if ($handle === false) {
-            return $this->isSafeLockFile($lockPath);
-        }
-
-        try {
-            if (!@chmod($lockPath, 0600)) {
-                throw new UploadStorageException('Chunk upload lock permissions cannot be restricted.');
-            }
-        } finally {
-            @fclose($handle);
-
-            if (is_int($directoryModifiedAt)) {
-                @touch($directory, $directoryModifiedAt);
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * A competing request may create the lock between the exclusive open and this check.
-     *
-     * @phpstan-impure
-     */
-    private function isSafeLockFile(string $lockPath): bool
-    {
-        clearstatcache(true, $lockPath);
-
-        return is_file($lockPath) && !is_link($lockPath);
-    }
-
     /**
      * @return array{sessions: int, reserved_bytes: int}
      */
@@ -797,9 +738,11 @@ final readonly class FilesystemChunkUploadSessionStore
             throw new UploadStorageException('Chunk upload quota lock path is unsafe.');
         }
 
+        $isNewLock = !is_file($lockPath);
+
         try {
-            return $this->filesystem->lock($lockPath, function () use ($callback, $lockPath): mixed {
-                if (!@chmod($lockPath, 0600)) {
+            return $this->filesystem->lock($lockPath, function () use ($callback, $lockPath, $isNewLock): mixed {
+                if ($isNewLock && !@chmod($lockPath, 0600)) {
                     throw new UploadStorageException('Chunk upload quota lock permissions cannot be restricted.');
                 }
 
@@ -819,10 +762,7 @@ final readonly class FilesystemChunkUploadSessionStore
     private function prepareRoot(): void
     {
         try {
-            $this->pathPolicy->assertChunkRootSeparated();
-            $this->pathPolicy->assertChunkDirectory($this->root);
             $this->ensurePrivateDirectory($this->root);
-            $this->pathPolicy->assertChunkDirectory($this->root);
         } catch (UploadStorageException $exception) {
             throw $exception;
         } catch (\Throwable $exception) {
@@ -832,38 +772,8 @@ final readonly class FilesystemChunkUploadSessionStore
 
     private function ensurePrivateDirectory(string $directory): void
     {
-        if (is_link($directory)) {
-            throw new UploadStorageException('Chunk upload directory cannot be a symbolic link.');
-        }
-
         $this->pathPolicy->assertChunkDirectory($directory);
         $this->filesystem->create($directory, 0700);
-
-        if (!@chmod($directory, 0700)) {
-            throw new UploadStorageException('Chunk upload directory permissions cannot be restricted.');
-        }
-
-        $this->pathPolicy->assertChunkDirectory($directory);
-    }
-
-    /**
-     * @param resource $handle
-     */
-    private function assertOpenedRegularFile($handle, string $path): void
-    {
-        $opened = fstat($handle);
-        $pathStat = lstat($path);
-
-        if (
-            $opened === false
-            || $pathStat === false
-            || is_link($path)
-            || ($opened['mode'] & 0170000) !== 0100000
-            || $opened['dev'] !== $pathStat['dev']
-            || $opened['ino'] !== $pathStat['ino']
-        ) {
-            throw new UploadStorageException('Chunk upload payload identity cannot be verified.');
-        }
     }
 
     private function retiredRoot(): string

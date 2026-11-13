@@ -8,28 +8,23 @@ use InvalidArgumentException;
 use Lemonade\Framework\Mime\MimeRisk;
 
 /**
- * Makes the central authorization decision for a classified format and an upload storage visibility.
+ * Applies the existing classified-format policy to private uploads.
  *
- * Public storage never accepts browser-active, executable, or unclassified formats. Private storage accepts every
+ * Private storage accepts every
  * non-passive category only when the profile explicitly lists that category.
  */
 final readonly class UploadRiskPolicy
 {
     /**
-     * Reports whether the risk category is authorized by the visibility and explicit private-storage policy.
+     * Reports whether the risk category is authorized by the explicit private-storage policy.
      *
      * @param list<MimeRisk> $allowedRisks Explicit non-passive categories authorized for private storage
      */
     public function allows(
         MimeRisk $risk,
-        UploadVisibility $visibility,
         array $allowedRisks = [],
     ): bool {
         $this->assertRiskList($allowedRisks);
-
-        if ($visibility === UploadVisibility::Public) {
-            return $risk === MimeRisk::Passive || $risk === MimeRisk::Container;
-        }
 
         if ($risk === MimeRisk::Passive) {
             return true;

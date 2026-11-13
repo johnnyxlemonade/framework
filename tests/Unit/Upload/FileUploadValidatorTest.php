@@ -14,7 +14,6 @@ use Lemonade\Framework\Upload\Exception\UploadValidationException;
 use Lemonade\Framework\Upload\FileUploadOptions;
 use Lemonade\Framework\Upload\FileUploadValidator;
 use Lemonade\Framework\Upload\Staging\StagedUpload;
-use Lemonade\Framework\Upload\UploadVisibility;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -38,7 +37,7 @@ final class FileUploadValidatorTest extends TestCase
     {
         $validator = $this->validator('application/zip');
         $upload = $this->upload('document.docx', "PK\x03\x04zip-payload");
-        $options = $this->options(['docx']);
+        $options = $this->options(['docx'], [MimeRisk::Container]);
 
         $this->expectException(UploadValidationException::class);
         $validator->validate($upload, $options);
@@ -49,7 +48,7 @@ final class FileUploadValidatorTest extends TestCase
         $canonicalMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         $validator = $this->validator($canonicalMime);
         $upload = $this->upload('document.docx', 'office-document-payload');
-        $options = $this->options(['docx']);
+        $options = $this->options(['docx'], [MimeRisk::Container]);
 
         $detected = $validator->validate($upload, $options);
 
@@ -117,8 +116,8 @@ final class FileUploadValidatorTest extends TestCase
         $validator->validate($upload, $options);
     }
 
-    #[DataProvider('publicUnsafeFormatProvider')]
-    public function testPublicStorageRejectsActiveExecutableAndUnclassifiedFormats(
+    #[DataProvider('unauthorizedRiskProvider')]
+    public function testStorageRejectsUnauthorizedActiveExecutableAndUnclassifiedFormats(
         string $extension,
         string $mime,
         MimeRisk $risk,
@@ -139,8 +138,6 @@ final class FileUploadValidatorTest extends TestCase
         $upload = $this->upload('payload.' . $extension, 'risk-policy-payload');
         $options = $this->options(
             [$extension],
-            UploadVisibility::Public,
-            [$risk],
         );
 
         $this->expectException(UploadValidationException::class);
@@ -150,7 +147,7 @@ final class FileUploadValidatorTest extends TestCase
     /**
      * @return iterable<string, array{string, string, MimeRisk}>
      */
-    public static function publicUnsafeFormatProvider(): iterable
+    public static function unauthorizedRiskProvider(): iterable
     {
         yield 'html' => ['html', 'text/html', MimeRisk::ActiveContent];
         yield 'svg' => ['svg', 'image/svg+xml', MimeRisk::ActiveContent];
@@ -171,14 +168,13 @@ final class FileUploadValidatorTest extends TestCase
         try {
             $validator->validate(
                 $upload,
-                $this->options(['html'], UploadVisibility::Private),
+                $this->options(['html']),
             );
         } finally {
             $allowed = $validator->validate(
                 $upload,
                 $this->options(
                     ['html'],
-                    UploadVisibility::Private,
                     [MimeRisk::ActiveContent],
                 ),
             );
@@ -267,14 +263,12 @@ final class FileUploadValidatorTest extends TestCase
      */
     private function options(
         array $extensions,
-        UploadVisibility $visibility = UploadVisibility::Public,
         array $allowedRisks = [],
     ): FileUploadOptions {
         return new FileUploadOptions(
             targetDirectory: 'files',
             targetRelativeDirectory: 'files',
             allowedExtensions: $extensions,
-            visibility: $visibility,
             allowedRisks: $allowedRisks,
         );
     }

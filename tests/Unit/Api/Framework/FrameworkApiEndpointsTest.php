@@ -51,6 +51,7 @@ final class FrameworkApiEndpointsTest extends TestCase
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-api-' . uniqid('', true);
+        mkdir($this->root . DIRECTORY_SEPARATOR . 'public', 0775, true);
         ParameterizedProtectedApiController::$invoked = false;
         $this->writeDefaultConfigFiles();
     }

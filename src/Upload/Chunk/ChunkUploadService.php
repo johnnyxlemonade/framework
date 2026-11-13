@@ -95,12 +95,12 @@ final readonly class ChunkUploadService
             declaredSize: $declaredSize,
             maxBytes: $maxBytes,
             currentOffset: 0,
-            chunkCount: 0,
-            maxChunks: $this->config->maxChunksPerSession(),
             createdAt: $createdAt,
             expiresAt: $createdAt + $this->config->ttlSeconds(),
-            context: $context,
             publicationToken: $publicationToken,
+            context: $context,
+            chunkCount: 0,
+            maxChunks: $this->config->maxChunksPerSession(),
         );
 
         $this->store->create($session);

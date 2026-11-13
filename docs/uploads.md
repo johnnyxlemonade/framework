@@ -1,7 +1,7 @@
 # Uploads
 
 Lemonade provides profile-based generic-file and image uploads through `UploadFactory`. A configured
-uploader performs file-size, extension, server-detected MIME, risk-policy, visibility and path
+uploader performs file-size, extension, server-detected MIME, risk-policy and private-path
 validation before it delegates final persistence to internal storage infrastructure. Image profiles
 add image and dimension validation and can re-encode the stored image.
 
@@ -18,7 +18,7 @@ module: upload
 config:
   images:
     admin-image:
-      target_directory: admin/images
+      target_directory: images
       max_bytes: 5MB
       allowed_extensions:
         - jpg
@@ -29,7 +29,7 @@ config:
 
   files:
     admin-file:
-      target_directory: admin/files
+      target_directory: files
       max_bytes: 10MB
       allowed_extensions:
         - jpg
@@ -42,6 +42,8 @@ config:
         - xls
         - xlsx
         - txt
+      allowed_risks:
+        - container
 
     private-document:
       target_directory: documents
@@ -52,14 +54,19 @@ config:
         - txt
 ```
 
-`visibility` accepts `public` (the backward-compatible default) or `private`. Public uploads are
-stored below `<public path>/uploads`; private uploads are stored below
-`storage/writable/uploads/files` and never receive a public-relative path. Applications should
-deliver private files only through an authenticated controller or another authorization boundary.
+All uploads use private storage below `storage/uploads`. `visibility: private` may be
+specified explicitly; any other value is rejected. There is no public storage mode.
+Files are delivered by application endpoints, never by a filesystem URL.
 
-Public storage always rejects `active_content`, `executable`, and `unclassified` formats. This rule
-cannot be weakened with application configuration. Private storage permits passive formats by
-default and requires every other category to be listed explicitly in `allowed_risks`:
+`target_directory` selects a relative subdirectory such as `files` or `images`.
+Both upload pipelines append `DirectoryPathGenerator::shard()` using the generated
+filename without its extension, then store the generated filename in that shard.
+Chunk completion uses its existing publication token, so retry attempts retain the
+same filename and shard. No database ID or application owner is required by the
+Framework. `storedRelativePath()` is relative to `storage`, including `uploads/`.
+
+The existing private MIME policy permits passive formats and requires every other
+category to be listed explicitly in `allowed_risks`:
 
 ```yaml
 module: upload
@@ -76,17 +83,16 @@ config:
 ```
 
 An explicit private risk authorization only permits storage. It does not make the content safe to
-execute, include, render inline, deserialize, or extract. Container formats likewise require an
-explicit `container` authorization when stored privately; existing public document profiles remain
-compatible because public storage permits individually allowlisted passive and container formats.
+execute, include, render inline, deserialize, or extract. Container formats require explicit `container` authorization. Document profiles keep their
+existing extension allowlists; the default document profile explicitly allows container formats.
 
 ## Private staging and publication
 
 Every file and image upload is copied once into a cryptographically named snapshot below
 `storage/writable/uploads/staging`. This directory must be outside the public web root and cannot
-contain symbolic-link path components. The boundary is checked whenever staging begins, so an
-unsafe legacy layout fails closed when an upload is attempted without affecting applications that
-do not use uploads.
+contain symbolic-link path components. `UploadPathPolicy` validates all three fixed roots
+(uploads, staging, and chunks) against the web root when it is constructed. Directory operations
+validate their target without repeating this configuration check.
 
 The framework does not trust `UploadedFileInterface::getSize()`. It reads the PSR stream from its
 beginning, counts the bytes actually received, and stops before writing a byte beyond the profile's
@@ -106,14 +112,15 @@ target-local framework-owned `.lemonade-publication` directory and atomically ha
 generated final name. Existing targets are never replaced, a
 concurrent name collision fails safely, and errors after creation of the final link remove that
 link. Request staging files and publication temporaries are removed on both success and handled
-failure. Staging and publication temporary files hold an OS lease from creation; bounded automatic
-cleanup skips active leases and later reclaims sufficiently old files left by process termination.
+failure. The staging digest and byte count are verified while copying to the publication file;
+the flushed destination size is checked before linking. No additional full-file hash pass runs
+before or after publication. Reusing an existing file on a completion retry still requires matching
+its size and digest.
 
-`target_directory` is always a relative directory below the visibility-specific root. Absolute
+`target_directory` is always a relative directory below the private upload root. Absolute
 paths, `.` or `..` segments, empty segments, backslashes, stream-wrapper syntax, control characters,
-and symbolic-link path components are rejected. Bootstrap rejects a configured private profile when
-the private root overlaps the public web root. Public-only legacy applications may continue to use a
-legacy web root, but private runtime options still reject that overlap when used.
+and symbolic-link path components are rejected. Fixed storage configuration is validated by
+`UploadPathPolicy`; `UploadStorage` requires that policy as a constructor dependency.
 
 `max_bytes` accepts either a positive raw byte integer, such as `10485760`, or a positive whole
 number followed by `B`, `KB`, `MB`, or `GB`; whitespace before the unit is allowed and units are
@@ -123,13 +130,12 @@ values are configuration errors.
 
 Applications select an existing file or image profile and pass an `UploadedFileInterface` to the
 configured uploader. The resulting `UploadedFile` or `UploadedImage` is the same regardless of how
-the temporary upload bytes reached the framework. `visibility()` identifies its storage boundary;
-`publicRelativePath()` returns a path only for public results and returns `null` for private results.
-`storedRelativePath()` remains a storage-relative identifier and must not be treated as a URL for a
-private result.
+the temporary upload bytes reached the framework. `storedPath()` is the absolute physical path;
+`storedRelativePath()` is relative to application storage and must never be treated as a URL.
+The obsolete visibility and public-relative-path accessors have been removed.
 
 `UploadFactory` and its configured uploaders are the supported application API. `UploadStorage` is
-internal trusted-code infrastructure: it enforces visibility paths, permissions, byte identity and
+internal trusted-code infrastructure: it enforces private paths, permissions, byte identity and
 atomic publication, but deliberately does not perform MIME, risk or image validation. Passing
 untrusted bytes to it directly bypasses the validated upload contract.
 
@@ -186,7 +192,8 @@ Only one concurrent `complete()` can therefore succeed. A repeated completion re
 session and cannot publish another file. If this final confirmation cannot be performed, the newly
 published file is rolled back and the original session remains retryable. `append()`, `complete()` and
 `abort()` serialize on a pre-created session lock; waiting operations never recreate a retired session.
-Each session also owns a random publication token distinct from its bearer upload ID. A retry after
+Each session requires a random publication token distinct from its bearer upload ID.
+Its lock is created during session initialization; missing locks are never recreated for old sessions. A retry after
 process termination targets the same final filename, repeats all validation and processing, and may
 reuse an existing regular file only when its measured size and SHA-256 exactly match the newly
 validated snapshot. Different content fails closed and is never overwritten.
@@ -232,11 +239,14 @@ append, completion and abort operations cannot stall another session's start req
 are fully prepared below a hidden initialization namespace while holding their session lock, then
 atomically published under the global quota lock.
 
-Every normal file or image upload also examines a bounded number of old staging snapshots, and each
-publication examines the selected final directory for framework-owned publication temporaries. Both
-types hold a shared process lease from file creation through their active lifecycle; cleanup obtains
-a non-blocking exclusive lease, so active files are skipped. Process termination releases the OS
-lock, allowing a sufficiently old orphan to be reclaimed automatically by a later upload.
+Every normal file or image upload also examines a bounded number of old staging snapshots.
+Snapshots hold a shared process lease; cleanup obtains a non-blocking exclusive lease, so active
+files are skipped. Process termination releases the OS lock, allowing sufficiently old staging
+orphans to be reclaimed by a later upload.
+
+Publication temporaries are removed on success and handled failure. There is no automatic
+publication-orphan scan: per-file sharding means later uploads normally do not revisit the same
+leaf directory. Forced process termination may leave a temporary file for operational cleanup.
 
 The explicit operational command remains available for production maintenance:
 
@@ -248,17 +258,34 @@ It removes expired or sufficiently old corrupt sessions, retired session directo
 orphan staging snapshots, then reports the reclaimed counts and bytes. Cleanup uses session locks and
 never follows symbolic links or scans outside its private roots.
 
-The framework restricts managed public upload directories to `0755`, private directories to `0700`,
-public files to `0644`, and private files to `0600`. An existing world-writable managed upload root is
-restricted before use; inability to apply and verify the safe mode fails the upload.
+Missing upload directories are created with mode `0700`; new upload files use `0600`.
+Existing directories keep their deployment-managed permissions. Uploads do not traverse parent
+directories to reset modes or require an exact mode match. Staging snapshots retain their
+read-only seal and active-process lease.
 
-The provided Apache and Nginx development configurations independently deny browser-active and
-server-executable suffixes below `/uploads`, disable CGI-style execution where supported, and add
-`X-Content-Type-Options: nosniff`. Production deployments must preserve equivalent rules even though
-the upload risk policy already rejects these formats through the supported application API.
-
-Final publication still requires local-filesystem atomic hard links. The framework verifies that the
-temporary and final names refer to the same inode before removing the temporary name. Filesystems that
-do not support hard links fail closed without copying, renaming over an existing target, or exposing a
-partial file. Same-filesystem atomic rename support is likewise required for single-use chunk-session
+Final publication requires local-filesystem atomic hard links. The link operation must succeed
+before the temporary name is removed. Filesystems that do not support hard links fail without
+copying or renaming over an existing target or exposing a partial file. Same-filesystem atomic rename support is likewise required for single-use chunk-session
 retirement.
+
+## Image originals and disposable variants
+
+`ApplicationContext::uploadPath()` always resolves below `storage/uploads`.
+`ImageVariantPathResolver` keeps canonical originals under
+`storage/uploads/images/originals/{shard}/{assetId}/{sourceVersion}/original.{ext}`.
+The original reference no longer has a public/private storage selector.
+
+Variants live separately under
+`storage/cache/images/{shard}/{assetId}/{sourceVersion}/{variantKey}.{ext}`.
+The existing `storage/cache/images/variant-locks` convention is unchanged. The
+asset shard, source version, and variant-key calculation are unchanged; only the
+physical roots differ. Generation, cache lookup, reads, and cleanup use the same
+resolver. No old-path lookup or fallback is provided.
+
+Generated `ImageReference` instances expose dimensions and format, not a direct
+public path. Framework no longer registers `PublicUploadImageUrlResolver` or an
+automatic image view helper. Applications deliver uploads through their existing
+endpoints; optional image view helpers require explicit application URL integration.
+
+Deploy the new paths together with the database key updates and physical data move.
+Existing data is not migrated by bootstrap, requests, or cleanup.

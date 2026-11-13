@@ -23,6 +23,7 @@ final class DiscoveryCliRegistrationTest extends TestCase
     protected function setUp(): void
     {
         $this->root = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'lemonade-discovery-cli-' . uniqid('', true);
+        mkdir($this->root . DIRECTORY_SEPARATOR . 'public', 0775, true);
         $this->writeConfigFile(
             'Config.yaml',
             "shared:\n  - App\nhttp: []\ncli:\n  - Commands\n",

@@ -11,12 +11,11 @@ use Lemonade\Framework\Mime\MimeTypeCatalog;
 use Lemonade\Framework\Support\ByteSizeParser;
 use Lemonade\Framework\Upload\UploadPathPolicy;
 use Lemonade\Framework\Upload\UploadRiskPolicy;
-use Lemonade\Framework\Upload\UploadVisibility;
 
 /**
  * Converts typed upload definitions into fail-fast runtime policies consumed by UploadFactory.
  *
- * It normalizes target paths, visibility, risk authorization, extension families, and byte limits before a request
+ * It normalizes private target paths, risk authorization, extension families, and byte limits before a request
  * can reach an uploader.
  */
 final readonly class UploadConfigResolver
@@ -74,7 +73,7 @@ final readonly class UploadConfigResolver
             $profileName = trim($name);
             $this->rejectLegacyMimePolicy($profile, $profileName);
 
-            $visibility = $this->visibility($profile['visibility'] ?? UploadVisibility::Public->value, $profileName);
+            $this->assertPrivateStorage($profile['visibility'] ?? 'private', $profileName);
             $allowedRisks = $this->allowedRisks($profile['allowed_risks'] ?? [], $profileName);
             $allowedExtensions = $this->allowedExtensions(
                 $profile['allowed_extensions'] ?? [],
@@ -83,7 +82,6 @@ final readonly class UploadConfigResolver
             $this->assertRiskPolicy(
                 profile: $profileName,
                 extensions: $allowedExtensions,
-                visibility: $visibility,
                 allowedRisks: $allowedRisks,
             );
 
@@ -91,7 +89,6 @@ final readonly class UploadConfigResolver
                 targetDirectory: $this->targetDirectory($profile['target_directory'] ?? '', $profileName),
                 maxBytes: $this->maxBytes($profile['max_bytes'] ?? 10_485_760, $profileName),
                 allowedExtensions: $allowedExtensions,
-                visibility: $visibility,
                 allowedRisks: $allowedRisks,
             );
         }
@@ -114,7 +111,7 @@ final readonly class UploadConfigResolver
             $profileName = trim($name);
             $this->rejectLegacyMimePolicy($profile, $profileName);
 
-            $visibility = $this->visibility($profile['visibility'] ?? UploadVisibility::Public->value, $profileName);
+            $this->assertPrivateStorage($profile['visibility'] ?? 'private', $profileName);
             $allowedRisks = $this->allowedRisks($profile['allowed_risks'] ?? [], $profileName);
             $allowedExtensions = $this->allowedExtensions(
                 $profile['allowed_extensions'] ?? ['jpg', 'jpeg', 'png', 'webp'],
@@ -123,7 +120,6 @@ final readonly class UploadConfigResolver
             $this->assertRiskPolicy(
                 profile: $profileName,
                 extensions: $allowedExtensions,
-                visibility: $visibility,
                 allowedRisks: $allowedRisks,
             );
 
@@ -136,7 +132,6 @@ final readonly class UploadConfigResolver
                 maxWidth: ConfigValueNormalizer::nullableInt($profile['max_width'] ?? null),
                 minHeight: ConfigValueNormalizer::nullableInt($profile['min_height'] ?? null),
                 maxHeight: ConfigValueNormalizer::nullableInt($profile['max_height'] ?? null),
-                visibility: $visibility,
                 allowedRisks: $allowedRisks,
             );
         }
@@ -251,25 +246,17 @@ final readonly class UploadConfigResolver
         return $items;
     }
 
-    private function visibility(mixed $value, string $profile): UploadVisibility
+    /**
+     * Rejects obsolete public storage configuration instead of silently changing its meaning
+     */
+    private function assertPrivateStorage(mixed $value, string $profile): void
     {
-        if (!is_string($value)) {
+        if ($value !== 'private') {
             throw new InvalidArgumentException(sprintf(
-                'Upload profile "%s": visibility must be "public" or "private".',
+                'Upload profile "%s": only private storage is supported.',
                 $profile,
             ));
         }
-
-        $visibility = UploadVisibility::tryFrom(strtolower(trim($value)));
-
-        if (!$visibility instanceof UploadVisibility) {
-            throw new InvalidArgumentException(sprintf(
-                'Upload profile "%s": visibility must be "public" or "private".',
-                $profile,
-            ));
-        }
-
-        return $visibility;
     }
 
     /**
@@ -319,40 +306,22 @@ final readonly class UploadConfigResolver
     private function assertRiskPolicy(
         string $profile,
         array $extensions,
-        UploadVisibility $visibility,
         array $allowedRisks,
     ): void {
-        if ($visibility === UploadVisibility::Public) {
-            foreach ($allowedRisks as $allowedRisk) {
-                if (
-                    $allowedRisk === MimeRisk::ActiveContent
-                    || $allowedRisk === MimeRisk::Executable
-                    || $allowedRisk === MimeRisk::Unclassified
-                ) {
-                    throw new InvalidArgumentException(sprintf(
-                        'Upload profile "%s": public storage cannot authorize risk "%s".',
-                        $profile,
-                        $allowedRisk->value,
-                    ));
-                }
-            }
-        }
-
         foreach ($extensions as $extension) {
             $definition = $this->catalog->definitionForExtension($extension);
 
             if (
                 $definition !== null
-                && $this->riskPolicy->allows($definition->risk(), $visibility, $allowedRisks)
+                && $this->riskPolicy->allows($definition->risk(), $allowedRisks)
             ) {
                 continue;
             }
 
             throw new InvalidArgumentException(sprintf(
-                'Upload profile "%s": extension "%s" is not allowed by the %s storage risk policy.',
+                'Upload profile "%s": extension "%s" is not allowed by the private storage risk policy.',
                 $profile,
                 $extension,
-                $visibility->value,
             ));
         }
     }

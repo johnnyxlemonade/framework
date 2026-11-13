@@ -13,7 +13,6 @@ use Lemonade\Framework\Image\Value\ImageBackground;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageOriginalReference;
-use Lemonade\Framework\Image\Value\ImageOriginalStorage;
 use Lemonade\Framework\Image\Value\ImageQuality;
 use Lemonade\Framework\Image\Value\ImageScalePolicy;
 use Lemonade\Framework\Image\Value\ImageSource;
@@ -310,7 +309,7 @@ final class GdImageVariantRendererTest extends TestCase
     private function original(int $width, int $height): ImageOriginalReference
     {
         return new ImageOriginalReference(
-            ImageOriginalStorage::Storage,
+
             'original.jpg',
             'v1',
             ImageFormat::Jpeg,

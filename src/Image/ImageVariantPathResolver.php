@@ -10,146 +10,104 @@ use Lemonade\Framework\Image\Value\ImageAsset;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageOriginalReference;
-use Lemonade\Framework\Image\Value\ImageOriginalStorage;
 use Lemonade\Framework\Image\Value\ImageReference;
 use Lemonade\Framework\Image\Value\ImageVariantDefinition;
 use Lemonade\Framework\Image\Value\ImageVariantKey;
 
 /**
- * Resolves bounded persistent-original and public-variant paths without making originals public by default
+ * Separates persistent private originals from disposable image variants
  */
 final readonly class ImageVariantPathResolver
 {
+    /**
+     * Connects the application storage roots and shared directory sharding
+     */
     public function __construct(
-        private ApplicationContext     $context,
+        private ApplicationContext $context,
         private DirectoryPathGenerator $directories,
     ) {
     }
 
     /**
-     * Resolves the physical filesystem path of the asset's persistent original
+     * Returns the single physical path used to write, read, and delete an original
      */
     public function originalPath(ImageAsset $asset): string
     {
-        $original = $asset->original();
-
-        return match ($original->storage()) {
-            ImageOriginalStorage::Upload => $this->context->uploadPath($original->relativePath()),
-            ImageOriginalStorage::Storage => $this->context->storagePath($original->relativePath()),
-        };
+        return $this->context->uploadPath($asset->original()->relativePath());
     }
 
     /**
-     * Creates the canonical persistent-original reference; callers choose its public or private storage boundary.
+     * Creates a persistent original reference without changing its asset or source identity
      */
     public function originalReference(
         string $assetId,
         string $sourceVersion,
-        ImageOriginalStorage $storage,
         ImageFormat $format,
         ImageDimensions $dimensions,
     ): ImageOriginalReference {
-        $shard = rtrim($this->directories->shard($assetId), '/');
-        $relativePath = sprintf(
-            'images/originals/%s/%s/%s/original.%s',
-            $shard,
-            $assetId,
-            $sourceVersion,
-            $format->extension(),
-        );
-
         return new ImageOriginalReference(
-            $storage,
-            $relativePath,
-            $sourceVersion,
-            $format,
-            $dimensions,
+            relativePath: sprintf(
+                'images/originals/%s%s/%s/original.%s',
+                $this->directories->shard($assetId),
+                $assetId,
+                $sourceVersion,
+                $format->extension(),
+            ),
+            sourceVersion: $sourceVersion,
+            format: $format,
+            dimensions: $dimensions,
         );
     }
 
     /**
-     * Resolves the physical filesystem path of a derived public variant
+     * Returns the private cache path of one deterministic variant
      */
-    public function variantPath(
-        ImageAsset $asset,
-        ImageVariantDefinition $definition,
-    ): string {
-        $relativePath = $this->variantRelativePath($asset, $definition);
-
-        return $this->context->uploadPath($relativePath);
+    public function variantPath(ImageAsset $asset, ImageVariantDefinition $definition): string
+    {
+        return sprintf(
+            '%s/%s.%s',
+            $this->variantDirectory($asset),
+            ImageVariantKey::from($asset, $definition)->value(),
+            $definition->format()->extension(),
+        );
     }
 
     /**
-     * Resolves the exact public directory owned by one immutable source version.
+     * Returns the cache directory owned by one immutable source version
      */
     public function variantDirectory(ImageAsset $asset): string
     {
-        $assetId = $asset->id();
-        $sourceVersion = $asset->original()->sourceVersion();
-        $shard = rtrim($this->directories->shard($assetId), '/');
-
-        return $this->context->uploadPath(sprintf(
-            'images/variants/%s/%s/%s',
-            $shard,
-            $assetId,
-            $sourceVersion,
+        return $this->context->resolveCachePath(sprintf(
+            'images/%s%s/%s',
+            $this->directories->shard($asset->id()),
+            $asset->id(),
+            $asset->original()->sourceVersion(),
         ));
     }
 
     /**
-     * Resolves a non-public lock path for one deterministic variant.
+     * Returns the existing private generation lock for one deterministic variant
      */
-    public function variantLockPath(
-        ImageAsset $asset,
-        ImageVariantDefinition $definition,
-    ): string {
-        $assetId = $asset->id();
-        $sourceVersion = $asset->original()->sourceVersion();
-        $key = ImageVariantKey::from($asset, $definition);
-        $shard = rtrim($this->directories->shard($assetId), '/');
-
-        return $this->context->storagePath(sprintf(
-            'cache/images/variant-locks/%s/%s/%s/%s.lock',
-            $shard,
-            $assetId,
-            $sourceVersion,
-            $key->value(),
+    public function variantLockPath(ImageAsset $asset, ImageVariantDefinition $definition): string
+    {
+        return $this->context->resolveCachePath(sprintf(
+            'images/variant-locks/%s%s/%s/%s.lock',
+            $this->directories->shard($asset->id()),
+            $asset->id(),
+            $asset->original()->sourceVersion(),
+            ImageVariantKey::from($asset, $definition)->value(),
         ));
     }
 
     /**
-     * Creates the public image reference for a derived variant
+     * Describes a cached variant without exposing a direct public filesystem URL
      */
-    public function reference(
-        ImageAsset $asset,
-        ImageVariantDefinition $definition,
-    ): ImageReference {
-        $relativePath = $this->variantRelativePath($asset, $definition);
-
+    public function reference(ImageAsset $asset, ImageVariantDefinition $definition): ImageReference
+    {
         return new ImageReference(
-            $relativePath,
-            $definition->outputDimensions($asset->original()->dimensions()),
-            $definition->format(),
-        );
-    }
-
-    private function variantRelativePath(
-        ImageAsset $asset,
-        ImageVariantDefinition $definition,
-    ): string {
-        $assetId = $asset->id();
-        $sourceVersion = $asset->original()->sourceVersion();
-        $format = $definition->format();
-        $key = ImageVariantKey::from($asset, $definition);
-        $shard = rtrim($this->directories->shard($assetId), '/');
-
-        return sprintf(
-            'images/variants/%s/%s/%s/%s.%s',
-            $shard,
-            $assetId,
-            $sourceVersion,
-            $key->value(),
-            $format->extension(),
+            publicPath: null,
+            dimensions: $definition->outputDimensions($asset->original()->dimensions()),
+            format: $definition->format(),
         );
     }
 }

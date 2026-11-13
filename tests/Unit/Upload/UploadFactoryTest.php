@@ -30,7 +30,6 @@ use Lemonade\Framework\Upload\Storage\UploadStorage;
 use Lemonade\Framework\Upload\UploadFactory;
 use Lemonade\Framework\Upload\UploadPathPolicy;
 use Lemonade\Framework\Upload\UploadService;
-use Lemonade\Framework\Upload\UploadVisibility;
 use Nyholm\Psr7\ServerRequest;
 use Nyholm\Psr7\UploadedFile;
 use PHPUnit\Framework\TestCase;
@@ -47,9 +46,9 @@ final class UploadFactoryTest extends TestCase
 
         self::assertSame(['pdf', 'doc', 'docx', 'txt'], $config->files['default']->allowedExtensions());
         self::assertSame(['jpg', 'jpeg', 'png', 'webp'], $config->images['default']->allowedExtensions());
-        self::assertSame(UploadVisibility::Public, $config->files['default']->visibility());
-        self::assertSame(UploadVisibility::Public, $config->images['default']->visibility());
-        self::assertSame([], $config->files['default']->allowedRisks());
+
+
+        self::assertSame([MimeRisk::Container], $config->files['default']->allowedRisks());
         self::assertSame([], $config->images['default']->allowedRisks());
     }
 
@@ -74,7 +73,7 @@ final class UploadFactoryTest extends TestCase
         );
     }
 
-    public function testFileOptionsUseResolvedPublicUploadsDirectoryInSeparatedWebrootMode(): void
+    public function testFileOptionsUsePrivateUploadsDirectory(): void
     {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -85,11 +84,11 @@ final class UploadFactoryTest extends TestCase
         $factory = $this->factory($context);
         $options = $factory->fileOptions();
 
-        self::assertSame('/var/www/framework/public/uploads/images', $options->targetDirectory());
+        self::assertSame('/var/www/framework/storage/uploads/images', $options->targetDirectory());
         self::assertSame('uploads/images', $options->targetRelativeDirectory());
     }
 
-    public function testFileOptionsUseLegacyPublicBaseWhenNoDedicatedPublicPathExists(): void
+    public function testFileOptionsRejectStorageInsideWebroot(): void
     {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -97,14 +96,13 @@ final class UploadFactoryTest extends TestCase
             DebugMode::disabled(),
         );
 
+        $this->expectException(\LogicException::class);
+
         $factory = $this->factory($context);
         $options = $factory->fileOptions();
-
-        self::assertSame('C:\\laragon\\www\\framework\\uploads\\images', $options->targetDirectory());
-        self::assertSame('uploads/images', $options->targetRelativeDirectory());
     }
 
-    public function testPrivateFileOptionsResolveBelowWritableStorageWithoutPublicPath(): void
+    public function testPrivateFileOptionsResolveBelowUploadStorage(): void
     {
         $context = new ApplicationContext(
             Environment::Testing,
@@ -116,21 +114,19 @@ final class UploadFactoryTest extends TestCase
             targetDirectory: 'documents',
             maxBytes: 1024,
             allowedExtensions: ['txt'],
-            visibility: UploadVisibility::Private,
         );
         $factory = $this->factory($context, $definition);
 
         $options = $factory->fileOptions('private');
 
-        self::assertSame(UploadVisibility::Private, $options->visibility());
         self::assertSame(
-            '/var/www/framework/storage/writable/uploads/files/documents',
+            '/var/www/framework/storage/uploads/documents',
             $options->targetDirectory(),
         );
-        self::assertSame('uploads/files/documents', $options->targetRelativeDirectory());
+        self::assertSame('uploads/documents', $options->targetRelativeDirectory());
     }
 
-    public function testFileWithOptionsEnforcesPublicRiskPolicy(): void
+    public function testFileWithOptionsEnforcesPrivateRiskPolicy(): void
     {
         $basePath = sys_get_temp_dir() . '/lemonade-factory-risk-' . bin2hex(random_bytes(8));
         mkdir($basePath . '/public', 0700, true);
@@ -140,7 +136,7 @@ final class UploadFactoryTest extends TestCase
             DebugMode::disabled(),
         );
         $factory = $this->factory($context);
-        $path = tempnam(sys_get_temp_dir(), 'lemonade-public-html-');
+        $path = tempnam(sys_get_temp_dir(), 'lemonade-private-html-');
 
         if ($path === false) {
             self::fail('Temporary upload file cannot be created.');
@@ -155,10 +151,9 @@ final class UploadFactoryTest extends TestCase
 
         try {
             $uploader = $factory->fileWithOptions(new FileUploadOptions(
-                targetDirectory: $basePath . '/public/uploads/pages',
+                targetDirectory: $basePath . '/storage/uploads/pages',
                 targetRelativeDirectory: 'uploads/pages',
                 allowedExtensions: ['html'],
-                allowedRisks: [MimeRisk::ActiveContent],
             ));
 
             $this->expectException(UploadValidationException::class);

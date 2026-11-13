@@ -9,21 +9,23 @@ use Lemonade\Framework\Core\Context\ApplicationContext;
 use LogicException;
 
 /**
- * Resolves visibility-specific upload roots and rejects paths that escape them or traverse symbolic links.
+ * Resolves the private upload root and rejects paths that escape it or traverse symbolic links.
  *
  * @internal UploadFactory and upload storage apply this boundary for configured and custom options.
  */
 final readonly class UploadPathPolicy
 {
-    private const string PRIVATE_ROOT = 'uploads/files';
     private const string STAGING_ROOT = 'uploads/staging';
     private const string CHUNK_ROOT = 'uploads/chunks';
 
     /**
-     * Retains the application paths used to separate public publication from private writable storage.
+     * Validates the fixed upload, staging, and chunk roots once for this application context.
      */
     public function __construct(private ApplicationContext $context)
     {
+        $this->assertPrivateRootSeparated($this->root(), 'Private upload storage must be outside the public web root.');
+        $this->assertPrivateRootSeparated($this->stagingRoot(), 'Upload staging must be outside the public web root.');
+        $this->assertPrivateRootSeparated($this->chunkRoot(), 'Chunk upload storage must be outside the public web root.');
     }
 
     /**
@@ -62,13 +64,11 @@ final readonly class UploadPathPolicy
     }
 
     /**
-     * Returns the absolute storage root assigned to the requested visibility.
+     * Returns the absolute storage root assigned to all persisted uploads.
      */
-    public function root(UploadVisibility $visibility): string
+    public function root(): string
     {
-        return $visibility === UploadVisibility::Public
-            ? $this->context->uploadPath()
-            : $this->context->resolveWritablePath(self::PRIVATE_ROOT);
+        return $this->context->uploadPath();
     }
 
     /**
@@ -88,14 +88,13 @@ final readonly class UploadPathPolicy
     }
 
     /**
-     * Resolves a safe configured directory below its visibility-specific storage root.
+     * Resolves a safe configured directory below its private upload root.
      */
     public function targetDirectory(
-        UploadVisibility $visibility,
         string $relativeDirectory,
     ): string {
         $relativeDirectory = self::normalizeRelativeDirectory($relativeDirectory);
-        $root = $this->root($visibility);
+        $root = $this->root();
         $separator = str_contains($root, '\\') ? '\\' : DIRECTORY_SEPARATOR;
 
         return $root
@@ -104,56 +103,14 @@ final readonly class UploadPathPolicy
     }
 
     /**
-     * Returns the persisted path relative to the public root or writable storage root.
+     * Returns the persisted path relative to application storage.
      */
     public function storedRelativeDirectory(
-        UploadVisibility $visibility,
         string $relativeDirectory,
     ): string {
         $relativeDirectory = self::normalizeRelativeDirectory($relativeDirectory);
 
-        return $visibility === UploadVisibility::Public
-            ? $this->context->uploadRelativePath($relativeDirectory)
-            : self::PRIVATE_ROOT . '/' . $relativeDirectory;
-    }
-
-    /**
-     * Rejects deployments where private upload storage is reachable below the configured public web root.
-     *
-     * @throws LogicException When public and private storage boundaries overlap
-     */
-    public function assertStorageRootsSeparated(): void
-    {
-        $this->assertPrivateRootSeparated(
-            $this->root(UploadVisibility::Private),
-            'Private upload storage must be outside the public web root.',
-        );
-    }
-
-    /**
-     * Rejects deployments where upload snapshots could be reached through the public web root.
-     *
-     * @throws LogicException When private staging overlaps the public web root
-     */
-    public function assertStagingRootSeparated(): void
-    {
-        $this->assertPrivateRootSeparated(
-            $this->stagingRoot(),
-            'Upload staging must be outside the public web root.',
-        );
-    }
-
-    /**
-     * Rejects deployments where incomplete chunk payloads could be reached through the public web root.
-     *
-     * @throws LogicException When private chunk storage overlaps the public web root
-     */
-    public function assertChunkRootSeparated(): void
-    {
-        $this->assertPrivateRootSeparated(
-            $this->chunkRoot(),
-            'Chunk upload storage must be outside the public web root.',
-        );
+        return $this->context->uploadRelativePath($relativeDirectory);
     }
 
     /**
@@ -163,24 +120,10 @@ final readonly class UploadPathPolicy
      */
     public function assertTargetDirectory(
         string $targetDirectory,
-        UploadVisibility $visibility,
     ): void {
         $this->assertDirectoryContained(
             $targetDirectory,
-            $this->root($visibility),
-        );
-    }
-
-    /**
-     * Rejects staging directories outside the private staging root or behind symbolic-link components.
-     *
-     * @throws InvalidArgumentException When the directory cannot be safely contained
-     */
-    public function assertStagingDirectory(string $directory): void
-    {
-        $this->assertDirectoryContained(
-            $directory,
-            $this->stagingRoot(),
+            $this->root(),
         );
     }
 

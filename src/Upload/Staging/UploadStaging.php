@@ -128,28 +128,6 @@ final readonly class UploadStaging
     }
 
     /**
-     * Verifies that a sealed snapshot still has its measured size and digest.
-     *
-     * @throws UploadStorageException When the snapshot is missing, unreadable, or unexpectedly changed
-     */
-    public function assertIntact(StagedUpload $upload): void
-    {
-        try {
-            $size = $this->filesystem->size($upload->path());
-            $hash = $this->filesystem->hash($upload->path(), 'sha256');
-        } catch (\Throwable $exception) {
-            throw new UploadStorageException(
-                $this->translator->get('upload.tmp_not_valid'),
-                previous: $exception,
-            );
-        }
-
-        if ($size !== $upload->sizeBytes() || !hash_equals($upload->sha256(), $hash)) {
-            throw new UploadStorageException($this->translator->get('upload.tmp_not_valid'));
-        }
-    }
-
-    /**
      * Removes a snapshot without allowing cleanup failures to hide the primary upload outcome.
      */
     public function discard(?StagedUpload $upload): void
@@ -173,16 +151,6 @@ final readonly class UploadStaging
 
         if (!is_dir($root)) {
             return 0;
-        }
-
-        try {
-            $this->pathPolicy->assertStagingRootSeparated();
-            $this->pathPolicy->assertStagingDirectory($root);
-        } catch (\Throwable $exception) {
-            throw new UploadStorageException(
-                $this->translator->get('upload.tmp_not_valid'),
-                previous: $exception,
-            );
         }
 
         $now ??= time();
@@ -339,15 +307,8 @@ final readonly class UploadStaging
         $root = $this->pathPolicy->stagingRoot();
 
         try {
-            $this->pathPolicy->assertStagingRootSeparated();
-            $this->pathPolicy->assertStagingDirectory($root);
             $this->filesystem->create($root, 0700);
 
-            if (!@chmod($root, 0700)) {
-                throw new \RuntimeException('Upload staging permissions cannot be restricted.');
-            }
-
-            $this->pathPolicy->assertStagingDirectory($root);
         } catch (\Throwable $exception) {
             throw new UploadStorageException(
                 $this->translator->get('upload.create_target_directory_failed', ['directory' => $root]),

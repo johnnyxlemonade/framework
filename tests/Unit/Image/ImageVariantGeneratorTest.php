@@ -22,7 +22,6 @@ use Lemonade\Framework\Image\Value\ImageAsset;
 use Lemonade\Framework\Image\Value\ImageDimensions;
 use Lemonade\Framework\Image\Value\ImageFormat;
 use Lemonade\Framework\Image\Value\ImageOriginalReference;
-use Lemonade\Framework\Image\Value\ImageOriginalStorage;
 use Lemonade\Framework\Image\Value\ImageQuality;
 use Lemonade\Framework\Image\Value\ImageSource;
 use Lemonade\Framework\Image\Value\ImageVariantDefinition;
@@ -67,7 +66,7 @@ final class ImageVariantGeneratorTest extends TestCase
         $asset = new ImageAsset(
             'asset',
             new ImageOriginalReference(
-                ImageOriginalStorage::Storage,
+
                 'original.jpg',
                 'v1',
                 ImageFormat::Jpeg,

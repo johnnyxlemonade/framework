@@ -243,7 +243,7 @@ final class UploadStagingTest extends TestCase
         file_put_contents($source, 'attacker replacement');
 
         self::assertSame('validated bytes', file_get_contents($snapshot->path()));
-        $this->staging->assertIntact($snapshot);
+        self::assertSame(hash('sha256', 'validated bytes'), $snapshot->sha256());
         $this->staging->discard($snapshot);
     }
 

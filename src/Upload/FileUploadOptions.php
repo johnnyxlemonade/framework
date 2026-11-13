@@ -14,7 +14,7 @@ use Lemonade\Framework\Mime\MimeRisk;
 final readonly class FileUploadOptions
 {
     /**
-     * Creates a policy with an absolute constrained target and its visibility-specific storage-relative counterpart.
+     * Creates a policy with an absolute constrained target and its storage-relative counterpart.
      *
      * @param list<string> $allowedExtensions Explicit normalized filename suffixes permitted by this upload operation
      * @param list<MimeRisk> $allowedRisks Non-passive categories explicitly authorized for private storage
@@ -24,7 +24,6 @@ final readonly class FileUploadOptions
         private string $targetRelativeDirectory,
         private int $maxBytes = 10_485_760,
         private array $allowedExtensions = [],
-        private UploadVisibility $visibility = UploadVisibility::Public,
         private array $allowedRisks = [],
     ) {
     }
@@ -38,7 +37,7 @@ final readonly class FileUploadOptions
     }
 
     /**
-     * Provides the directory retained relative to either the public root or private writable root.
+     * Provides the directory retained relative to the application storage root.
      */
     public function targetRelativeDirectory(): string
     {
@@ -61,14 +60,6 @@ final readonly class FileUploadOptions
     public function allowedExtensions(): array
     {
         return $this->allowedExtensions;
-    }
-
-    /**
-     * Identifies whether the validated file is published publicly or retained in private writable storage.
-     */
-    public function visibility(): UploadVisibility
-    {
-        return $this->visibility;
     }
 
     /**

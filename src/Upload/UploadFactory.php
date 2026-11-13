@@ -26,7 +26,7 @@ final readonly class UploadFactory
     private UploadPathPolicy $pathPolicy;
 
     /**
-     * Binds resolved profile configuration to the request and its public or private storage boundary.
+     * Binds resolved profile configuration to the request and its private storage boundary.
      */
     public function __construct(
         private UploadConfig $config,
@@ -87,7 +87,6 @@ final readonly class UploadFactory
         $this->assertRuntimeTarget(
             $options->targetDirectory(),
             $options->targetRelativeDirectory(),
-            $options->visibility(),
         );
 
         return new ConfiguredFileUploader($this->service, $options);
@@ -101,7 +100,6 @@ final readonly class UploadFactory
         $this->assertRuntimeTarget(
             $options->targetDirectory(),
             $options->targetRelativeDirectory(),
-            $options->visibility(),
         );
 
         return new ConfiguredImageUploader($this->service, $options);
@@ -128,7 +126,7 @@ final readonly class UploadFactory
     }
 
     /**
-     * Resolves a named generic profile into visibility-constrained absolute and storage-relative paths.
+     * Resolves a named generic profile into private absolute and storage-relative paths.
      *
      * @throws UploadValidationException When the profile is absent or has no target directory
      */
@@ -145,22 +143,19 @@ final readonly class UploadFactory
 
         return new FileUploadOptions(
             targetDirectory: $this->pathPolicy->targetDirectory(
-                $profileData->visibility(),
                 $profileData->targetDirectory(),
             ),
             targetRelativeDirectory: $this->pathPolicy->storedRelativeDirectory(
-                $profileData->visibility(),
                 $profileData->targetDirectory(),
             ),
             maxBytes: $profileData->maxBytes(),
             allowedExtensions: $profileData->allowedExtensions(),
-            visibility: $profileData->visibility(),
             allowedRisks: $profileData->allowedRisks(),
         );
     }
 
     /**
-     * Resolves a named image profile into visibility-constrained absolute and storage-relative paths.
+     * Resolves a named image profile into private absolute and storage-relative paths.
      *
      * @throws UploadValidationException When the profile is absent or has no target directory
      */
@@ -177,11 +172,9 @@ final readonly class UploadFactory
 
         return new ImageUploadOptions(
             targetDirectory: $this->pathPolicy->targetDirectory(
-                $profileData->visibility(),
                 $profileData->targetDirectory(),
             ),
             targetRelativeDirectory: $this->pathPolicy->storedRelativeDirectory(
-                $profileData->visibility(),
                 $profileData->targetDirectory(),
             ),
             maxBytes: $profileData->maxBytes(),
@@ -191,7 +184,6 @@ final readonly class UploadFactory
             maxWidth: $profileData->maxWidth(),
             minHeight: $profileData->minHeight(),
             maxHeight: $profileData->maxHeight(),
-            visibility: $profileData->visibility(),
             allowedRisks: $profileData->allowedRisks(),
         );
     }
@@ -199,15 +191,10 @@ final readonly class UploadFactory
     private function assertRuntimeTarget(
         string $targetDirectory,
         string $targetRelativeDirectory,
-        UploadVisibility $visibility,
     ): void {
         try {
-            if ($visibility === UploadVisibility::Private) {
-                $this->pathPolicy->assertStorageRootsSeparated();
-            }
-
             UploadPathPolicy::normalizeRelativeDirectory($targetRelativeDirectory);
-            $this->pathPolicy->assertTargetDirectory($targetDirectory, $visibility);
+            $this->pathPolicy->assertTargetDirectory($targetDirectory);
         } catch (\InvalidArgumentException|\LogicException $exception) {
             throw new UploadValidationException(
                 $this->translator->get('upload.target_directory_missing'),
