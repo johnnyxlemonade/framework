@@ -14,6 +14,7 @@ $finder = PhpCsFixer\Finder::create()
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
+    ->setUnsupportedPhpVersionAllowed(true)
     ->setCacheFile(__DIR__ . '/build/php-cs-fixer/.php-cs-fixer.cache')
     ->setFinder($finder)
     ->setRules([
