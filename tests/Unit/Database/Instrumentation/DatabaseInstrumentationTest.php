@@ -99,7 +99,7 @@ final class DatabaseInstrumentationTest extends TestCase
     public function testObserverFailureCannotReplaceOriginalQueryException(): void
     {
         $instrumentation = new DatabaseInstrumentation();
-        $observer = $this->createMock(DatabaseObserverInterface::class);
+        $observer = self::createStub(DatabaseObserverInterface::class);
         $observer->method('queryCompleted')->willThrowException(new RuntimeException('observer failed'));
         $failure = new RuntimeException('database failed');
         $caught = null;

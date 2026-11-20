@@ -1,8 +1,11 @@
 # Lemonade Framework
 
-[![PHPStan](https://github.com/johnnyxlemonade/framework/actions/workflows/phpstan.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpstan.yml)
-[![Tests](https://github.com/johnnyxlemonade/framework/actions/workflows/phpunit.yml/badge.svg)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpunit.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/johnnyxlemonade/framework/phpunit.yml?branch=main&label=Tests&logo=githubactions&logoColor=white&labelColor=0f766e)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpunit.yml)
+[![PHP 8.3–8.6](https://img.shields.io/badge/PHP-8.3%20%7C%208.4%20%7C%208.5%20%7C%208.6-777BB4?logo=php&logoColor=white)](#requirements)
+[![PHPStan](https://img.shields.io/github/actions/workflow/status/johnnyxlemonade/framework/phpstan.yml?branch=main&label=PHPStan&logo=php&logoColor=white&labelColor=5b4baf)](https://github.com/johnnyxlemonade/framework/actions/workflows/phpstan.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
+
+**Website:** [lemonadeframework.cz](https://lemonadeframework.cz/)
 
 Lemonade Framework is a modular PHP 8.3+ application framework for maintainable web applications, administration systems, CMS projects and integration-oriented services.
 
@@ -62,12 +65,12 @@ composer install
 
 Required platform requirements:
 
-- PHP `>= 8.3 < 8.6`
+- PHP `>= 8.3`
 - `ext-fileinfo`
 - `ext-mbstring`
 - `ext-xmlwriter`
 
-Official support covers PHP 8.3, 8.4 and 8.5. The syntax and runtime target is PHP 8.3: new framework source and generated PHP source must remain PHP 8.3 compatible, even when development or CI runs on PHP 8.4 or 8.5. Framework source does not use PHP 8.4+ syntax.
+Official support covers PHP 8.3, 8.4, 8.5 and 8.6. The syntax and runtime target is PHP 8.3: new framework source and generated PHP source must remain PHP 8.3 compatible, even when development or CI runs on a newer supported PHP version. Framework source does not use PHP 8.4+ syntax.
 
 Composer installs the required PSR and Nyholm packages automatically.
 
@@ -338,12 +341,6 @@ vendor/bin/lemonade products:import
 Detailed documentation lives in [docs/index.md](docs/index.md).
 
 For lifecycle details, see [HTTP flow](docs/http-flow.md), [CLI flow](docs/cli-flow.md), [service container](docs/service-container.md), [service providers](docs/service-providers.md), [database migrations](docs/database.md#migrations) and [infrastructure modules](docs/infrastructure.md).
-
-## ORM Integration
-
-Lemonade does not include or require an ORM. [The live Doctrine ORM example](https://lemonadeframework.cz/en/examples/orm) is an optional application-level integration registered through an application service provider and the container.
-
-It demonstrates Doctrine ORM with SQLite, `ManyToMany` relations, author and tag filtering with faceted counts, pagination, and `toIterable()` for the main article feed.
 
 ## Testing
 

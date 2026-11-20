@@ -5,6 +5,9 @@
   "keywords": [
     "php-framework",
     "php-8.3",
+    "php-8.4",
+    "php-8.5",
+    "php-8.6",
     "psr",
     "psr-3",
     "psr-6",
@@ -28,7 +31,7 @@
   ],
   "require": {
     "composer-runtime-api": "^2.2",
-    "php": ">=8.3 <8.6",
+    "php": ">=8.3",
     "ext-fileinfo": "*",
     "ext-mbstring": "*",
     "ext-xmlwriter": "*",
@@ -49,10 +52,10 @@
     "friendsofphp/php-cs-fixer": "^v3.94",
     "giorgiosironi/eris": "^1.1.0",
     "guzzlehttp/guzzle": "^7.10 || ^8.0",
-    "infection/infection": "0.35.10",
+    "infection/infection": "0.35.11",
     "phpstan/phpstan": "^2.3",
     "phpstan/phpstan-strict-rules": "^2.1",
-    "phpunit/phpunit": "^10.5 || ^11.0"
+    "phpunit/phpunit": "^12.5"
   },
   "suggest": {
     "ext-gd": "Required for bitmap image decoding, transformation, and encoding.",

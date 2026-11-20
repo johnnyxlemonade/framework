@@ -16,8 +16,8 @@ adds Composer validation, platform checks and syntax linting.
 
 ## PHP 8.3 Style Baseline
 
-Framework source targets PHP 8.3 while supporting PHP 8.3, 8.4 and 8.5 runtimes. Do not introduce
-PHP 8.4/8.5 syntax such as property hooks or asymmetric property visibility.
+Framework source targets PHP 8.3 while supporting PHP 8.3, 8.4, 8.5 and 8.6 runtimes. Do not
+introduce PHP 8.4+ syntax such as property hooks or asymmetric property visibility.
 
 For a genuinely immutable framework DTO or value object, prefer `final readonly class` with typed
 promoted properties. Keep PHPDoc where native PHP cannot express the contract, including precise

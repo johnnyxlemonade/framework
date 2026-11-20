@@ -16,7 +16,7 @@ use Psr\Cache\CacheItemInterface;
 final class FileCacheItemPoolTest extends TestCase
 {
     private const string SECRET = 'test-file-cache-secret';
-    private const string NAMESPACE = 'test-pool';
+    private const string CACHE_NAMESPACE = 'test-pool';
 
     private string $root = '';
     private string $cacheDir = '';
@@ -476,7 +476,7 @@ final class FileCacheItemPoolTest extends TestCase
 
     private function pool(
         ?string $secret = self::SECRET,
-        string $namespace = self::NAMESPACE,
+        string $namespace = self::CACHE_NAMESPACE,
         int $maxFileBytes = 8_388_608,
         int $maxSerializationDepth = 64,
     ): FileCacheItemPool {
@@ -509,7 +509,7 @@ final class FileCacheItemPoolTest extends TestCase
         return $this->root . DIRECTORY_SEPARATOR . 'storage';
     }
 
-    private function cacheFile(string $key, string $namespace = self::NAMESPACE): string
+    private function cacheFile(string $key, string $namespace = self::CACHE_NAMESPACE): string
     {
         $poolId = substr(hash('sha256', $namespace), 0, 24);
         $keyHash = hash('sha256', $poolId . "\0" . $key);
@@ -542,7 +542,7 @@ final class FileCacheItemPoolTest extends TestCase
         ?string $envelopeKey = null,
         int $version = 1,
     ): void {
-        $poolId = substr(hash('sha256', self::NAMESPACE), 0, 24);
+        $poolId = substr(hash('sha256', self::CACHE_NAMESPACE), 0, 24);
         $integrityKey = hash_hkdf(
             'sha256',
             self::SECRET,

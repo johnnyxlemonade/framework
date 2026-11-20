@@ -110,7 +110,7 @@ final class SessionFactoryTest extends TestCase
 
     public function testItCreatesDatabaseStorageAndResolvesItsConnectionLazily(): void
     {
-        $connection = $this->createMock(ConnectionInterface::class);
+        $connection = self::createStub(ConnectionInterface::class);
         $container = $this->createMock(ContainerInterface::class);
         $container
             ->expects(self::once())

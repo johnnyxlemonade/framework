@@ -157,7 +157,7 @@ final class PdoConnectionTest extends TestCase
         $this->prepareUsers($connection);
         $observer = $this->createMock(DatabaseObserverInterface::class);
         $observer->expects(self::exactly(3))->method('queryCompleted')->with(
-            self::isType('string'),
+            self::isString(),
             self::greaterThanOrEqual(0.0),
             true,
         );

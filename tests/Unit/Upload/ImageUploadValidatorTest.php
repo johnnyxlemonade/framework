@@ -162,7 +162,7 @@ final class ImageUploadValidatorTest extends TestCase
                 $processor,
             ),
             $this->storage(),
-            $this->createMock(ImageEncoderInterface::class),
+            self::createStub(ImageEncoderInterface::class),
             $this->staging(),
         );
         $targetDirectory = $this->basePath . '/storage/uploads/files';
@@ -201,7 +201,7 @@ final class ImageUploadValidatorTest extends TestCase
                 $processor,
             ),
             $this->storage(),
-            $this->createMock(ImageEncoderInterface::class),
+            self::createStub(ImageEncoderInterface::class),
             $this->staging(),
         );
         $upload = $this->upload('image.jpg', $this->pngBytes());

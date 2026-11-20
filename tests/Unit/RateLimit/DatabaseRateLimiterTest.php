@@ -17,7 +17,7 @@ final class DatabaseRateLimiterTest extends TestCase
     {
         $connection = new RateLimitConnection();
         $limiter = new DatabaseRateLimiter(
-            new Database($connection, $this->createMock(DatabaseDriverInterface::class)),
+            new Database($connection, self::createStub(DatabaseDriverInterface::class)),
             'application-secret',
         );
         $policy = new RateLimitPolicy(2, 900);
@@ -39,7 +39,7 @@ final class DatabaseRateLimiterTest extends TestCase
     {
         $connection = new RateLimitConnection();
         $limiter = new DatabaseRateLimiter(
-            new Database($connection, $this->createMock(DatabaseDriverInterface::class)),
+            new Database($connection, self::createStub(DatabaseDriverInterface::class)),
             'application-secret',
         );
         $policy = new RateLimitPolicy(2, 900);
@@ -56,7 +56,7 @@ final class DatabaseRateLimiterTest extends TestCase
     {
         $connection = new RateLimitConnection();
         $limiter = new DatabaseRateLimiter(
-            new Database($connection, $this->createMock(DatabaseDriverInterface::class)),
+            new Database($connection, self::createStub(DatabaseDriverInterface::class)),
             'application-secret',
         );
         $policy = new RateLimitPolicy(3, 900);
@@ -72,7 +72,7 @@ final class DatabaseRateLimiterTest extends TestCase
     public function testInvalidScopeIsRejected(): void
     {
         $limiter = new DatabaseRateLimiter(
-            new Database(new RateLimitConnection(), $this->createMock(DatabaseDriverInterface::class)),
+            new Database(new RateLimitConnection(), self::createStub(DatabaseDriverInterface::class)),
             'application-secret',
         );
 
@@ -84,7 +84,7 @@ final class DatabaseRateLimiterTest extends TestCase
     {
         $connection = new RateLimitConnection();
         $limiter = new DatabaseRateLimiter(
-            new Database($connection, $this->createMock(DatabaseDriverInterface::class)),
+            new Database($connection, self::createStub(DatabaseDriverInterface::class)),
             'application-secret',
         );
         $policy = new RateLimitPolicy(1, 900);
@@ -101,7 +101,7 @@ final class DatabaseRateLimiterTest extends TestCase
         $this->expectException(\LogicException::class);
 
         new DatabaseRateLimiter(
-            new Database(new RateLimitConnection(), $this->createMock(DatabaseDriverInterface::class)),
+            new Database(new RateLimitConnection(), self::createStub(DatabaseDriverInterface::class)),
             '',
         );
     }
