@@ -144,6 +144,9 @@ final class RouterTest extends TestCase
         $this->assertFrozenRouterOperation(static function () use ($route): void {
             $route->constrainParameter('id', ['1']);
         });
+        $this->assertFrozenRouterOperation(static function () use ($route): void {
+            $route->constrainParameterUsing('id', static fn(string $value): bool => $value === '1');
+        });
         $this->assertFrozenRouterOperation(static function () use ($group): void {
             $group->middleware(\Lemonade\Framework\Security\Csrf\CsrfMiddleware::class);
         });
@@ -166,6 +169,79 @@ final class RouterTest extends TestCase
             });
         });
         self::assertFalse($localizedBuilderCalled);
+    }
+
+    public function testRuntimePredicatesWaitForTheEntirePathAndAllStaticConstraints(): void
+    {
+        $calls = 0;
+        $router = new Router();
+        $router->get('/admin/content/{module}/edit/{id}', \Lemonade\Framework\Routing\ControllerAction::for('ModuleController', 'edit'))
+            ->constrainParameter('id', ['1'])
+            ->constrainParameterUsing('module', static function (string $value) use (&$calls): bool {
+                $calls++;
+                return $value === 'type-news';
+            });
+        foreach (['/admin/content/type-news/wrong/1', '/admin/content/type-news/edit', '/admin/content/type-news/edit/1/extra', '/admin/content/type-news/edit/2'] as $path) {
+            try {
+                $router->match(new ServerRequest('GET', $path));
+                self::fail('Invalid route was matched');
+            } catch (RouteNotFoundException) {
+                self::assertSame(0, $calls);
+            }
+        }
+        self::assertSame('edit', $router->match(new ServerRequest('GET', '/admin/content/type-news/edit/1'))->action());
+        self::assertSame(1, $calls);
+    }
+
+    public function testRuntimePredicateReplacementAndStaticIntersectionAfterFreeze(): void
+    {
+        $router = new Router();
+        $route = $router->get('/{module}', \Lemonade\Framework\Routing\ControllerAction::for('ModuleController', 'index'));
+        $route->constrainParameter('module', ['news']);
+        $route->constrainParameterUsing('module', static fn(string $value): bool => false);
+        $seenRequest = null;
+        $route->constrainParameterUsing('module', static function (string $value, ?\Psr\Http\Message\ServerRequestInterface $request) use (&$seenRequest): bool {
+            $seenRequest = $request;
+            return $value === 'news';
+        });
+        $router->freeze();
+        $request = new ServerRequest('GET', '/news');
+        self::assertSame('ModuleController', $router->match($request)->controller());
+        self::assertSame($request, $seenRequest);
+        $seenRequest = null;
+        self::assertSame(['GET', 'HEAD', 'OPTIONS'], $router->allowedMethodsForPath('/news', $request));
+        self::assertSame($request, $seenRequest);
+        $seenRequest = null;
+        self::assertTrue($router->hasExplicitRouteForPath('GET', '/news', $request));
+        self::assertSame($request, $seenRequest);
+        $this->expectException(RouteNotFoundException::class);
+        $router->match(new ServerRequest('GET', '/other'));
+    }
+
+
+    public function testRuntimeParameterConstraintIsEvaluatedOnlyWhenTheRouteShapeMatches(): void
+    {
+        $evaluated = [];
+        $router = new Router();
+        $router->get('/admin/content/{module}', \Lemonade\Framework\Routing\ControllerAction::for('ModuleController', 'index'))
+            ->constrainParameterUsing('module', static function (string $module) use (&$evaluated): bool {
+                $evaluated[] = $module;
+
+                return $module === 'type-news';
+            });
+        $router->get('/admin/login', \Lemonade\Framework\Routing\ControllerAction::for('LoginController', 'index'));
+
+        self::assertSame('LoginController', $router->match(new ServerRequest('GET', '/admin/login'))->controller());
+        self::assertSame([], $evaluated);
+        self::assertSame('ModuleController', $router->match(new ServerRequest('GET', '/admin/content/type-news'))->controller());
+        self::assertSame(['type-news'], $evaluated);
+
+        try {
+            $router->match(new ServerRequest('GET', '/admin/content/unknown'));
+            self::fail('Rejected runtime route constraint was accepted.');
+        } catch (RouteNotFoundException) {
+            self::assertSame(['type-news', 'unknown'], $evaluated);
+        }
     }
 
     public function testRouterDispatchAndUrlGenerationWorkAfterFreeze(): void

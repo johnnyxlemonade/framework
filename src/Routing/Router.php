@@ -364,7 +364,7 @@ final class Router
             ? [HttpMethod::HEAD->value, HttpMethod::GET->value]
             : [$method];
         foreach ($candidateMethods as $candidateMethod) {
-            $match = $this->collection->match($candidateMethod, $path);
+            $match = $this->collection->match($candidateMethod, $path, $request);
             if ($match !== null) {
                 return $match;
             }
@@ -384,10 +384,10 @@ final class Router
      *
      * @return list<string>
      */
-    public function allowedMethodsForPath(string $path): array
+    public function allowedMethodsForPath(string $path, ?ServerRequestInterface $request = null): array
     {
         $normalizedPath = RoutePathNormalizer::normalize($path);
-        $allowed = $this->collection->allowedMethodsForPath($normalizedPath);
+        $allowed = $this->collection->allowedMethodsForPath($normalizedPath, $request);
 
         return RouteCollection::sortMethods($allowed);
     }
@@ -395,9 +395,9 @@ final class Router
     /**
      * Reports whether one method has an explicitly registered route for the path.
      */
-    public function hasExplicitRouteForPath(HttpMethod|string $method, string $path): bool
+    public function hasExplicitRouteForPath(HttpMethod|string $method, string $path, ?ServerRequestInterface $request = null): bool
     {
-        return $this->collection->hasExplicitRouteForPath($method, $path);
+        return $this->collection->hasExplicitRouteForPath($method, $path, $request);
     }
 
     /**

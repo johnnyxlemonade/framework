@@ -115,7 +115,7 @@ final readonly class ApiAuthorizationMiddleware implements MiddlewareInterface
 
         $path = is_string($dispatchPath) ? $dispatchPath : $request->getUri()->getPath();
 
-        return !$this->router->hasExplicitRouteForPath(HttpMethod::OPTIONS, $path)
-            && $this->router->allowedMethodsForPath($path) !== [];
+        return !$this->router->hasExplicitRouteForPath(HttpMethod::OPTIONS, $path, $request)
+            && $this->router->allowedMethodsForPath($path, $request) !== [];
     }
 }

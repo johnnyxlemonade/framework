@@ -11,6 +11,7 @@ final class Route
     /**
      * @param array<int, class-string<MiddlewareInterface>> $middleware
      * @param array<string, list<string>> $parameterConstraints
+     * @param array<string,\Closure(string,?\Psr\Http\Message\ServerRequestInterface):bool> $parameterConstraintPredicates
      * @param (\Closure(): bool)|null $assertMutable
      * @param (\Closure(self, string): void)|null $registerName
      */
@@ -20,6 +21,7 @@ final class Route
         private readonly ControllerAction $controllerAction,
         private array $middleware = [],
         private array $parameterConstraints = [],
+        private array $parameterConstraintPredicates = [],
         private ?string $name = null,
         private readonly ?\Closure $assertMutable = null,
         private readonly ?\Closure $registerName = null,
@@ -138,6 +140,30 @@ final class Route
     public function parameterConstraints(): array
     {
         return $this->parameterConstraints;
+    }
+
+    /**
+     * Replaces one runtime predicate, evaluated after path and static constraints match
+     *
+     * Receives the decoded value and the matching request (null for path-only lookups).
+     * A predicate can omit the request argument when it does not need runtime context.
+     *
+     * @param \Closure(string,?\Psr\Http\Message\ServerRequestInterface):bool $predicate
+     */
+    public function constrainParameterUsing(string $name, \Closure $predicate): self
+    {
+        $this->assertMutable();
+        $this->parameterConstraintPredicates[$name] = $predicate;
+
+        return $this;
+    }
+
+    /**
+     * @return array<string,\Closure(string,?\Psr\Http\Message\ServerRequestInterface):bool>
+     */
+    public function parameterConstraintPredicates(): array
+    {
+        return $this->parameterConstraintPredicates;
     }
 
     private function assertMutable(): void

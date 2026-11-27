@@ -40,11 +40,11 @@ final readonly class OptionsMiddleware implements MiddlewareInterface
         $dispatchPath = $request->getAttribute(RouteRequestAttributes::DISPATCH_PATH);
         $path = is_string($dispatchPath) ? $dispatchPath : $request->getUri()->getPath();
 
-        if ($this->router->hasExplicitRouteForPath(HttpMethod::OPTIONS, $path)) {
+        if ($this->router->hasExplicitRouteForPath(HttpMethod::OPTIONS, $path, $request)) {
             return $handler->handle($request);
         }
 
-        $allowedMethods = $this->router->allowedMethodsForPath($path);
+        $allowedMethods = $this->router->allowedMethodsForPath($path, $request);
         if ($allowedMethods === []) {
             return $handler->handle($request);
         }

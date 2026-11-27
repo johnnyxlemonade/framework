@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Lemonade\Framework\Routing;
 
 use Lemonade\Framework\Http\Request\HttpMethod;
+use Psr\Http\Message\ServerRequestInterface;
 
 final class RouteCollection
 {
@@ -16,7 +17,7 @@ final class RouteCollection
     /**
      * @var list<string>
      */
-    private const METHOD_ORDER = [
+    private const array METHOD_ORDER = [
         'GET',
         'HEAD',
         'POST',
@@ -39,7 +40,7 @@ final class RouteCollection
         $this->routes[$route->method()][$route->path()] = $route;
     }
 
-    public function match(string $method, string $path): ?RouteMatch
+    public function match(string $method, string $path, ?ServerRequestInterface $request = null): ?RouteMatch
     {
         $methodName = $this->normalizeMethod($method);
         $normalizedPath = RoutePathNormalizer::normalize($path);
@@ -53,7 +54,7 @@ final class RouteCollection
         }
 
         foreach ($this->routes[$methodName] as $route) {
-            $params = $this->matchRoutePath($route, $normalizedPath);
+            $params = $this->matchRoutePath($route, $normalizedPath, $request);
             if ($params !== null) {
                 return $this->toMatch($route, $params);
             }
@@ -65,14 +66,14 @@ final class RouteCollection
     /**
      * @return list<string>
      */
-    public function allowedMethodsForPath(string $path): array
+    public function allowedMethodsForPath(string $path, ?ServerRequestInterface $request = null): array
     {
         $normalizedPath = RoutePathNormalizer::normalize($path);
         $allowed = [];
 
         foreach ($this->routes as $method => $methodRoutes) {
             foreach ($methodRoutes as $route) {
-                if ($this->pathMatchesRoute($route, $normalizedPath)) {
+                if ($this->pathMatchesRoute($route, $normalizedPath, $request)) {
                     $allowed[] = $method;
                     break;
                 }
@@ -90,7 +91,7 @@ final class RouteCollection
         return self::sortMethods($allowed);
     }
 
-    public function hasExplicitRouteForPath(HttpMethod|string $method, string $path): bool
+    public function hasExplicitRouteForPath(HttpMethod|string $method, string $path, ?ServerRequestInterface $request = null): bool
     {
         $methodName = $this->normalizeMethod($method);
         $normalizedPath = RoutePathNormalizer::normalize($path);
@@ -100,7 +101,7 @@ final class RouteCollection
         }
 
         foreach ($this->routes[$methodName] as $route) {
-            if ($this->pathMatchesRoute($route, $normalizedPath)) {
+            if ($this->pathMatchesRoute($route, $normalizedPath, $request)) {
                 return true;
             }
         }
@@ -154,15 +155,15 @@ final class RouteCollection
         );
     }
 
-    private function pathMatchesRoute(Route $route, string $path): bool
+    private function pathMatchesRoute(Route $route, string $path, ?ServerRequestInterface $request): bool
     {
-        return $this->matchRoutePath($route, $path) !== null;
+        return $this->matchRoutePath($route, $path, $request) !== null;
     }
 
     /**
      * @return array<string, string>|null
      */
-    private function matchRoutePath(Route $route, string $actualPath): ?array
+    private function matchRoutePath(Route $route, string $actualPath, ?ServerRequestInterface $request): ?array
     {
         $routePath = $route->path();
 
@@ -177,7 +178,24 @@ final class RouteCollection
             return $routeSegments === $pathSegments ? [] : null;
         }
 
-        return $this->extractPathParams($route, $routeSegments, $pathSegments);
+        $params = $this->extractPathParams($routeSegments, $pathSegments);
+        if ($params === null) {
+            return null;
+        }
+
+        foreach ($route->parameterConstraints() as $name => $allowedValues) {
+            if (isset($params[$name]) && !in_array($params[$name], $allowedValues, true)) {
+                return null;
+            }
+        }
+        $predicates = $route->parameterConstraintPredicates();
+        foreach ($params as $name => $value) {
+            if (isset($predicates[$name]) && !$predicates[$name]($value, $request)) {
+                return null;
+            }
+        }
+
+        return $params;
     }
 
     /**
@@ -185,7 +203,7 @@ final class RouteCollection
      * @param list<string> $pathSegments
      * @return array<string, string>|null
      */
-    private function extractPathParams(Route $route, array $routeSegments, array $pathSegments): ?array
+    private function extractPathParams(array $routeSegments, array $pathSegments): ?array
     {
         $params = [];
         $pathIndex = 0;
@@ -219,10 +237,6 @@ final class RouteCollection
             if (preg_match('/^\{([a-zA-Z_][a-zA-Z0-9_]*)}$/', $segment, $matches) === 1) {
                 $name = $matches[1];
                 $value = $pathSegments[$pathIndex];
-
-                if (!$this->parameterValueMatchesConstraint($route, $name, $value)) {
-                    return null;
-                }
 
                 $params[$name] = $value;
                 $pathIndex++;
@@ -274,14 +288,4 @@ final class RouteCollection
         ));
     }
 
-    private function parameterValueMatchesConstraint(Route $route, string $name, string $value): bool
-    {
-        $constraints = $route->parameterConstraints();
-
-        if (!array_key_exists($name, $constraints)) {
-            return true;
-        }
-
-        return in_array($value, $constraints[$name], true);
-    }
 }
